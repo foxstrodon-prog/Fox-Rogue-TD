@@ -954,16 +954,167 @@ data class LifetimeTelemetry(
     val mostUsedTower: String = "Vulcan Minigun"
 )
 
+data class TowerUnitBalance(
+    val customName: String? = null,
+    val damage: Float,
+    val range: Float,
+    val fireRate: Float,
+    val cost: Int,
+    val specialEffectValue: Float = 0f // splash radius, slow %, or chains depending on type
+)
+
+data class EnemyUnitBalance(
+    val customName: String? = null,
+    val hp: Float,
+    val speed: Float,
+    val armor: Float,
+    val scrapValue: Int
+)
+
 data class DevBalanceConfig(
-    val startingScrap: Int = 220,             // Default reduced early income so you aren't overwhelmed with credits
+    val startingScrap: Int = 220,             // Default reduced early income
     val globalIncomeMultiplier: Float = 1.0f,  // 0.2x to 3.0x slider
     val kineticDamageMultiplier: Float = 1.0f, // 0.2x to 3.0x per class/tower sliders
     val elementalDamageMultiplier: Float = 1.0f,
     val heavyDamageMultiplier: Float = 1.0f,
     val waveBonusMultiplier: Float = 1.0f,     // 0.2x to 2.5x end of wave bonus
     val enemyHpMultiplier: Float = 1.0f,       // 0.5x to 3.0x enemy difficulty
-    val buildCostMultiplier: Float = 1.0f      // 0.5x to 2.0x tower build costs
-)
+    val buildCostMultiplier: Float = 1.0f,     // 0.5x to 2.0x tower build costs
+    val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
+    val customEnemyConfigs: Map<String, EnemyUnitBalance> = emptyMap()
+) {
+    fun getTowerBalance(type: TowerType): TowerUnitBalance {
+        return customTowerConfigs[type.name] ?: TowerUnitBalance(
+            customName = null,
+            damage = type.baseDamage,
+            range = type.baseRange,
+            fireRate = type.baseFireRate,
+            cost = type.baseCost,
+            specialEffectValue = when {
+                type.isSplash -> type.splashRadius
+                type.slowPercent > 0f -> type.slowPercent
+                type.chains > 0 -> type.chains.toFloat()
+                else -> 0f
+            }
+        )
+    }
+
+    fun getEnemyBalance(type: EnemyType): EnemyUnitBalance {
+        return customEnemyConfigs[type.name] ?: EnemyUnitBalance(
+            customName = null,
+            hp = type.baseHp,
+            speed = type.baseSpeed,
+            armor = type.baseArmor,
+            scrapValue = type.scrapValue
+        )
+    }
+
+    /**
+     * Generates a strict delta / diff-only JSON string containing ONLY values
+     * that differ from the stock baseline defaults.
+     */
+    fun exportDiffJson(): String {
+        val diffMap = mutableMapOf<String, Any>()
+        val default = DevBalanceConfig()
+
+        if (startingScrap != default.startingScrap) diffMap["startingScrap"] = startingScrap
+        if (globalIncomeMultiplier != default.globalIncomeMultiplier) diffMap["globalIncomeMultiplier"] = globalIncomeMultiplier
+        if (kineticDamageMultiplier != default.kineticDamageMultiplier) diffMap["kineticDamageMultiplier"] = kineticDamageMultiplier
+        if (elementalDamageMultiplier != default.elementalDamageMultiplier) diffMap["elementalDamageMultiplier"] = elementalDamageMultiplier
+        if (heavyDamageMultiplier != default.heavyDamageMultiplier) diffMap["heavyDamageMultiplier"] = heavyDamageMultiplier
+        if (waveBonusMultiplier != default.waveBonusMultiplier) diffMap["waveBonusMultiplier"] = waveBonusMultiplier
+        if (enemyHpMultiplier != default.enemyHpMultiplier) diffMap["enemyHpMultiplier"] = enemyHpMultiplier
+        if (buildCostMultiplier != default.buildCostMultiplier) diffMap["buildCostMultiplier"] = buildCostMultiplier
+
+        // Tower diffs
+        val towerDiffs = mutableMapOf<String, Map<String, Any>>()
+        for (type in TowerType.values()) {
+            val curr = getTowerBalance(type)
+            val defTower = default.getTowerBalance(type)
+            val tDiff = mutableMapOf<String, Any>()
+
+            if (!curr.customName.isNullOrBlank() && curr.customName != type.displayName) {
+                tDiff["customName"] = curr.customName
+            }
+            if (Math.abs(curr.damage - defTower.damage) > 0.01f) tDiff["damage"] = curr.damage
+            if (Math.abs(curr.range - defTower.range) > 0.01f) tDiff["range"] = curr.range
+            if (Math.abs(curr.fireRate - defTower.fireRate) > 0.01f) tDiff["fireRate"] = curr.fireRate
+            if (curr.cost != defTower.cost) tDiff["cost"] = curr.cost
+            if (Math.abs(curr.specialEffectValue - defTower.specialEffectValue) > 0.01f) {
+                tDiff["specialEffectValue"] = curr.specialEffectValue
+            }
+
+            if (tDiff.isNotEmpty()) {
+                towerDiffs[type.name] = tDiff
+            }
+        }
+        if (towerDiffs.isNotEmpty()) diffMap["customTowers"] = towerDiffs
+
+        // Enemy diffs
+        val enemyDiffs = mutableMapOf<String, Map<String, Any>>()
+        for (type in EnemyType.values()) {
+            val curr = getEnemyBalance(type)
+            val defEnemy = default.getEnemyBalance(type)
+            val eDiff = mutableMapOf<String, Any>()
+
+            if (!curr.customName.isNullOrBlank() && curr.customName != type.displayName) {
+                eDiff["customName"] = curr.customName
+            }
+            if (Math.abs(curr.hp - defEnemy.hp) > 0.01f) eDiff["hp"] = curr.hp
+            if (Math.abs(curr.speed - defEnemy.speed) > 0.01f) eDiff["speed"] = curr.speed
+            if (Math.abs(curr.armor - defEnemy.armor) > 0.01f) eDiff["armor"] = curr.armor
+            if (curr.scrapValue != defEnemy.scrapValue) eDiff["scrapValue"] = curr.scrapValue
+
+            if (eDiff.isNotEmpty()) {
+                enemyDiffs[type.name] = eDiff
+            }
+        }
+        if (enemyDiffs.isNotEmpty()) diffMap["customEnemies"] = enemyDiffs
+
+        // Serialize to clean formatted JSON string
+        val sb = StringBuilder("{\n")
+        val entries = diffMap.entries.toList()
+        entries.forEachIndexed { i, (k, v) ->
+            sb.append("  \"").append(k).append("\": ")
+            when (v) {
+                is Number -> sb.append(v)
+                is String -> sb.append("\"").append(v).append("\"")
+                is Map<*, *> -> {
+                    sb.append("{\n")
+                    val subEntries = v.entries.toList()
+                    subEntries.forEachIndexed { j, sub ->
+                        sb.append("    \"").append(sub.key).append("\": ")
+                        val subVal = sub.value
+                        if (subVal is Map<*, *>) {
+                            sb.append("{\n")
+                            val leafEntries = subVal.entries.toList()
+                            leafEntries.forEachIndexed { kLeaf, leaf ->
+                                sb.append("      \"").append(leaf.key).append("\": ")
+                                if (leaf.value is String) sb.append("\"").append(leaf.value).append("\"")
+                                else sb.append(leaf.value)
+                                if (kLeaf < leafEntries.size - 1) sb.append(",")
+                                sb.append("\n")
+                            }
+                            sb.append("    }")
+                        } else if (subVal is String) {
+                            sb.append("\"").append(subVal).append("\"")
+                        } else {
+                            sb.append(subVal)
+                        }
+                        if (j < subEntries.size - 1) sb.append(",")
+                        sb.append("\n")
+                    }
+                    sb.append("  }")
+                }
+                else -> sb.append("\"").append(v.toString()).append("\"")
+            }
+            if (i < entries.size - 1) sb.append(",")
+            sb.append("\n")
+        }
+        sb.append("}")
+        return sb.toString()
+    }
+}
 
 data class TowerPerformanceRecord(
     val towerName: String,

@@ -64,87 +64,113 @@ object MapGenerator {
         )
     )
 
+    enum class BorderEdge { NORTH, SOUTH, EAST, WEST }
+
+    private fun getBorderPos(edge: BorderEdge, width: Int, height: Int, random: Random): GridPos {
+        return when (edge) {
+            BorderEdge.NORTH -> GridPos(random.nextInt(1, width - 1), 0)
+            BorderEdge.SOUTH -> GridPos(random.nextInt(1, width - 1), height - 1)
+            BorderEdge.WEST -> GridPos(0, random.nextInt(1, height - 1))
+            BorderEdge.EAST -> GridPos(width - 1, random.nextInt(1, height - 1))
+        }
+    }
+
     fun generate(seed: Long = System.currentTimeMillis(), width: Int = DEFAULT_WIDTH, height: Int = DEFAULT_HEIGHT): GeneratedLevel {
         val random = Random(seed)
         val biome = BIOMES[random.nextInt(BIOMES.size)]
 
-        // Core located at Bottom-Right to maximize diagonal screen travel
-        val corePos = GridPos(width - 2, height - 1)
+        // 1. Omnidirectional Entry & Exit: pick randomized distinct borders for Spawners and Nexus Core
+        val allEdges = BorderEdge.values().toList().shuffled(random)
+        val spawnerAlphaEdge = allEdges[0]
+        val spawnerBetaEdge = allEdges[1]
+        val coreEdge = allEdges[2]
 
-        // Spawners: Top-Left (Alpha) and Top-Right (Beta)
-        val spawnerAlpha = GridPos(1, 0)
-        val spawnerBeta = GridPos(width - 2, 0)
+        val spawnerAlpha = getBorderPos(spawnerAlphaEdge, width, height, random)
+        var spawnerBeta = getBorderPos(spawnerBetaEdge, width, height, random)
+        while (spawnerBeta == spawnerAlpha) {
+            spawnerBeta = getBorderPos(spawnerBetaEdge, width, height, random)
+        }
 
-        // Central Rail Merge Segment in middle rows (e.g. y = 5..8)
-        val mergeX = if (random.nextBoolean()) width / 2 else (width / 2 - 1)
-        val mergeStartY = 5
-        val mergeLength = 4 // 4-cell continuous merged track spine
-        val mergeEndY = mergeStartY + mergeLength - 1
-        val mergeStart = GridPos(mergeX, mergeStartY)
-        val mergeEnd = GridPos(mergeX, mergeEndY)
+        var corePos = getBorderPos(coreEdge, width, height, random)
+        while (corePos == spawnerAlpha || corePos == spawnerBeta) {
+            corePos = getBorderPos(coreEdge, width, height, random)
+        }
 
-        val mergedRail = (mergeStartY..mergeEndY).map { y -> GridPos(mergeX, y) }
+        // 2. Central Nexus/Merge Zone (Multi-axis crossover and shared rail)
+        val centerX = width / 2
+        val centerY = height / 2
+        val isHorizontalSpine = random.nextBoolean()
+        
+        val mergedRail = if (isHorizontalSpine) {
+            val startX = (centerX - 2).coerceAtLeast(1)
+            val endX = (centerX + 1).coerceAtMost(width - 2)
+            (startX..endX).map { x -> GridPos(x, centerY) }
+        } else {
+            val startY = (centerY - 2).coerceAtLeast(1)
+            val endY = (centerY + 1).coerceAtMost(height - 2)
+            (startY..endY).map { y -> GridPos(centerX, y) }
+        }
 
-        // Non-self-intersecting lead-in segments:
-        // Alpha sweeps across top-left quadrant into mergeStart
-        val leadAlpha = generateNonSelfIntersectingWinding(
+        val mergeStart = mergedRail.first()
+        val mergeEnd = mergedRail.last()
+
+        // 3. Multi-directional winding lead-ins
+        val leadAlpha = generateWindingPath(
             start = spawnerAlpha,
             target = mergeStart,
-            xMin = 0,
-            xMax = mergeX,
-            yMin = 0,
-            yMax = mergeStartY,
+            width = width,
+            height = height,
             random = random,
-            minSteps = 9
+            minSteps = 7
         )
 
-        // Beta sweeps across top-right quadrant into mergeStart
-        val leadBeta = generateNonSelfIntersectingWinding(
+        val leadBeta = generateWindingPath(
             start = spawnerBeta,
             target = mergeStart,
-            xMin = mergeX,
-            xMax = width - 1,
-            yMin = 0,
-            yMax = mergeStartY,
+            width = width,
+            height = height,
             random = random,
-            minSteps = 9
+            minSteps = 7
         )
 
-        // Split off segments from mergeEnd towards Bottom-Right Core:
-        // Tail Alpha snakes down through the lower-left region first before crossing to Core
-        val lowerLeftWaypoint = GridPos(1, height - 2)
-        val tailAlphaLeg1 = generateNonSelfIntersectingWinding(
+        // 4. Split tail segments winding towards destination Core
+        val intermediateWaypoint = if (isHorizontalSpine) {
+            GridPos(
+                if (random.nextBoolean()) random.nextInt(1, 3) else random.nextInt(width - 3, width - 1),
+                if (corePos.y > centerY) random.nextInt(centerY, height - 1) else random.nextInt(1, centerY)
+            )
+        } else {
+            GridPos(
+                if (corePos.x > centerX) random.nextInt(centerX, width - 1) else random.nextInt(1, centerX),
+                if (random.nextBoolean()) random.nextInt(1, 3) else random.nextInt(height - 3, height - 1)
+            )
+        }
+
+        val tailAlphaLeg1 = generateWindingPath(
             start = mergeEnd,
-            target = lowerLeftWaypoint,
-            xMin = 0,
-            xMax = mergeX,
-            yMin = mergeEndY,
-            yMax = height - 1,
-            random = random,
-            minSteps = 6
-        )
-        val tailAlphaLeg2 = generateNonSelfIntersectingWinding(
-            start = lowerLeftWaypoint,
-            target = corePos,
-            xMin = 0,
-            xMax = width - 1,
-            yMin = height - 3,
-            yMax = height - 1,
+            target = intermediateWaypoint,
+            width = width,
+            height = height,
             random = random,
             minSteps = 5
         )
+        val tailAlphaLeg2 = generateWindingPath(
+            start = intermediateWaypoint,
+            target = corePos,
+            width = width,
+            height = height,
+            random = random,
+            minSteps = 4
+        )
         val tailAlpha = (tailAlphaLeg1.dropLast(1) + tailAlphaLeg2).distinct()
 
-        // Tail Beta winds through the right flank directly to Core
-        val tailBeta = generateNonSelfIntersectingWinding(
+        val tailBeta = generateWindingPath(
             start = mergeEnd,
             target = corePos,
-            xMin = mergeX,
-            xMax = width - 1,
-            yMin = mergeEndY,
-            yMax = height - 1,
+            width = width,
+            height = height,
             random = random,
-            minSteps = 8
+            minSteps = 6
         )
 
         val laneAlpha = (leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha).distinct()
@@ -176,7 +202,6 @@ object MapGenerator {
                         val touchesAlpha = adjacent.any { it in alphaSet }
                         val touchesBeta = adjacent.any { it in betaSet }
 
-                        // Eliminate random barriers so players have full build real estate
                         if (touchesAlpha || touchesBeta) {
                             candidateBuffPositions.add(pos)
                         }
@@ -186,7 +211,7 @@ object MapGenerator {
             }
         }
 
-        // Guarantee exactly 2 Green, 2 Teal, and 2 Orange boosted pads on every map!
+        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads
         candidateBuffPositions.shuffle(random)
         val greenPads = candidateBuffPositions.take(2).toSet()
         val tealPads = candidateBuffPositions.drop(2).take(2).toSet()
@@ -211,6 +236,67 @@ object MapGenerator {
             laneBeta = laneBeta,
             intersectionPoints = intersections
         )
+    }
+
+    private fun generateWindingPath(
+        start: GridPos,
+        target: GridPos,
+        width: Int,
+        height: Int,
+        random: Random,
+        minSteps: Int
+    ): List<GridPos> {
+        var attempts = 0
+        while (attempts < 40) {
+            attempts++
+            val path = mutableListOf(start)
+            val visited = mutableSetOf(start)
+            var current = start
+            var stuck = false
+
+            while (current != target && !stuck) {
+                val neighbors = listOf(
+                    GridPos(current.x + 1, current.y),
+                    GridPos(current.x - 1, current.y),
+                    GridPos(current.x, current.y + 1),
+                    GridPos(current.x, current.y - 1)
+                ).filter { next ->
+                    next.x in 0 until width && next.y in 0 until height &&
+                            next !in visited &&
+                            (next == target || isNonSelfIntersectingStep(next, path))
+                }
+
+                if (neighbors.isEmpty()) {
+                    stuck = true
+                    break
+                }
+
+                if (target in neighbors && path.size >= minSteps) {
+                    path.add(target)
+                    return path
+                }
+
+                val sorted = neighbors.sortedBy { next ->
+                    val dist = Math.hypot((next.x - target.x).toDouble(), (next.y - target.y).toDouble())
+                    if (path.size < minSteps) {
+                        dist * -0.5 + random.nextFloat() * 3.0
+                    } else {
+                        dist + random.nextFloat() * 1.5
+                    }
+                }
+
+                val chosen = sorted.first()
+                path.add(chosen)
+                visited.add(chosen)
+                current = chosen
+            }
+
+            if (!stuck && current == target && path.size >= minSteps) {
+                return path
+            }
+        }
+
+        return fallbackManhattan(start, target)
     }
 
     private fun generateNonSelfIntersectingWinding(

@@ -472,58 +472,67 @@ fun GameCanvas(
                 }
 
                 TowerClass.HEAVY_SIEGE -> {
-                    // === HEAVY SIEGE: SQUARE BASE (Fortified Bunker) ===
-                    val sqSize = cellW * 0.72f
-                    val sqTopLeft = Offset(tcx - sqSize / 2f, tcy - sqSize / 2f)
+                    // === HEAVY SIEGE: SLEEK MINIMALIST THIN-RAIL CHASSIS ===
+                    val sqRadius = cellW * 0.38f
+                    val sqTopLeft = Offset(tcx - sqRadius, tcy - sqRadius)
+                    val sqBounds = Size(sqRadius * 2f, sqRadius * 2f)
+
+                    // Outer dark chassis plate with beveled sleek corners
                     drawRoundRect(
-                        color = Color(0xFF181310),
+                        color = Color(0xFF0F1420),
                         topLeft = sqTopLeft,
-                        size = Size(sqSize, sqSize),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
+                        size = sqBounds,
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
                     )
+                    // Precision thin-line border
                     drawRoundRect(
                         color = borderColor,
                         topLeft = sqTopLeft,
-                        size = Size(sqSize, sqSize),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
-                        style = Stroke(width = 2.5f)
+                        size = sqBounds,
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
+                        style = Stroke(width = 2.0f)
                     )
 
-                    // 4 Fortified corner rivets
-                    val rivetOffset = sqSize * 0.36f
-                    val rivets = listOf(
-                        Offset(tcx - rivetOffset, tcy - rivetOffset),
-                        Offset(tcx + rivetOffset, tcy - rivetOffset),
-                        Offset(tcx - rivetOffset, tcy + rivetOffset),
-                        Offset(tcx + rivetOffset, tcy + rivetOffset)
-                    )
-                    for (rivet in rivets) {
-                        drawCircle(color = borderColor, radius = 2.5.dp.toPx(), center = rivet)
-                        drawCircle(color = Color.Black, radius = 1.0.dp.toPx(), center = rivet)
+                    // High-contrast interior diamond power grid
+                    val innerDiamond = Path().apply {
+                        moveTo(tcx, tcy - sqRadius * 0.70f)
+                        lineTo(tcx + sqRadius * 0.70f, tcy)
+                        lineTo(tcx, tcy + sqRadius * 0.70f)
+                        lineTo(tcx - sqRadius * 0.70f, tcy)
+                        close()
                     }
+                    drawPath(path = innerDiamond, color = towerColor.copy(alpha = 0.20f))
+                    drawPath(path = innerDiamond, color = borderColor.copy(alpha = 0.60f), style = Stroke(width = 1.0f))
 
-                    // Heavy dual siege barrels extending along rad
-                    val barrelLen = cellW * 0.36f
-                    val bX = tcx + cos(rad) * barrelLen
-                    val bY = tcy + sin(rad) * barrelLen
-                    drawLine(color = Color(0xFF3E2723), start = Offset(tcx, tcy), end = Offset(bX, bY), strokeWidth = cellW * 0.22f, cap = StrokeCap.Square)
-                    drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(bX, bY), strokeWidth = cellW * 0.14f, cap = StrokeCap.Square)
+                    // Sleek precision dual-rail accelerator guides (thin rails along firing vector)
+                    val railLength = cellW * 0.38f
+                    val perpAngle = rad + (PI / 2f).toFloat()
+                    val railSpread = cellW * 0.08f
 
-                    // Heavy square turret hatch
-                    val hatchSize = cellW * 0.28f
-                    drawRoundRect(
-                        color = Color.Black,
-                        topLeft = Offset(tcx - hatchSize / 2f, tcy - hatchSize / 2f),
-                        size = Size(hatchSize, hatchSize),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
-                    )
-                    drawRoundRect(
-                        color = towerColor,
-                        topLeft = Offset(tcx - hatchSize / 2f, tcy - hatchSize / 2f),
-                        size = Size(hatchSize, hatchSize),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
-                        style = Stroke(width = 1.5f)
-                    )
+                    val r1StartX = tcx + cos(perpAngle) * railSpread
+                    val r1StartY = tcy + sin(perpAngle) * railSpread
+                    val r1EndX = r1StartX + cos(rad) * railLength
+                    val r1EndY = r1StartY + sin(rad) * railLength
+
+                    val r2StartX = tcx - cos(perpAngle) * railSpread
+                    val r2StartY = tcy - sin(perpAngle) * railSpread
+                    val r2EndX = r2StartX + cos(rad) * railLength
+                    val r2EndY = r2StartY + sin(rad) * railLength
+
+                    // Outer accelerator rails (crisp thin lines)
+                    drawLine(color = borderColor, start = Offset(r1StartX, r1StartY), end = Offset(r1EndX, r1EndY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                    drawLine(color = borderColor, start = Offset(r2StartX, r2StartY), end = Offset(r2EndX, r2EndY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+
+                    // Core plasma/energy conduit between the twin rails
+                    val coreBeamEndX = tcx + cos(rad) * (railLength * 0.95f)
+                    val coreBeamEndY = tcy + sin(rad) * (railLength * 0.95f)
+                    drawLine(color = Color.White, start = Offset(tcx, tcy), end = Offset(coreBeamEndX, coreBeamEndY), strokeWidth = cellW * 0.035f, cap = StrokeCap.Round)
+
+                    // Sleek central reactor hub
+                    drawCircle(color = Color(0xFF0F172A), radius = cellW * 0.13f, center = Offset(tcx, tcy))
+                    drawCircle(color = borderColor, radius = cellW * 0.13f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
+                    drawCircle(color = Color.White, radius = cellW * 0.06f, center = Offset(tcx, tcy))
+                    drawCircle(color = towerColor, radius = cellW * 0.035f, center = Offset(tcx, tcy))
                 }
             }
 

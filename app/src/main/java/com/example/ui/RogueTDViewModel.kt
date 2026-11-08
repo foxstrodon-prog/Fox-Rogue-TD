@@ -327,16 +327,18 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
                 val path = if (spawn.laneIndex == 0) level.laneAlpha else level.laneBeta
                 val start = path.first()
+                val customEnemyBal = state.balanceConfig.getEnemyBalance(spawn.type)
                 val hpMultiplier = spawn.hpScale * state.balanceConfig.enemyHpMultiplier
+                val effectiveMaxHp = customEnemyBal.hp * hpMultiplier
                 val newEnemy = EnemyInstance(
                     id = UUID.randomUUID().toString(),
                     type = spawn.type,
                     laneIndex = spawn.laneIndex,
                     currentPathSegmentIndex = 0,
                     segmentProgress = 0f,
-                    maxHp = spawn.type.baseHp * hpMultiplier,
-                    currentHp = spawn.type.baseHp * hpMultiplier,
-                    speed = spawn.type.baseSpeed * spawn.speedScale,
+                    maxHp = effectiveMaxHp,
+                    currentHp = effectiveMaxHp,
+                    speed = customEnemyBal.speed * spawn.speedScale,
                     worldX = start.x.toFloat(),
                     worldY = start.y.toFloat(),
                     isBoss = spawn.isBoss
@@ -461,20 +463,24 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             val synergyDmgBonus = if (isVectorSynergy) 0.15f else 0.0f
             val synergySpdBonus = if (isVectorSynergy) 0.15f else 0.0f
 
+            val customTConfig = state.balanceConfig.getTowerBalance(tower.type)
             val tileRngBonus = if (tileBuff == TileBuff.HIGH_GROUND) 0.35f else 0.0f
-            val effectiveRange = tower.type.baseRange * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
+            val effectiveRange = customTConfig.range * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
 
             val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
-            val fireRate = tower.type.baseFireRate * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
+            val fireRate = customTConfig.fireRate * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
             val cooldownMs = (1000f / fireRate).toLong()
 
             val towerX = tower.gridPos.x.toFloat()
             val towerY = tower.gridPos.y.toFloat()
 
             // Targets in range across BOTH lanes!
+            // Hitbox correction: accounts for enemy sprite width (enemy.type.sizeRatio * 0.35f) and lane curve border overlap (+0.25f)
             val inRangeEnemies = survivingEnemies.filter { enemy ->
-                hypot(enemy.worldX - towerX, enemy.worldY - towerY) <= effectiveRange
+                val enemyEffectiveRadius = enemy.type.sizeRatio * 0.35f
+                val dist = hypot(enemy.worldX - towerX, enemy.worldY - towerY)
+                dist <= (effectiveRange + enemyEffectiveRadius + 0.25f)
             }
 
             if (inRangeEnemies.isEmpty()) {
@@ -502,7 +508,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                     TowerClass.ELEMENTAL_VOID -> state.balanceConfig.elementalDamageMultiplier
                     TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
                 }
-                val baseDmg = tower.type.baseDamage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
+                val baseDmg = customTConfig.damage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
                 val isCrit = Random.nextFloat() < globalCritRate
                 val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
