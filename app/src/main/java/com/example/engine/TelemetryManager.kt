@@ -140,4 +140,99 @@ class TelemetryManager(context: Context) {
             .putString("lt_mvp_tower", lt.mostUsedTower)
             .apply()
     }
+
+    fun getBalanceConfig(): com.example.model.DevBalanceConfig {
+        return com.example.model.DevBalanceConfig(
+            startingScrap = prefs.getInt("cfg_starting_scrap", 220),
+            globalIncomeMultiplier = prefs.getFloat("cfg_global_income", 1.0f),
+            kineticDamageMultiplier = prefs.getFloat("cfg_kinetic_dmg", 1.0f),
+            elementalDamageMultiplier = prefs.getFloat("cfg_elem_dmg", 1.0f),
+            heavyDamageMultiplier = prefs.getFloat("cfg_heavy_dmg", 1.0f),
+            waveBonusMultiplier = prefs.getFloat("cfg_wave_bonus", 1.0f),
+            enemyHpMultiplier = prefs.getFloat("cfg_enemy_hp", 1.0f),
+            buildCostMultiplier = prefs.getFloat("cfg_build_cost", 1.0f)
+        )
+    }
+
+    fun saveBalanceConfig(config: com.example.model.DevBalanceConfig) {
+        prefs.edit()
+            .putInt("cfg_starting_scrap", config.startingScrap)
+            .putFloat("cfg_global_income", config.globalIncomeMultiplier)
+            .putFloat("cfg_kinetic_dmg", config.kineticDamageMultiplier)
+            .putFloat("cfg_elem_dmg", config.elementalDamageMultiplier)
+            .putFloat("cfg_heavy_dmg", config.heavyDamageMultiplier)
+            .putFloat("cfg_wave_bonus", config.waveBonusMultiplier)
+            .putFloat("cfg_enemy_hp", config.enemyHpMultiplier)
+            .putFloat("cfg_build_cost", config.buildCostMultiplier)
+            .apply()
+    }
+
+    fun getTowerPerformance(): List<com.example.model.TowerPerformanceRecord> {
+        val jsonStr = prefs.getString("tower_performance_records", "[]") ?: "[]"
+        val map = mutableMapOf<String, com.example.model.TowerPerformanceRecord>()
+        try {
+            val arr = JSONArray(jsonStr)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val name = obj.optString("towerName", "")
+                val clsStr = obj.optString("towerClass", "KINETIC_BALLISTIC")
+                val cls = try { com.example.model.TowerClass.valueOf(clsStr) } catch (_: Exception) { com.example.model.TowerClass.KINETIC_BALLISTIC }
+                if (name.isNotBlank()) {
+                    map[name] = com.example.model.TowerPerformanceRecord(
+                        towerName = name,
+                        towerClass = cls,
+                        totalDamage = obj.optDouble("totalDamage", 0.0),
+                        totalKills = obj.optLong("totalKills", 0L),
+                        totalBuilt = obj.optInt("totalBuilt", 0),
+                        totalCostInvested = obj.optLong("totalCostInvested", 0L)
+                    )
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Baseline defaults if completely empty
+        if (map.isEmpty()) {
+            map["Vulcan Minigun"] = com.example.model.TowerPerformanceRecord("Vulcan Minigun", com.example.model.TowerClass.KINETIC_BALLISTIC, 24500.0, 142L, 4, 480L)
+            map["Twin Flak Cannon"] = com.example.model.TowerPerformanceRecord("Twin Flak Cannon", com.example.model.TowerClass.KINETIC_BALLISTIC, 18900.0, 98L, 3, 510L)
+            map["Frost Spire"] = com.example.model.TowerPerformanceRecord("Frost Spire", com.example.model.TowerClass.ELEMENTAL_VOID, 14200.0, 62L, 2, 420L)
+            map["Tesla Stormcoil"] = com.example.model.TowerPerformanceRecord("Tesla Stormcoil", com.example.model.TowerClass.ELEMENTAL_VOID, 31200.0, 184L, 3, 680L)
+            map["Hellfire Mortar"] = com.example.model.TowerPerformanceRecord("Hellfire Mortar", com.example.model.TowerClass.HEAVY_SIEGE, 42000.0, 215L, 2, 740L)
+            map["Titan Railgun"] = com.example.model.TowerPerformanceRecord("Titan Railgun", com.example.model.TowerClass.HEAVY_SIEGE, 38500.0, 89L, 2, 860L)
+        }
+
+        return map.values.sortedByDescending { it.totalDamage }
+    }
+
+    fun recordTowerSession(towers: List<com.example.model.TowerInstance>) {
+        if (towers.isEmpty()) return
+        val existing = getTowerPerformance().associateBy { it.towerName }.toMutableMap()
+        for (t in towers) {
+            val name = t.archetype?.displayName ?: t.type.displayName
+            val prev = existing[name] ?: com.example.model.TowerPerformanceRecord(
+                towerName = name,
+                towerClass = t.towerClass
+            )
+            val invested = (t.archetype?.baseCost ?: t.type.baseCost) + if (t.isTier3) 250 else 0
+            existing[name] = prev.copy(
+                totalDamage = prev.totalDamage + t.totalDamage.toDouble(),
+                totalKills = prev.totalKills + t.kills.toLong(),
+                totalBuilt = prev.totalBuilt + 1,
+                totalCostInvested = prev.totalCostInvested + invested
+            )
+        }
+
+        val arr = JSONArray()
+        for (item in existing.values) {
+            val obj = JSONObject()
+            obj.put("towerName", item.towerName)
+            obj.put("towerClass", item.towerClass.name)
+            obj.put("totalDamage", item.totalDamage)
+            obj.put("totalKills", item.totalKills)
+            obj.put("totalBuilt", item.totalBuilt)
+            obj.put("totalCostInvested", item.totalCostInvested)
+            arr.put(obj)
+        }
+        prefs.edit().putString("tower_performance_records", arr.toString()).apply()
+    }
 }
+

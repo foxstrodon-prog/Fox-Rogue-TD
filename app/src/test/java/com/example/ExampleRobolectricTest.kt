@@ -266,4 +266,57 @@ class ExampleRobolectricTest {
     assertFalse("Spawners must not be in intersectionPoints", level.intersectionPoints.contains(spawnerBeta))
     assertFalse("Core must not be in intersectionPoints", level.intersectionPoints.contains(corePos))
   }
+
+  @Test
+  fun `dev balance config and tower effectiveness telemetry test`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val telemetryManager = com.example.engine.TelemetryManager(context)
+
+    // Verify initial balance config has reduced early income (220 scrap default)
+    val initialConfig = telemetryManager.getBalanceConfig()
+    assertEquals(220, initialConfig.startingScrap)
+    assertEquals(1.0f, initialConfig.globalIncomeMultiplier, 0.001f)
+    assertEquals(1.0f, initialConfig.kineticDamageMultiplier, 0.001f)
+    assertEquals(1.0f, initialConfig.elementalDamageMultiplier, 0.001f)
+    assertEquals(1.0f, initialConfig.heavyDamageMultiplier, 0.001f)
+
+    // Save modified balance config (on-the-fly adjustment)
+    val customConfig = initialConfig.copy(
+      startingScrap = 150,
+      globalIncomeMultiplier = 0.8f,
+      kineticDamageMultiplier = 1.25f,
+      elementalDamageMultiplier = 1.10f,
+      heavyDamageMultiplier = 0.90f
+    )
+    telemetryManager.saveBalanceConfig(customConfig)
+
+    val reloadedConfig = telemetryManager.getBalanceConfig()
+    assertEquals(150, reloadedConfig.startingScrap)
+    assertEquals(0.8f, reloadedConfig.globalIncomeMultiplier, 0.001f)
+    assertEquals(1.25f, reloadedConfig.kineticDamageMultiplier, 0.001f)
+    assertEquals(1.10f, reloadedConfig.elementalDamageMultiplier, 0.001f)
+    assertEquals(0.90f, reloadedConfig.heavyDamageMultiplier, 0.001f)
+
+    // Test Tower Performance Telemetry
+    val perfRecords = telemetryManager.getTowerPerformance()
+    assertTrue("Should have baseline tower performance records", perfRecords.isNotEmpty())
+    assertTrue("Should calculate dps cost efficiency", perfRecords.all { it.dpsCostEfficiency >= 0 })
+
+    // Simulate session tower recording
+    val testTower = TowerInstance(
+      id = "t_test_perf",
+      gridPos = GridPos(0, 0),
+      towerClass = com.example.model.TowerClass.KINETIC_BALLISTIC,
+      archetype = com.example.model.TowerArchetype.VULCAN_GATLING,
+      kills = 15,
+      totalDamage = 3500f
+    )
+    telemetryManager.recordTowerSession(listOf(testTower))
+    val updatedRecords = telemetryManager.getTowerPerformance()
+    val vulcanRecord = updatedRecords.firstOrNull { it.towerName == "Vulcan Gatling" }
+    assertNotNull(vulcanRecord)
+    assertEquals(15L, vulcanRecord!!.totalKills)
+    assertEquals(3500.0, vulcanRecord.totalDamage, 0.1)
+  }
 }
+

@@ -940,3 +940,27 @@ data class LifetimeTelemetry(
     val bestWaveEver: Int = 0,
     val mostUsedTower: String = "Vulcan Minigun"
 )
+
+data class DevBalanceConfig(
+    val startingScrap: Int = 220,             // Default reduced early income so you aren't overwhelmed with credits
+    val globalIncomeMultiplier: Float = 1.0f,  // 0.2x to 3.0x slider
+    val kineticDamageMultiplier: Float = 1.0f, // 0.2x to 3.0x per class/tower sliders
+    val elementalDamageMultiplier: Float = 1.0f,
+    val heavyDamageMultiplier: Float = 1.0f,
+    val waveBonusMultiplier: Float = 1.0f,     // 0.2x to 2.5x end of wave bonus
+    val enemyHpMultiplier: Float = 1.0f,       // 0.5x to 3.0x enemy difficulty
+    val buildCostMultiplier: Float = 1.0f      // 0.5x to 2.0x tower build costs
+)
+
+data class TowerPerformanceRecord(
+    val towerName: String,
+    val towerClass: TowerClass,
+    val totalDamage: Double = 0.0,
+    val totalKills: Long = 0L,
+    val totalBuilt: Int = 0,
+    val totalCostInvested: Long = 0L
+) {
+    val dpsCostEfficiency: Double get() = if (totalCostInvested > 0) totalDamage / totalCostInvested.toDouble() else 0.0
+    val killsCostEfficiency: Double get() = if (totalCostInvested > 0) (totalKills * 1000.0) / totalCostInvested.toDouble() else 0.0
+}
+

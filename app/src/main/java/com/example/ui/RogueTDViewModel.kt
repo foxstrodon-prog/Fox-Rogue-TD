@@ -58,6 +58,9 @@ data class GameUIState(
     val leaderboard: List<RunRecord> = emptyList(),
     val lifetimeTelemetry: LifetimeTelemetry = LifetimeTelemetry(),
     val isTelemetryOpen: Boolean = false,
+    val isSettingsOpen: Boolean = false,
+    val balanceConfig: DevBalanceConfig = DevBalanceConfig(),
+    val towerPerformance: List<TowerPerformanceRecord> = emptyList(),
     val bestWaveRecord: Int = 1,
     val trackParticles: List<TrackParticle> = emptyList(),
     val activeGlobalSynergies: List<GlobalAuraSynergy> = emptyList(),
@@ -69,7 +72,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
     private val telemetryManager = TelemetryManager(application)
 
-    private val _uiState = MutableStateFlow(GameUIState())
+    private val _uiState = MutableStateFlow(GameUIState(balanceConfig = telemetryManager.getBalanceConfig()))
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
 
     private var gameLoopJob: Job? = null
@@ -86,7 +89,8 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update {
             it.copy(
                 leaderboard = telemetryManager.getLeaderboard(),
-                lifetimeTelemetry = telemetryManager.getLifetimeTelemetry()
+                lifetimeTelemetry = telemetryManager.getLifetimeTelemetry(),
+                towerPerformance = telemetryManager.getTowerPerformance()
             )
         }
     }
@@ -94,6 +98,22 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     fun toggleTelemetryView(open: Boolean) {
         if (open) refreshTelemetry()
         _uiState.update { it.copy(isTelemetryOpen = open) }
+    }
+
+    fun toggleSettingsView(open: Boolean) {
+        if (open) refreshTelemetry()
+        _uiState.update { it.copy(isSettingsOpen = open) }
+    }
+
+    fun updateBalanceConfig(newConfig: DevBalanceConfig) {
+        telemetryManager.saveBalanceConfig(newConfig)
+        _uiState.update { it.copy(balanceConfig = newConfig) }
+    }
+
+    fun resetBalanceConfigToDefaults() {
+        val defaultConfig = DevBalanceConfig()
+        telemetryManager.saveBalanceConfig(defaultConfig)
+        _uiState.update { it.copy(balanceConfig = defaultConfig) }
     }
 
     fun toggleSynergyPanel() {
@@ -150,7 +170,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                 scrapBountyBonus = 1.0f,
                 coreHp = 30,
                 maxCoreHp = 30,
-                scrap = 420,
+                scrap = prev.balanceConfig.startingScrap,
                 waveNumber = 1,
                 currentWaveData = firstWave,
                 isWaveActive = false,
@@ -160,12 +180,13 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                 isGameOver = false,
                 isVictory = false,
                 totalKills = 0,
-                totalScrapEarned = 420,
+                totalScrapEarned = prev.balanceConfig.startingScrap,
                 totalDamageDealt = 0f,
                 screenShakeIntensity = 0f,
                 autoCallNextWave = false,
                 overchargeRemainingMs = 0L,
-                isTelemetryOpen = false
+                isTelemetryOpen = false,
+                isSettingsOpen = false
             )
         }
 
@@ -227,14 +248,15 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
                 val path = if (spawn.laneIndex == 0) level.laneAlpha else level.laneBeta
                 val start = path.first()
+                val hpMultiplier = spawn.hpScale * state.balanceConfig.enemyHpMultiplier
                 val newEnemy = EnemyInstance(
                     id = UUID.randomUUID().toString(),
                     type = spawn.type,
                     laneIndex = spawn.laneIndex,
                     currentPathSegmentIndex = 0,
                     segmentProgress = 0f,
-                    maxHp = spawn.type.baseHp * spawn.hpScale,
-                    currentHp = spawn.type.baseHp * spawn.hpScale,
+                    maxHp = spawn.type.baseHp * hpMultiplier,
+                    currentHp = spawn.type.baseHp * hpMultiplier,
                     speed = spawn.type.baseSpeed * spawn.speedScale,
                     worldX = start.x.toFloat(),
                     worldY = start.y.toFloat(),
@@ -386,7 +408,12 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
                 val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.25f else 0.0f
                 val apexBonus = if (tower.isFinalForm) 0.30f else 0.0f
-                val baseDmg = tower.type.baseDamage * towerDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
+                val classDmgMul = when (tower.towerClass) {
+                    TowerClass.KINETIC_BALLISTIC -> state.balanceConfig.kineticDamageMultiplier
+                    TowerClass.ELEMENTAL_VOID -> state.balanceConfig.elementalDamageMultiplier
+                    TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
+                }
+                val baseDmg = tower.type.baseDamage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
                 val isCrit = Random.nextFloat() < globalCritRate
                 val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
@@ -578,7 +605,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         for (enemy in survivingEnemies) {
             if (enemy.isDead) {
                 killsGained++
-                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus).toInt()
+                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier).roundToInt().coerceAtLeast(1)
                 scrapGained += bounty
 
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700)
@@ -626,7 +653,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             waveActive = false
             waveHasStartedSpawning = false
 
-            var completionReward = state.currentWaveData?.completionBonusScrap ?: 100
+            var completionReward = ((state.currentWaveData?.completionBonusScrap ?: 100) * state.balanceConfig.waveBonusMultiplier * state.balanceConfig.globalIncomeMultiplier).roundToInt().coerceAtLeast(10)
 
             // Mortar C.c: Atomic Shell Battery yields +40% scrap credits at end of wave
             if (towers.any { it.isFinalForm && it.type == TowerType.MORTAR && it.finalFormCode == "C.c" }) {
@@ -736,7 +763,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     // === TIER 0: Base Placement (Basic, Elemental, Heavy) ===
     fun buildTower(tile: MapTile, towerClass: TowerClass = TowerClass.KINETIC_BALLISTIC) {
         val state = _uiState.value
-        val cost = towerClass.baseCost
+        val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).roundToInt()
 
         if (state.scrap < cost) return
         if (state.towers.any { it.gridPos == tile.pos }) return
@@ -989,6 +1016,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             timestamp = System.currentTimeMillis()
         )
         telemetryManager.recordRun(record)
+        telemetryManager.recordTowerSession(state.towers)
         refreshTelemetry()
     }
 

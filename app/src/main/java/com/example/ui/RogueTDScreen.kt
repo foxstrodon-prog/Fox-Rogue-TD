@@ -34,6 +34,7 @@ import com.example.model.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun RogueTDScreen(
@@ -74,6 +75,7 @@ fun RogueTDScreen(
             state = state,
             onSpeedChanged = { viewModel.setGameSpeed(it) },
             onOpenTelemetry = { viewModel.toggleTelemetryView(true) },
+            onOpenSettings = { viewModel.toggleSettingsView(true) },
             onQuickRestart = { viewModel.startNewRun() },
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -120,6 +122,17 @@ fun RogueTDScreen(
                 onDismiss = { viewModel.toggleTelemetryView(false) }
             )
         }
+
+        // === DEV BALANCE & SETTINGS MODAL ===
+        if (state.isSettingsOpen) {
+            DevBalanceSettingsDialog(
+                config = state.balanceConfig,
+                towerPerformance = state.towerPerformance,
+                onConfigChanged = { viewModel.updateBalanceConfig(it) },
+                onResetDefaults = { viewModel.resetBalanceConfigToDefaults() },
+                onDismiss = { viewModel.toggleSettingsView(false) }
+            )
+        }
     }
 }
 
@@ -128,6 +141,7 @@ fun MinimalTopHud(
     state: GameUIState,
     onSpeedChanged: (GameSpeed) -> Unit,
     onOpenTelemetry: () -> Unit,
+    onOpenSettings: () -> Unit,
     onQuickRestart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -140,7 +154,7 @@ fun MinimalTopHud(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 6.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -152,12 +166,12 @@ fun MinimalTopHud(
                         .clip(CircleShape)
                         .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = if (state.currentWaveData?.isBossWave == true) "BOSS WAVE ${state.waveNumber}" else "WAVE ${state.waveNumber}",
+                    text = if (state.currentWaveData?.isBossWave == true) "BOSS ${state.waveNumber}" else "WAVE ${state.waveNumber}",
                     color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
                     fontWeight = FontWeight.Black,
-                    fontSize = 11.sp
+                    fontSize = 10.5.sp
                 )
             }
 
@@ -167,21 +181,21 @@ fun MinimalTopHud(
                 shape = RoundedCornerShape(5.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Shield,
                         contentDescription = "Core HP",
                         tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFF00FF9D),
-                        modifier = Modifier.size(11.dp)
+                        modifier = Modifier.size(10.dp)
                     )
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = "${state.coreHp}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
                 }
             }
@@ -192,21 +206,21 @@ fun MinimalTopHud(
                 shape = RoundedCornerShape(5.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Diamond,
                         contentDescription = "Credits",
                         tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(11.dp)
+                        modifier = Modifier.size(10.dp)
                     )
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = "${state.scrap}",
                         color = Color(0xFFFFD700),
                         fontWeight = FontWeight.Black,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
                 }
             }
@@ -226,21 +240,21 @@ fun MinimalTopHud(
                             .clip(RoundedCornerShape(3.dp))
                             .background(if (isSelected) Color(0xFF00F0FF) else Color.Transparent)
                             .clickable { onSpeedChanged(speed) }
-                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = speed.label,
                             color = if (isSelected) Color.Black else Color(0xFF94A3B8),
                             fontWeight = FontWeight.Black,
-                            fontSize = 9.sp
+                            fontSize = 8.5.sp
                         )
                     }
                 }
             }
 
-            // Telemetry & Quick Restart
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Telemetry, Dev Balance & Quick Restart
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     color = Color(0xFF161F30),
                     shape = RoundedCornerShape(5.dp),
@@ -249,23 +263,40 @@ fun MinimalTopHud(
                         .testTag("telemetry_button")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(imageVector = Icons.Filled.Leaderboard, contentDescription = "Leaderboard", tint = Color(0xFF00F0FF), modifier = Modifier.size(12.dp))
+                        Icon(imageVector = Icons.Filled.Leaderboard, contentDescription = "Leaderboard", tint = Color(0xFF00F0FF), modifier = Modifier.size(11.dp))
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text("RANKS", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                        Text("STATS", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
+                    }
+                }
+
+                Surface(
+                    color = Color(0xFF161F30),
+                    shape = RoundedCornerShape(5.dp),
+                    modifier = Modifier
+                        .clickable(onClick = onOpenSettings)
+                        .testTag("dev_settings_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Filled.Tune, contentDescription = "Dev Balance Settings", tint = Color(0xFFFFB800), modifier = Modifier.size(11.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("DEV", color = Color(0xFFFFB800), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
                     }
                 }
 
                 IconButton(
                     onClick = onQuickRestart,
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(20.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF161F30))
                 ) {
-                    Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Restart Run", tint = Color(0xFFEF4444), modifier = Modifier.size(12.dp))
+                    Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Restart Run", tint = Color(0xFFEF4444), modifier = Modifier.size(11.dp))
                 }
             }
         }
@@ -1528,3 +1559,399 @@ fun SummaryStatRow(label: String, value: String) {
         Text(text = value, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
+
+@Composable
+fun DevBalanceSettingsDialog(
+    config: DevBalanceConfig,
+    towerPerformance: List<TowerPerformanceRecord>,
+    onConfigChanged: (DevBalanceConfig) -> Unit,
+    onResetDefaults: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Economy & Combat Sliders, 1 = Tower Efficiency Telemetry
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = Color(0xFF0B132B),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.8f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.88f)
+                .padding(4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFFFB800).copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Filled.Tune, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "DEV BALANCE CONSOLE",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "On-the-fly unit & economy balance sliders",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
+                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tabs: Sliders vs Telemetry
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color(0xFF131F37),
+                    contentColor = Color(0xFFFFB800),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("SLIDERS", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("TOWER TELEMETRY", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (selectedTab == 0) {
+                    // Sliders View
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item {
+                            Text(
+                                text = "ECONOMY & INCOME SLIDERS",
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                        }
+
+                        // Starting Scrap (Early Income Fix!)
+                        item {
+                            BalanceSliderCard(
+                                title = "Starting Credits (Early Income)",
+                                subtitle = "Lower credits early so you can't place endless towers without risk",
+                                value = config.startingScrap.toFloat(),
+                                range = 100f..600f,
+                                steps = 9,
+                                valueFormatter = { "${it.toInt()} C" },
+                                color = Color(0xFFFFD700),
+                                onValueChange = { onConfigChanged(config.copy(startingScrap = it.roundToInt())) }
+                            )
+                        }
+
+                        // Overall Income Multiplier
+                        item {
+                            BalanceSliderCard(
+                                title = "Overall Income Multiplier",
+                                subtitle = "Scales enemy bounties and resource drops on-the-fly",
+                                value = config.globalIncomeMultiplier,
+                                range = 0.2f..3.0f,
+                                steps = 27,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFFFFB800),
+                                onValueChange = { onConfigChanged(config.copy(globalIncomeMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        // Wave Completion Bonus
+                        item {
+                            BalanceSliderCard(
+                                title = "End-Of-Wave Bonus Multiplier",
+                                subtitle = "Adjusts bonus credits granted upon wave clear",
+                                value = config.waveBonusMultiplier,
+                                range = 0.2f..2.5f,
+                                steps = 22,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFF00FF9D),
+                                onValueChange = { onConfigChanged(config.copy(waveBonusMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        // Tower Build Cost Multiplier
+                        item {
+                            BalanceSliderCard(
+                                title = "Tower Build Cost Multiplier",
+                                subtitle = "Scales base chassis placement costs across the grid",
+                                value = config.buildCostMultiplier,
+                                range = 0.5f..2.5f,
+                                steps = 19,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFF38BDF8),
+                                onValueChange = { onConfigChanged(config.copy(buildCostMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "PER-TOWER CLASS COMBAT TUNING",
+                                color = Color(0xFF00F0FF),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                        }
+
+                        // Kinetic Ballistics (Circle) Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "● Kinetic Ballistics Damage (Circle)",
+                                subtitle = "Rapid vulcan miniguns, flak, sniper sentries",
+                                value = config.kineticDamageMultiplier,
+                                range = 0.3f..3.0f,
+                                steps = 26,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFF00F0FF),
+                                onValueChange = { onConfigChanged(config.copy(kineticDamageMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        // Elemental Void (Triangle) Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "▲ Elemental Void Damage (Triangle)",
+                                subtitle = "Cryo spire, tesla coil, graviton & quantum lasers",
+                                value = config.elementalDamageMultiplier,
+                                range = 0.3f..3.0f,
+                                steps = 26,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFFA855F7),
+                                onValueChange = { onConfigChanged(config.copy(elementalDamageMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        // Heavy Siege (Square) Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "■ Heavy Siege Damage (Square)",
+                                subtitle = "Hellfire mortars, railguns, EMP disruptors",
+                                value = config.heavyDamageMultiplier,
+                                range = 0.3f..3.0f,
+                                steps = 26,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFFFF5500),
+                                onValueChange = { onConfigChanged(config.copy(heavyDamageMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        // Hostile HP Difficulty Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "Enemy Health Multiplier",
+                                subtitle = "Increase hostile durability to test late-game pressure",
+                                value = config.enemyHpMultiplier,
+                                range = 0.5f..3.0f,
+                                steps = 24,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFFFF2A55),
+                                onValueChange = { onConfigChanged(config.copy(enemyHpMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Reset to Defaults Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = onResetDefaults,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF2A55)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(38.dp)
+                        ) {
+                            Icon(imageVector = Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("RESET DEFAULTS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = onDismiss,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB800), contentColor = Color.Black),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(38.dp)
+                        ) {
+                            Text("APPLY & CLOSE", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                } else {
+                    // Tower Efficiency Telemetry View
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "TOWER EFFECTIVENESS TELEMETRY",
+                            color = Color(0xFF00F0FF),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "Historical telemetry tracked across runs to guide unit balancing sliders",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 8.5.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(towerPerformance) { record ->
+                                Surface(
+                                    color = Color(0xFF131F37),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(record.towerClass.color).copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = record.towerClass.shapeSymbol,
+                                            color = Color(record.towerClass.color),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.width(20.dp)
+                                        )
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = record.towerName,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp
+                                                )
+                                                Text(
+                                                    text = "${record.totalBuilt} built",
+                                                    color = Color(0xFF94A3B8),
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(2.dp))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = "DMG: ${record.totalDamage.toInt()} | Kills: ${record.totalKills}",
+                                                    color = Color(0xFF00FF9D),
+                                                    fontSize = 9.sp
+                                                )
+                                                Text(
+                                                    text = "DPS/Cost: ${String.format(Locale.US, "%.1f", record.dpsCostEfficiency)}",
+                                                    color = Color(0xFFFFD700),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BalanceSliderCard(
+    title: String,
+    subtitle: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    valueFormatter: (Float) -> String,
+    color: Color,
+    onValueChange: (Float) -> Unit
+) {
+    Surface(
+        color = Color(0xFF131F37),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.5.sp)
+                    Text(text = subtitle, color = Color(0xFF94A3B8), fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(
+                    text = valueFormatter(value),
+                    color = color,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 6.dp)
+                )
+            }
+
+            Slider(
+                value = value,
+                onValueChange = onValueChange,
+                valueRange = range,
+                steps = steps,
+                colors = SliderDefaults.colors(
+                    thumbColor = color,
+                    activeTrackColor = color,
+                    inactiveTrackColor = Color(0xFF1E293B)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+            )
+        }
+    }
+}
+
