@@ -362,5 +362,92 @@ class ExampleRobolectricTest {
     assertTrue("Merged track spine must have multiple merged tiles", level.tiles.count { it.type == TileType.PATH_MERGED } >= 3)
     assertEquals(TileType.CORE, level.tiles.first { it.pos == level.laneAlpha.last() }.type)
   }
+
+  @Test
+  fun `score calculation and zero-score leaderboard omission test`() {
+    val recordZero = com.example.model.RunRecord(
+      id = "zero_run",
+      timestamp = System.currentTimeMillis(),
+      sectorName = "Sector Zero",
+      wavesCleared = 0,
+      enemiesKilled = 0,
+      totalDamage = 0f,
+      scrapEarned = 0,
+      isVictory = false,
+      mvpTower = "None",
+      playerName = "TestOperative"
+    )
+    assertEquals(0, recordZero.score)
+
+    val recordActive = com.example.model.RunRecord(
+      id = "active_run",
+      timestamp = System.currentTimeMillis(),
+      sectorName = "Sector 1",
+      wavesCleared = 5,
+      enemiesKilled = 30,
+      totalDamage = 2000f,
+      scrapEarned = 500,
+      isVictory = true,
+      mvpTower = "Vulcan Gatling",
+      playerName = "Viper"
+    )
+    // 5 * 1000 + 30 * 15 + 2000 * 0.1 = 5000 + 450 + 200 = 5650
+    assertEquals(5650, recordActive.score)
+
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val telemetryManager = com.example.engine.TelemetryManager(context)
+
+    // Save active run
+    telemetryManager.recordRun(recordActive)
+    // Attempt saving zero-score run
+    telemetryManager.recordRun(recordZero)
+
+    val leaderboard = telemetryManager.getLeaderboard()
+    assertTrue("Leaderboard must not contain 0-score runs", leaderboard.all { it.score > 0 })
+    assertTrue("Leaderboard must contain active run", leaderboard.any { it.playerName == "Viper" && it.score == 5650 })
+  }
+
+  @Test
+  fun `player callsign management and isolated lifetime telemetry test`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val telemetryManager = com.example.engine.TelemetryManager(context)
+
+    // Set callsign
+    telemetryManager.setActivePlayerName("CommanderFox")
+    assertEquals("CommanderFox", telemetryManager.getActivePlayerName())
+
+    // Record run for CommanderFox
+    val run1 = com.example.model.RunRecord(
+      id = "run_fox_1",
+      timestamp = System.currentTimeMillis(),
+      sectorName = "Sector Alpha",
+      wavesCleared = 8,
+      enemiesKilled = 50,
+      totalDamage = 4000f,
+      scrapEarned = 800,
+      isVictory = false,
+      mvpTower = "Laser Sentry",
+      playerName = "CommanderFox"
+    )
+    telemetryManager.recordRun(run1)
+
+    // Verify last run
+    val lastRun = telemetryManager.getLastRun()
+    assertNotNull(lastRun)
+    assertEquals("CommanderFox", lastRun!!.playerName)
+    assertEquals(8, lastRun.wavesCleared)
+
+    // Verify personal lifetime metrics for CommanderFox
+    val foxLifetime = telemetryManager.getLifetimeTelemetryForPlayer("CommanderFox")
+    assertTrue(foxLifetime.totalRuns >= 1)
+    assertTrue(foxLifetime.bestWaveEver >= 8)
+    assertTrue(foxLifetime.totalHostilesKilled >= 50)
+
+    // Switch player name
+    telemetryManager.setActivePlayerName("RookiePilot")
+    val rookieLifetime = telemetryManager.getLifetimeTelemetryForPlayer("RookiePilot")
+    assertEquals(0, rookieLifetime.totalRuns)
+    assertEquals(0, rookieLifetime.bestWaveEver)
+  }
 }
 

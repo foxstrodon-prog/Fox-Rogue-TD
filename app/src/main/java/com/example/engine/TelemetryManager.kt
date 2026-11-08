@@ -10,6 +10,77 @@ import org.json.JSONObject
 class TelemetryManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE)
 
+    fun getActivePlayerName(): String {
+        return prefs.getString("active_player_name", "Operative") ?: "Operative"
+    }
+
+    fun setActivePlayerName(name: String) {
+        val trimmed = name.trim().ifBlank { "Operative" }
+        prefs.edit().putString("active_player_name", trimmed).apply()
+    }
+
+    fun getLastRun(): RunRecord? {
+        val jsonStr = prefs.getString("last_run_record", null) ?: return null
+        return try {
+            val obj = JSONObject(jsonStr)
+            RunRecord(
+                id = obj.optString("id", ""),
+                seed = obj.optLong("seed", 0L),
+                sectorName = obj.optString("sectorName", "Sector Alpha"),
+                playerName = obj.optString("playerName", getActivePlayerName()),
+                wavesCleared = obj.optInt("wavesCleared", 0),
+                enemiesKilled = obj.optInt("enemiesKilled", 0),
+                totalDamage = obj.optDouble("totalDamage", 0.0).toFloat(),
+                scrapEarned = obj.optInt("scrapEarned", 0),
+                ascendedTowersCount = obj.optInt("ascendedTowersCount", 0),
+                mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
+                isVictory = obj.optBoolean("isVictory", false),
+                timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveLastRun(record: RunRecord) {
+        val obj = JSONObject().apply {
+            put("id", record.id)
+            put("seed", record.seed)
+            put("sectorName", record.sectorName)
+            put("playerName", record.playerName)
+            put("wavesCleared", record.wavesCleared)
+            put("enemiesKilled", record.enemiesKilled)
+            put("totalDamage", record.totalDamage.toDouble())
+            put("scrapEarned", record.scrapEarned)
+            put("ascendedTowersCount", record.ascendedTowersCount)
+            put("mvpTower", record.mvpTower)
+            put("isVictory", record.isVictory)
+            put("timestamp", record.timestamp)
+        }
+        prefs.edit().putString("last_run_record", obj.toString()).apply()
+    }
+
+    fun updateLastRunPlayerName(newName: String) {
+        val trimmed = newName.trim().ifBlank { "Operative" }
+        setActivePlayerName(trimmed)
+
+        val lastRun = getLastRun()
+        if (lastRun != null) {
+            val updated = lastRun.copy(playerName = trimmed)
+            saveLastRun(updated)
+
+            // Update in leaderboard list as well
+            val list = getLeaderboard().map {
+                if (it.id == updated.id || (it.timestamp == updated.timestamp && it.seed == updated.seed)) {
+                    it.copy(playerName = trimmed)
+                } else {
+                    it
+                }
+            }
+            saveLeaderboardList(list)
+        }
+    }
+
     fun getLeaderboard(): List<RunRecord> {
         val jsonStr = prefs.getString("leaderboard_runs", "[]") ?: "[]"
         val list = mutableListOf<RunRecord>()
@@ -17,31 +88,35 @@ class TelemetryManager(context: Context) {
             val arr = JSONArray(jsonStr)
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
-                list.add(
-                    RunRecord(
-                        id = obj.optString("id", ""),
-                        seed = obj.optLong("seed", 0L),
-                        sectorName = obj.optString("sectorName", "Sector Alpha"),
-                        wavesCleared = obj.optInt("wavesCleared", 0),
-                        enemiesKilled = obj.optInt("enemiesKilled", 0),
-                        totalDamage = obj.optDouble("totalDamage", 0.0).toFloat(),
-                        scrapEarned = obj.optInt("scrapEarned", 0),
-                        ascendedTowersCount = obj.optInt("ascendedTowersCount", 0),
-                        mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
-                        isVictory = obj.optBoolean("isVictory", false),
-                        timestamp = obj.optLong("timestamp", System.currentTimeMillis())
-                    )
+                val rec = RunRecord(
+                    id = obj.optString("id", ""),
+                    seed = obj.optLong("seed", 0L),
+                    sectorName = obj.optString("sectorName", "Sector Alpha"),
+                    playerName = obj.optString("playerName", "Viper-7"),
+                    wavesCleared = obj.optInt("wavesCleared", 0),
+                    enemiesKilled = obj.optInt("enemiesKilled", 0),
+                    totalDamage = obj.optDouble("totalDamage", 0.0).toFloat(),
+                    scrapEarned = obj.optInt("scrapEarned", 0),
+                    ascendedTowersCount = obj.optInt("ascendedTowersCount", 0),
+                    mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
+                    isVictory = obj.optBoolean("isVictory", false),
+                    timestamp = obj.optLong("timestamp", System.currentTimeMillis())
                 )
+                // Omit any runs with score of 0 or zero combat activity
+                if (rec.score > 0) {
+                    list.add(rec)
+                }
             }
         } catch (_: Exception) {}
 
-        // If empty, add a couple of cool baseline competitor records so leaderboard isn't blank on launch
+        // If empty, add a couple of baseline competitor records
         if (list.isEmpty()) {
             list.add(
                 RunRecord(
                     id = "base_1",
                     seed = 849204L,
-                    sectorName = "Sector Zero: Cyber Core",
+                    sectorName = "Sector Zero: Cyber Convergence",
+                    playerName = "Apex_Ghost",
                     wavesCleared = 14,
                     enemiesKilled = 248,
                     totalDamage = 48500f,
@@ -57,6 +132,7 @@ class TelemetryManager(context: Context) {
                     id = "base_2",
                     seed = 192842L,
                     sectorName = "Glacial Split Chasm",
+                    playerName = "Nova_Prime",
                     wavesCleared = 10,
                     enemiesKilled = 165,
                     totalDamage = 29400f,
@@ -69,28 +145,21 @@ class TelemetryManager(context: Context) {
             )
         }
 
-        return list.sortedWith(
-            compareByDescending<RunRecord> { it.wavesCleared }
+        return list.filter { it.score > 0 }.sortedWith(
+            compareByDescending<RunRecord> { it.score }
+                .thenByDescending { it.wavesCleared }
                 .thenByDescending { it.enemiesKilled }
-                .thenByDescending { it.totalDamage }
-        ).take(20)
+        ).take(30)
     }
 
-    fun recordRun(record: RunRecord) {
-        val currentList = getLeaderboard().toMutableList()
-        currentList.add(record)
-        val topList = currentList.sortedWith(
-            compareByDescending<RunRecord> { it.wavesCleared }
-                .thenByDescending { it.enemiesKilled }
-                .thenByDescending { it.totalDamage }
-        ).take(25)
-
+    private fun saveLeaderboardList(list: List<RunRecord>) {
         val arr = JSONArray()
-        for (item in topList) {
+        for (item in list.filter { it.score > 0 }.take(30)) {
             val obj = JSONObject()
             obj.put("id", item.id)
             obj.put("seed", item.seed)
             obj.put("sectorName", item.sectorName)
+            obj.put("playerName", item.playerName)
             obj.put("wavesCleared", item.wavesCleared)
             obj.put("enemiesKilled", item.enemiesKilled)
             obj.put("totalDamage", item.totalDamage.toDouble())
@@ -102,6 +171,25 @@ class TelemetryManager(context: Context) {
             arr.put(obj)
         }
         prefs.edit().putString("leaderboard_runs", arr.toString()).apply()
+    }
+
+    fun recordRun(record: RunRecord) {
+        // If no wave was started or score is 0, do not save to leaderboard
+        if (record.score <= 0 && record.wavesCleared <= 0 && record.enemiesKilled <= 0) {
+            return
+        }
+
+        saveLastRun(record)
+
+        val currentList = getLeaderboard().toMutableList()
+        currentList.add(record)
+        val topList = currentList.filter { it.score > 0 }.sortedWith(
+            compareByDescending<RunRecord> { it.score }
+                .thenByDescending { it.wavesCleared }
+                .thenByDescending { it.enemiesKilled }
+        ).take(30)
+
+        saveLeaderboardList(topList)
 
         // Update Lifetime Telemetry
         val lt = getLifetimeTelemetry()
@@ -126,6 +214,34 @@ class TelemetryManager(context: Context) {
             totalDamageOutput = prefs.getFloat("lt_total_damage", 77900f).toDouble(),
             bestWaveEver = prefs.getInt("lt_best_wave", 14),
             mostUsedTower = prefs.getString("lt_mvp_tower", "Siege Mortar") ?: "Siege Mortar"
+        )
+    }
+
+    fun getLifetimeTelemetryForPlayer(playerName: String?): LifetimeTelemetry {
+        val targetName = playerName?.trim()?.ifBlank { null } ?: getActivePlayerName()
+        val playerRuns = getLeaderboard().filter { it.playerName.equals(targetName, ignoreCase = true) }
+        if (playerRuns.isEmpty()) {
+            return LifetimeTelemetry(
+                totalRuns = 0,
+                totalVictories = 0,
+                totalHostilesKilled = 0,
+                totalScrapMined = 0L,
+                totalDamageOutput = 0.0,
+                bestWaveEver = 0,
+                mostUsedTower = "None"
+            )
+        }
+
+        val topTower = playerRuns.groupBy { it.mvpTower }.maxByOrNull { it.value.size }?.key ?: "Vulcan Minigun"
+
+        return LifetimeTelemetry(
+            totalRuns = playerRuns.size,
+            totalVictories = playerRuns.count { it.isVictory },
+            totalHostilesKilled = playerRuns.sumOf { it.enemiesKilled },
+            totalScrapMined = playerRuns.sumOf { it.scrapEarned.toLong() },
+            totalDamageOutput = playerRuns.sumOf { it.totalDamage.toDouble() },
+            bestWaveEver = playerRuns.maxOfOrNull { it.wavesCleared } ?: 0,
+            mostUsedTower = topTower
         )
     }
 

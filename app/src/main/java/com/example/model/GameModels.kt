@@ -929,17 +929,20 @@ data class FloatingText(
 
 data class RunRecord(
     val id: String,
-    val seed: Long,
+    val seed: Long = 0L,
     val sectorName: String,
+    val playerName: String = "Operative",
     val wavesCleared: Int,
     val enemiesKilled: Int,
     val totalDamage: Float,
     val scrapEarned: Int,
-    val ascendedTowersCount: Int,
+    val ascendedTowersCount: Int = 0,
     val mvpTower: String,
     val isVictory: Boolean,
     val timestamp: Long
-)
+) {
+    val score: Int get() = (wavesCleared * 1000) + (enemiesKilled * 15) + (totalDamage * 0.1f).toInt()
+}
 
 data class LifetimeTelemetry(
     val totalRuns: Int = 0,

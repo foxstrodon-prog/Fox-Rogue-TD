@@ -76,7 +76,6 @@ fun RogueTDScreen(
             onDeployWave = { viewModel.deployWave() },
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onOpenPauseMenu = { viewModel.openPauseMenu() },
-            onEndRun = { viewModel.requestEndRun() },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -203,7 +202,8 @@ fun RogueTDScreen(
             RunSummaryDialog(
                 state = state,
                 onRestart = { viewModel.startNewRun() },
-                onViewTelemetry = { viewModel.toggleTelemetryView(true) }
+                onViewTelemetry = { viewModel.toggleTelemetryView(true) },
+                onSetPlayerName = { viewModel.setPlayerName(it) }
             )
         }
 
@@ -211,6 +211,7 @@ fun RogueTDScreen(
         if (state.isTelemetryOpen) {
             TelemetryLeaderboardDialog(
                 state = state,
+                onSetPlayerName = { viewModel.setPlayerName(it) },
                 onDismiss = { viewModel.toggleTelemetryView(false) }
             )
         }
@@ -234,7 +235,6 @@ fun MinimalTopHud(
     onDeployWave: () -> Unit,
     onToggleAutoWave: () -> Unit,
     onOpenPauseMenu: () -> Unit,
-    onEndRun: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -266,7 +266,7 @@ fun MinimalTopHud(
                     )
                 }
 
-                // Core HP
+                // Core HP (Heart Icon)
                 Surface(
                     color = Color(0xFF161F30),
                     shape = RoundedCornerShape(5.dp)
@@ -276,9 +276,9 @@ fun MinimalTopHud(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Shield,
+                            imageVector = Icons.Filled.Favorite,
                             contentDescription = "Core HP",
-                            tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFF00FF9D),
+                            tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFFFF2A55),
                             modifier = Modifier.size(11.dp)
                         )
                         Spacer(modifier = Modifier.width(2.dp))
@@ -364,28 +364,7 @@ fun MinimalTopHud(
                     )
                 }
 
-                // End Run Button
-                Button(
-                    onClick = onEndRun,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFF2A55).copy(alpha = 0.22f),
-                        contentColor = Color(0xFFFF2A55)
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55)),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier
-                        .height(28.dp)
-                        .testTag("end_run_button")
-                ) {
-                    Text(
-                        text = "END",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 9.sp
-                    )
-                }
-
-                // Gear Cog Button (Opens Pause Menu)
+                // Gear Cog Button (Opens Pause Menu & Settings)
                 IconButton(
                     onClick = onOpenPauseMenu,
                     modifier = Modifier
@@ -1342,9 +1321,12 @@ fun ThreePathTowerInspector(
 @Composable
 fun TelemetryLeaderboardDialog(
     state: GameUIState,
+    onSetPlayerName: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = LAST RUN, 1 = MY LIFETIME, 2 = LEADERBOARD
+    var editingCallsign by remember { mutableStateOf(state.activePlayerName) }
+    var isEditingName by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -1354,10 +1336,11 @@ fun TelemetryLeaderboardDialog(
             border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF).copy(alpha = 0.7f)),
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .padding(6.dp)
+                .fillMaxHeight(0.88f)
+                .padding(4.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1365,15 +1348,15 @@ fun TelemetryLeaderboardDialog(
                 ) {
                     Column {
                         Text(
-                            text = "ROGUE TD: SECTOR ZERO",
+                            text = "TACTICAL TELEMETRY & ARCHIVES",
                             color = Color(0xFF00F0FF),
                             fontWeight = FontWeight.Black,
-                            fontSize = 15.sp
+                            fontSize = 14.sp
                         )
                         Text(
-                            text = "Dual-Front Tactical Leaderboard & Hall of Fame",
+                            text = "Operative: ${state.activePlayerName} • Performance telemetry & rankings",
                             color = Color(0xFF94A3B8),
-                            fontSize = 10.sp
+                            fontSize = 9.5.sp
                         )
                     }
 
@@ -1384,6 +1367,7 @@ fun TelemetryLeaderboardDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Three-tab selection
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color(0xFF131F37),
@@ -1393,93 +1377,297 @@ fun TelemetryLeaderboardDialog(
                     Tab(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        text = { Text("LEADERBOARD", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                        text = { Text("LAST RUN", fontWeight = FontWeight.Bold, fontSize = 10.sp) }
                     )
                     Tab(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        text = { Text("LIFETIME METRICS", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                        text = { Text("MY LIFETIME", fontWeight = FontWeight.Bold, fontSize = 10.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { Text("GLOBAL RANKS", fontWeight = FontWeight.Bold, fontSize = 10.sp) }
                     )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                if (selectedTab == 0) {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        itemsIndexed(state.leaderboard) { index, item ->
-                            val medal = when (index) {
-                                0 -> "🥇"
-                                1 -> "🥈"
-                                2 -> "🥉"
-                                else -> "#${index + 1}"
-                            }
-
-                            Surface(
-                                color = Color(0xFF162544),
-                                shape = RoundedCornerShape(10.dp),
-                                border = if (index == 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)) else null,
-                                modifier = Modifier.fillMaxWidth()
+                when (selectedTab) {
+                    // TAB 0: LAST RUN METRICS
+                    0 -> {
+                        val last = state.lastRunRecord
+                        if (last == null) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Text(
+                                    text = "No completed combat runs recorded yet.\nDeploy and complete wave defense to log performance telemetry.",
+                                    color = Color(0xFF64748B),
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    color = Color(0xFF162544),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (last.isVictory) Color(0xFF00FF9D) else Color(0xFFFF2A55)),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = medal,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(36.dp)
-                                    )
-
-                                    Column(modifier = Modifier.weight(1f)) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "Wave ${item.wavesCleared} Cleared",
+                                                text = "${last.sectorName}",
                                                 color = Color.White,
                                                 fontWeight = FontWeight.Black,
                                                 fontSize = 13.sp
                                             )
                                             Text(
-                                                text = if (item.isVictory) "VICTORY" else "DEFEAT",
-                                                color = if (item.isVictory) Color(0xFF00FF9D) else Color(0xFFFF2A55),
+                                                text = if (last.isVictory) "VICTORY" else "DEFEAT",
+                                                color = if (last.isVictory) Color(0xFF00FF9D) else Color(0xFFFF2A55),
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 10.sp
+                                                fontSize = 10.5.sp
                                             )
                                         }
-
                                         Text(
-                                            text = "${item.enemiesKilled} Kills | MVP: ${item.mvpTower} | ${item.sectorName}",
+                                            text = "Operative: ${last.playerName} • ${dateFormat.format(Date(last.timestamp))}",
                                             color = Color(0xFF94A3B8),
-                                            fontSize = 10.sp
-                                        )
-
-                                        Text(
-                                            text = dateFormat.format(Date(item.timestamp)),
-                                            color = Color(0xFF64748B),
                                             fontSize = 9.sp
                                         )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "TACTICAL SCORE: ${last.score} PTS",
+                                            color = Color(0xFFFFD700),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+
+                                TelemetryCard("Waves Cleared", "${last.wavesCleared}", Icons.Filled.MilitaryTech, Color(0xFF00F0FF))
+                                TelemetryCard("Hostiles Annihilated", "${last.enemiesKilled}", Icons.Filled.CrisisAlert, Color(0xFFFF2A55))
+                                TelemetryCard("Total Damage Inflicted", "${last.totalDamage.toInt()}", Icons.Filled.Bolt, Color(0xFFFFB800))
+                                TelemetryCard("Scrap Harvested", "${last.scrapEarned} c", Icons.Filled.Diamond, Color(0xFFFFD700))
+                                TelemetryCard("Most Lethal Tower (MVP)", last.mvpTower, Icons.Filled.Shield, Color(0xFFA855F7))
+                            }
+                        }
+                    }
+
+                    // TAB 1: MY LIFETIME METRICS
+                    1 -> {
+                        val lt = state.playerLifetimeTelemetry
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // Operative Callsign Switcher / Manager Card
+                            Surface(
+                                color = Color(0xFF131F33),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "ACTIVE OPERATIVE CALLSIGN",
+                                            color = Color(0xFF00F0FF),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 8.5.sp
+                                        )
+                                        Text(
+                                            text = "Personal Stats Isolated",
+                                            color = Color(0xFF64748B),
+                                            fontSize = 8.sp
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    if (isEditingName) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            OutlinedTextField(
+                                                value = editingCallsign,
+                                                onValueChange = { if (it.length <= 16) editingCallsign = it },
+                                                singleLine = true,
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedTextColor = Color.White,
+                                                    unfocusedTextColor = Color.White,
+                                                    focusedBorderColor = Color(0xFF00F0FF),
+                                                    unfocusedBorderColor = Color(0xFF334155),
+                                                    focusedContainerColor = Color(0xFF0F172A),
+                                                    unfocusedContainerColor = Color(0xFF0F172A)
+                                                ),
+                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(42.dp)
+                                            )
+                                            Button(
+                                                onClick = {
+                                                    val trimmed = editingCallsign.trim()
+                                                    if (trimmed.isNotEmpty()) {
+                                                        onSetPlayerName(trimmed)
+                                                        isEditingName = false
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F0FF), contentColor = Color.Black),
+                                                shape = RoundedCornerShape(6.dp),
+                                                modifier = Modifier.height(40.dp)
+                                            ) {
+                                                Text("SET", fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                            }
+                                        }
+                                    } else {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = state.activePlayerName,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Black,
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                            TextButton(
+                                                onClick = {
+                                                    editingCallsign = state.activePlayerName
+                                                    isEditingName = true
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("CHANGE CALLSIGN", color = Color(0xFF00F0FF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            TelemetryCard("Total Missions Flown", "${lt.totalRuns}", Icons.Filled.PlayArrow, Color(0xFF00F0FF))
+                            TelemetryCard("Total Hostiles Annihilated", "${lt.totalHostilesKilled}", Icons.Filled.CrisisAlert, Color(0xFFFF2A55))
+                            TelemetryCard("Total Credits Harvested", "${lt.totalScrapMined}", Icons.Filled.Diamond, Color(0xFFFFD700))
+                            TelemetryCard("Longest Wave Record", "Wave ${lt.bestWaveEver}", Icons.Filled.EmojiEvents, Color(0xFF00FF9D))
+                            TelemetryCard("Highest Damage MVP", lt.mostUsedTower, Icons.Filled.MilitaryTech, Color(0xFFA855F7))
+                        }
+                    }
+
+                    // TAB 2: GLOBAL LEADERBOARD
+                    2 -> {
+                        val validLeaderboard = state.leaderboard.filter { it.score > 0 }
+                        if (validLeaderboard.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No ranked leaderboard scores yet.\nDeploy and survive waves to earn tactical points!",
+                                    color = Color(0xFF64748B),
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                itemsIndexed(validLeaderboard) { index, item ->
+                                    val medal = when (index) {
+                                        0 -> "🥇"
+                                        1 -> "🥈"
+                                        2 -> "🥉"
+                                        else -> "#${index + 1}"
+                                    }
+
+                                    Surface(
+                                        color = Color(0xFF162544),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = if (index == 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)) else null,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = medal,
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.width(36.dp)
+                                            )
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            text = item.playerName,
+                                                            color = Color(0xFF00F0FF),
+                                                            fontWeight = FontWeight.Black,
+                                                            fontSize = 12.sp
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text(
+                                                            text = "Wave ${item.wavesCleared}",
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 11.sp
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = "${item.score} PTS",
+                                                        color = Color(0xFFFFD700),
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 11.5.sp
+                                                    )
+                                                }
+
+                                                Text(
+                                                    text = "${item.enemiesKilled} Kills | MVP: ${item.mvpTower} | ${item.sectorName}",
+                                                    color = Color(0xFF94A3B8),
+                                                    fontSize = 9.5.sp
+                                                )
+
+                                                Text(
+                                                    text = dateFormat.format(Date(item.timestamp)),
+                                                    color = Color(0xFF64748B),
+                                                    fontSize = 8.5.sp
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                } else {
-                    val lt = state.lifetimeTelemetry
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        TelemetryCard("Total Dual-Front Runs", "${lt.totalRuns}", Icons.Filled.PlayArrow, Color(0xFF00F0FF))
-                        TelemetryCard("Total Hostiles Annihilated", "${lt.totalHostilesKilled}", Icons.Filled.CrisisAlert, Color(0xFFFF2A55))
-                        TelemetryCard("Total Credits Harvested", "${lt.totalScrapMined}", Icons.Filled.Diamond, Color(0xFFFFD700))
-                        TelemetryCard("Longest Wave Record", "Wave ${lt.bestWaveEver}", Icons.Filled.EmojiEvents, Color(0xFF00FF9D))
-                        TelemetryCard("Highest Damage MVP", lt.mostUsedTower, Icons.Filled.MilitaryTech, Color(0xFFA855F7))
                     }
                 }
             }
@@ -1550,8 +1738,12 @@ fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?) {
 fun RunSummaryDialog(
     state: GameUIState,
     onRestart: () -> Unit,
-    onViewTelemetry: () -> Unit
+    onViewTelemetry: () -> Unit,
+    onSetPlayerName: (String) -> Unit
 ) {
+    var callsignInput by remember { mutableStateOf(state.activePlayerName) }
+    var nameSaved by remember { mutableStateOf(false) }
+
     Dialog(onDismissRequest = { }) {
         Surface(
             color = Color(0xFF0F172A),
@@ -1582,7 +1774,92 @@ fun RunSummaryDialog(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Pilot Callsign Input Section
+                Surface(
+                    color = Color(0xFF131F33),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (nameSaved) Color(0xFF00FF9D) else Color(0xFF00F0FF).copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "OPERATIVE CALLSIGN",
+                                color = Color(0xFF00F0FF),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.sp
+                            )
+                            if (nameSaved) {
+                                Text(
+                                    text = "SAVED TO PROFILE",
+                                    color = Color(0xFF00FF9D),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = callsignInput,
+                                onValueChange = {
+                                    if (it.length <= 16) {
+                                        callsignInput = it
+                                        nameSaved = false
+                                    }
+                                },
+                                placeholder = { Text("Callsign (e.g. Maverick)", fontSize = 11.sp, color = Color(0xFF64748B)) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = Color(0xFF00F0FF),
+                                    unfocusedBorderColor = Color(0xFF334155),
+                                    focusedContainerColor = Color(0xFF0F172A),
+                                    unfocusedContainerColor = Color(0xFF0F172A)
+                                ),
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .testTag("operative_name_input")
+                            )
+
+                            Button(
+                                onClick = {
+                                    val trimmed = callsignInput.trim()
+                                    if (trimmed.isNotEmpty()) {
+                                        onSetPlayerName(trimmed)
+                                        nameSaved = true
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (nameSaved) Color(0xFF00FF9D) else Color(0xFF00F0FF),
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier
+                                    .height(44.dp)
+                                    .testTag("save_operative_name_button")
+                            ) {
+                                Text(if (nameSaved) "SAVED" else "SAVE", fontWeight = FontWeight.Black, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Surface(
                     color = Color(0xFF1E293B),
@@ -1591,8 +1868,10 @@ fun RunSummaryDialog(
                 ) {
                     Column(
                         modifier = Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
+                        val score = (state.waveNumber.coerceAtLeast(1) - 1) * 1000 + (state.totalKills * 15) + (state.totalDamageDealt * 0.1f).toInt()
+                        SummaryStatRow("Final Tactical Score", "$score PTS")
                         SummaryStatRow("Waves Cleared", "${state.waveNumber - 1}")
                         SummaryStatRow("Hostiles Slain", "${state.totalKills}")
                         SummaryStatRow("Damage Output", "${state.totalDamageDealt.toInt()}")
@@ -1601,7 +1880,7 @@ fun RunSummaryDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2212,7 +2491,7 @@ fun PauseMenuDialog(
                     ) {
                         Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("RESTART CURRENT RUN", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("RESTART WITH NEW MAP", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }

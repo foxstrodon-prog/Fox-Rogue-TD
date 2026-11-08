@@ -71,6 +71,9 @@ data class GameUIState(
     val showEndRunConfirmDialog: Boolean = false,
     val harmonicGridActive: Boolean = false,
     val harmonicPadsCount: Int = 0,
+    val activePlayerName: String = "Operative",
+    val lastRunRecord: RunRecord? = null,
+    val playerLifetimeTelemetry: LifetimeTelemetry = LifetimeTelemetry(),
     val animTimeMs: Long = 0L
 )
 
@@ -92,8 +95,12 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun refreshTelemetry() {
+        val activeName = telemetryManager.getActivePlayerName()
         _uiState.update {
             it.copy(
+                activePlayerName = activeName,
+                lastRunRecord = telemetryManager.getLastRun(),
+                playerLifetimeTelemetry = telemetryManager.getLifetimeTelemetryForPlayer(activeName),
                 leaderboard = telemetryManager.getLeaderboard(),
                 lifetimeTelemetry = telemetryManager.getLifetimeTelemetry(),
                 towerPerformance = telemetryManager.getTowerPerformance()
@@ -1092,11 +1099,19 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
     private fun recordRunCompletion(isVictory: Boolean, waves: Int) {
         val state = _uiState.value
-        val mvp = state.towers.maxByOrNull { it.totalDamage }?.type?.displayName ?: "Vulcan Minigun"
+        // If no wave was started or zero combat score, do not save!
+        val wasCombatStarted = waves > 0 || state.totalKills > 0 || state.totalDamageDealt > 0f
+        if (!wasCombatStarted) {
+            return
+        }
+
+        val mvp = state.towers.maxByOrNull { it.totalDamage }?.let { it.archetype?.displayName ?: it.type.displayName } ?: "Vulcan Minigun"
+        val playerName = telemetryManager.getActivePlayerName()
         val record = RunRecord(
             id = UUID.randomUUID().toString(),
             seed = state.seed,
             sectorName = state.level?.biome?.name ?: "Sector Zero",
+            playerName = playerName,
             wavesCleared = waves,
             enemiesKilled = state.totalKills,
             totalDamage = state.totalDamageDealt,
@@ -1108,6 +1123,11 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         )
         telemetryManager.recordRun(record)
         telemetryManager.recordTowerSession(state.towers)
+        refreshTelemetry()
+    }
+
+    fun setPlayerName(name: String) {
+        telemetryManager.updateLastRunPlayerName(name)
         refreshTelemetry()
     }
 
