@@ -7,7 +7,8 @@ enum class GameSpeed(val multiplier: Float, val label: String) {
     NORMAL(1f, "1X"),
     FAST(2f, "2X"),
     ULTRA(3.5f, "3.5X"),
-    MAX(5.0f, "5X")
+    MAX(5.0f, "5X"),
+    HYPER(10.0f, "10X")
 }
 
 enum class TargetPriority(val label: String) {
@@ -31,11 +32,17 @@ enum class TileType {
     CORE                 // Nexus Core to protect
 }
 
-enum class TileBuff(val label: String, val desc: String, val badgeColor: Long) {
-    NONE("", "", 0x00000000),
-    AMPLIFIER("+25% DMG", "Damage Matrix", 0xFFFF2A55),
-    HIGH_GROUND("+30% RNG", "Elevated Perch", 0xFF00F0FF),
-    CONDUIT("+30% SPD", "Flux Conduit", 0xFFFFB800)
+enum class TileBuff(
+    val label: String,
+    val desc: String,
+    val badgeColor: Long,
+    val vectorCategory: TowerVector? = null,
+    val incomeBonusMultiplier: Float = 0f
+) {
+    NONE("", "", 0x00000000, null, 0f),
+    AMPLIFIER("ATTACK +30% DMG", "Tactical Damage Matrix: +30% Raw Firepower & +10% Synergy", 0xFFFF2A55, TowerVector.OFFENSIVE, 0.10f),
+    HIGH_GROUND("DEFENSE +35% RNG", "Fortified Perch: +35% Range & Piercing Overlook", 0xFF00F0FF, TowerVector.DEFENSIVE, 0.10f),
+    CONDUIT("SUPPORT +35% SPD", "Flux Conduit Node: +35% Attack Speed & +25% Scrap Yield", 0xFFFFB800, TowerVector.SUPPORT, 0.25f)
 }
 
 data class MapTile(

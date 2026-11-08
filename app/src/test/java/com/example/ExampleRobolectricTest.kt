@@ -318,5 +318,38 @@ class ExampleRobolectricTest {
     assertEquals(15L, vulcanRecord!!.totalKills)
     assertEquals(3500.0, vulcanRecord.totalDamage, 0.1)
   }
+
+  @Test
+  fun `hyper 10x combat simulation speed is supported`() {
+    val speeds = com.example.model.GameSpeed.values()
+    assertTrue(speeds.any { it.multiplier == 10.0f && it.label == "10X" })
+    val hyper = com.example.model.GameSpeed.HYPER
+    assertEquals(10.0f, hyper.multiplier, 0.001f)
+    assertEquals("10X", hyper.label)
+  }
+
+  @Test
+  fun `tactical tile buffs categorize into attack defense support with vector synergies`() {
+    val amp = com.example.model.TileBuff.AMPLIFIER
+    assertEquals(com.example.model.TowerVector.OFFENSIVE, amp.vectorCategory)
+    assertTrue(amp.label.contains("ATTACK +30% DMG"))
+
+    val hg = com.example.model.TileBuff.HIGH_GROUND
+    assertEquals(com.example.model.TowerVector.DEFENSIVE, hg.vectorCategory)
+    assertTrue(hg.label.contains("DEFENSE +35% RNG"))
+
+    val conduit = com.example.model.TileBuff.CONDUIT
+    assertEquals(com.example.model.TowerVector.SUPPORT, conduit.vectorCategory)
+    assertTrue(conduit.label.contains("SUPPORT +35% SPD"))
+    assertEquals(0.25f, conduit.incomeBonusMultiplier, 0.001f)
+  }
+
+  @Test
+  fun `procedural generator produces extended winding paths`() {
+    val level = MapGenerator.generate(54321L)
+    assertTrue("Lane Alpha should have at least 15 steps", level.laneAlpha.size >= 15)
+    assertTrue("Lane Beta should have at least 15 steps", level.laneBeta.size >= 15)
+    assertTrue("Merged track spine must have multiple merged tiles", level.tiles.count { it.type == TileType.PATH_MERGED } >= 3)
+  }
 }
 

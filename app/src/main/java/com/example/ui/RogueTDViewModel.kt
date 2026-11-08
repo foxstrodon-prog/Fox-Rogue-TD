@@ -59,6 +59,9 @@ data class GameUIState(
     val lifetimeTelemetry: LifetimeTelemetry = LifetimeTelemetry(),
     val isTelemetryOpen: Boolean = false,
     val isSettingsOpen: Boolean = false,
+    val isPauseMenuOpen: Boolean = false,
+    val prePauseSpeed: GameSpeed = GameSpeed.NORMAL,
+    val hasClickedFirstTile: Boolean = false,
     val balanceConfig: DevBalanceConfig = DevBalanceConfig(),
     val towerPerformance: List<TowerPerformanceRecord> = emptyList(),
     val bestWaveRecord: Int = 1,
@@ -103,6 +106,32 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     fun toggleSettingsView(open: Boolean) {
         if (open) refreshTelemetry()
         _uiState.update { it.copy(isSettingsOpen = open) }
+    }
+
+    fun openPauseMenu() {
+        val currentSpeed = _uiState.value.gameSpeed
+        val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else GameSpeed.NORMAL
+        _uiState.update {
+            it.copy(
+                isPauseMenuOpen = true,
+                prePauseSpeed = savedSpeed,
+                gameSpeed = GameSpeed.PAUSED
+            )
+        }
+    }
+
+    fun closePauseMenu() {
+        val resumeSpeed = _uiState.value.prePauseSpeed
+        _uiState.update {
+            it.copy(
+                isPauseMenuOpen = false,
+                gameSpeed = resumeSpeed
+            )
+        }
+    }
+
+    fun dismissFirstTileHint() {
+        _uiState.update { it.copy(hasClickedFirstTile = true) }
     }
 
     fun updateBalanceConfig(newConfig: DevBalanceConfig) {
@@ -186,7 +215,9 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                 autoCallNextWave = false,
                 overchargeRemainingMs = 0L,
                 isTelemetryOpen = false,
-                isSettingsOpen = false
+                isSettingsOpen = false,
+                isPauseMenuOpen = false,
+                hasClickedFirstTile = false
             )
         }
 
@@ -372,12 +403,16 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             val towerSpdMul = ffDef?.fireRateMultiplier ?: t1Def?.fireRateMultiplier ?: 1.0f
             val towerRngMul = ffDef?.rangeMultiplier ?: t1Def?.rangeMultiplier ?: 1.0f
 
-            val tileRngBonus = if (tileBuff == TileBuff.HIGH_GROUND) 0.30f else 0.0f
+            val isVectorSynergy = (tower.vector != null && tower.vector == tileBuff.vectorCategory)
+            val synergyDmgBonus = if (isVectorSynergy) 0.15f else 0.0f
+            val synergySpdBonus = if (isVectorSynergy) 0.15f else 0.0f
+
+            val tileRngBonus = if (tileBuff == TileBuff.HIGH_GROUND) 0.35f else 0.0f
             val effectiveRange = tower.type.baseRange * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
 
-            val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.30f else 0.0f
+            val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
-            val fireRate = tower.type.baseFireRate * towerSpdMul * (1.0f + tileSpdBonus + globalFireRateBonus + overchargeSpd)
+            val fireRate = tower.type.baseFireRate * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
             val cooldownMs = (1000f / fireRate).toLong()
 
             val towerX = tower.gridPos.x.toFloat()
@@ -406,14 +441,14 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             if (nowMs - tower.lastShotTimeMs >= cooldownMs) {
                 tower.lastShotTimeMs = nowMs
 
-                val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.25f else 0.0f
+                val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.30f else 0.0f
                 val apexBonus = if (tower.isFinalForm) 0.30f else 0.0f
                 val classDmgMul = when (tower.towerClass) {
                     TowerClass.KINETIC_BALLISTIC -> state.balanceConfig.kineticDamageMultiplier
                     TowerClass.ELEMENTAL_VOID -> state.balanceConfig.elementalDamageMultiplier
                     TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
                 }
-                val baseDmg = tower.type.baseDamage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
+                val baseDmg = tower.type.baseDamage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + globalDamageBonus + apexBonus)
                 val isCrit = Random.nextFloat() < globalCritRate
                 val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
@@ -602,10 +637,16 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         var scrapGained = 0
         val remainingAlive = mutableListOf<EnemyInstance>()
 
+        val conduitTilesCount = towers.count { t ->
+            val tile = level.tiles.firstOrNull { it.pos == t.gridPos }
+            tile?.buff == TileBuff.CONDUIT
+        }
+        val conduitIncomeBonus = 1.0f + (conduitTilesCount * 0.15f)
+
         for (enemy in survivingEnemies) {
             if (enemy.isDead) {
                 killsGained++
-                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier).roundToInt().coerceAtLeast(1)
+                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * conduitIncomeBonus).roundToInt().coerceAtLeast(1)
                 scrapGained += bounty
 
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700)
@@ -755,7 +796,8 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update {
             it.copy(
                 selectedTile = tile,
-                selectedTower = tower
+                selectedTower = tower,
+                hasClickedFirstTile = if (tile != null) true else it.hasClickedFirstTile
             )
         }
     }

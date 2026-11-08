@@ -140,19 +140,51 @@ fun GameCanvas(
                 TileType.EMPTY -> {
                     if (tile.buff != TileBuff.NONE) {
                         val buffColor = Color(tile.buff.badgeColor)
+                        val pulse = (sin(animFlowTime * 0.006f) * 0.20f + 0.80f).toFloat()
                         drawRoundRect(
-                            color = buffColor.copy(alpha = 0.15f),
-                            topLeft = Offset(tx + 3f, ty + 3f),
-                            size = Size(cellW - 6f, cellH - 6f),
+                            color = buffColor.copy(alpha = 0.20f * pulse),
+                            topLeft = Offset(tx + 2f, ty + 2f),
+                            size = Size(cellW - 4f, cellH - 4f),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
                         )
                         drawRoundRect(
-                            color = buffColor.copy(alpha = 0.75f),
-                            topLeft = Offset(tx + 3f, ty + 3f),
-                            size = Size(cellW - 6f, cellH - 6f),
+                            color = buffColor.copy(alpha = 0.90f),
+                            topLeft = Offset(tx + 2f, ty + 2f),
+                            size = Size(cellW - 4f, cellH - 4f),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
-                            style = Stroke(width = 1.5f)
+                            style = Stroke(width = 2.0f)
                         )
+
+                        // Distinct tactical beacon icon
+                        when (tile.buff) {
+                            TileBuff.AMPLIFIER -> {
+                                // Crossed swords / Diamond indicator
+                                drawCircle(color = buffColor, radius = cellW * 0.14f, center = Offset(centerX, centerY))
+                                drawCircle(color = Color.White, radius = cellW * 0.06f, center = Offset(centerX, centerY))
+                            }
+                            TileBuff.HIGH_GROUND -> {
+                                // Elevated triangle beacon
+                                val p = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(centerX, centerY - cellH * 0.16f)
+                                    lineTo(centerX + cellW * 0.16f, centerY + cellH * 0.14f)
+                                    lineTo(centerX - cellW * 0.16f, centerY + cellH * 0.14f)
+                                    close()
+                                }
+                                drawPath(p, color = buffColor)
+                                drawCircle(color = Color.White, radius = cellW * 0.05f, center = Offset(centerX, centerY))
+                            }
+                            TileBuff.CONDUIT -> {
+                                // Flux battery square beacon
+                                val sqSize = cellW * 0.24f
+                                drawRect(
+                                    color = buffColor,
+                                    topLeft = Offset(centerX - sqSize / 2, centerY - sqSize / 2),
+                                    size = Size(sqSize, sqSize)
+                                )
+                                drawCircle(color = Color.White, radius = cellW * 0.05f, center = Offset(centerX, centerY))
+                            }
+                            else -> Unit
+                        }
                     }
                 }
                 else -> Unit

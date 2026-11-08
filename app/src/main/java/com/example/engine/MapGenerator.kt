@@ -78,14 +78,14 @@ object MapGenerator {
         // Brio Train-Track Central Rail Merge Segment
         val mergeX = if (random.nextBoolean()) width / 2 else (width / 2 - 1)
         val mergeStartY = 4
-        val mergeLength = 4 // 4-cell continuous merged track spine
+        val mergeLength = 5 // 5-cell continuous merged track spine for longer shared combat
         val mergeEndY = mergeStartY + mergeLength - 1
         val mergeStart = GridPos(mergeX, mergeStartY)
         val mergeEnd = GridPos(mergeX, mergeEndY)
 
         val mergedRail = (mergeStartY..mergeEndY).map { y -> GridPos(mergeX, y) }
 
-        // Non-self-intersecting lead-in segments into the shared track
+        // Non-self-intersecting lead-in segments into the shared track (extended steps for longer winding paths)
         val leadAlpha = generateNonSelfIntersectingWinding(
             start = spawnerAlpha,
             target = mergeStart,
@@ -94,7 +94,7 @@ object MapGenerator {
             yMin = 0,
             yMax = mergeStartY,
             random = random,
-            minSteps = 7
+            minSteps = 9
         )
 
         val leadBeta = generateNonSelfIntersectingWinding(
@@ -105,10 +105,10 @@ object MapGenerator {
             yMin = 0,
             yMax = mergeStartY,
             random = random,
-            minSteps = 7
+            minSteps = 9
         )
 
-        // Split off or converge naturally towards Core
+        // Split off or converge naturally towards Core with extended winding
         val tailAlpha = generateNonSelfIntersectingWinding(
             start = mergeEnd,
             target = corePos,
@@ -117,7 +117,7 @@ object MapGenerator {
             yMin = mergeEndY,
             yMax = height - 1,
             random = random,
-            minSteps = 5
+            minSteps = 7
         )
 
         val tailBeta = generateNonSelfIntersectingWinding(
@@ -128,7 +128,7 @@ object MapGenerator {
             yMin = mergeEndY,
             yMax = height - 1,
             random = random,
-            minSteps = 5
+            minSteps = 7
         )
 
         val laneAlpha = (leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha).distinct()

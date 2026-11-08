@@ -73,17 +73,16 @@ fun RogueTDScreen(
         // === MINIMAL FLOATING TOP TACTICAL HUD ===
         MinimalTopHud(
             state = state,
-            onSpeedChanged = { viewModel.setGameSpeed(it) },
-            onOpenTelemetry = { viewModel.toggleTelemetryView(true) },
-            onOpenSettings = { viewModel.toggleSettingsView(true) },
-            onQuickRestart = { viewModel.startNewRun() },
+            onDeployWave = { viewModel.deployWave() },
+            onToggleAutoWave = { viewModel.toggleAutoWave() },
+            onOpenPauseMenu = { viewModel.openPauseMenu() },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 6.dp, vertical = 4.dp)
         )
 
-        // === MINIMAL FLOATING BOTTOM COMMAND DOCK ===
+        // === MINIMAL FLOATING BOTTOM COMMAND DOCK (Only visible when tile/tower selected) ===
         MinimalBottomDock(
             state = state,
             onDeployWave = { viewModel.deployWave() },
@@ -105,6 +104,108 @@ fun RogueTDScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 6.dp, vertical = 6.dp)
         )
+
+        // === ROUND 1 ON-SCREEN OVERLAY: TAP A TILE TO BUILD ===
+        val primeBuffTile = remember(state.level) {
+            state.level?.tiles?.firstOrNull { it.type == TileType.EMPTY && it.buff == TileBuff.AMPLIFIER }
+                ?: state.level?.tiles?.firstOrNull { it.type == TileType.EMPTY && it.buff != TileBuff.NONE }
+        }
+
+        if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
+            Surface(
+                color = Color(0xFF0F172A).copy(alpha = 0.92f),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF)),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+                    .clickable { viewModel.dismissFirstTileHint() }
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.TouchApp,
+                        contentDescription = null,
+                        tint = Color(0xFF00F0FF),
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "SELECT A TILE TO BUILD",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (primeBuffTile != null) {
+                            "Pro-Tip: Look for the glowing red/blue/amber tiles! They grant massive +30% Damage, +35% Range, or +35% Speed & Bonus Scrap."
+                        } else {
+                            "Tap any open grid tile along the dual lanes to deploy your defense towers."
+                        },
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "[TAP ANYWHERE TO DISMISS]",
+                        color = Color(0xFFFFB800),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp
+                    )
+                }
+            }
+        }
+
+        // === EXCESS CASH REMINDER BANNER ===
+        if (state.scrap >= 350 && state.hasClickedFirstTile && state.selectedTower == null && state.selectedTile == null) {
+            Surface(
+                color = Color(0xFF161F30).copy(alpha = 0.90f),
+                shape = RoundedCornerShape(20.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.7f)),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(imageVector = Icons.Filled.Diamond, contentDescription = null, tint = Color(0xFFFFD700), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Surplus Credits Available (${state.scrap} c): Build or upgrade defense towers!",
+                        color = Color.White,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // === GEAR / PAUSE MENU MODAL ===
+        if (state.isPauseMenuOpen) {
+            PauseMenuDialog(
+                state = state,
+                onSpeedChanged = { viewModel.setGameSpeed(it) },
+                onOpenTelemetry = {
+                    viewModel.closePauseMenu()
+                    viewModel.toggleTelemetryView(true)
+                },
+                onOpenSettings = {
+                    viewModel.closePauseMenu()
+                    viewModel.toggleSettingsView(true)
+                },
+                onRestart = {
+                    viewModel.closePauseMenu()
+                    viewModel.startNewRun()
+                },
+                onResume = { viewModel.closePauseMenu() }
+            )
+        }
 
         // === RUN COMPLETE / GAME OVER MODAL ===
         if (state.isGameOver || state.isVictory) {
@@ -139,14 +240,13 @@ fun RogueTDScreen(
 @Composable
 fun MinimalTopHud(
     state: GameUIState,
-    onSpeedChanged: (GameSpeed) -> Unit,
-    onOpenTelemetry: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onQuickRestart: () -> Unit,
+    onDeployWave: () -> Unit,
+    onToggleAutoWave: () -> Unit,
+    onOpenPauseMenu: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xFF0A0F1D).copy(alpha = 0.94f),
+        color = Color(0xFF0A0F1D).copy(alpha = 0.95f),
         shape = RoundedCornerShape(10.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
         modifier = modifier
@@ -168,10 +268,10 @@ fun MinimalTopHud(
                 )
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = if (state.currentWaveData?.isBossWave == true) "BOSS ${state.waveNumber}" else "WAVE ${state.waveNumber}",
+                    text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
                     color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
                     fontWeight = FontWeight.Black,
-                    fontSize = 10.5.sp
+                    fontSize = 11.sp
                 )
             }
 
@@ -188,14 +288,14 @@ fun MinimalTopHud(
                         imageVector = Icons.Filled.Shield,
                         contentDescription = "Core HP",
                         tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFF00FF9D),
-                        modifier = Modifier.size(10.dp)
+                        modifier = Modifier.size(11.dp)
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = "${state.coreHp}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
+                        fontSize = 10.5.sp
                     )
                 }
             }
@@ -213,91 +313,81 @@ fun MinimalTopHud(
                         imageVector = Icons.Filled.Diamond,
                         contentDescription = "Credits",
                         tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(10.dp)
+                        modifier = Modifier.size(11.dp)
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = "${state.scrap}",
                         color = Color(0xFFFFD700),
                         fontWeight = FontWeight.Black,
-                        fontSize = 10.sp
+                        fontSize = 10.5.sp
                     )
                 }
             }
 
-            // Speeds (1X..5X)
-            Row(
+            // Auto Wave Toggle
+            Surface(
+                color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30),
+                shape = RoundedCornerShape(5.dp),
+                border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
                 modifier = Modifier
                     .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0xFF161F30))
-                    .padding(1.dp),
-                horizontalArrangement = Arrangement.spacedBy(1.dp)
+                    .clickable { onToggleAutoWave() }
+                    .padding(1.dp)
             ) {
-                GameSpeed.values().forEach { speed ->
-                    val isSelected = state.gameSpeed == speed
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(if (isSelected) Color(0xFF00F0FF) else Color.Transparent)
-                            .clickable { onSpeedChanged(speed) }
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = speed.label,
-                            color = if (isSelected) Color.Black else Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 8.5.sp
-                        )
-                    }
-                }
+                Text(
+                    text = if (state.autoCallNextWave) "AUTO ON" else "AUTO",
+                    color = if (state.autoCallNextWave) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
+                )
             }
 
-            // Telemetry, Dev Balance & Quick Restart
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    color = Color(0xFF161F30),
-                    shape = RoundedCornerShape(5.dp),
-                    modifier = Modifier
-                        .clickable(onClick = onOpenTelemetry)
-                        .testTag("telemetry_button")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Filled.Leaderboard, contentDescription = "Leaderboard", tint = Color(0xFF00F0FF), modifier = Modifier.size(11.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("STATS", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
-                    }
-                }
+            // Launch Wave Button
+            Button(
+                onClick = onDeployWave,
+                enabled = !state.isWaveActive,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF00F0FF),
+                    disabledContainerColor = Color(0xFF1E293B),
+                    contentColor = Color.Black,
+                    disabledContentColor = Color(0xFF64748B)
+                ),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(6.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .testTag("deploy_wave_button")
+            ) {
+                Icon(
+                    imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = if (state.isWaveActive) "${state.enemies.size} FOES" else "LAUNCH",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 9.5.sp
+                )
+            }
 
-                Surface(
-                    color = Color(0xFF161F30),
-                    shape = RoundedCornerShape(5.dp),
-                    modifier = Modifier
-                        .clickable(onClick = onOpenSettings)
-                        .testTag("dev_settings_button")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Filled.Tune, contentDescription = "Dev Balance Settings", tint = Color(0xFFFFB800), modifier = Modifier.size(11.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("DEV", color = Color(0xFFFFB800), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
-                    }
-                }
-
-                IconButton(
-                    onClick = onQuickRestart,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF161F30))
-                ) {
-                    Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Restart Run", tint = Color(0xFFEF4444), modifier = Modifier.size(11.dp))
-                }
+            // Gear Cog Button (Opens Pause Menu)
+            IconButton(
+                onClick = onOpenPauseMenu,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF161F30))
+                    .testTag("pause_menu_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Game Settings & Controls",
+                    tint = Color(0xFFFFB800),
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
@@ -398,6 +488,9 @@ fun MinimalBottomDock(
     onDeselect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDrawerActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.type == TileType.EMPTY)
+    if (!isDrawerActive) return
+
     Surface(
         color = Color(0xFF0A0F1D).copy(alpha = 0.96f),
         shape = RoundedCornerShape(14.dp),
@@ -438,54 +531,6 @@ fun MinimalBottomDock(
                         onBuild = { onBuildTower(state.selectedTile, it) },
                         onClose = onDeselect
                     )
-                }
-
-                // Default -> Launch Dual Wave & Auto wave toggle
-                else -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FilterChip(
-                            selected = state.autoCallNextWave,
-                            onClick = onToggleAutoWave,
-                            label = { Text("Auto Wave", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF00FF9D).copy(alpha = 0.2f),
-                                selectedLabelColor = Color(0xFF00FF9D)
-                            ),
-                            modifier = Modifier.height(32.dp)
-                        )
-
-                        Text(
-                            text = if (state.isWaveActive) "LANE ALPHA & BETA ENGAGED" else "TAP A TILE TO BUILD",
-                            color = if (state.isWaveActive) Color(0xFFFF2A55) else Color(0xFF94A3B8),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Button(
-                            onClick = onDeployWave,
-                            enabled = !state.isWaveActive,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00F0FF),
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .height(38.dp)
-                                .testTag("deploy_wave_button")
-                        ) {
-                            Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (state.isWaveActive) "ACTIVE (${state.enemies.size})" else "LAUNCH WAVE",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -590,15 +635,15 @@ fun BuildTowerDrawer(
                                 Text(
                                     text = towerClass.shapeSymbol,
                                     color = Color(towerClass.color),
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Black
                                 )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = towerClass.displayName,
                                     color = if (isUnlocked) (if (canAfford) Color.White else Color(0xFF94A3B8)) else Color(0xFF64748B),
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 9.sp,
+                                    fontSize = 10.5.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -608,18 +653,25 @@ fun BuildTowerDrawer(
                                     imageVector = Icons.Filled.Lock,
                                     contentDescription = "Locked",
                                     tint = Color(0xFFFF2A55),
-                                    modifier = Modifier.size(11.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(3.dp))
+
+                        val statsPreview = when (towerClass) {
+                            TowerClass.KINETIC_BALLISTIC -> "DMG: 26 | SPD: 4.4x | RNG: 2.6u\n+18% Global Speed Aura"
+                            TowerClass.ELEMENTAL_VOID -> "DMG: 45 | SPD: 2.8x | RNG: 3.2u\nFreezing Slow & Armor Shred"
+                            TowerClass.HEAVY_SIEGE -> "DMG: 145 | SPD: 0.8x | RNG: 4.8u\nAoE Splash & Boss Buster"
+                        }
 
                         Text(
-                            text = if (!isUnlocked) unlockCondition else "[${towerClass.shapeName}] ${towerClass.description}",
-                            color = if (!isUnlocked) Color(0xFFFF2A55) else Color(0xFF94A3B8),
-                            fontSize = 7.5.sp,
-                            lineHeight = 9.sp,
+                            text = if (!isUnlocked) unlockCondition else statsPreview,
+                            color = if (!isUnlocked) Color(0xFFFF2A55) else Color(0xFF00FF9D),
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 10.5.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -636,14 +688,14 @@ fun BuildTowerDrawer(
                                     imageVector = Icons.Filled.Diamond,
                                     contentDescription = null,
                                     tint = if (canAfford && isUnlocked) Color(0xFFFFD700) else Color(0xFF64748B),
-                                    modifier = Modifier.size(11.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
                                     text = "$cost c",
                                     color = if (canAfford && isUnlocked) Color(0xFFFFD700) else Color(0xFF64748B),
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 10.sp
+                                    fontSize = 11.sp
                                 )
                             }
 
@@ -651,7 +703,7 @@ fun BuildTowerDrawer(
                                 text = if (!isUnlocked) "LOCKED" else if (canAfford) "BUILD" else "NEED C",
                                 color = if (isEnabled) themeColor else Color(0xFF64748B),
                                 fontWeight = FontWeight.Black,
-                                fontSize = 8.sp
+                                fontSize = 9.sp
                             )
                         }
                     }
@@ -808,42 +860,51 @@ fun BranchingTowerInspector(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     vectors.forEach { vec ->
+                        val statBoost = when (vec) {
+                            TowerVector.OFFENSIVE -> "+45% DMG  |  +15% CRIT  |  Heavy Penetration"
+                            TowerVector.DEFENSIVE -> "+35% RNG  |  +20% Slow  |  Pushback & Stun"
+                            TowerVector.SUPPORT -> "+40% SPD  |  +25% SCRAP |  Range Uplink Aura"
+                        }
+
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .border(1.dp, if (canAfford) Color(vec.color).copy(alpha = 0.7f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
+                                .border(1.dp, if (canAfford) Color(vec.color).copy(alpha = 0.8f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
                         ) {
                             Column(
-                                modifier = Modifier.padding(6.dp),
+                                modifier = Modifier.padding(7.dp),
                                 verticalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = vec.displayName.uppercase(),
                                         color = Color(vec.color),
-                                        fontSize = 8.5.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Black
                                     )
                                     Text(
                                         text = "${cost} c",
                                         color = if (canAfford) Color(0xFFFFD700) else Color(0xFF64748B),
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Black
                                     )
                                 }
 
+                                Spacer(modifier = Modifier.height(2.dp))
+
                                 Text(
-                                    text = vec.role,
-                                    color = Color.White,
+                                    text = statBoost,
+                                    color = Color(0xFF00FF9D),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 8.sp,
-                                    maxLines = 2,
-                                    lineHeight = 10.sp
+                                    fontSize = 8.5.sp,
+                                    lineHeight = 11.sp,
+                                    maxLines = 2
                                 )
 
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -859,10 +920,10 @@ fun BranchingTowerInspector(
                                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(24.dp)
+                                        .height(26.dp)
                                         .testTag("upgrade_vector_${vec.idName}")
                                 ) {
-                                    Text("SELECT ${vec.displayName.uppercase()}", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                    Text("SELECT ${vec.displayName.uppercase()}", fontSize = 8.5.sp, fontWeight = FontWeight.Black)
                                 }
                             }
                         }
@@ -891,17 +952,18 @@ fun BranchingTowerInspector(
                                 .border(1.dp, if (canAfford) Color(archetype.color).copy(alpha = 0.8f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
                         ) {
                             Column(
-                                modifier = Modifier.padding(6.dp),
+                                modifier = Modifier.padding(7.dp),
                                 verticalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = archetype.displayName,
                                         color = Color(archetype.color),
-                                        fontSize = 8.5.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Black,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -909,36 +971,38 @@ fun BranchingTowerInspector(
                                     Text(
                                         text = "${cost} c",
                                         color = if (canAfford) Color(0xFFFFD700) else Color(0xFF64748B),
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Black
                                     )
                                 }
 
+                                Spacer(modifier = Modifier.height(2.dp))
+
                                 Text(
-                                    text = archetype.role,
+                                    text = "DMG: ${archetype.baseDamage.toInt()} | SPD: ${archetype.baseFireRate}x | RNG: ${archetype.baseRange}u",
                                     color = Color.White,
-                                    fontSize = 7.5.sp,
-                                    lineHeight = 9.5.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 11.sp
                                 )
 
                                 Surface(
-                                    color = Color(archetype.color).copy(alpha = 0.12f),
+                                    color = Color(archetype.color).copy(alpha = 0.15f),
                                     shape = RoundedCornerShape(3.dp),
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = "Auras: ${archetype.primaryAura.shortBadge} / ${archetype.secondaryAura.shortBadge}",
                                         color = Color(archetype.color),
-                                        fontSize = 7.sp,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
+                                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.5.dp)
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
 
                                 Button(
                                     onClick = { if (canAfford) onUpgradeToArchetype(archetype) },
@@ -951,10 +1015,10 @@ fun BranchingTowerInspector(
                                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(24.dp)
+                                        .height(26.dp)
                                         .testTag("upgrade_archetype_${archetype.archetypeId}")
                                 ) {
-                                    Text("LOCK IDENTITY", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                    Text("LOCK IDENTITY", fontSize = 8.5.sp, fontWeight = FontWeight.Black)
                                 }
                             }
                         }
@@ -1954,4 +2018,159 @@ fun BalanceSliderCard(
         }
     }
 }
+
+@Composable
+fun PauseMenuDialog(
+    state: GameUIState,
+    onSpeedChanged: (GameSpeed) -> Unit,
+    onOpenTelemetry: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRestart: () -> Unit,
+    onResume: () -> Unit
+) {
+    Dialog(onDismissRequest = onResume) {
+        Surface(
+            color = Color(0xFF0F172A),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFFB800)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Filled.PauseCircle, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "GAME PAUSED",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp
+                        )
+                    }
+
+                    IconButton(onClick = onResume, modifier = Modifier.size(28.dp)) {
+                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Speeds Selection (Including new 10X!)
+                Text(
+                    text = "COMBAT SIMULATION SPEED",
+                    color = Color(0xFF64748B),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 9.sp,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E293B))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    listOf(GameSpeed.NORMAL, GameSpeed.FAST, GameSpeed.ULTRA, GameSpeed.MAX, GameSpeed.HYPER).forEach { speed ->
+                        val isSel = (state.prePauseSpeed == speed) || (state.gameSpeed == speed && speed != GameSpeed.PAUSED)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSel) Color(0xFF00F0FF) else Color.Transparent)
+                                .clickable { onSpeedChanged(speed) }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = speed.label,
+                                color = if (isSel) Color.Black else Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Action Menu Buttons
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Resume
+                    Button(
+                        onClick = onResume,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("RESUME BATTLE", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+
+                    // Leaderboard & Telemetry
+                    OutlinedButton(
+                        onClick = onOpenTelemetry,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00F0FF)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.Leaderboard, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("GLOBAL RANKS & METRICS", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    // Dev Balance Console
+                    OutlinedButton(
+                        onClick = onOpenSettings,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFB800)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("DEV BALANCE CONSOLE (SLIDERS)", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    // Restart Run
+                    OutlinedButton(
+                        onClick = onRestart,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF2A55)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.7f)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("RESTART CURRENT RUN", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
 
