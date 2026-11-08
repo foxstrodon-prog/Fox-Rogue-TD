@@ -1,0 +1,6 @@
+{
+  "name": "Rogue TD",
+  "description": "Procedural roguelike tower defense with instant play, randomized maps, and unique upgrade paths.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

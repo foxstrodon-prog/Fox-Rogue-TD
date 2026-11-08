@@ -1,0 +1,1530 @@
+package com.example.ui
+
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.engine.GeneratedLevel
+import com.example.engine.TowerUpgradeManager
+import com.example.model.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun RogueTDScreen(
+    viewModel: RogueTDViewModel,
+    modifier: Modifier = Modifier
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF070B13))
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+    ) {
+        // === FULL SCREEN MAP CANVAS ===
+        Box(modifier = Modifier.fillMaxSize()) {
+            GameCanvas(
+                state = state,
+                onTileClicked = { viewModel.selectTile(it) }
+            )
+
+            // Floating Combat Text Overlay
+            FloatingTextOverlay(texts = state.floatingTexts, level = state.level)
+
+            // === MACRO SYNERGY HUD (Collapsible) ===
+            MacroSynergyHud(
+                synergies = state.activeGlobalSynergies,
+                isExpanded = state.isSynergyPanelExpanded,
+                onToggleExpand = { viewModel.toggleSynergyPanel() },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 46.dp, start = 8.dp, end = 8.dp)
+            )
+        }
+
+        // === MINIMAL FLOATING TOP TACTICAL HUD ===
+        MinimalTopHud(
+            state = state,
+            onSpeedChanged = { viewModel.setGameSpeed(it) },
+            onOpenTelemetry = { viewModel.toggleTelemetryView(true) },
+            onQuickRestart = { viewModel.startNewRun() },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 4.dp)
+        )
+
+        // === MINIMAL FLOATING BOTTOM COMMAND DOCK ===
+        MinimalBottomDock(
+            state = state,
+            onDeployWave = { viewModel.deployWave() },
+            onToggleAutoWave = { viewModel.toggleAutoWave() },
+            onBuildTower = { tile, type -> viewModel.buildTower(tile, type) },
+            onBuildTowerClass = { tile, cls -> viewModel.buildTower(tile, cls) },
+            onUpgradeToVector = { tower, vec -> viewModel.upgradeTowerToVector(tower, vec) },
+            onUpgradeToArchetype = { tower, arch -> viewModel.upgradeTowerToArchetype(tower, arch) },
+            onUpgradeToTier3Global = { tower, auraIdx -> viewModel.upgradeTowerToTier3Global(tower, auraIdx) },
+            onUpgradeToTier1 = { tower, branch -> viewModel.upgradeTowerToTier1(tower, branch) },
+            onUpgradeToFinalForm = { tower, code -> viewModel.upgradeTowerToFinalForm(tower, code) },
+            onUpgradePath = { tower, pathIdx -> viewModel.upgradeTowerPath(tower, pathIdx) },
+            onAscendTower = { viewModel.ascendTower(it) },
+            onSellTower = { viewModel.sellSelectedTower() },
+            onChangePriority = { viewModel.changeSelectedTowerPriority(it) },
+            onDeselect = { viewModel.selectTile(null) },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp)
+        )
+
+        // === RUN COMPLETE / GAME OVER MODAL ===
+        if (state.isGameOver || state.isVictory) {
+            RunSummaryDialog(
+                state = state,
+                onRestart = { viewModel.startNewRun() },
+                onViewTelemetry = { viewModel.toggleTelemetryView(true) }
+            )
+        }
+
+        // === TELEMETRY & LEADERBOARD MODAL ===
+        if (state.isTelemetryOpen) {
+            TelemetryLeaderboardDialog(
+                state = state,
+                onDismiss = { viewModel.toggleTelemetryView(false) }
+            )
+        }
+    }
+}
+
+@Composable
+fun MinimalTopHud(
+    state: GameUIState,
+    onSpeedChanged: (GameSpeed) -> Unit,
+    onOpenTelemetry: () -> Unit,
+    onQuickRestart: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color(0xFF0A0F1D).copy(alpha = 0.94f),
+        shape = RoundedCornerShape(10.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Wave badge
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (state.currentWaveData?.isBossWave == true) "BOSS WAVE ${state.waveNumber}" else "WAVE ${state.waveNumber}",
+                    color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp
+                )
+            }
+
+            // Core HP
+            Surface(
+                color = Color(0xFF161F30),
+                shape = RoundedCornerShape(5.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Shield,
+                        contentDescription = "Core HP",
+                        tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFF00FF9D),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${state.coreHp}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Credits
+            Surface(
+                color = Color(0xFF161F30),
+                shape = RoundedCornerShape(5.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Diamond,
+                        contentDescription = "Credits",
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${state.scrap}",
+                        color = Color(0xFFFFD700),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Speeds (1X..5X)
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Color(0xFF161F30))
+                    .padding(1.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                GameSpeed.values().forEach { speed ->
+                    val isSelected = state.gameSpeed == speed
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isSelected) Color(0xFF00F0FF) else Color.Transparent)
+                            .clickable { onSpeedChanged(speed) }
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = speed.label,
+                            color = if (isSelected) Color.Black else Color(0xFF94A3B8),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+            }
+
+            // Telemetry & Quick Restart
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = Color(0xFF161F30),
+                    shape = RoundedCornerShape(5.dp),
+                    modifier = Modifier
+                        .clickable(onClick = onOpenTelemetry)
+                        .testTag("telemetry_button")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Filled.Leaderboard, contentDescription = "Leaderboard", tint = Color(0xFF00F0FF), modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("RANKS", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                    }
+                }
+
+                IconButton(
+                    onClick = onQuickRestart,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF161F30))
+                ) {
+                    Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Restart Run", tint = Color(0xFFEF4444), modifier = Modifier.size(12.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MacroSynergyHud(
+    synergies: List<GlobalAuraSynergy>,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (synergies.isEmpty()) return
+
+    Surface(
+        color = Color(0xFF090E1A).copy(alpha = 0.95f),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.8f)),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpand() },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "🌟", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "MACRO SYNERGIES (${synergies.size} ACTIVE)",
+                        color = Color(0xFFFFB800),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 10.sp
+                    )
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = "Expand",
+                    tint = Color(0xFFFFB800),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    synergies.forEach { syn ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF131F33), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = syn.iconEmoji, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${syn.auraName} (${syn.sourceCount} Emitter${if (syn.sourceCount > 1) "s" else ""})",
+                                    color = Color(syn.color),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.5.sp
+                                )
+                                Text(
+                                    text = syn.effectDescription,
+                                    color = Color(0xFFCBD5E1),
+                                    fontSize = 8.sp,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MinimalBottomDock(
+    state: GameUIState,
+    onDeployWave: () -> Unit,
+    onToggleAutoWave: () -> Unit,
+    onBuildTower: (MapTile, TowerType) -> Unit,
+    onBuildTowerClass: (MapTile, TowerClass) -> Unit = { _, _ -> },
+    onUpgradeToVector: (TowerInstance, TowerVector) -> Unit = { _, _ -> },
+    onUpgradeToArchetype: (TowerInstance, TowerArchetype) -> Unit = { _, _ -> },
+    onUpgradeToTier3Global: (TowerInstance, Int) -> Unit = { _, _ -> },
+    onUpgradeToTier1: (TowerInstance, String) -> Unit = { _, _ -> },
+    onUpgradeToFinalForm: (TowerInstance, String) -> Unit = { _, _ -> },
+    onUpgradePath: (TowerInstance, Int) -> Unit = { _, _ -> },
+    onAscendTower: (TowerInstance) -> Unit = {},
+    onSellTower: () -> Unit,
+    onChangePriority: (TargetPriority) -> Unit,
+    onDeselect: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color(0xFF0A0F1D).copy(alpha = 0.96f),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            when {
+                // Placed Tower selected -> 3-Tier Hierarchy Inspector & Detailed Stat Sheet
+                state.selectedTower != null -> {
+                    BranchingTowerInspector(
+                        tower = state.selectedTower,
+                        allTowers = state.towers,
+                        scrap = state.scrap,
+                        activeSynergies = state.activeGlobalSynergies,
+                        onUpgradeToVector = { onUpgradeToVector(state.selectedTower, it) },
+                        onUpgradeToArchetype = { onUpgradeToArchetype(state.selectedTower, it) },
+                        onUpgradeToTier3Global = { auraIdx -> onUpgradeToTier3Global(state.selectedTower, auraIdx) },
+                        onUpgradeToTier1 = { onUpgradeToTier1(state.selectedTower, it) },
+                        onUpgradeToFinalForm = { onUpgradeToFinalForm(state.selectedTower, it) },
+                        onSell = onSellTower,
+                        onChangePriority = onChangePriority,
+                        onClose = onDeselect
+                    )
+                }
+
+                // Empty Buildable Tile selected -> Deploy 3-Class Tower Drawer
+                state.selectedTile != null && state.selectedTile.type == TileType.EMPTY -> {
+                    BuildTowerDrawer(
+                        tile = state.selectedTile,
+                        allTowers = state.towers,
+                        scrap = state.scrap,
+                        onBuildClass = { onBuildTowerClass(state.selectedTile, it) },
+                        onBuild = { onBuildTower(state.selectedTile, it) },
+                        onClose = onDeselect
+                    )
+                }
+
+                // Default -> Launch Dual Wave & Auto wave toggle
+                else -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = state.autoCallNextWave,
+                            onClick = onToggleAutoWave,
+                            label = { Text("Auto Wave", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF00FF9D).copy(alpha = 0.2f),
+                                selectedLabelColor = Color(0xFF00FF9D)
+                            ),
+                            modifier = Modifier.height(32.dp)
+                        )
+
+                        Text(
+                            text = if (state.isWaveActive) "LANE ALPHA & BETA ENGAGED" else "TAP A TILE TO BUILD",
+                            color = if (state.isWaveActive) Color(0xFFFF2A55) else Color(0xFF94A3B8),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Button(
+                            onClick = onDeployWave,
+                            enabled = !state.isWaveActive,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00F0FF),
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .height(38.dp)
+                                .testTag("deploy_wave_button")
+                        ) {
+                            Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (state.isWaveActive) "ACTIVE (${state.enemies.size})" else "LAUNCH WAVE",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BuildTowerDrawer(
+    tile: MapTile,
+    allTowers: List<TowerInstance> = emptyList(),
+    scrap: Int,
+    onBuildClass: (TowerClass) -> Unit = {},
+    onBuild: (TowerType) -> Unit = {},
+    onClose: () -> Unit
+) {
+    val classes = TowerUpgradeManager.getTowerClasses()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "DEPLOY DEFENSE TOWER",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp
+                )
+                if (tile.buff != TileBuff.NONE) {
+                    Text(
+                        text = "TERRAIN BONUS: ${tile.buff.label} (${tile.buff.desc})",
+                        color = Color(tile.buff.badgeColor),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp
+                    )
+                }
+            }
+
+            IconButton(onClick = onClose, modifier = Modifier.size(22.dp)) {
+                Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            classes.forEach { towerClass ->
+                val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, allTowers)
+                val cost = towerClass.baseCost
+                val canAfford = scrap >= cost
+                val isEnabled = isUnlocked && canAfford
+                val themeColor = Color(towerClass.color)
+
+                val unlockCondition = when (towerClass) {
+                    TowerClass.KINETIC_BALLISTIC -> "Unlocked"
+                    TowerClass.ELEMENTAL_VOID -> "Unlock: 1 Tier 3"
+                    TowerClass.HEAVY_SIEGE -> "Unlock: 2 Tier 3"
+                }
+
+                Card(
+                    onClick = {
+                        if (isEnabled) {
+                            onBuildClass(towerClass)
+                            if (towerClass == TowerClass.KINETIC_BALLISTIC) {
+                                onBuild(TowerType.GATLING)
+                            }
+                        }
+                    },
+                    enabled = isEnabled,
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isEnabled) Color(0xFF131F33) else Color(0xFF0C1322),
+                        disabledContainerColor = Color(0xFF0C1322)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
+                        .border(
+                            1.dp,
+                            if (isEnabled) themeColor.copy(alpha = 0.8f) else Color(0xFF1E293B),
+                            RoundedCornerShape(8.dp)
+                        )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(6.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = towerClass.shapeSymbol,
+                                    color = Color(towerClass.color),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = towerClass.displayName,
+                                    color = if (isUnlocked) (if (canAfford) Color.White else Color(0xFF94A3B8)) else Color(0xFF64748B),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 9.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (!isUnlocked) {
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = "Locked",
+                                    tint = Color(0xFFFF2A55),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = if (!isUnlocked) unlockCondition else "[${towerClass.shapeName}] ${towerClass.description}",
+                            color = if (!isUnlocked) Color(0xFFFF2A55) else Color(0xFF94A3B8),
+                            fontSize = 7.5.sp,
+                            lineHeight = 9.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Diamond,
+                                    contentDescription = null,
+                                    tint = if (canAfford && isUnlocked) Color(0xFFFFD700) else Color(0xFF64748B),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "$cost c",
+                                    color = if (canAfford && isUnlocked) Color(0xFFFFD700) else Color(0xFF64748B),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Text(
+                                text = if (!isUnlocked) "LOCKED" else if (canAfford) "BUILD" else "NEED C",
+                                color = if (isEnabled) themeColor else Color(0xFF64748B),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 8.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BranchingTowerInspector(
+    tower: TowerInstance,
+    allTowers: List<TowerInstance>,
+    scrap: Int,
+    activeSynergies: List<GlobalAuraSynergy> = emptyList(),
+    onUpgradeToVector: (TowerVector) -> Unit = {},
+    onUpgradeToArchetype: (TowerArchetype) -> Unit = {},
+    onUpgradeToTier3Global: (Int) -> Unit = {},
+    onUpgradeToTier1: (String) -> Unit = {},
+    onUpgradeToFinalForm: (String) -> Unit = {},
+    onSell: () -> Unit,
+    onChangePriority: (TargetPriority) -> Unit,
+    onClose: () -> Unit
+) {
+    val sellValue = tower.getSellValue()
+    val arch = tower.archetype
+    val baseDamage = arch?.baseDamage ?: tower.type.baseDamage
+    val baseFireRate = arch?.baseFireRate ?: tower.type.baseFireRate
+    val baseRange = arch?.baseRange ?: tower.type.baseRange
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // --- HEADER ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(if (tower.isTier3) Color(0xFFFFB800) else Color(arch?.color ?: tower.towerClass.color))
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = tower.towerClass.shapeSymbol,
+                            color = Color(tower.towerClass.color),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = tower.getDisplayName(),
+                            color = if (tower.isTier3) Color(0xFFFFB800) else Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = when (tower.tier) {
+                            3 -> "TIER 3 [${tower.towerClass.shapeName}]: ${tower.activeAura?.name ?: "GLOBAL AURA"} ONLINE"
+                            2 -> "TIER 2 [${tower.towerClass.shapeName}]: SPECIALIZED ARCHETYPE LOCKED"
+                            1 -> "TIER 1 [${tower.towerClass.shapeName}]: ${tower.vector?.displayName ?: "VECTOR"} SPECIALIZED"
+                            else -> "TIER 0 [${tower.towerClass.shapeName}]: ${tower.towerClass.displayName} (SELECT VECTOR)"
+                        },
+                        color = when (tower.tier) {
+                            3 -> Color(0xFFFFB800)
+                            2 -> Color(0xFF00F0FF)
+                            1 -> Color(0xFF00FF9D)
+                            else -> Color(0xFF94A3B8)
+                        },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TargetPriority.values().forEach { prio ->
+                    val isSel = tower.targetPriority == prio
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isSel) Color(0xFF00F0FF) else Color(0xFF1E293B))
+                            .clickable { onChangePriority(prio) }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = prio.label,
+                            color = if (isSel) Color.Black else Color(0xFF94A3B8),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
+
+                IconButton(onClick = onClose, modifier = Modifier.size(22.dp)) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // --- DETAILED STAT SHEET (3 Sections: Base Stats, Local Upgrades, Incoming Global Multipliers) ---
+        Surface(
+            color = Color(0xFF0F172A).copy(alpha = 0.85f),
+            shape = RoundedCornerShape(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Section 1: Base Stats
+                Column {
+                    Text(text = "BASE STATS", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
+                    Text(text = "DMG: ${baseDamage.toInt()} | SPD: ${baseFireRate}x | RNG: ${baseRange}u", color = Color.White, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                }
+                // Section 2: Local Upgrades
+                Column {
+                    Text(text = "LOCAL TIER", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
+                    Text(text = "Tier ${tower.tier}/3 (${tower.vector?.displayName ?: "Base"})", color = Color(0xFF00FF9D), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                }
+                // Section 3: Incoming Global Buffs
+                Column {
+                    Text(text = "GLOBAL AURAS", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
+                    Text(text = "${activeSynergies.size} Active Multipliers", color = Color(0xFFFFB800), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(5.dp))
+
+        // --- TIER PROGRESSION SELECTION CARDS ---
+        when (tower.tier) {
+            // TIER 0: Pick 1 of 3 Vectors (Offensive, Defensive, Support) for this class
+            0 -> {
+                val vectors = TowerUpgradeManager.getTier1Vectors()
+                val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
+                val canAfford = scrap >= cost
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    vectors.forEach { vec ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.dp, if (canAfford) Color(vec.color).copy(alpha = 0.7f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(6.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = vec.displayName.uppercase(),
+                                        color = Color(vec.color),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        text = "${cost} c",
+                                        color = if (canAfford) Color(0xFFFFD700) else Color(0xFF64748B),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Text(
+                                    text = vec.role,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.sp,
+                                    maxLines = 2,
+                                    lineHeight = 10.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Button(
+                                    onClick = { if (canAfford) onUpgradeToVector(vec) },
+                                    enabled = canAfford,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(vec.color),
+                                        contentColor = Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(24.dp)
+                                        .testTag("upgrade_vector_${vec.idName}")
+                                ) {
+                                    Text("SELECT ${vec.displayName.uppercase()}", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TIER 1: Pick 1 of 3 Archetypes for the selected Vector and Tower Class
+            1 -> {
+                val vec = tower.vector ?: TowerVector.OFFENSIVE
+                val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    archetypes.forEach { archetype ->
+                        val cost = TowerUpgradeManager.getTier2Cost(archetype)
+                        val canAfford = scrap >= cost
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.dp, if (canAfford) Color(archetype.color).copy(alpha = 0.8f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(6.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = archetype.displayName,
+                                        color = Color(archetype.color),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${cost} c",
+                                        color = if (canAfford) Color(0xFFFFD700) else Color(0xFF64748B),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Text(
+                                    text = archetype.role,
+                                    color = Color.White,
+                                    fontSize = 7.5.sp,
+                                    lineHeight = 9.5.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Surface(
+                                    color = Color(archetype.color).copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(3.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Auras: ${archetype.primaryAura.shortBadge} / ${archetype.secondaryAura.shortBadge}",
+                                        color = Color(archetype.color),
+                                        fontSize = 7.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Button(
+                                    onClick = { if (canAfford) onUpgradeToArchetype(archetype) },
+                                    enabled = canAfford,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(archetype.color),
+                                        contentColor = Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(24.dp)
+                                        .testTag("upgrade_archetype_${archetype.archetypeId}")
+                                ) {
+                                    Text("LOCK IDENTITY", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TIER 2: Upgrade to Tier 3 Global Aura Projection (Choose between 2 unique auras!)
+            2 -> {
+                val archetype = tower.archetype ?: mapTypeToArchetype(tower.type)
+                val cost = TowerUpgradeManager.getTier3GlobalCost(tower, allTowers)
+                val canAfford = scrap >= cost
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "CHOOSE TIER 3 GLOBAL AURA PROJECTION (${cost} c)",
+                        color = Color(0xFFFFB800),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 9.sp
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Aura Option 0: Primary Aura
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(
+                                    1.dp,
+                                    if (canAfford) Color(0xFFFFB800) else Color(0xFF26334D),
+                                    RoundedCornerShape(8.dp)
+                                )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(6.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = archetype.primaryAura.name,
+                                        color = Color(0xFFFFB800),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 8.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Surface(
+                                        color = Color(0xFFFFB800).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(3.dp)
+                                    ) {
+                                        Text(
+                                            text = archetype.primaryAura.shortBadge,
+                                            color = Color(0xFFFFB800),
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    text = archetype.primaryAura.description,
+                                    color = Color.White,
+                                    fontSize = 7.5.sp,
+                                    lineHeight = 9.5.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Button(
+                                    onClick = { if (canAfford) onUpgradeToTier3Global(0) },
+                                    enabled = canAfford,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFFFB800),
+                                        contentColor = Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(24.dp)
+                                        .testTag("upgrade_tier3_global")
+                                ) {
+                                    Text("ACTIVATE AURA", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
+
+                        // Aura Option 1: Secondary Aura
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(
+                                    1.dp,
+                                    if (canAfford) Color(0xFF00FF9D) else Color(0xFF26334D),
+                                    RoundedCornerShape(8.dp)
+                                )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(6.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = archetype.secondaryAura.name,
+                                        color = Color(0xFF00FF9D),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 8.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Surface(
+                                        color = Color(0xFF00FF9D).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(3.dp)
+                                    ) {
+                                        Text(
+                                            text = archetype.secondaryAura.shortBadge,
+                                            color = Color(0xFF00FF9D),
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    text = archetype.secondaryAura.description,
+                                    color = Color.White,
+                                    fontSize = 7.5.sp,
+                                    lineHeight = 9.5.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Button(
+                                    onClick = { if (canAfford) onUpgradeToTier3Global(1) },
+                                    enabled = canAfford,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF00FF9D),
+                                        contentColor = Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(24.dp)
+                                        .testTag("upgrade_tier3_aura_1")
+                                ) {
+                                    Text("ACTIVATE AURA", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TIER 3: Apex Form Active with Selected Aura
+            3 -> {
+                val aura = tower.activeAura ?: (tower.archetype ?: mapTypeToArchetype(tower.type)).primaryAura
+                Surface(
+                    color = Color(0xFFFFB800).copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🌟 ${aura.name} ACTIVE",
+                                color = Color(0xFFFFB800),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp
+                            )
+                            Text(
+                                text = aura.description,
+                                color = Color.White,
+                                fontSize = 8.sp,
+                                lineHeight = 10.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            color = Color(0xFF00FF9D).copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "[${aura.shortBadge}]",
+                                color = Color(0xFF00FF9D),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 8.5.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Sell Button & Combat Stats
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Kills: ${tower.kills} | Dmg: ${tower.totalDamage.toInt()}",
+                color = Color(0xFF94A3B8),
+                fontSize = 9.sp
+            )
+
+            OutlinedButton(
+                onClick = onSell,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(6.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .testTag("sell_tower_button")
+            ) {
+                Icon(imageVector = Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(11.dp))
+                Spacer(modifier = Modifier.width(2.dp))
+                Text("SELL (+$sellValue)", fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun ThreePathTowerInspector(
+    tower: TowerInstance,
+    allTowers: List<TowerInstance>,
+    scrap: Int,
+    onUpgradePath: (Int) -> Unit,
+    onAscend: () -> Unit,
+    onSell: () -> Unit,
+    onChangePriority: (TargetPriority) -> Unit,
+    onClose: () -> Unit
+) {
+    BranchingTowerInspector(
+        tower = tower,
+        allTowers = allTowers,
+        scrap = scrap,
+        onUpgradeToTier1 = { branch ->
+            val idx = when (branch) { "A" -> 0; "B" -> 1; else -> 2 }
+            onUpgradePath(idx)
+        },
+        onUpgradeToFinalForm = {
+            onAscend()
+        },
+        onSell = onSell,
+        onChangePriority = onChangePriority,
+        onClose = onClose
+    )
+}
+
+@Composable
+fun TelemetryLeaderboardDialog(
+    state: GameUIState,
+    onDismiss: () -> Unit
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = Color(0xFF0B132B),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF).copy(alpha = 0.7f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f)
+                .padding(6.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "ROGUE TD: SECTOR ZERO",
+                            color = Color(0xFF00F0FF),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "Dual-Front Tactical Leaderboard & Hall of Fame",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
+                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color(0xFF131F37),
+                    contentColor = Color(0xFF00F0FF),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("LEADERBOARD", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("LIFETIME METRICS", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (selectedTab == 0) {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        itemsIndexed(state.leaderboard) { index, item ->
+                            val medal = when (index) {
+                                0 -> "🥇"
+                                1 -> "🥈"
+                                2 -> "🥉"
+                                else -> "#${index + 1}"
+                            }
+
+                            Surface(
+                                color = Color(0xFF162544),
+                                shape = RoundedCornerShape(10.dp),
+                                border = if (index == 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)) else null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = medal,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.width(36.dp)
+                                    )
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "Wave ${item.wavesCleared} Cleared",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 13.sp
+                                            )
+                                            Text(
+                                                text = if (item.isVictory) "VICTORY" else "DEFEAT",
+                                                color = if (item.isVictory) Color(0xFF00FF9D) else Color(0xFFFF2A55),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "${item.enemiesKilled} Kills | MVP: ${item.mvpTower} | ${item.sectorName}",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 10.sp
+                                        )
+
+                                        Text(
+                                            text = dateFormat.format(Date(item.timestamp)),
+                                            color = Color(0xFF64748B),
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    val lt = state.lifetimeTelemetry
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        TelemetryCard("Total Dual-Front Runs", "${lt.totalRuns}", Icons.Filled.PlayArrow, Color(0xFF00F0FF))
+                        TelemetryCard("Total Hostiles Annihilated", "${lt.totalHostilesKilled}", Icons.Filled.CrisisAlert, Color(0xFFFF2A55))
+                        TelemetryCard("Total Credits Harvested", "${lt.totalScrapMined}", Icons.Filled.Diamond, Color(0xFFFFD700))
+                        TelemetryCard("Longest Wave Record", "Wave ${lt.bestWaveEver}", Icons.Filled.EmojiEvents, Color(0xFF00FF9D))
+                        TelemetryCard("Highest Damage MVP", lt.mostUsedTower, Icons.Filled.MilitaryTech, Color(0xFFA855F7))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TelemetryCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color) {
+    Surface(
+        color = Color(0xFF131F37),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(text = label, color = Color(0xFF94A3B8), fontSize = 11.sp)
+                Text(text = value, color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?) {
+    if (level == null || texts.isEmpty()) return
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        for (ft in texts) {
+            val alpha = (ft.lifeMs.toFloat() / ft.maxLifeMs).coerceIn(0f, 1f)
+            val normX = (ft.x + 0.5f) / level.width.toFloat()
+            val normY = (ft.y + 0.5f) / level.height.toFloat()
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentSize(Alignment.TopStart)
+                    .offset(
+                        x = (normX * 340f).dp,
+                        y = (normY * 560f).dp
+                    )
+            ) {
+                Text(
+                    text = ft.text,
+                    color = Color(ft.color).copy(alpha = alpha),
+                    fontSize = if (ft.isCrit) 14.sp else 11.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RunSummaryDialog(
+    state: GameUIState,
+    onRestart: () -> Unit,
+    onViewTelemetry: () -> Unit
+) {
+    Dialog(onDismissRequest = { }) {
+        Surface(
+            color = Color(0xFF0F172A),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(
+                2.dp,
+                if (state.isVictory) Color(0xFF00FF9D) else Color(0xFFFF2A55)
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (state.isVictory) "DUAL SECTOR SECURED!" else "CORE BREACHED",
+                    color = if (state.isVictory) Color(0xFF00FF9D) else Color(0xFFFF2A55),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 18.sp
+                )
+
+                Text(
+                    text = if (state.isVictory) "Both lanes held! Sector Zero defenses triumph." else "Dual-front hostiles overran the core nexus.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Surface(
+                    color = Color(0xFF1E293B),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        SummaryStatRow("Waves Cleared", "${state.waveNumber - 1}")
+                        SummaryStatRow("Hostiles Slain", "${state.totalKills}")
+                        SummaryStatRow("Damage Output", "${state.totalDamageDealt.toInt()}")
+                        SummaryStatRow("Credits Harvested", "${state.totalScrapEarned}")
+                        SummaryStatRow("Ascended Towers", "${state.towers.count { it.isAscended }}")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onViewTelemetry,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00F0FF)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.Leaderboard, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("LEADERBOARD", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    Button(
+                        onClick = onRestart,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00F0FF),
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .height(44.dp)
+                            .testTag("restart_run_button")
+                    ) {
+                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("NEW RUN", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SummaryStatRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, color = Color(0xFF94A3B8), fontSize = 12.sp)
+        Text(text = value, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+    }
+}
