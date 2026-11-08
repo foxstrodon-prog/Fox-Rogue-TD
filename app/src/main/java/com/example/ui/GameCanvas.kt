@@ -105,19 +105,34 @@ fun GameCanvas(
                     )
                 }
                 TileType.OBSTACLE -> {
-                    val obsRect = Size(cellW * 0.65f, cellH * 0.65f)
+                    // Gray box with X through it - clear dead tile with no confusion
+                    val obsRect = Size(cellW * 0.72f, cellH * 0.72f)
+                    val left = centerX - obsRect.width / 2
+                    val top = centerY - obsRect.height / 2
                     drawRoundRect(
-                        color = biome.obstacleColor,
-                        topLeft = Offset(centerX - obsRect.width / 2, centerY - obsRect.height / 2),
+                        color = Color(0xFF1E293B),
+                        topLeft = Offset(left, top),
                         size = obsRect,
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
                     )
                     drawRoundRect(
-                        color = biome.accentColor.copy(alpha = 0.3f),
-                        topLeft = Offset(centerX - obsRect.width / 2, centerY - obsRect.height / 2),
+                        color = Color(0xFF334155),
+                        topLeft = Offset(left, top),
                         size = obsRect,
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
-                        style = Stroke(width = 1.5f)
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+                        style = Stroke(width = 1.0f)
+                    )
+                    drawLine(
+                        color = Color(0xFF475569),
+                        start = Offset(left + 6f, top + 6f),
+                        end = Offset(left + obsRect.width - 6f, top + obsRect.height - 6f),
+                        strokeWidth = 1.5f
+                    )
+                    drawLine(
+                        color = Color(0xFF475569),
+                        start = Offset(left + obsRect.width - 6f, top + 6f),
+                        end = Offset(left + 6f, top + obsRect.height - 6f),
+                        strokeWidth = 1.5f
                     )
                 }
                 TileType.SPAWNER_ALPHA -> {
@@ -127,7 +142,7 @@ fun GameCanvas(
                 }
                 TileType.SPAWNER_BETA -> {
                     drawCircle(color = Color(0xFFFF2A55).copy(alpha = 0.3f), radius = cellW * 0.44f, center = Offset(centerX, centerY))
-                    drawCircle(color = Color(0xFFFFB800), radius = cellW * 0.28f, center = Offset(centerX, centerY), style = Stroke(width = 2.5f))
+                    drawCircle(color = Color(0xFFFF9100), radius = cellW * 0.28f, center = Offset(centerX, centerY), style = Stroke(width = 2.5f))
                     drawCircle(color = Color.White, radius = cellW * 0.12f, center = Offset(centerX, centerY))
                 }
                 TileType.CORE -> {
@@ -141,49 +156,49 @@ fun GameCanvas(
                     if (tile.buff != TileBuff.NONE) {
                         val buffColor = Color(tile.buff.badgeColor)
                         val pulse = (sin(animFlowTime * 0.006f) * 0.20f + 0.80f).toFloat()
+                        // Glowing translucent floor plate
                         drawRoundRect(
-                            color = buffColor.copy(alpha = 0.20f * pulse),
+                            color = buffColor.copy(alpha = 0.18f * pulse),
                             topLeft = Offset(tx + 2f, ty + 2f),
                             size = Size(cellW - 4f, cellH - 4f),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
                         )
+                        // Radiant cyber border
                         drawRoundRect(
-                            color = buffColor.copy(alpha = 0.90f),
+                            color = buffColor.copy(alpha = 0.85f),
                             topLeft = Offset(tx + 2f, ty + 2f),
                             size = Size(cellW - 4f, cellH - 4f),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
-                            style = Stroke(width = 2.0f)
+                            style = Stroke(width = 1.8f)
                         )
 
-                        // Distinct tactical beacon icon
-                        when (tile.buff) {
-                            TileBuff.AMPLIFIER -> {
-                                // Crossed swords / Diamond indicator
-                                drawCircle(color = buffColor, radius = cellW * 0.14f, center = Offset(centerX, centerY))
-                                drawCircle(color = Color.White, radius = cellW * 0.06f, center = Offset(centerX, centerY))
-                            }
-                            TileBuff.HIGH_GROUND -> {
-                                // Elevated triangle beacon
-                                val p = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(centerX, centerY - cellH * 0.16f)
-                                    lineTo(centerX + cellW * 0.16f, centerY + cellH * 0.14f)
-                                    lineTo(centerX - cellW * 0.16f, centerY + cellH * 0.14f)
-                                    close()
-                                }
-                                drawPath(p, color = buffColor)
-                                drawCircle(color = Color.White, radius = cellW * 0.05f, center = Offset(centerX, centerY))
-                            }
-                            TileBuff.CONDUIT -> {
-                                // Flux battery square beacon
-                                val sqSize = cellW * 0.24f
-                                drawRect(
-                                    color = buffColor,
-                                    topLeft = Offset(centerX - sqSize / 2, centerY - sqSize / 2),
-                                    size = Size(sqSize, sqSize)
-                                )
-                                drawCircle(color = Color.White, radius = cellW * 0.05f, center = Offset(centerX, centerY))
-                            }
-                            else -> Unit
+                        // Uniform cybernetic energy matrix (clean concentric nodes for all 3 colors)
+                        drawCircle(
+                            color = buffColor.copy(alpha = 0.40f * pulse),
+                            radius = cellW * 0.22f,
+                            center = Offset(centerX, centerY)
+                        )
+                        drawCircle(
+                            color = buffColor,
+                            radius = cellW * 0.14f,
+                            center = Offset(centerX, centerY),
+                            style = Stroke(width = 2.0f)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = cellW * 0.05f,
+                            center = Offset(centerX, centerY)
+                        )
+
+                        // If Harmonic Grid is fully active, add outer golden harmony ring
+                        if (state.harmonicGridActive) {
+                            val harmonicPulse = (sin(animFlowTime * 0.010f) * 0.25f + 0.75f).toFloat()
+                            drawCircle(
+                                color = Color(0xFFFFD700).copy(alpha = 0.70f * harmonicPulse),
+                                radius = cellW * 0.34f,
+                                center = Offset(centerX, centerY),
+                                style = Stroke(width = 1.5f)
+                            )
                         }
                     }
                 }
@@ -646,6 +661,41 @@ fun GameCanvas(
                 radius = if (ft.isCrit) 16.dp.toPx() else 10.dp.toPx(),
                 center = Offset(fx, fy)
             )
+        }
+
+        // Tactical Tutorial Pointer: Animated bouncing arrow pointing to a boosted pad on Wave 1
+        if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
+            val targetTile = level.tiles.firstOrNull { it.type == TileType.EMPTY && it.buff != TileBuff.NONE }
+            if (targetTile != null) {
+                val bx = (targetTile.pos.x + 0.5f) * cellW + shakeX
+                val by = (targetTile.pos.y + 0.5f) * cellH + shakeY
+                val bounce = (sin(animFlowTime * 0.008f) * 8f)
+                val arrowTipY = by - cellH * 0.40f + bounce
+                val buffColor = Color(targetTile.buff.badgeColor)
+
+                // Downward pointing arrow chevron
+                val arrowPath = Path().apply {
+                    moveTo(bx, arrowTipY)
+                    lineTo(bx - cellW * 0.22f, arrowTipY - cellH * 0.28f)
+                    lineTo(bx - cellW * 0.09f, arrowTipY - cellH * 0.28f)
+                    lineTo(bx - cellW * 0.09f, arrowTipY - cellH * 0.50f)
+                    lineTo(bx + cellW * 0.09f, arrowTipY - cellH * 0.50f)
+                    lineTo(bx + cellW * 0.09f, arrowTipY - cellH * 0.28f)
+                    lineTo(bx + cellW * 0.22f, arrowTipY - cellH * 0.28f)
+                    close()
+                }
+                drawPath(arrowPath, color = buffColor)
+                drawPath(arrowPath, color = Color.White, style = Stroke(width = 2.0f))
+
+                // Pulsing highlight circle on the boosted tile pad
+                val ringPulse = (sin(animFlowTime * 0.007f) * 0.25f + 0.75f).toFloat()
+                drawCircle(
+                    color = buffColor.copy(alpha = 0.6f * ringPulse),
+                    radius = cellW * 0.42f,
+                    center = Offset(bx, by),
+                    style = Stroke(width = 2.5f)
+                )
+            }
         }
     }
 }

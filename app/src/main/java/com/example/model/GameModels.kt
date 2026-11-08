@@ -37,12 +37,15 @@ enum class TileBuff(
     val desc: String,
     val badgeColor: Long,
     val vectorCategory: TowerVector? = null,
-    val incomeBonusMultiplier: Float = 0f
+    val incomeBonusMultiplier: Float = 0f,
+    val damageMultiplier: Float = 1.0f,
+    val rangeMultiplier: Float = 1.0f,
+    val speedMultiplier: Float = 1.0f
 ) {
-    NONE("", "", 0x00000000, null, 0f),
-    AMPLIFIER("ATTACK +30% DMG", "Tactical Damage Matrix: +30% Raw Firepower & +10% Synergy", 0xFFFF2A55, TowerVector.OFFENSIVE, 0.10f),
-    HIGH_GROUND("DEFENSE +35% RNG", "Fortified Perch: +35% Range & Piercing Overlook", 0xFF00F0FF, TowerVector.DEFENSIVE, 0.10f),
-    CONDUIT("SUPPORT +35% SPD", "Flux Conduit Node: +35% Attack Speed & +25% Scrap Yield", 0xFFFFB800, TowerVector.SUPPORT, 0.25f)
+    NONE("", "", 0x00000000, null, 0f, 1.0f, 1.0f, 1.0f),
+    AMPLIFIER("GREEN MATRIX (+30% DMG)", "Power Grid: +30% Raw Damage to any turret placed here", 0xFF00E676, TowerVector.OFFENSIVE, 0.10f, 1.30f, 1.0f, 1.0f),
+    HIGH_GROUND("TEAL MATRIX (+35% RNG)", "Sensor Perch: +35% Targeting Range to any turret placed here", 0xFF00E5FF, TowerVector.DEFENSIVE, 0.10f, 1.0f, 1.35f, 1.0f),
+    CONDUIT("ORANGE MATRIX (+35% SPD)", "Accelerator Node: +35% Attack Speed & +25% Scrap Yield", 0xFFFF9100, TowerVector.SUPPORT, 0.25f, 1.0f, 1.0f, 1.35f)
 }
 
 data class MapTile(

@@ -76,6 +76,7 @@ fun RogueTDScreen(
             onDeployWave = { viewModel.deployWave() },
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onOpenPauseMenu = { viewModel.openPauseMenu() },
+            onEndRun = { viewModel.requestEndRun() },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -105,56 +106,33 @@ fun RogueTDScreen(
                 .padding(horizontal = 6.dp, vertical = 6.dp)
         )
 
-        // === ROUND 1 ON-SCREEN OVERLAY: TAP A TILE TO BUILD ===
-        val primeBuffTile = remember(state.level) {
-            state.level?.tiles?.firstOrNull { it.type == TileType.EMPTY && it.buff == TileBuff.AMPLIFIER }
-                ?: state.level?.tiles?.firstOrNull { it.type == TileType.EMPTY && it.buff != TileBuff.NONE }
-        }
-
+        // === ROUND 1 TACTICAL HINT (Floating non-blocking banner at top) ===
         if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
             Surface(
-                color = Color(0xFF0F172A).copy(alpha = 0.92f),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF)),
+                color = Color(0xFF0F172A).copy(alpha = 0.88f),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(horizontal = 24.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(top = 46.dp)
                     .clickable { viewModel.dismissFirstTileHint() }
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.TouchApp,
                         contentDescription = null,
-                        tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(32.dp)
+                        tint = Color(0xFF00E676),
+                        modifier = Modifier.size(13.dp)
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "SELECT A TILE TO BUILD",
+                        text = "SELECT TILE TO BUILD (Tap highlighted boosted pad)",
                         color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (primeBuffTile != null) {
-                            "Pro-Tip: Look for the glowing red/blue/amber tiles! They grant massive +30% Damage, +35% Range, or +35% Speed & Bonus Scrap."
-                        } else {
-                            "Tap any open grid tile along the dual lanes to deploy your defense towers."
-                        },
-                        color = Color(0xFF94A3B8),
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "[TAP ANYWHERE TO DISMISS]",
-                        color = Color(0xFFFFB800),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp
+                        fontSize = 10.sp
                     )
                 }
             }
@@ -203,7 +181,20 @@ fun RogueTDScreen(
                     viewModel.closePauseMenu()
                     viewModel.startNewRun()
                 },
+                onEndRun = {
+                    viewModel.closePauseMenu()
+                    viewModel.requestEndRun()
+                },
                 onResume = { viewModel.closePauseMenu() }
+            )
+        }
+
+        // === END RUN CONFIRMATION MODAL ===
+        if (state.showEndRunConfirmDialog) {
+            EndRunConfirmDialog(
+                state = state,
+                onConfirmEnd = { viewModel.confirmEndRun() },
+                onDismiss = { viewModel.dismissEndRunConfirm() }
             )
         }
 
@@ -243,6 +234,7 @@ fun MinimalTopHud(
     onDeployWave: () -> Unit,
     onToggleAutoWave: () -> Unit,
     onOpenPauseMenu: () -> Unit,
+    onEndRun: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -251,143 +243,181 @@ fun MinimalTopHud(
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
         modifier = modifier
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Wave badge
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
-                )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                    text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
-                    color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 11.sp
-                )
-            }
-
-            // Core HP
-            Surface(
-                color = Color(0xFF161F30),
-                shape = RoundedCornerShape(5.dp)
+        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Shield,
-                        contentDescription = "Core HP",
-                        tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFF00FF9D),
-                        modifier = Modifier.size(11.dp)
+                // Wave badge
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
                     )
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = "${state.coreHp}",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp
-                    )
-                }
-            }
-
-            // Credits
-            Surface(
-                color = Color(0xFF161F30),
-                shape = RoundedCornerShape(5.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Diamond,
-                        contentDescription = "Credits",
-                        tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = "${state.scrap}",
-                        color = Color(0xFFFFD700),
+                        text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
+                        color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
                         fontWeight = FontWeight.Black,
-                        fontSize = 10.5.sp
+                        fontSize = 11.sp
+                    )
+                }
+
+                // Core HP
+                Surface(
+                    color = Color(0xFF161F30),
+                    shape = RoundedCornerShape(5.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Shield,
+                            contentDescription = "Core HP",
+                            tint = if (state.coreHp <= 8) Color(0xFFFF2A55) else Color(0xFF00FF9D),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "${state.coreHp}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.5.sp
+                        )
+                    }
+                }
+
+                // Credits
+                Surface(
+                    color = Color(0xFF161F30),
+                    shape = RoundedCornerShape(5.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Diamond,
+                            contentDescription = "Credits",
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "${state.scrap}",
+                            color = Color(0xFFFFD700),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 10.5.sp
+                        )
+                    }
+                }
+
+                // Auto Wave Toggle
+                Surface(
+                    color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30),
+                    shape = RoundedCornerShape(5.dp),
+                    border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .clickable { onToggleAutoWave() }
+                        .padding(1.dp)
+                ) {
+                    Text(
+                        text = if (state.autoCallNextWave) "AUTO ON" else "AUTO",
+                        color = if (state.autoCallNextWave) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
+                    )
+                }
+
+                // Launch Wave Button
+                Button(
+                    onClick = onDeployWave,
+                    enabled = !state.isWaveActive,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00F0FF),
+                        disabledContainerColor = Color(0xFF1E293B),
+                        contentColor = Color.Black,
+                        disabledContentColor = Color(0xFF64748B)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .testTag("deploy_wave_button")
+                ) {
+                    Icon(
+                        imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = if (state.isWaveActive) "${state.enemies.size} FOES" else "LAUNCH",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 9.5.sp
+                    )
+                }
+
+                // End Run Button
+                Button(
+                    onClick = onEndRun,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF2A55).copy(alpha = 0.22f),
+                        contentColor = Color(0xFFFF2A55)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55)),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .testTag("end_run_button")
+                ) {
+                    Text(
+                        text = "END",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 9.sp
+                    )
+                }
+
+                // Gear Cog Button (Opens Pause Menu)
+                IconButton(
+                    onClick = onOpenPauseMenu,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF161F30))
+                        .testTag("pause_menu_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Game Settings & Controls",
+                        tint = Color(0xFFFFB800),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            // Auto Wave Toggle
-            Surface(
-                color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30),
-                shape = RoundedCornerShape(5.dp),
-                border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(5.dp))
-                    .clickable { onToggleAutoWave() }
-                    .padding(1.dp)
-            ) {
-                Text(
-                    text = if (state.autoCallNextWave) "AUTO ON" else "AUTO",
-                    color = if (state.autoCallNextWave) Color(0xFF00FF9D) else Color(0xFF94A3B8),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 9.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
-                )
-            }
-
-            // Launch Wave Button
-            Button(
-                onClick = onDeployWave,
-                enabled = !state.isWaveActive,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00F0FF),
-                    disabledContainerColor = Color(0xFF1E293B),
-                    contentColor = Color.Black,
-                    disabledContentColor = Color(0xFF64748B)
-                ),
-                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                shape = RoundedCornerShape(6.dp),
-                modifier = Modifier
-                    .height(28.dp)
-                    .testTag("deploy_wave_button")
-            ) {
-                Icon(
-                    imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(
-                    text = if (state.isWaveActive) "${state.enemies.size} FOES" else "LAUNCH",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 9.5.sp
-                )
-            }
-
-            // Gear Cog Button (Opens Pause Menu)
-            IconButton(
-                onClick = onOpenPauseMenu,
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF161F30))
-                    .testTag("pause_menu_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "Game Settings & Controls",
-                    tint = Color(0xFFFFB800),
-                    modifier = Modifier.size(16.dp)
-                )
+            // Harmonic Grid Status Sub-strip
+            if (state.harmonicGridActive || state.harmonicPadsCount > 0) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (state.harmonicGridActive) "⚡ HARMONIC GRID ACTIVE: 6/6 (+20% DMG / +25% SCRAP)" else "BOOSTED PADS ACTIVE: ${state.harmonicPadsCount}/6",
+                        color = if (state.harmonicGridActive) Color(0xFFFFD700) else Color(0xFF00FF9D),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp
+                    )
+                }
             }
         }
     }
@@ -2026,6 +2056,7 @@ fun PauseMenuDialog(
     onOpenTelemetry: () -> Unit,
     onOpenSettings: () -> Unit,
     onRestart: () -> Unit,
+    onEndRun: () -> Unit,
     onResume: () -> Unit
 ) {
     Dialog(onDismissRequest = onResume) {
@@ -2082,7 +2113,8 @@ fun PauseMenuDialog(
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     listOf(GameSpeed.NORMAL, GameSpeed.FAST, GameSpeed.ULTRA, GameSpeed.MAX, GameSpeed.HYPER).forEach { speed ->
-                        val isSel = (state.prePauseSpeed == speed) || (state.gameSpeed == speed && speed != GameSpeed.PAUSED)
+                        val activeSpeed = if (state.isPauseMenuOpen) state.prePauseSpeed else (if (state.gameSpeed != GameSpeed.PAUSED) state.gameSpeed else state.prePauseSpeed)
+                        val isSel = (activeSpeed == speed)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -2153,11 +2185,26 @@ fun PauseMenuDialog(
                         Text("DEV BALANCE CONSOLE (SLIDERS)", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
 
+                    // End Run & Save Stats
+                    Button(
+                        onClick = onEndRun,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF2A55), contentColor = Color.White),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .testTag("pause_menu_end_run_button")
+                    ) {
+                        Icon(imageVector = Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("END RUN & SAVE STATS", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
                     // Restart Run
                     OutlinedButton(
                         onClick = onRestart,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF2A55)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.7f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2167,6 +2214,81 @@ fun PauseMenuDialog(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("RESTART CURRENT RUN", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EndRunConfirmDialog(
+    state: GameUIState,
+    onConfirmEnd: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = Color(0xFF0F172A),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFF2A55)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFFF2A55),
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "END DEFENSE RUN?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Wave ${state.waveNumber} • ${state.totalKills} Hostiles Terminated • Score: ${state.totalDamageDealt.toInt()}\n\nEnding now will log all performance stats to your records and leaderboard.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.5.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onConfirmEnd,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF2A55),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .testTag("confirm_end_run_button")
+                ) {
+                    Text("CONFIRM & LOG STATS", fontWeight = FontWeight.Black, fontSize = 11.5.sp)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00F0FF)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                ) {
+                    Text("RESUME DEFENSE", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
         }

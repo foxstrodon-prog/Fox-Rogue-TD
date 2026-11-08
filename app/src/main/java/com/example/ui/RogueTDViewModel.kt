@@ -68,6 +68,9 @@ data class GameUIState(
     val trackParticles: List<TrackParticle> = emptyList(),
     val activeGlobalSynergies: List<GlobalAuraSynergy> = emptyList(),
     val isSynergyPanelExpanded: Boolean = false,
+    val showEndRunConfirmDialog: Boolean = false,
+    val harmonicGridActive: Boolean = false,
+    val harmonicPadsCount: Int = 0,
     val animTimeMs: Long = 0L
 )
 
@@ -110,7 +113,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
     fun openPauseMenu() {
         val currentSpeed = _uiState.value.gameSpeed
-        val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else GameSpeed.NORMAL
+        val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else _uiState.value.prePauseSpeed
         _uiState.update {
             it.copy(
                 isPauseMenuOpen = true,
@@ -121,11 +124,49 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun closePauseMenu() {
-        val resumeSpeed = _uiState.value.prePauseSpeed
+        val resumeSpeed = if (_uiState.value.prePauseSpeed != GameSpeed.PAUSED) _uiState.value.prePauseSpeed else GameSpeed.NORMAL
         _uiState.update {
             it.copy(
                 isPauseMenuOpen = false,
                 gameSpeed = resumeSpeed
+            )
+        }
+    }
+
+    fun requestEndRun() {
+        val currentSpeed = _uiState.value.gameSpeed
+        val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else _uiState.value.prePauseSpeed
+        _uiState.update {
+            it.copy(
+                showEndRunConfirmDialog = true,
+                prePauseSpeed = savedSpeed,
+                gameSpeed = GameSpeed.PAUSED
+            )
+        }
+    }
+
+    fun dismissEndRunConfirm() {
+        val resumeSpeed = if (!_uiState.value.isPauseMenuOpen && _uiState.value.prePauseSpeed != GameSpeed.PAUSED) _uiState.value.prePauseSpeed else GameSpeed.PAUSED
+        _uiState.update {
+            it.copy(
+                showEndRunConfirmDialog = false,
+                gameSpeed = resumeSpeed
+            )
+        }
+    }
+
+    fun confirmEndRun() {
+        val state = _uiState.value
+        val wavesCompleted = if (state.isWaveActive) maxOf(0, state.waveNumber - 1) else state.waveNumber
+        recordRunCompletion(isVictory = false, waves = wavesCompleted)
+        _uiState.update { current ->
+            current.copy(
+                showEndRunConfirmDialog = false,
+                isPauseMenuOpen = false,
+                isGameOver = true,
+                isVictory = false,
+                isWaveActive = false,
+                gameSpeed = GameSpeed.PAUSED
             )
         }
     }
@@ -389,6 +430,12 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         val newExplosions = state.explosions.toMutableList()
         val nowMs = System.currentTimeMillis()
 
+        val boostedTiles = level.tiles.filter { it.buff != TileBuff.NONE }
+        val harmonicCount = towers.count { t -> boostedTiles.any { it.pos == t.gridPos } }
+        val isHarmonicActive = harmonicCount >= 6 && boostedTiles.isNotEmpty()
+        val harmonicDmgBonus = if (isHarmonicActive) 0.20f else 0.0f
+        val harmonicIncomeMul = if (isHarmonicActive) 1.25f else 1.0f
+
         for (tower in towers) {
             val tile = level.tiles.firstOrNull { it.pos == tower.gridPos }
             val tileBuff = tile?.buff ?: TileBuff.NONE
@@ -448,7 +495,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                     TowerClass.ELEMENTAL_VOID -> state.balanceConfig.elementalDamageMultiplier
                     TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
                 }
-                val baseDmg = tower.type.baseDamage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + globalDamageBonus + apexBonus)
+                val baseDmg = tower.type.baseDamage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
                 val isCrit = Random.nextFloat() < globalCritRate
                 val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
@@ -646,7 +693,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         for (enemy in survivingEnemies) {
             if (enemy.isDead) {
                 killsGained++
-                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * conduitIncomeBonus).roundToInt().coerceAtLeast(1)
+                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * conduitIncomeBonus * harmonicIncomeMul).roundToInt().coerceAtLeast(1)
                 scrapGained += bounty
 
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700)
@@ -730,6 +777,8 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                 floatingTexts = updatedFloatingTexts,
                 trackParticles = updatedParticles,
                 activeGlobalSynergies = synergies,
+                harmonicGridActive = isHarmonicActive,
+                harmonicPadsCount = harmonicCount,
                 animTimeMs = nowMs,
                 coreHp = newCoreHp,
                 scrap = prev.scrap + scrapGained,
@@ -1067,7 +1116,13 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setGameSpeed(speed: GameSpeed) {
-        _uiState.update { it.copy(gameSpeed = speed) }
+        _uiState.update { current ->
+            if (current.isPauseMenuOpen || current.showEndRunConfirmDialog) {
+                current.copy(prePauseSpeed = speed, gameSpeed = GameSpeed.PAUSED)
+            } else {
+                current.copy(gameSpeed = speed, prePauseSpeed = speed)
+            }
+        }
     }
 
     private fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean = false) {

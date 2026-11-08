@@ -329,19 +329,29 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `tactical tile buffs categorize into attack defense support with vector synergies`() {
+  fun `tactical tile buffs use green teal orange matrices with 2-2-2 fixed spawn distribution`() {
     val amp = com.example.model.TileBuff.AMPLIFIER
-    assertEquals(com.example.model.TowerVector.OFFENSIVE, amp.vectorCategory)
-    assertTrue(amp.label.contains("ATTACK +30% DMG"))
+    assertEquals(0xFF00E676L, amp.badgeColor)
+    assertTrue(amp.label.contains("GREEN MATRIX"))
 
     val hg = com.example.model.TileBuff.HIGH_GROUND
-    assertEquals(com.example.model.TowerVector.DEFENSIVE, hg.vectorCategory)
-    assertTrue(hg.label.contains("DEFENSE +35% RNG"))
+    assertEquals(0xFF00E5FFL, hg.badgeColor)
+    assertTrue(hg.label.contains("TEAL MATRIX"))
 
     val conduit = com.example.model.TileBuff.CONDUIT
-    assertEquals(com.example.model.TowerVector.SUPPORT, conduit.vectorCategory)
-    assertTrue(conduit.label.contains("SUPPORT +35% SPD"))
+    assertEquals(0xFFFF9100L, conduit.badgeColor)
+    assertTrue(conduit.label.contains("ORANGE MATRIX"))
     assertEquals(0.25f, conduit.incomeBonusMultiplier, 0.001f)
+
+    // Verify MapGenerator spawns exactly 2 Green, 2 Teal, and 2 Orange pads
+    val level = MapGenerator.generate(777L)
+    val greenCount = level.tiles.count { it.buff == com.example.model.TileBuff.AMPLIFIER }
+    val tealCount = level.tiles.count { it.buff == com.example.model.TileBuff.HIGH_GROUND }
+    val orangeCount = level.tiles.count { it.buff == com.example.model.TileBuff.CONDUIT }
+    assertEquals(2, greenCount)
+    assertEquals(2, tealCount)
+    assertEquals(2, orangeCount)
+    assertEquals(6, level.tiles.count { it.buff != com.example.model.TileBuff.NONE })
   }
 
   @Test
@@ -350,6 +360,7 @@ class ExampleRobolectricTest {
     assertTrue("Lane Alpha should have at least 15 steps", level.laneAlpha.size >= 15)
     assertTrue("Lane Beta should have at least 15 steps", level.laneBeta.size >= 15)
     assertTrue("Merged track spine must have multiple merged tiles", level.tiles.count { it.type == TileType.PATH_MERGED } >= 3)
+    assertEquals(TileType.CORE, level.tiles.first { it.pos == level.laneAlpha.last() }.type)
   }
 }
 

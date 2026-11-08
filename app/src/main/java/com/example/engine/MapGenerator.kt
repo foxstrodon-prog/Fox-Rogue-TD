@@ -68,24 +68,25 @@ object MapGenerator {
         val random = Random(seed)
         val biome = BIOMES[random.nextInt(BIOMES.size)]
 
-        val coreX = width / 2
-        val corePos = GridPos(coreX, height - 1)
+        // Core located at Bottom-Right to maximize diagonal screen travel
+        val corePos = GridPos(width - 2, height - 1)
 
-        // Spawners for both flanks
-        val spawnerAlpha = GridPos(random.nextInt(1, 3), 0)
-        val spawnerBeta = GridPos(random.nextInt(width - 3, width - 1), 0)
+        // Spawners: Top-Left (Alpha) and Top-Right (Beta)
+        val spawnerAlpha = GridPos(1, 0)
+        val spawnerBeta = GridPos(width - 2, 0)
 
-        // Brio Train-Track Central Rail Merge Segment
+        // Central Rail Merge Segment in middle rows (e.g. y = 5..8)
         val mergeX = if (random.nextBoolean()) width / 2 else (width / 2 - 1)
-        val mergeStartY = 4
-        val mergeLength = 5 // 5-cell continuous merged track spine for longer shared combat
+        val mergeStartY = 5
+        val mergeLength = 4 // 4-cell continuous merged track spine
         val mergeEndY = mergeStartY + mergeLength - 1
         val mergeStart = GridPos(mergeX, mergeStartY)
         val mergeEnd = GridPos(mergeX, mergeEndY)
 
         val mergedRail = (mergeStartY..mergeEndY).map { y -> GridPos(mergeX, y) }
 
-        // Non-self-intersecting lead-in segments into the shared track (extended steps for longer winding paths)
+        // Non-self-intersecting lead-in segments:
+        // Alpha sweeps across top-left quadrant into mergeStart
         val leadAlpha = generateNonSelfIntersectingWinding(
             start = spawnerAlpha,
             target = mergeStart,
@@ -97,6 +98,7 @@ object MapGenerator {
             minSteps = 9
         )
 
+        // Beta sweeps across top-right quadrant into mergeStart
         val leadBeta = generateNonSelfIntersectingWinding(
             start = spawnerBeta,
             target = mergeStart,
@@ -108,27 +110,41 @@ object MapGenerator {
             minSteps = 9
         )
 
-        // Split off or converge naturally towards Core with extended winding
-        val tailAlpha = generateNonSelfIntersectingWinding(
+        // Split off segments from mergeEnd towards Bottom-Right Core:
+        // Tail Alpha snakes down through the lower-left region first before crossing to Core
+        val lowerLeftWaypoint = GridPos(1, height - 2)
+        val tailAlphaLeg1 = generateNonSelfIntersectingWinding(
             start = mergeEnd,
-            target = corePos,
+            target = lowerLeftWaypoint,
             xMin = 0,
-            xMax = width / 2,
+            xMax = mergeX,
             yMin = mergeEndY,
             yMax = height - 1,
             random = random,
-            minSteps = 7
+            minSteps = 6
         )
+        val tailAlphaLeg2 = generateNonSelfIntersectingWinding(
+            start = lowerLeftWaypoint,
+            target = corePos,
+            xMin = 0,
+            xMax = width - 1,
+            yMin = height - 3,
+            yMax = height - 1,
+            random = random,
+            minSteps = 5
+        )
+        val tailAlpha = (tailAlphaLeg1.dropLast(1) + tailAlphaLeg2).distinct()
 
+        // Tail Beta winds through the right flank directly to Core
         val tailBeta = generateNonSelfIntersectingWinding(
             start = mergeEnd,
             target = corePos,
-            xMin = width / 2,
+            xMin = mergeX,
             xMax = width - 1,
             yMin = mergeEndY,
             yMax = height - 1,
             random = random,
-            minSteps = 7
+            minSteps = 8
         )
 
         val laneAlpha = (leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha).distinct()
@@ -159,39 +175,29 @@ object MapGenerator {
                         )
                         val touchesAlpha = adjacent.any { it in alphaSet }
                         val touchesBeta = adjacent.any { it in betaSet }
-                        val touchesCrossing = adjacent.any { it in intersections }
 
-                        val isObstacle = when {
-                            touchesCrossing -> false // Prime tactical high ground near the merged rail!
-                            touchesAlpha && touchesBeta -> false
-                            touchesAlpha || touchesBeta -> random.nextFloat() < 0.05f
-                            else -> random.nextFloat() < 0.18f
+                        // Eliminate random barriers so players have full build real estate
+                        if (touchesAlpha || touchesBeta) {
+                            candidateBuffPositions.add(pos)
                         }
-
-                        if (isObstacle) {
-                            tileList.add(MapTile(pos, TileType.OBSTACLE))
-                        } else {
-                            if (touchesAlpha || touchesBeta) {
-                                candidateBuffPositions.add(pos)
-                            }
-                            tileList.add(MapTile(pos, TileType.EMPTY))
-                        }
+                        tileList.add(MapTile(pos, TileType.EMPTY))
                     }
                 }
             }
         }
 
-        // Apply tactical terrain buffs (+Damage, +Range, +Speed) near intersections and bends
+        // Guarantee exactly 2 Green, 2 Teal, and 2 Orange boosted pads on every map!
         candidateBuffPositions.shuffle(random)
-        val buffedTilesCount = minOf(candidateBuffPositions.size, random.nextInt(6, 10))
-        val buffsToAssign = listOf(TileBuff.AMPLIFIER, TileBuff.HIGH_GROUND, TileBuff.CONDUIT)
+        val greenPads = candidateBuffPositions.take(2).toSet()
+        val tealPads = candidateBuffPositions.drop(2).take(2).toSet()
+        val orangePads = candidateBuffPositions.drop(4).take(2).toSet()
 
         val finalTiles = tileList.map { tile ->
-            val indexInCandidates = candidateBuffPositions.take(buffedTilesCount).indexOf(tile.pos)
-            if (indexInCandidates >= 0) {
-                tile.copy(buff = buffsToAssign[indexInCandidates % buffsToAssign.size])
-            } else {
-                tile
+            when (tile.pos) {
+                in greenPads -> tile.copy(buff = TileBuff.AMPLIFIER)
+                in tealPads -> tile.copy(buff = TileBuff.HIGH_GROUND)
+                in orangePads -> tile.copy(buff = TileBuff.CONDUIT)
+                else -> tile
             }
         }
 
