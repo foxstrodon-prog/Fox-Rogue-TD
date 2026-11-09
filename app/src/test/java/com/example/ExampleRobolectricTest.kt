@@ -497,5 +497,11 @@ class ExampleRobolectricTest {
       heavyWave.spawnList.size > baseWave.spawnList.size
     )
   }
+
+  @Test
+  fun `verify app build version is 0 0 0 003`() {
+    assertEquals("0.0.0.003", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(11, com.example.BuildConfig.VERSION_CODE)
+  }
 }
 

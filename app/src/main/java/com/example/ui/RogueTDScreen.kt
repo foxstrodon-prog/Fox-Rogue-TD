@@ -1988,7 +1988,7 @@ fun DevBalanceSettingsDialog(
                                 fontSize = 14.sp
                             )
                             Text(
-                                text = "On-the-fly unit & economy balance sliders",
+                                text = "v${com.example.BuildConfig.VERSION_NAME} • On-the-fly unit & economy balance sliders",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 9.sp
                             )
@@ -3054,12 +3054,35 @@ fun PauseMenuDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Filled.PauseCircle, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "GAME PAUSED",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 16.sp
-                        )
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "GAME PAUSED",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = Color(0xFF00F0FF).copy(alpha = 0.20f),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.7f))
+                                ) {
+                                    Text(
+                                        text = "v${com.example.BuildConfig.VERSION_NAME}",
+                                        color = Color(0xFF00F0FF),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Build ${com.example.BuildConfig.VERSION_CODE} • Combat Simulation Halted",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 8.5.sp
+                            )
+                        }
                     }
 
                     IconButton(onClick = onResume, modifier = Modifier.size(28.dp)) {
@@ -3188,6 +3211,28 @@ fun PauseMenuDialog(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("RESTART WITH NEW MAP", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Build Version Tag
+                Surface(
+                    color = Color(0xFF1E293B).copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "ROGUE TD • VERSION ${com.example.BuildConfig.VERSION_NAME} (BUILD #${com.example.BuildConfig.VERSION_CODE})",
+                        color = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.5.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .testTag("pause_menu_version_label")
+                    )
                 }
             }
         }
