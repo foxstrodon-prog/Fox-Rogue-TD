@@ -75,7 +75,13 @@ object MapGenerator {
         }
     }
 
-    fun generate(seed: Long = System.currentTimeMillis(), width: Int = DEFAULT_WIDTH, height: Int = DEFAULT_HEIGHT): GeneratedLevel {
+    fun generate(
+        seed: Long = System.currentTimeMillis(),
+        width: Int = DEFAULT_WIDTH,
+        height: Int = DEFAULT_HEIGHT,
+        minLaneLength: Int = 12,
+        maxLaneLength: Int = 26
+    ): GeneratedLevel {
         val random = Random(seed)
         val biome = BIOMES[random.nextInt(BIOMES.size)]
 
@@ -114,6 +120,10 @@ object MapGenerator {
         val mergeStart = mergedRail.first()
         val mergeEnd = mergedRail.last()
 
+        val spineLen = mergedRail.size
+        val targetMinPerLeg = ((minLaneLength - spineLen) / 2).coerceAtLeast(3)
+        val targetMaxPerLeg = ((maxLaneLength - spineLen) / 2).coerceAtLeast(targetMinPerLeg + 1)
+
         // 3. Multi-directional winding lead-ins
         val leadAlpha = generateWindingPath(
             start = spawnerAlpha,
@@ -121,7 +131,8 @@ object MapGenerator {
             width = width,
             height = height,
             random = random,
-            minSteps = 7
+            minSteps = targetMinPerLeg,
+            maxSteps = targetMaxPerLeg
         )
 
         val leadBeta = generateWindingPath(
@@ -130,7 +141,8 @@ object MapGenerator {
             width = width,
             height = height,
             random = random,
-            minSteps = 7
+            minSteps = targetMinPerLeg,
+            maxSteps = targetMaxPerLeg
         )
 
         // 4. Split tail segments winding towards destination Core
@@ -152,7 +164,8 @@ object MapGenerator {
             width = width,
             height = height,
             random = random,
-            minSteps = 5
+            minSteps = (targetMinPerLeg / 2).coerceAtLeast(2),
+            maxSteps = (targetMaxPerLeg / 2).coerceAtLeast(3)
         )
         val tailAlphaLeg2 = generateWindingPath(
             start = intermediateWaypoint,
@@ -160,7 +173,8 @@ object MapGenerator {
             width = width,
             height = height,
             random = random,
-            minSteps = 4
+            minSteps = (targetMinPerLeg / 2).coerceAtLeast(2),
+            maxSteps = (targetMaxPerLeg / 2).coerceAtLeast(3)
         )
         val tailAlpha = (tailAlphaLeg1.dropLast(1) + tailAlphaLeg2).distinct()
 
@@ -170,7 +184,8 @@ object MapGenerator {
             width = width,
             height = height,
             random = random,
-            minSteps = 6
+            minSteps = targetMinPerLeg,
+            maxSteps = targetMaxPerLeg
         )
 
         val laneAlpha = (leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha).distinct()
@@ -244,7 +259,8 @@ object MapGenerator {
         width: Int,
         height: Int,
         random: Random,
-        minSteps: Int
+        minSteps: Int,
+        maxSteps: Int = 30
     ): List<GridPos> {
         var attempts = 0
         while (attempts < 40) {
@@ -271,15 +287,17 @@ object MapGenerator {
                     break
                 }
 
-                if (target in neighbors && path.size >= minSteps) {
+                if (target in neighbors && (path.size >= minSteps || path.size >= maxSteps - 2)) {
                     path.add(target)
                     return path
                 }
 
                 val sorted = neighbors.sortedBy { next ->
                     val dist = Math.hypot((next.x - target.x).toDouble(), (next.y - target.y).toDouble())
-                    if (path.size < minSteps) {
-                        dist * -0.5 + random.nextFloat() * 3.0
+                    if (path.size >= maxSteps - 3) {
+                        dist * 2.0 // Rapid direct homing to target to respect maxLaneLength
+                    } else if (path.size < minSteps) {
+                        dist * -0.5 + random.nextFloat() * 3.0 // Winding curve bias
                     } else {
                         dist + random.nextFloat() * 1.5
                     }

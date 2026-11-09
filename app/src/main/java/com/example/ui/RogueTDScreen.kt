@@ -59,15 +59,6 @@ fun RogueTDScreen(
             // Floating Combat Text Overlay
             FloatingTextOverlay(texts = state.floatingTexts, level = state.level)
 
-            // === MACRO SYNERGY HUD (Collapsible) ===
-            MacroSynergyHud(
-                synergies = state.activeGlobalSynergies,
-                isExpanded = state.isSynergyPanelExpanded,
-                onToggleExpand = { viewModel.toggleSynergyPanel() },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 46.dp, start = 8.dp, end = 8.dp)
-            )
         }
 
         // === MINIMAL FLOATING TOP TACTICAL HUD ===
@@ -237,13 +228,15 @@ fun MinimalTopHud(
     onOpenPauseMenu: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showSynergyDropdown by remember { mutableStateOf(false) }
+
     Surface(
-        color = Color(0xFF0A0F1D).copy(alpha = 0.95f),
+        color = Color(0xFF070B14).copy(alpha = 0.65f), // High transparency so background map remains visible underneath
         shape = RoundedCornerShape(10.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.5f)),
         modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -268,7 +261,7 @@ fun MinimalTopHud(
 
                 // Core HP (Heart Icon)
                 Surface(
-                    color = Color(0xFF161F30),
+                    color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(5.dp)
                 ) {
                     Row(
@@ -293,7 +286,7 @@ fun MinimalTopHud(
 
                 // Credits
                 Surface(
-                    color = Color(0xFF161F30),
+                    color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(5.dp)
                 ) {
                     Row(
@@ -316,9 +309,97 @@ fun MinimalTopHud(
                     }
                 }
 
+                // Consolidated Synergies Indicator with Dropdown (Symbol + count)
+                val activeSynergiesCount = state.activeGlobalSynergies.size
+                Box {
+                    Surface(
+                        color = if (activeSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
+                        shape = RoundedCornerShape(5.dp),
+                        border = if (activeSynergiesCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)) else null,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .clickable { showSynergyDropdown = !showSynergyDropdown }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "🌟", fontSize = 9.sp)
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = "($activeSynergiesCount)",
+                                color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+
+                    // Lightweight Dropdown Menu showing full details
+                    DropdownMenu(
+                        expanded = showSynergyDropdown,
+                        onDismissRequest = { showSynergyDropdown = false },
+                        modifier = Modifier
+                            .background(Color(0xFF0F172A).copy(alpha = 0.95f))
+                            .border(1.dp, Color(0xFFFFB800), RoundedCornerShape(6.dp))
+                            .widthIn(max = 240.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "ACTIVE SYNERGIES ($activeSynergiesCount)",
+                                    color = Color(0xFFFFB800),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp
+                                )
+                            },
+                            onClick = { },
+                            enabled = false
+                        )
+                        if (state.activeGlobalSynergies.isEmpty()) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 9.sp
+                                    )
+                                },
+                                onClick = { showSynergyDropdown = false }
+                            )
+                        } else {
+                            state.activeGlobalSynergies.forEach { syn ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(text = syn.iconEmoji, fontSize = 11.sp)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "${syn.auraName} (${syn.sourceCount}x)",
+                                                    color = Color(syn.color),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                            Text(
+                                                text = syn.effectDescription,
+                                                color = Color(0xFFCBD5E1),
+                                                fontSize = 8.5.sp,
+                                                lineHeight = 11.sp
+                                            )
+                                        }
+                                    },
+                                    onClick = { showSynergyDropdown = false }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Auto Wave Toggle
                 Surface(
-                    color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30),
+                    color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(5.dp),
                     border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
                     modifier = Modifier
@@ -327,11 +408,11 @@ fun MinimalTopHud(
                         .padding(1.dp)
                 ) {
                     Text(
-                        text = if (state.autoCallNextWave) "AUTO ON" else "AUTO",
+                        text = if (state.autoCallNextWave) "AUTO" else "AUTO",
                         color = if (state.autoCallNextWave) Color(0xFF00FF9D) else Color(0xFF94A3B8),
                         fontWeight = FontWeight.Black,
-                        fontSize = 9.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
+                        fontSize = 8.5.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
 
@@ -341,26 +422,26 @@ fun MinimalTopHud(
                     enabled = !state.isWaveActive,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF00F0FF),
-                        disabledContainerColor = Color(0xFF1E293B),
+                        disabledContainerColor = Color(0xFF1E293B).copy(alpha = 0.7f),
                         contentColor = Color.Black,
                         disabledContentColor = Color(0xFF64748B)
                     ),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp),
+                    shape = RoundedCornerShape(5.dp),
                     modifier = Modifier
-                        .height(28.dp)
+                        .height(26.dp)
                         .testTag("deploy_wave_button")
                 ) {
                     Icon(
                         imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
                         contentDescription = null,
-                        modifier = Modifier.size(12.dp)
+                        modifier = Modifier.size(11.dp)
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = if (state.isWaveActive) "${state.enemies.size} FOES" else "LAUNCH",
                         fontWeight = FontWeight.Black,
-                        fontSize = 9.5.sp
+                        fontSize = 9.sp
                     )
                 }
 
@@ -368,23 +449,23 @@ fun MinimalTopHud(
                 IconButton(
                     onClick = onOpenPauseMenu,
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF161F30))
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(Color(0xFF161F30).copy(alpha = 0.70f))
                         .testTag("pause_menu_button")
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Settings,
                         contentDescription = "Game Settings & Controls",
                         tint = Color(0xFFFFB800),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
 
             // Harmonic Grid Status Sub-strip
             if (state.harmonicGridActive || state.harmonicPadsCount > 0) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(1.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -394,84 +475,8 @@ fun MinimalTopHud(
                         text = if (state.harmonicGridActive) "⚡ HARMONIC GRID ACTIVE: 6/6 (+20% DMG / +25% SCRAP)" else "BOOSTED PADS ACTIVE: ${state.harmonicPadsCount}/6",
                         color = if (state.harmonicGridActive) Color(0xFFFFD700) else Color(0xFF00FF9D),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 8.5.sp
+                        fontSize = 8.sp
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MacroSynergyHud(
-    synergies: List<GlobalAuraSynergy>,
-    isExpanded: Boolean,
-    onToggleExpand: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (synergies.isEmpty()) return
-
-    Surface(
-        color = Color(0xFF090E1A).copy(alpha = 0.95f),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.8f)),
-        modifier = modifier
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleExpand() },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "🌟", fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "MACRO SYNERGIES (${synergies.size} ACTIVE)",
-                        color = Color(0xFFFFB800),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 10.sp
-                    )
-                }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = "Expand",
-                    tint = Color(0xFFFFB800),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    synergies.forEach { syn ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF131F33), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = syn.iconEmoji, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "${syn.auraName} (${syn.sourceCount} Emitter${if (syn.sourceCount > 1) "s" else ""})",
-                                    color = Color(syn.color),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.5.sp
-                                )
-                                Text(
-                                    text = syn.effectDescription,
-                                    color = Color(0xFFCBD5E1),
-                                    fontSize = 8.sp,
-                                    lineHeight = 10.sp
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -2020,13 +2025,17 @@ fun DevBalanceSettingsDialog(
 
                 if (selectedTab == 0) {
                     // Sliders View
+                    var showExportModal by remember { mutableStateOf(false) }
+                    var exportJsonText by remember { mutableStateOf("") }
+                    val context = androidx.compose.ui.platform.LocalContext.current
+
                     LazyColumn(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
                             Text(
-                                text = "ECONOMY & INCOME SLIDERS",
+                                text = "GLOBAL ECONOMY & ROUND SLIDERS",
                                 color = Color(0xFFFFD700),
                                 fontWeight = FontWeight.Black,
                                 fontSize = 10.sp,
@@ -2034,17 +2043,67 @@ fun DevBalanceSettingsDialog(
                             )
                         }
 
-                        // Starting Scrap (Early Income Fix!)
+                        // Starting Scrap
                         item {
                             BalanceSliderCard(
-                                title = "Starting Credits (Early Income)",
-                                subtitle = "Lower credits early so you can't place endless towers without risk",
+                                title = "Starting Credits (Early Economy)",
+                                subtitle = "Lower credits early to avoid effortless initial defense",
                                 value = config.startingScrap.toFloat(),
                                 range = 100f..600f,
                                 steps = 9,
                                 valueFormatter = { "${it.toInt()} C" },
                                 color = Color(0xFFFFD700),
                                 onValueChange = { onConfigChanged(config.copy(startingScrap = it.roundToInt())) }
+                            )
+                        }
+
+                        // Enemies Per Round Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "Enemies Per Round Multiplier",
+                                subtitle = "Scale hostile assault volume per wave across both lanes",
+                                value = config.enemiesPerRoundMultiplier,
+                                range = 0.5f..3.0f,
+                                steps = 24,
+                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                color = Color(0xFFFF2A55),
+                                onValueChange = { onConfigChanged(config.copy(enemiesPerRoundMultiplier = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+
+                        // Minimum Lane Length Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "Min Lane Path Length",
+                                subtitle = "Minimum tile travel distance for procedural lane generation",
+                                value = config.minLaneLength.toFloat(),
+                                range = 8f..25f,
+                                steps = 16,
+                                valueFormatter = { "${it.toInt()} tiles" },
+                                color = Color(0xFF00F0FF),
+                                onValueChange = {
+                                    val newMin = it.roundToInt()
+                                    val newMax = maxOf(newMin + 2, config.maxLaneLength)
+                                    onConfigChanged(config.copy(minLaneLength = newMin, maxLaneLength = newMax))
+                                }
+                            )
+                        }
+
+                        // Maximum Lane Length Slider
+                        item {
+                            BalanceSliderCard(
+                                title = "Max Lane Path Length",
+                                subtitle = "Maximum tile curve winding distance across grid terrain",
+                                value = config.maxLaneLength.toFloat(),
+                                range = 15f..40f,
+                                steps = 24,
+                                valueFormatter = { "${it.toInt()} tiles" },
+                                color = Color(0xFF38BDF8),
+                                onValueChange = {
+                                    val newMax = it.roundToInt()
+                                    val newMin = minOf(newMax - 2, config.minLaneLength)
+                                    onConfigChanged(config.copy(maxLaneLength = newMax, minLaneLength = newMin))
+                                }
                             )
                         }
 
@@ -2062,38 +2121,10 @@ fun DevBalanceSettingsDialog(
                             )
                         }
 
-                        // Wave Completion Bonus
-                        item {
-                            BalanceSliderCard(
-                                title = "End-Of-Wave Bonus Multiplier",
-                                subtitle = "Adjusts bonus credits granted upon wave clear",
-                                value = config.waveBonusMultiplier,
-                                range = 0.2f..2.5f,
-                                steps = 22,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFF00FF9D),
-                                onValueChange = { onConfigChanged(config.copy(waveBonusMultiplier = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-
-                        // Tower Build Cost Multiplier
-                        item {
-                            BalanceSliderCard(
-                                title = "Tower Build Cost Multiplier",
-                                subtitle = "Scales base chassis placement costs across the grid",
-                                value = config.buildCostMultiplier,
-                                range = 0.5f..2.5f,
-                                steps = 19,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFF38BDF8),
-                                onValueChange = { onConfigChanged(config.copy(buildCostMultiplier = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-
                         item {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "PER-TOWER CLASS COMBAT TUNING",
+                                text = "INDIVIDUAL TOWER UNITS (TAP LEFT TO EXPAND)",
                                 color = Color(0xFF00F0FF),
                                 fontWeight = FontWeight.Black,
                                 fontSize = 10.sp,
@@ -2101,69 +2132,53 @@ fun DevBalanceSettingsDialog(
                             )
                         }
 
-                        // Kinetic Ballistics (Circle) Slider
-                        item {
-                            BalanceSliderCard(
-                                title = "● Kinetic Ballistics Damage (Circle)",
-                                subtitle = "Rapid vulcan miniguns, flak, sniper sentries",
-                                value = config.kineticDamageMultiplier,
-                                range = 0.3f..3.0f,
-                                steps = 26,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFF00F0FF),
-                                onValueChange = { onConfigChanged(config.copy(kineticDamageMultiplier = (it * 100).roundToInt() / 100f)) }
+                        // Collapsible Tower Unit Cards for every tower
+                        items(TowerType.values()) { type ->
+                            val currentTowerBal = config.getTowerBalance(type)
+                            CollapsibleTowerBalanceCard(
+                                towerType = type,
+                                balance = currentTowerBal,
+                                allTowers = TowerType.values().map { config.getTowerBalance(it) },
+                                onBalanceChanged = { updated ->
+                                    val updatedMap = config.customTowerConfigs.toMutableMap()
+                                    updatedMap[type.name] = updated
+                                    onConfigChanged(config.copy(customTowerConfigs = updatedMap))
+                                }
                             )
                         }
 
-                        // Elemental Void (Triangle) Slider
                         item {
-                            BalanceSliderCard(
-                                title = "▲ Elemental Void Damage (Triangle)",
-                                subtitle = "Cryo spire, tesla coil, graviton & quantum lasers",
-                                value = config.elementalDamageMultiplier,
-                                range = 0.3f..3.0f,
-                                steps = 26,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFFA855F7),
-                                onValueChange = { onConfigChanged(config.copy(elementalDamageMultiplier = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-
-                        // Heavy Siege (Square) Slider
-                        item {
-                            BalanceSliderCard(
-                                title = "■ Heavy Siege Damage (Square)",
-                                subtitle = "Hellfire mortars, railguns, EMP disruptors",
-                                value = config.heavyDamageMultiplier,
-                                range = 0.3f..3.0f,
-                                steps = 26,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFFFF5500),
-                                onValueChange = { onConfigChanged(config.copy(heavyDamageMultiplier = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-
-                        // Hostile HP Difficulty Slider
-                        item {
-                            BalanceSliderCard(
-                                title = "Enemy Health Multiplier",
-                                subtitle = "Increase hostile durability to test late-game pressure",
-                                value = config.enemyHpMultiplier,
-                                range = 0.5f..3.0f,
-                                steps = 24,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "INDIVIDUAL ENEMY HOSTILES (TAP LEFT TO EXPAND)",
                                 color = Color(0xFFFF2A55),
-                                onValueChange = { onConfigChanged(config.copy(enemyHpMultiplier = (it * 100).roundToInt() / 100f)) }
+                                fontWeight = FontWeight.Black,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                        }
+
+                        // Collapsible Enemy Unit Cards for every hostile
+                        items(EnemyType.values()) { type ->
+                            val currentEnemyBal = config.getEnemyBalance(type)
+                            CollapsibleEnemyBalanceCard(
+                                enemyType = type,
+                                balance = currentEnemyBal,
+                                onBalanceChanged = { updated ->
+                                    val updatedMap = config.customEnemyConfigs.toMutableMap()
+                                    updatedMap[type.name] = updated
+                                    onConfigChanged(config.copy(customEnemyConfigs = updatedMap))
+                                }
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Reset to Defaults Button
+                    // Action Buttons Row: Reset Defaults, Export New Defaults (Diff Only), Apply & Close
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
@@ -2171,20 +2186,138 @@ fun DevBalanceSettingsDialog(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF2A55)),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.6f)),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(38.dp)
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
                         ) {
-                            Icon(imageVector = Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(imageVector = Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("RESET", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // EXPORT NEW DEFAULTS (DIFF-ONLY JSON)
+                        Button(
+                            onClick = {
+                                exportJsonText = config.exportDiffJson()
+                                showExportModal = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier
+                                .weight(1.4f)
+                                .height(38.dp)
+                                .testTag("export_new_defaults_button")
+                        ) {
+                            Icon(imageVector = Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("RESET DEFAULTS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("EXPORT DEFAULTS", fontSize = 9.5.sp, fontWeight = FontWeight.Black)
                         }
 
                         Button(
                             onClick = onDismiss,
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB800), contentColor = Color.Black),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(38.dp)
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .height(38.dp)
                         ) {
-                            Text("APPLY & CLOSE", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                            Text("APPLY", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+
+                    // Diff Export Modal Dialog
+                    if (showExportModal) {
+                        Dialog(onDismissRequest = { showExportModal = false }) {
+                            Surface(
+                                color = Color(0xFF0F172A),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00FF9D)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(0.75f)
+                                    .padding(8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "DIFF-ONLY BALANCE EXPORT",
+                                                color = Color(0xFF00FF9D),
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 12.sp
+                                            )
+                                            Text(
+                                                text = "Only delta settings differing from stock defaults are included",
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 8.5.sp
+                                            )
+                                        }
+                                        IconButton(onClick = { showExportModal = false }, modifier = Modifier.size(24.dp)) {
+                                            Icon(imageVector = Icons.Filled.Close, contentDescription = null, tint = Color.White)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Surface(
+                                        color = Color(0xFF070B13),
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        LazyColumn(modifier = Modifier.padding(8.dp)) {
+                                            item {
+                                                Text(
+                                                    text = if (exportJsonText == "{\n}") "// No changes from defaults. Adjust any slider or name to export a delta diff!" else exportJsonText,
+                                                    color = Color(0xFF38BDF8),
+                                                    fontSize = 9.sp,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                val clip = android.content.ClipData.newPlainText("RogueTD_BalanceDiff", exportJsonText)
+                                                clipboard.setPrimaryClip(clip)
+                                                android.widget.Toast.makeText(context, "Diff JSON copied to clipboard!", android.widget.Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("COPY JSON", fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                        }
+
+                                        Button(
+                                            onClick = { showExportModal = false },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B), contentColor = Color.White),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("CLOSE", fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
@@ -2324,6 +2457,568 @@ fun BalanceSliderCard(
                     .fillMaxWidth()
                     .height(28.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun CollapsibleTowerBalanceCard(
+    towerType: TowerType,
+    balance: TowerUnitBalance,
+    allTowers: List<TowerUnitBalance>,
+    onBalanceChanged: (TowerUnitBalance) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var isEditingName by remember { mutableStateOf(false) }
+    var nameDraft by remember(balance.customName) { mutableStateOf(balance.customName ?: towerType.displayName) }
+
+    val currentName = balance.customName ?: towerType.displayName
+    val towerColor = Color(towerType.color)
+
+    // Identity analysis & cross-referencing
+    val dps = balance.damage * balance.fireRate
+    val overlaps = remember(balance, allTowers) {
+        allTowers.filter { other ->
+            other != balance &&
+            Math.abs((other.damage * other.fireRate) - dps) < (dps * 0.08f) &&
+            Math.abs(other.range - balance.range) < 0.4f
+        }
+    }
+
+    val identityRole = remember(balance, towerType) {
+        when {
+            towerType.isBeam -> "Continuous High-Heat Melting Beam"
+            towerType.isSplash -> "Kinetic Area-Denial & Splash Shells"
+            towerType.chains > 0 -> "Multi-Arc Lightning Voltage Surge"
+            towerType.slowPercent > 0f -> "Cryogenic Stasis & Slow Chilling"
+            balance.range >= 4.0f -> "Long-Range Precision Interceptor"
+            balance.fireRate >= 3.0f -> "High-Cadence Rapid Anti-Swarm"
+            else -> "Tactical Point-Defense Kinetic Battery"
+        }
+    }
+
+    Surface(
+        color = Color(0xFF131F37),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isExpanded) towerColor else Color(0xFF1E293B)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            // Header Row: Left-side click toggles expanded state!
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left click zone to expand / collapse
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { isExpanded = !isExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(towerColor.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = towerColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentName,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "(${towerType.name})",
+                                color = Color(0xFF64748B),
+                                fontSize = 8.5.sp
+                            )
+                        }
+                        Text(
+                            text = "DMG: ${balance.damage.toInt()} | RNG: ${String.format(Locale.US, "%.1f", balance.range)} | SPD: ${String.format(Locale.US, "%.1f", balance.fireRate)}/s | ${balance.cost}C",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 8.5.sp
+                        )
+                    }
+                }
+
+                // Edit name button on right of header
+                IconButton(
+                    onClick = {
+                        if (isEditingName) {
+                            val trimmed = nameDraft.trim()
+                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == towerType.displayName) null else trimmed))
+                            isEditingName = false
+                        } else {
+                            nameDraft = currentName
+                            isEditingName = true
+                            isExpanded = true
+                        }
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isEditingName) Icons.Filled.Check else Icons.Filled.Edit,
+                        contentDescription = "Rename Unit",
+                        tint = if (isEditingName) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+
+            // Inline Name Editor TextField if active
+            if (isEditingName) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = nameDraft,
+                        onValueChange = { nameDraft = it },
+                        singleLine = true,
+                        placeholder = { Text(towerType.displayName, fontSize = 10.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = towerColor,
+                            unfocusedBorderColor = Color(0xFF334155),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = nameDraft.trim()
+                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == towerType.displayName) null else trimmed))
+                            isEditingName = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = towerColor, contentColor = Color.Black),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("SAVE", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+
+            // Identity Role Badge & Cross-Reference Warnings
+            Spacer(modifier = Modifier.height(3.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF0F172A))
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "IDENTITY: $identityRole",
+                    color = towerColor,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (overlaps.isNotEmpty()) {
+                    Text(
+                        text = "⚠️ SIMILAR STATS DETECTED",
+                        color = Color(0xFFFFB800),
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                } else {
+                    Text(
+                        text = "✓ DISTINCT",
+                        color = Color(0xFF00FF9D),
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (overlaps.isNotEmpty()) {
+                Text(
+                    text = "Suggestion: Differentiate DPS (${dps.toInt()}) or Range from other units for unique tactical niche.",
+                    color = Color(0xFFFFB800).copy(alpha = 0.85f),
+                    fontSize = 7.5.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+
+            // Collapsible Granular Sliders Area
+            AnimatedVisibility(visible = isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Base Damage Slider
+                    BalanceSliderCard(
+                        title = "Base Damage Per Shot",
+                        subtitle = "Direct kinetic/energy burst power",
+                        value = balance.damage,
+                        range = 5f..350f,
+                        steps = 68,
+                        valueFormatter = { "${it.toInt()} DMG" },
+                        color = Color(0xFFFF2A55),
+                        onValueChange = { onBalanceChanged(balance.copy(damage = it.roundToInt().toFloat())) }
+                    )
+
+                    // Base Range Slider
+                    BalanceSliderCard(
+                        title = "Targeting Range Radius",
+                        subtitle = "Grid radius (triggers accurately along lane sprite)",
+                        value = balance.range,
+                        range = 1.5f..7.0f,
+                        steps = 21,
+                        valueFormatter = { String.format(Locale.US, "%.1f cells", it) },
+                        color = Color(0xFF00F0FF),
+                        onValueChange = { onBalanceChanged(balance.copy(range = (it * 10).roundToInt() / 10f)) }
+                    )
+
+                    // Fire Rate Slider
+                    BalanceSliderCard(
+                        title = "Attack Rate (Shots / sec)",
+                        subtitle = "Frequency of defensive weapon discharge",
+                        value = balance.fireRate,
+                        range = 0.2f..6.0f,
+                        steps = 28,
+                        valueFormatter = { String.format(Locale.US, "%.1f/s", it) },
+                        color = Color(0xFFFFB800),
+                        onValueChange = { onBalanceChanged(balance.copy(fireRate = (it * 10).roundToInt() / 10f)) }
+                    )
+
+                    // Cost Slider
+                    BalanceSliderCard(
+                        title = "Deployment Credit Cost",
+                        subtitle = "Initial scrap investment required",
+                        value = balance.cost.toFloat(),
+                        range = 40f..400f,
+                        steps = 35,
+                        valueFormatter = { "${it.toInt()} C" },
+                        color = Color(0xFFFFD700),
+                        onValueChange = { onBalanceChanged(balance.copy(cost = (it / 10).roundToInt() * 10)) }
+                    )
+
+                    // Special Effect Slider (Splash Radius, Slow %, or Chains)
+                    when {
+                        towerType.isSplash -> {
+                            BalanceSliderCard(
+                                title = "Splash Explosion Radius",
+                                subtitle = "Detonation blast footprint in grid cells",
+                                value = balance.specialEffectValue.coerceAtLeast(0.5f),
+                                range = 0.5f..4.0f,
+                                steps = 13,
+                                valueFormatter = { String.format(Locale.US, "%.1f cells", it) },
+                                color = Color(0xFFFF5722),
+                                onValueChange = { onBalanceChanged(balance.copy(specialEffectValue = (it * 10).roundToInt() / 10f)) }
+                            )
+                        }
+                        towerType.slowPercent > 0f -> {
+                            BalanceSliderCard(
+                                title = "Cryo Slowdown Factor",
+                                subtitle = "Speed impairment applied to affected hostiles",
+                                value = balance.specialEffectValue.coerceAtLeast(0.1f),
+                                range = 0.10f..0.80f,
+                                steps = 13,
+                                valueFormatter = { "${(it * 100).toInt()}% Slow" },
+                                color = Color(0xFF00F0FF),
+                                onValueChange = { onBalanceChanged(balance.copy(specialEffectValue = (it * 100).roundToInt() / 100f)) }
+                            )
+                        }
+                        towerType.chains > 0 -> {
+                            BalanceSliderCard(
+                                title = "Tesla Chain Targets",
+                                subtitle = "Maximum arc jumps across adjacent enemies",
+                                value = balance.specialEffectValue.coerceAtLeast(1f),
+                                range = 1f..8f,
+                                steps = 6,
+                                valueFormatter = { "${it.toInt()} Arcs" },
+                                color = Color(0xFFB388FF),
+                                onValueChange = { onBalanceChanged(balance.copy(specialEffectValue = it.roundToInt().toFloat())) }
+                            )
+                        }
+                    }
+
+                    // Reset this tower button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                onBalanceChanged(
+                                    TowerUnitBalance(
+                                        customName = null,
+                                        damage = towerType.baseDamage,
+                                        range = towerType.baseRange,
+                                        fireRate = towerType.baseFireRate,
+                                        cost = towerType.baseCost,
+                                        specialEffectValue = when {
+                                            towerType.isSplash -> towerType.splashRadius
+                                            towerType.slowPercent > 0f -> towerType.slowPercent
+                                            towerType.chains > 0 -> towerType.chains.toFloat()
+                                            else -> 0f
+                                        }
+                                    )
+                                )
+                                isEditingName = false
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Reset ${towerType.displayName} Defaults", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CollapsibleEnemyBalanceCard(
+    enemyType: EnemyType,
+    balance: EnemyUnitBalance,
+    onBalanceChanged: (EnemyUnitBalance) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var isEditingName by remember { mutableStateOf(false) }
+    var nameDraft by remember(balance.customName) { mutableStateOf(balance.customName ?: enemyType.displayName) }
+
+    val currentName = balance.customName ?: enemyType.displayName
+    val enemyColor = Color(enemyType.color)
+
+    Surface(
+        color = Color(0xFF131F37),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isExpanded) enemyColor else Color(0xFF1E293B)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            // Header Row: Left-side click toggles expanded state!
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left click zone to expand / collapse
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { isExpanded = !isExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(enemyColor.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = enemyColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentName,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "(${enemyType.name})",
+                                color = Color(0xFF64748B),
+                                fontSize = 8.5.sp
+                            )
+                        }
+                        Text(
+                            text = "HP: ${balance.hp.toInt()} | SPD: ${String.format(Locale.US, "%.2f", balance.speed)} | ARMOR: ${balance.armor.toInt()} | +${balance.scrapValue}C",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 8.5.sp
+                        )
+                    }
+                }
+
+                // Edit name button on right of header
+                IconButton(
+                    onClick = {
+                        if (isEditingName) {
+                            val trimmed = nameDraft.trim()
+                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == enemyType.displayName) null else trimmed))
+                            isEditingName = false
+                        } else {
+                            nameDraft = currentName
+                            isEditingName = true
+                            isExpanded = true
+                        }
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isEditingName) Icons.Filled.Check else Icons.Filled.Edit,
+                        contentDescription = "Rename Enemy",
+                        tint = if (isEditingName) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+
+            // Inline Name Editor TextField if active
+            if (isEditingName) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = nameDraft,
+                        onValueChange = { nameDraft = it },
+                        singleLine = true,
+                        placeholder = { Text(enemyType.displayName, fontSize = 10.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = enemyColor,
+                            unfocusedBorderColor = Color(0xFF334155),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = nameDraft.trim()
+                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == enemyType.displayName) null else trimmed))
+                            isEditingName = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = enemyColor, contentColor = Color.White),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("SAVE", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+
+            // Collapsible Granular Sliders Area
+            AnimatedVisibility(visible = isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Base HP Slider
+                    BalanceSliderCard(
+                        title = "Base Health Points",
+                        subtitle = "Starting hit points before wave scaling",
+                        value = balance.hp,
+                        range = 25f..2000f,
+                        steps = 78,
+                        valueFormatter = { "${it.toInt()} HP" },
+                        color = Color(0xFFFF2A55),
+                        onValueChange = { onBalanceChanged(balance.copy(hp = it.roundToInt().toFloat())) }
+                    )
+
+                    // Movement Speed Slider
+                    BalanceSliderCard(
+                        title = "Traversal Speed",
+                        subtitle = "Lane navigation speed in grid cells/sec",
+                        value = balance.speed,
+                        range = 0.3f..3.0f,
+                        steps = 26,
+                        valueFormatter = { String.format(Locale.US, "%.2f cells/s", it) },
+                        color = Color(0xFF00FF9D),
+                        onValueChange = { onBalanceChanged(balance.copy(speed = (it * 100).roundToInt() / 100f)) }
+                    )
+
+                    // Armor Slider
+                    BalanceSliderCard(
+                        title = "Damage Reduction Armor",
+                        subtitle = "Flat or percentage reduction applied against hits",
+                        value = balance.armor,
+                        range = 0f..50f,
+                        steps = 50,
+                        valueFormatter = { "${it.toInt()} Armor" },
+                        color = Color(0xFF38BDF8),
+                        onValueChange = { onBalanceChanged(balance.copy(armor = it.roundToInt().toFloat())) }
+                    )
+
+                    // Scrap Value Bounty Slider
+                    BalanceSliderCard(
+                        title = "Scrap Bounty Yield",
+                        subtitle = "Credits granted to player bank upon kill",
+                        value = balance.scrapValue.toFloat(),
+                        range = 2f..60f,
+                        steps = 29,
+                        valueFormatter = { "+${it.toInt()} Credits" },
+                        color = Color(0xFFFFD700),
+                        onValueChange = { onBalanceChanged(balance.copy(scrapValue = it.roundToInt())) }
+                    )
+
+                    // Reset this enemy button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                onBalanceChanged(
+                                    EnemyUnitBalance(
+                                        customName = null,
+                                        hp = enemyType.baseHp,
+                                        speed = enemyType.baseSpeed,
+                                        armor = enemyType.baseArmor,
+                                        scrapValue = enemyType.scrapValue
+                                    )
+                                )
+                                isEditingName = false
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Reset ${enemyType.displayName} Defaults", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }

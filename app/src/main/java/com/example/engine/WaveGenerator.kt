@@ -23,7 +23,7 @@ data class WaveData(
 
 object WaveGenerator {
 
-    fun generateWave(waveNumber: Int): WaveData {
+    fun generateWave(waveNumber: Int, enemyCountMultiplier: Float = 1.0f): WaveData {
         val isBossWave = (waveNumber % 10 == 0) || (waveNumber == 5)
         val name = when {
             waveNumber == 5 -> "Sector Vanguard: Dual Elite Scout"
@@ -53,24 +53,28 @@ object WaveGenerator {
 
         when (waveNumber) {
             1 -> {
-                // Wave 1: 6 Drones on Alpha, 6 Drones on Beta (alternating!)
-                for (i in 0 until 12) {
+                // Wave 1: Drones on Alpha and Beta (alternating, scaled by enemyCountMultiplier)
+                val count = (12 * enemyCountMultiplier).toInt().coerceAtLeast(4)
+                for (i in 0 until count) {
                     val lane = i % 2
                     spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = if (i == 0) 300L else 750L, laneIndex = lane, hpScale = 0.9f))
                 }
             }
             2 -> {
                 // Wave 2: Drones and Automatons on both lanes
-                for (i in 0 until 8) {
+                val droneCount = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                val soldierCount = (6 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                for (i in 0 until droneCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 650L, laneIndex = i % 2, hpScale = baseHpScale))
                 }
-                for (i in 0 until 6) {
+                for (i in 0 until soldierCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 900L, laneIndex = (i + 1) % 2, hpScale = baseHpScale))
                 }
             }
             3 -> {
                 // Wave 3: Speedsters flank on Beta, Drones on Alpha
-                for (i in 0 until 8) {
+                val count = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                for (i in 0 until count) {
                     spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 500L, laneIndex = 0, hpScale = baseHpScale))
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = 1, hpScale = baseHpScale, speedScale = 1.05f))
                 }
@@ -79,7 +83,8 @@ object WaveGenerator {
                 // Wave 4: Golems leading each lane
                 spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 400L, laneIndex = 0, hpScale = baseHpScale))
                 spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 500L, laneIndex = 1, hpScale = baseHpScale))
-                for (i in 0 until 10) {
+                val soldierCount = (10 * enemyCountMultiplier).toInt().coerceAtLeast(4)
+                for (i in 0 until soldierCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 700L, laneIndex = i % 2, hpScale = baseHpScale))
                 }
             }
@@ -94,7 +99,8 @@ object WaveGenerator {
                         isBoss = true
                     )
                 )
-                for (i in 0 until 8) {
+                val speedsterCount = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                for (i in 0 until speedsterCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 650L, laneIndex = 1, hpScale = baseHpScale))
                 }
                 spawnList.add(
@@ -118,16 +124,19 @@ object WaveGenerator {
                         isBoss = true
                     )
                 )
-                for (i in 0 until 8) {
+                val disruptorCount = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                val speedsterCount = (12 * enemyCountMultiplier).toInt().coerceAtLeast(4)
+                for (i in 0 until disruptorCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.DISRUPTOR, delayMs = 700L, laneIndex = 1, hpScale = baseHpScale))
                 }
-                for (i in 0 until 12) {
+                for (i in 0 until speedsterCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = i % 2, hpScale = baseHpScale))
                 }
             }
             else -> {
                 // Procedural mixed waves attacking both lanes
-                val enemyCount = 16 + waveNumber * 3
+                val baseCount = 16 + waveNumber * 3
+                val enemyCount = (baseCount * enemyCountMultiplier).toInt().coerceAtLeast(6)
                 val canHaveBruisers = waveNumber >= 4
                 val canHaveDisruptors = waveNumber >= 6
                 val canHaveBoss = isBossWave

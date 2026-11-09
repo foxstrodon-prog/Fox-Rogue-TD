@@ -980,6 +980,9 @@ data class DevBalanceConfig(
     val waveBonusMultiplier: Float = 1.0f,     // 0.2x to 2.5x end of wave bonus
     val enemyHpMultiplier: Float = 1.0f,       // 0.5x to 3.0x enemy difficulty
     val buildCostMultiplier: Float = 1.0f,     // 0.5x to 2.0x tower build costs
+    val minLaneLength: Int = 12,              // 8 to 25 slider
+    val maxLaneLength: Int = 26,              // 15 to 40 slider
+    val enemiesPerRoundMultiplier: Float = 1.0f, // 0.5x to 3.0x enemies per round
     val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
     val customEnemyConfigs: Map<String, EnemyUnitBalance> = emptyMap()
 ) {
@@ -1025,6 +1028,9 @@ data class DevBalanceConfig(
         if (waveBonusMultiplier != default.waveBonusMultiplier) diffMap["waveBonusMultiplier"] = waveBonusMultiplier
         if (enemyHpMultiplier != default.enemyHpMultiplier) diffMap["enemyHpMultiplier"] = enemyHpMultiplier
         if (buildCostMultiplier != default.buildCostMultiplier) diffMap["buildCostMultiplier"] = buildCostMultiplier
+        if (minLaneLength != default.minLaneLength) diffMap["minLaneLength"] = minLaneLength
+        if (maxLaneLength != default.maxLaneLength) diffMap["maxLaneLength"] = maxLaneLength
+        if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) diffMap["enemiesPerRoundMultiplier"] = enemiesPerRoundMultiplier
 
         // Tower diffs
         val towerDiffs = mutableMapOf<String, Map<String, Any>>()
@@ -1070,6 +1076,7 @@ data class DevBalanceConfig(
             }
         }
         if (enemyDiffs.isNotEmpty()) diffMap["customEnemies"] = enemyDiffs
+        if (diffMap.isEmpty()) return "{}"
 
         // Serialize to clean formatted JSON string
         val sb = StringBuilder("{\n")

@@ -201,8 +201,13 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         gameLoopJob?.cancel()
 
         val seed = System.currentTimeMillis()
-        val level = MapGenerator.generate(seed = seed)
-        val firstWave = WaveGenerator.generateWave(1)
+        val balance = _uiState.value.balanceConfig
+        val level = MapGenerator.generate(
+            seed = seed,
+            minLaneLength = balance.minLaneLength,
+            maxLaneLength = balance.maxLaneLength
+        )
+        val firstWave = WaveGenerator.generateWave(1, balance.enemiesPerRoundMultiplier)
 
         val initialParticles = mutableListOf<TrackParticle>()
         for (i in 0 until 12) {
@@ -840,7 +845,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         val state = _uiState.value
         if (state.isWaveActive || state.isGameOver) return
 
-        val waveData = WaveGenerator.generateWave(state.waveNumber)
+        val waveData = WaveGenerator.generateWave(state.waveNumber, state.balanceConfig.enemiesPerRoundMultiplier)
         pendingSpawns = waveData.spawnList.toMutableList()
         nextSpawnTimeMs = 300L
         waveHasStartedSpawning = false

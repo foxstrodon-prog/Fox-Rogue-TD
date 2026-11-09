@@ -449,5 +449,53 @@ class ExampleRobolectricTest {
     assertEquals(0, rookieLifetime.totalRuns)
     assertEquals(0, rookieLifetime.bestWaveEver)
   }
+
+  @Test
+  fun `omnidirectional procedural map generator respects min and max lane length constraints`() {
+    val level = MapGenerator.generate(
+      seed = 98765L,
+      minLaneLength = 14,
+      maxLaneLength = 28
+    )
+    assertNotNull(level)
+    assertTrue("Lane Alpha must be >= minLaneLength (14)", level.laneAlpha.size >= 14)
+    assertTrue("Lane Beta must be >= minLaneLength (14)", level.laneBeta.size >= 14)
+    assertTrue("Merged tiles must exist along crossover", level.tiles.any { it.type == TileType.PATH_MERGED })
+    assertEquals(TileType.CORE, level.tiles.first { it.pos == level.laneAlpha.last() }.type)
+    assertEquals(6, level.tiles.count { it.buff != com.example.model.TileBuff.NONE })
+  }
+
+  @Test
+  fun `diff-only json export produces delta containing only modified parameters`() {
+    val defaultCfg = com.example.model.DevBalanceConfig()
+    val cleanDiff = defaultCfg.exportDiffJson()
+    assertEquals("{}", cleanDiff.trim())
+
+    // Modify only startingScrap and Vulcan Gatling range
+    val modifiedCfg = defaultCfg.copy(
+      startingScrap = 180,
+      customTowerConfigs = mapOf(
+        "GATLING" to defaultCfg.getTowerBalance(TowerType.GATLING).copy(range = 4.5f)
+      )
+    )
+
+    val diffJson = modifiedCfg.exportDiffJson()
+    assertTrue(diffJson.contains("\"startingScrap\": 180"))
+    assertTrue(diffJson.contains("\"customTowers\""))
+    assertTrue(diffJson.contains("\"range\": 4.5"))
+    assertFalse(diffJson.contains("\"globalIncomeMultiplier\"")) // Unchanged must be omitted!
+    assertFalse(diffJson.contains("\"customEnemies\"")) // Unchanged must be omitted!
+  }
+
+  @Test
+  fun `wave generator scales enemy spawn count using enemiesPerRoundMultiplier`() {
+    val baseWave = WaveGenerator.generateWave(waveNumber = 3, enemyCountMultiplier = 1.0f)
+    val heavyWave = WaveGenerator.generateWave(waveNumber = 3, enemyCountMultiplier = 2.0f)
+
+    assertTrue(
+      "Doubling enemyCountMultiplier should increase enemy spawn count",
+      heavyWave.spawnList.size > baseWave.spawnList.size
+    )
+  }
 }
 
