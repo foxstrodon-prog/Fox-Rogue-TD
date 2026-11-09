@@ -28,8 +28,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.res.Configuration
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import com.example.engine.AppUpdateState
 import com.example.engine.GeneratedLevel
 import com.example.engine.TowerUpgradeManager
+import com.example.engine.UpdateDownloadStatus
 import com.example.model.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -42,6 +49,8 @@ fun RogueTDScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Box(
         modifier = modifier
@@ -49,7 +58,7 @@ fun RogueTDScreen(
             .background(Color(0xFF070B13))
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        // === FULL SCREEN MAP CANVAS ===
+        // === FULL SCREEN MAP CANVAS (Static locked map coordinate system) ===
         Box(modifier = Modifier.fillMaxSize()) {
             GameCanvas(
                 state = state,
@@ -58,22 +67,39 @@ fun RogueTDScreen(
 
             // Floating Combat Text Overlay
             FloatingTextOverlay(texts = state.floatingTexts, level = state.level)
-
         }
 
-        // === MINIMAL FLOATING TOP TACTICAL HUD ===
+        // === MINIMAL FLOATING TOP TACTICAL HUD (Adaptive edge docking) ===
         MinimalTopHud(
             state = state,
             onDeployWave = { viewModel.deployWave() },
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onOpenPauseMenu = { viewModel.openPauseMenu() },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 4.dp)
+            modifier = if (isLandscape) {
+                Modifier
+                    .align(Alignment.TopStart)
+                    .widthIn(max = 520.dp)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            } else {
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            }
         )
 
-        // === MINIMAL FLOATING BOTTOM COMMAND DOCK (Only visible when tile/tower selected) ===
+        // === IN-APP GITHUB APK AUTO-UPDATER BANNER ===
+        if (state.updateUIState.status in listOf(UpdateDownloadStatus.AVAILABLE, UpdateDownloadStatus.DOWNLOADING, UpdateDownloadStatus.READY_TO_INSTALL)) {
+            UpdateBanner(
+                updateState = state.updateUIState,
+                onDownloadAndInstall = { viewModel.downloadAndInstallUpdate() },
+                modifier = Modifier
+                    .align(if (isLandscape) Alignment.BottomStart else Alignment.TopCenter)
+                    .padding(if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp) else PaddingValues(top = 46.dp))
+            )
+        }
+
+        // === MINIMAL FLOATING BOTTOM COMMAND DOCK / SIDEBAR (Adaptive rotation transition) ===
         MinimalBottomDock(
             state = state,
             onDeployWave = { viewModel.deployWave() },
@@ -90,10 +116,18 @@ fun RogueTDScreen(
             onSellTower = { viewModel.sellSelectedTower() },
             onChangePriority = { viewModel.changeSelectedTowerPriority(it) },
             onDeselect = { viewModel.selectTile(null) },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp)
+            modifier = if (isLandscape) {
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(340.dp)
+                    .fillMaxHeight()
+                    .padding(top = 8.dp, bottom = 8.dp, end = 8.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 6.dp)
+            }
         )
 
         // === ROUND 1 TACTICAL HINT (Floating non-blocking banner at top) ===
@@ -175,6 +209,8 @@ fun RogueTDScreen(
                     viewModel.closePauseMenu()
                     viewModel.requestEndRun()
                 },
+                onCheckForUpdates = { viewModel.checkForAppUpdates() },
+                onDownloadAndInstallUpdate = { viewModel.downloadAndInstallUpdate() },
                 onResume = { viewModel.closePauseMenu() }
             )
         }
@@ -203,6 +239,7 @@ fun RogueTDScreen(
             TelemetryLeaderboardDialog(
                 state = state,
                 onSetPlayerName = { viewModel.setPlayerName(it) },
+                onRetryLeaderboard = { viewModel.fetchOnlineLeaderboard(true) },
                 onDismiss = { viewModel.toggleTelemetryView(false) }
             )
         }
@@ -505,6 +542,10 @@ fun MinimalBottomDock(
     val isDrawerActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.type == TileType.EMPTY)
     if (!isDrawerActive) return
 
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val scrollState = rememberScrollState()
+
     Surface(
         color = Color(0xFF0A0F1D).copy(alpha = 0.96f),
         shape = RoundedCornerShape(14.dp),
@@ -513,7 +554,7 @@ fun MinimalBottomDock(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .then(if (isLandscape) Modifier.fillMaxHeight().verticalScroll(scrollState) else Modifier.fillMaxWidth())
                 .padding(8.dp)
         ) {
             when {
@@ -1327,6 +1368,7 @@ fun ThreePathTowerInspector(
 fun TelemetryLeaderboardDialog(
     state: GameUIState,
     onSetPlayerName: (String) -> Unit,
+    onRetryLeaderboard: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0 = LAST RUN, 1 = MY LIFETIME, 2 = LEADERBOARD
@@ -1581,92 +1623,210 @@ fun TelemetryLeaderboardDialog(
                         }
                     }
 
-                    // TAB 2: GLOBAL LEADERBOARD
+                    // TAB 2: GLOBAL ONLINE LEADERBOARD (Ktor REST via Dreamlo)
                     2 -> {
-                        val validLeaderboard = state.leaderboard.filter { it.score > 0 }
-                        if (validLeaderboard.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "No ranked leaderboard scores yet.\nDeploy and survive waves to earn tactical points!",
-                                    color = Color(0xFF64748B),
-                                    fontSize = 11.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        } else {
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                itemsIndexed(validLeaderboard) { index, item ->
-                                    val medal = when (index) {
-                                        0 -> "🥇"
-                                        1 -> "🥈"
-                                        2 -> "🥉"
-                                        else -> "#${index + 1}"
+                        when {
+                            state.leaderboardStatus == GlobalBoardStatus.LOADING && state.onlineLeaderboard.isEmpty() -> {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(28.dp),
+                                            color = Color(0xFF00F0FF),
+                                            strokeWidth = 2.5.dp
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = "Connecting to Global Uplink...",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 11.sp
+                                        )
                                     }
-
-                                    Surface(
-                                        color = Color(0xFF162544),
-                                        shape = RoundedCornerShape(10.dp),
-                                        border = if (index == 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)) else null,
-                                        modifier = Modifier.fillMaxWidth()
+                                }
+                            }
+                            state.onlineLeaderboard.isEmpty() -> {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(16.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(10.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Text(
+                                            text = state.leaderboardErrorMessage ?: "No online leaderboard scores yet.\nDeploy and survive waves to earn global ranking!",
+                                            color = Color(0xFF64748B),
+                                            fontSize = 11.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Button(
+                                            onClick = onRetryLeaderboard,
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                            shape = RoundedCornerShape(8.dp)
                                         ) {
-                                            Text(
-                                                text = medal,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.width(36.dp)
+                                            Icon(
+                                                imageVector = Icons.Filled.Refresh,
+                                                contentDescription = null,
+                                                tint = Color(0xFF00F0FF),
+                                                modifier = Modifier.size(14.dp)
                                             )
-
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(
-                                                            text = item.playerName,
-                                                            color = Color(0xFF00F0FF),
-                                                            fontWeight = FontWeight.Black,
-                                                            fontSize = 12.sp
-                                                        )
-                                                        Spacer(modifier = Modifier.width(6.dp))
-                                                        Text(
-                                                            text = "Wave ${item.wavesCleared}",
-                                                            color = Color.White,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Retry Uplink",
+                                                color = Color(0xFF00F0FF),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    if (state.leaderboardStatus == GlobalBoardStatus.OFFLINE_CACHED) {
+                                        Surface(
+                                            color = Color(0xFF332005),
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.5f)),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.CloudOff,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFFFFB800),
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
                                                     Text(
-                                                        text = "${item.score} PTS",
-                                                        color = Color(0xFFFFD700),
-                                                        fontWeight = FontWeight.Black,
-                                                        fontSize = 11.5.sp
+                                                        text = "Offline Cached Data",
+                                                        color = Color(0xFFFFB800),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
                                                     )
                                                 }
-
                                                 Text(
-                                                    text = "${item.enemiesKilled} Kills | MVP: ${item.mvpTower} | ${item.sectorName}",
-                                                    color = Color(0xFF94A3B8),
-                                                    fontSize = 9.5.sp
+                                                    text = "RETRY",
+                                                    color = Color(0xFF00F0FF),
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    modifier = Modifier.clickable { onRetryLeaderboard() }
                                                 )
+                                            }
+                                        }
+                                    }
 
-                                                Text(
-                                                    text = dateFormat.format(Date(item.timestamp)),
-                                                    color = Color(0xFF64748B),
-                                                    fontSize = 8.5.sp
-                                                )
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        itemsIndexed(state.onlineLeaderboard) { index, item ->
+                                            val rankDisplay = when (index) {
+                                                0 -> "🥇"
+                                                1 -> "🥈"
+                                                2 -> "🥉"
+                                                else -> "#${item.rank}"
+                                            }
+
+                                            Surface(
+                                                color = Color(0xFF162544),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = if (index == 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)) else null,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = rankDisplay,
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.width(36.dp)
+                                                    )
+
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Text(
+                                                                    text = item.name,
+                                                                    color = Color(0xFF00F0FF),
+                                                                    fontWeight = FontWeight.Black,
+                                                                    fontSize = 12.sp
+                                                                )
+                                                                if (item.isDevTuned) {
+                                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                                    Surface(
+                                                                        color = Color(0xFFEAB308).copy(alpha = 0.22f),
+                                                                        shape = RoundedCornerShape(3.dp),
+                                                                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFFEAB308))
+                                                                    ) {
+                                                                        Text(
+                                                                            text = "DEV",
+                                                                            color = Color(0xFFFDE047),
+                                                                            fontSize = 8.sp,
+                                                                            fontWeight = FontWeight.Black,
+                                                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                                        )
+                                                                    }
+                                                                }
+                                                                Spacer(modifier = Modifier.width(6.dp))
+                                                                Text(
+                                                                    text = "Wave ${item.wavesCleared}",
+                                                                    color = Color.White,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 11.sp
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = "${item.score} PTS",
+                                                                color = Color(0xFFFFD700),
+                                                                fontWeight = FontWeight.Black,
+                                                                fontSize = 11.5.sp
+                                                            )
+                                                        }
+
+                                                        if (item.scrapEarned > 0 || item.date.isNotBlank()) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                            ) {
+                                                                if (item.scrapEarned > 0) {
+                                                                    Text(
+                                                                        text = "${item.scrapEarned} Scrap Salvaged",
+                                                                        color = Color(0xFF94A3B8),
+                                                                        fontSize = 9.sp
+                                                                    )
+                                                                }
+                                                                if (item.date.isNotBlank()) {
+                                                                    Text(
+                                                                        text = item.date,
+                                                                        color = Color(0xFF64748B),
+                                                                        fontSize = 8.5.sp
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1713,19 +1873,37 @@ fun TelemetryCard(label: String, value: String, icon: androidx.compose.ui.graphi
 fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?) {
     if (level == null || texts.isEmpty()) return
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val gridWidth = level.width
+        val gridHeight = level.height
+        val boardAspect = gridWidth.toFloat() / gridHeight.toFloat()
+        val viewAspect = maxWidth.value / maxHeight.value
+
+        val (boardWidthDp, boardHeightDp) = if (viewAspect < boardAspect) {
+            val bw = maxWidth.value
+            bw to (bw / boardAspect)
+        } else {
+            val bh = maxHeight.value
+            (bh * boardAspect) to bh
+        }
+
+        val boardOriginXDp = (maxWidth.value - boardWidthDp) / 2f
+        val boardOriginYDp = (maxHeight.value - boardHeightDp) / 2f
+        val cellWDp = boardWidthDp / gridWidth
+        val cellHDp = boardHeightDp / gridHeight
+
         for (ft in texts) {
             val alpha = (ft.lifeMs.toFloat() / ft.maxLifeMs).coerceIn(0f, 1f)
-            val normX = (ft.x + 0.5f) / level.width.toFloat()
-            val normY = (ft.y + 0.5f) / level.height.toFloat()
+            val posX = boardOriginXDp + (ft.x + 0.5f) * cellWDp
+            val posY = boardOriginYDp + (ft.y + 0.5f) * cellHDp
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .wrapContentSize(Alignment.TopStart)
                     .offset(
-                        x = (normX * 340f).dp,
-                        y = (normY * 560f).dp
+                        x = (posX - 18f).dp,
+                        y = (posY - 12f).dp
                     )
             ) {
                 Text(
@@ -1734,6 +1912,77 @@ fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?) {
                     fontSize = if (ft.isCrit) 14.sp else 11.sp,
                     fontWeight = FontWeight.Black
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun UpdateBanner(
+    updateState: AppUpdateState,
+    onDownloadAndInstall: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val info = updateState.updateInfo ?: return
+    val isDownloading = updateState.status == UpdateDownloadStatus.DOWNLOADING
+    Surface(
+        color = Color(0xFF0F172A).copy(alpha = 0.95f),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00F0FF)),
+        modifier = modifier
+            .padding(horizontal = 8.dp)
+            .clickable(enabled = !isDownloading) { onDownloadAndInstall() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            when (updateState.status) {
+                UpdateDownloadStatus.DOWNLOADING -> {
+                    CircularProgressIndicator(
+                        progress = { updateState.progressPercent / 100f },
+                        modifier = Modifier.size(16.dp),
+                        color = Color(0xFF00F0FF),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Downloading v${info.latestVersion}: ${updateState.progressPercent}%",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                UpdateDownloadStatus.READY_TO_INSTALL -> {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF00FF9D),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Update v${info.latestVersion} Ready • Tap to Install",
+                        color = Color(0xFF00FF9D),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                else -> {
+                    Icon(
+                        imageVector = Icons.Filled.SystemUpdate,
+                        contentDescription = null,
+                        tint = Color(0xFF00F0FF),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "New update available: v${info.latestVersion} [Download & Install]",
+                        color = Color(0xFF00F0FF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -3031,6 +3280,8 @@ fun PauseMenuDialog(
     onOpenSettings: () -> Unit,
     onRestart: () -> Unit,
     onEndRun: () -> Unit,
+    onCheckForUpdates: () -> Unit = {},
+    onDownloadAndInstallUpdate: () -> Unit = {},
     onResume: () -> Unit
 ) {
     Dialog(onDismissRequest = onResume) {
@@ -3210,6 +3461,72 @@ fun PauseMenuDialog(
                         Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("RESTART WITH NEW MAP", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    // In-App APK Updater Status & Action
+                    val updateState = state.updateUIState
+                    if (updateState.status == UpdateDownloadStatus.AVAILABLE && updateState.updateInfo != null) {
+                        Button(
+                            onClick = onDownloadAndInstallUpdate,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F0FF), contentColor = Color.Black),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Icon(imageVector = Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("UPDATE TO v${updateState.updateInfo.latestVersion} [DOWNLOAD & INSTALL]", fontWeight = FontWeight.Black, fontSize = 10.5.sp)
+                        }
+                    } else if (updateState.status == UpdateDownloadStatus.DOWNLOADING) {
+                        Surface(
+                            color = Color(0xFF1E293B),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00F0FF), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Downloading Update: ${updateState.progressPercent}%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else if (updateState.status == UpdateDownloadStatus.READY_TO_INSTALL) {
+                        Button(
+                            onClick = onDownloadAndInstallUpdate,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Icon(imageVector = Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("INSTALL DOWNLOADED UPDATE", fontWeight = FontWeight.Black, fontSize = 11.sp)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onCheckForUpdates,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                        ) {
+                            Icon(imageVector = Icons.Filled.Sync, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (updateState.status == UpdateDownloadStatus.CHECKING) "CHECKING GITHUB RELEASES..." else "CHECK FOR UPDATES (v${com.example.BuildConfig.VERSION_NAME})",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 

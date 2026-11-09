@@ -9,13 +9,17 @@ import org.json.JSONObject
 
 class TelemetryManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE)
+    val leaderboardService: LeaderboardService = LeaderboardService(context)
 
     fun getActivePlayerName(): String {
-        return prefs.getString("active_player_name", "Operative") ?: "Operative"
+        val defaultName = leaderboardService.getDefaultPlayerName()
+        val saved = prefs.getString("active_player_name", null)
+        return if (saved.isNullOrBlank() || saved == "Operative") defaultName else saved
     }
 
     fun setActivePlayerName(name: String) {
-        val trimmed = name.trim().ifBlank { "Operative" }
+        val defaultName = leaderboardService.getDefaultPlayerName()
+        val trimmed = name.trim().ifBlank { defaultName }
         prefs.edit().putString("active_player_name", trimmed).apply()
     }
 
@@ -61,7 +65,8 @@ class TelemetryManager(context: Context) {
     }
 
     fun updateLastRunPlayerName(newName: String) {
-        val trimmed = newName.trim().ifBlank { "Operative" }
+        val defaultName = leaderboardService.getDefaultPlayerName()
+        val trimmed = newName.trim().ifBlank { defaultName }
         setActivePlayerName(trimmed)
 
         val lastRun = getLastRun()

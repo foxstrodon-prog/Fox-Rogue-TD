@@ -82,6 +82,9 @@ object MapGenerator {
         minLaneLength: Int = 12,
         maxLaneLength: Int = 26
     ): GeneratedLevel {
+        require(minLaneLength in 4..maxLaneLength) {
+            "minLaneLength ($minLaneLength) must be >= 4 and <= maxLaneLength ($maxLaneLength)"
+        }
         val random = Random(seed)
         val biome = BIOMES[random.nextInt(BIOMES.size)]
 
@@ -120,76 +123,54 @@ object MapGenerator {
         val mergeStart = mergedRail.first()
         val mergeEnd = mergedRail.last()
 
-        val spineLen = mergedRail.size
-        val targetMinPerLeg = ((minLaneLength - spineLen) / 2).coerceAtLeast(3)
-        val targetMaxPerLeg = ((maxLaneLength - spineLen) / 2).coerceAtLeast(targetMinPerLeg + 1)
+        // 3. Guarantee that lanes touch all 4 corners of the map
+        val cornerTL = GridPos(0, 0)
+        val cornerTR = GridPos(width - 1, 0)
+        val cornerBL = GridPos(0, height - 1)
+        val cornerBR = GridPos(width - 1, height - 1)
+        val corners = mutableListOf(cornerTL, cornerTR, cornerBL, cornerBR)
 
-        // 3. Multi-directional winding lead-ins
-        val leadAlpha = generateWindingPath(
-            start = spawnerAlpha,
-            target = mergeStart,
-            width = width,
-            height = height,
-            random = random,
-            minSteps = targetMinPerLeg,
-            maxSteps = targetMaxPerLeg
-        )
+        // Assign corners to legs based on spatial proximity
+        val cLeadAlpha = corners.minByOrNull { Math.hypot((it.x - spawnerAlpha.x).toDouble(), (it.y - spawnerAlpha.y).toDouble()) }!!
+        corners.remove(cLeadAlpha)
 
-        val leadBeta = generateWindingPath(
-            start = spawnerBeta,
-            target = mergeStart,
-            width = width,
-            height = height,
-            random = random,
-            minSteps = targetMinPerLeg,
-            maxSteps = targetMaxPerLeg
-        )
+        val cLeadBeta = corners.minByOrNull { Math.hypot((it.x - spawnerBeta.x).toDouble(), (it.y - spawnerBeta.y).toDouble()) }!!
+        corners.remove(cLeadBeta)
 
-        // 4. Split tail segments winding towards destination Core
-        val intermediateWaypoint = if (isHorizontalSpine) {
-            GridPos(
-                if (random.nextBoolean()) random.nextInt(1, 3) else random.nextInt(width - 3, width - 1),
-                if (corePos.y > centerY) random.nextInt(centerY, height - 1) else random.nextInt(1, centerY)
-            )
-        } else {
-            GridPos(
-                if (corePos.x > centerX) random.nextInt(centerX, width - 1) else random.nextInt(1, centerX),
-                if (random.nextBoolean()) random.nextInt(1, 3) else random.nextInt(height - 3, height - 1)
-            )
-        }
+        val cTailBeta = corners.minByOrNull { Math.hypot((it.x - corePos.x).toDouble(), (it.y - corePos.y).toDouble()) }!!
+        corners.remove(cTailBeta)
+        val cTailAlpha = corners.first()
 
-        val tailAlphaLeg1 = generateWindingPath(
-            start = mergeEnd,
-            target = intermediateWaypoint,
-            width = width,
-            height = height,
-            random = random,
-            minSteps = (targetMinPerLeg / 2).coerceAtLeast(2),
-            maxSteps = (targetMaxPerLeg / 2).coerceAtLeast(3)
-        )
-        val tailAlphaLeg2 = generateWindingPath(
-            start = intermediateWaypoint,
-            target = corePos,
-            width = width,
-            height = height,
-            random = random,
-            minSteps = (targetMinPerLeg / 2).coerceAtLeast(2),
-            maxSteps = (targetMaxPerLeg / 2).coerceAtLeast(3)
-        )
-        val tailAlpha = (tailAlphaLeg1.dropLast(1) + tailAlphaLeg2).distinct()
+        // 4. Multi-directional winding lead-ins touching outer corners
+        val leadAlphaLeg1 = removeLoops(findPath(spawnerAlpha, cLeadAlpha, width, height, random))
+        val entryAlpha = if (leadAlphaLeg1.size >= 2) leadAlphaLeg1[leadAlphaLeg1.size - 2] else null
+        val blockedLeadAlpha2 = (leadAlphaLeg1.dropLast(1) + listOfNotNull(entryAlpha)).toSet()
+        val leadAlphaLeg2 = removeLoops(findPath(cLeadAlpha, mergeStart, width, height, random, blocked = blockedLeadAlpha2))
+        val leadAlpha = leadAlphaLeg1.dropLast(1) + leadAlphaLeg2
 
-        val tailBeta = generateWindingPath(
-            start = mergeEnd,
-            target = corePos,
-            width = width,
-            height = height,
-            random = random,
-            minSteps = targetMinPerLeg,
-            maxSteps = targetMaxPerLeg
-        )
+        val leadBetaLeg1 = removeLoops(findPath(spawnerBeta, cLeadBeta, width, height, random))
+        val entryBeta = if (leadBetaLeg1.size >= 2) leadBetaLeg1[leadBetaLeg1.size - 2] else null
+        val blockedLeadBeta2 = (leadBetaLeg1.dropLast(1) + listOfNotNull(entryBeta)).toSet()
+        val leadBetaLeg2 = removeLoops(findPath(cLeadBeta, mergeStart, width, height, random, blocked = blockedLeadBeta2))
+        val leadBeta = leadBetaLeg1.dropLast(1) + leadBetaLeg2
 
-        val laneAlpha = (leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha).distinct()
-        val laneBeta = (leadBeta.dropLast(1) + mergedRail.dropLast(1) + tailBeta).distinct()
+        // 5. Split tail segments winding towards remaining corners then converging to Core
+        val blockedTailAlpha1 = (leadAlpha + mergedRail.dropLast(1)).toSet() - setOf(mergeEnd, cTailAlpha)
+        val tailAlphaLeg1 = removeLoops(findPath(mergeEnd, cTailAlpha, width, height, random, blocked = blockedTailAlpha1))
+        val entryTailAlpha = if (tailAlphaLeg1.size >= 2) tailAlphaLeg1[tailAlphaLeg1.size - 2] else null
+        val blockedTailAlpha2 = (blockedTailAlpha1 + tailAlphaLeg1.dropLast(1) + listOfNotNull(entryTailAlpha)).toSet() - setOf(cTailAlpha, corePos)
+        val tailAlphaLeg2 = removeLoops(findPath(cTailAlpha, corePos, width, height, random, blocked = blockedTailAlpha2))
+        val tailAlpha = tailAlphaLeg1.dropLast(1) + tailAlphaLeg2
+
+        val blockedTailBeta1 = (leadBeta + mergedRail.dropLast(1)).toSet() - setOf(mergeEnd, cTailBeta)
+        val tailBetaLeg1 = removeLoops(findPath(mergeEnd, cTailBeta, width, height, random, blocked = blockedTailBeta1))
+        val entryTailBeta = if (tailBetaLeg1.size >= 2) tailBetaLeg1[tailBetaLeg1.size - 2] else null
+        val blockedTailBeta2 = (blockedTailBeta1 + tailBetaLeg1.dropLast(1) + listOfNotNull(entryTailBeta)).toSet() - setOf(cTailBeta, corePos)
+        val tailBetaLeg2 = removeLoops(findPath(cTailBeta, corePos, width, height, random, blocked = blockedTailBeta2))
+        val tailBeta = tailBetaLeg1.dropLast(1) + tailBetaLeg2
+
+        val laneAlpha = leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha
+        val laneBeta = leadBeta.dropLast(1) + mergedRail.dropLast(1) + tailBeta
 
         val alphaSet = laneAlpha.toSet()
         val betaSet = laneBeta.toSet()
@@ -253,146 +234,78 @@ object MapGenerator {
         )
     }
 
-    private fun generateWindingPath(
+    private fun removeLoops(path: List<GridPos>): List<GridPos> {
+        val result = mutableListOf<GridPos>()
+        for (pos in path) {
+            val idx = result.indexOf(pos)
+            if (idx >= 0) {
+                while (result.size > idx + 1) {
+                    result.removeAt(result.size - 1)
+                }
+            } else {
+                result.add(pos)
+            }
+        }
+        return result
+    }
+
+    private fun findPath(
         start: GridPos,
         target: GridPos,
         width: Int,
         height: Int,
         random: Random,
-        minSteps: Int,
-        maxSteps: Int = 30
+        blocked: Set<GridPos> = emptySet()
     ): List<GridPos> {
-        var attempts = 0
-        while (attempts < 40) {
-            attempts++
-            val path = mutableListOf(start)
-            val visited = mutableSetOf(start)
-            var current = start
-            var stuck = false
+        if (start == target) return listOf(start)
 
-            while (current != target && !stuck) {
+        fun search(blockedPenalty: Int): List<GridPos>? {
+            val cameFrom = mutableMapOf<GridPos, GridPos>()
+            val costSoFar = mutableMapOf<GridPos, Int>()
+            val openSet = java.util.PriorityQueue<Pair<GridPos, Double>>(compareBy { it.second })
+
+            openSet.add(start to 0.0)
+            costSoFar[start] = 0
+
+            while (openSet.isNotEmpty()) {
+                val (current, _) = openSet.poll() ?: break
+                if (current == target) {
+                    val path = mutableListOf<GridPos>()
+                    var curr: GridPos? = target
+                    while (curr != null) {
+                        path.add(curr)
+                        curr = cameFrom[curr]
+                    }
+                    return path.reversed()
+                }
+
                 val neighbors = listOf(
                     GridPos(current.x + 1, current.y),
                     GridPos(current.x - 1, current.y),
                     GridPos(current.x, current.y + 1),
                     GridPos(current.x, current.y - 1)
                 ).filter { next ->
-                    next.x in 0 until width && next.y in 0 until height &&
-                            next !in visited &&
-                            (next == target || isNonSelfIntersectingStep(next, path))
-                }
+                    next.x in 0 until width && next.y in 0 until height
+                }.shuffled(random)
 
-                if (neighbors.isEmpty()) {
-                    stuck = true
-                    break
-                }
-
-                if (target in neighbors && (path.size >= minSteps || path.size >= maxSteps - 2)) {
-                    path.add(target)
-                    return path
-                }
-
-                val sorted = neighbors.sortedBy { next ->
-                    val dist = Math.hypot((next.x - target.x).toDouble(), (next.y - target.y).toDouble())
-                    if (path.size >= maxSteps - 3) {
-                        dist * 2.0 // Rapid direct homing to target to respect maxLaneLength
-                    } else if (path.size < minSteps) {
-                        dist * -0.5 + random.nextFloat() * 3.0 // Winding curve bias
-                    } else {
-                        dist + random.nextFloat() * 1.5
+                for (next in neighbors) {
+                    val isBlocked = next != target && next in blocked
+                    if (isBlocked && blockedPenalty >= 10000) continue
+                    val stepCost = if (isBlocked) blockedPenalty else 1
+                    val newCost = costSoFar[current]!! + stepCost
+                    if (newCost < (costSoFar[next] ?: Int.MAX_VALUE)) {
+                        costSoFar[next] = newCost
+                        cameFrom[next] = current
+                        val h = Math.abs(next.x - target.x) + Math.abs(next.y - target.y)
+                        val jitter = random.nextDouble() * 0.5
+                        openSet.add(next to (newCost + h + jitter))
                     }
                 }
-
-                val chosen = sorted.first()
-                path.add(chosen)
-                visited.add(chosen)
-                current = chosen
             }
-
-            if (!stuck && current == target && path.size >= minSteps) {
-                return path
-            }
+            return null
         }
 
-        return fallbackManhattan(start, target)
-    }
-
-    private fun generateNonSelfIntersectingWinding(
-        start: GridPos,
-        target: GridPos,
-        xMin: Int,
-        xMax: Int,
-        yMin: Int,
-        yMax: Int,
-        random: Random,
-        minSteps: Int
-    ): List<GridPos> {
-        var attempts = 0
-        while (attempts < 50) {
-            attempts++
-            val path = mutableListOf(start)
-            val visited = mutableSetOf(start)
-            var current = start
-            var stuck = false
-
-            while (current != target && !stuck) {
-                val neighbors = listOf(
-                    GridPos(current.x + 1, current.y),
-                    GridPos(current.x - 1, current.y),
-                    GridPos(current.x, current.y + 1),
-                    GridPos(current.x, current.y - 1)
-                ).filter { next ->
-                    next.x in xMin..xMax && next.y in yMin..yMax &&
-                            next !in visited &&
-                            (next == target || isNonSelfIntersectingStep(next, path))
-                }
-
-                if (neighbors.isEmpty()) {
-                    stuck = true
-                    break
-                }
-
-                if (target in neighbors && path.size >= minSteps) {
-                    path.add(target)
-                    return path
-                }
-
-                val sorted = neighbors.sortedBy { next ->
-                    val dist = Math.hypot((next.x - target.x).toDouble(), (next.y - target.y).toDouble())
-                    if (path.size < minSteps) {
-                        dist * -0.6 + random.nextFloat() * 2.5
-                    } else {
-                        dist + random.nextFloat() * 1.5
-                    }
-                }
-
-                val chosen = sorted.first()
-                path.add(chosen)
-                visited.add(chosen)
-                current = chosen
-            }
-
-            if (!stuck && current == target && path.size >= minSteps) {
-                return path
-            }
-        }
-
-        return fallbackManhattan(start, target)
-    }
-
-    private fun isNonSelfIntersectingStep(candidate: GridPos, path: List<GridPos>): Boolean {
-        var touchingCount = 0
-        for (i in 0 until path.size) {
-            val p = path[i]
-            if (Math.abs(p.x - candidate.x) + Math.abs(p.y - candidate.y) == 1) {
-                touchingCount++
-                if (i < path.size - 1) {
-                    // Touches an earlier point on the path! Disallow to guarantee no self-crossings
-                    return false
-                }
-            }
-        }
-        return touchingCount == 1
+        return search(10000) ?: search(100) ?: fallbackManhattan(start, target)
     }
 
     private fun fallbackManhattan(start: GridPos, target: GridPos): List<GridPos> {

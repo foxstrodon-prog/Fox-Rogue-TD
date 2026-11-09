@@ -1,13 +1,16 @@
 package com.example
 
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.view.OrientationEventListener
+import android.view.Surface
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Surface as ComposeSurface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.ui.RogueTDScreen
@@ -16,14 +19,39 @@ import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
   // The ViewModel owns the whole match, so rotation / resize never resets the run.
-  private val viewModel: RogueTDViewModel by viewModels()
+  val viewModel: RogueTDViewModel by viewModels()
+
+  private var orientationEventListener: OrientationEventListener? = null
+  private var lastOrientBucket: Float = 0f
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+
+    orientationEventListener = object : OrientationEventListener(this) {
+      override fun onOrientationChanged(orientation: Int) {
+        if (orientation == ORIENTATION_UNKNOWN) return
+        val displayRotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          display?.rotation ?: Surface.ROTATION_0
+        } else {
+          @Suppress("DEPRECATION")
+          windowManager.defaultDisplay.rotation
+        }
+        val displayAngle = when (displayRotation) {
+          Surface.ROTATION_90 -> 90f
+          Surface.ROTATION_180 -> 180f
+          Surface.ROTATION_270 -> 270f
+          else -> 0f
+        }
+        val rawAngle = computeOrientationBucket(orientation, lastOrientBucket)
+        lastOrientBucket = rawAngle
+        val relativeAngle = (rawAngle - displayAngle + 360f) % 360f
+        viewModel.updateDeviceRotation(relativeAngle)
+      }
+    }
     setContent {
       MyApplicationTheme(dynamicColor = false) {
-        Surface(
+        ComposeSurface(
           modifier = Modifier.fillMaxSize(),
           color = Color(0xFF070B13)
         ) {
@@ -31,6 +59,24 @@ class MainActivity : ComponentActivity() {
         }
       }
     }
+  }
+
+  override fun onStart() {
+    super.onStart()
+    if (orientationEventListener?.canDetectOrientation() == true) {
+      orientationEventListener?.enable()
+    }
+  }
+
+  override fun onStop() {
+    super.onStop()
+    orientationEventListener?.disable()
+  }
+
+  override fun onDestroy() {
+    super.onDestroy()
+    orientationEventListener?.disable()
+    orientationEventListener = null
   }
 
   /**
@@ -41,5 +87,22 @@ class MainActivity : ComponentActivity() {
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
     enableEdgeToEdge()
+    if (orientationEventListener == null || !orientationEventListener!!.canDetectOrientation()) {
+      viewModel.updateDeviceRotation(0f)
+    }
+  }
+
+  companion object {
+    fun computeOrientationBucket(orientation: Int, currentBucket: Float, deadband: Int = 15): Float {
+      if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return currentBucket
+      val halfGap = 45 - deadband
+      return when {
+        orientation in (90 - halfGap)..(90 + halfGap) -> 90f
+        orientation in (180 - halfGap)..(180 + halfGap) -> 180f
+        orientation in (270 - halfGap)..(270 + halfGap) -> 270f
+        orientation in 0..halfGap || orientation in (360 - halfGap)..359 -> 0f
+        else -> currentBucket
+      }
+    }
   }
 }

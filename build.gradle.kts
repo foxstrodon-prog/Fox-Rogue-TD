@@ -6,3 +6,11 @@ plugins {
   alias(libs.plugins.secrets) apply false
   alias(libs.plugins.google.services) apply false
 }
+
+tasks.register<Exec>("buildWindowsLauncher") {
+  description = "Compiles the portable Windows .exe launcher"
+  group = "distribution"
+  workingDir = rootDir
+  commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "tools/windows/build-launcher.ps1")
+}
+

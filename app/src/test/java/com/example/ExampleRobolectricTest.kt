@@ -12,6 +12,7 @@ import com.example.model.TowerType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -499,9 +500,202 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 003`() {
-    assertEquals("0.0.0.003", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(11, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 005`() {
+    assertEquals("0.0.0.005", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(13, com.example.BuildConfig.VERSION_CODE)
+  }
+
+  @Test
+  fun `verify app update manager version comparison`() {
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val updater = com.example.engine.AppUpdateManager(context)
+    assertTrue(updater.isNewerVersion("v0.0.0.006", "0.0.0.005"))
+    assertTrue(updater.isNewerVersion("0.0.0.006", "0.0.0.005"))
+    assertFalse(updater.isNewerVersion("v0.0.0.005", "0.0.0.005"))
+    assertFalse(updater.isNewerVersion("0.0.0.004", "0.0.0.005"))
+  }
+
+  @Test
+  fun `verify leaderboard service device uuid and anonymous commander name`() {
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val lb = com.example.engine.LeaderboardService(context)
+    val uuid = lb.getOrCreateDeviceUuid()
+    assertNotNull(uuid)
+    assertTrue(uuid.isNotBlank())
+    val defaultName = lb.getDefaultPlayerName()
+    assertTrue(defaultName.startsWith("Commander-"))
+  }
+
+  @Test
+  fun `verify device rotation angle updates in ui state`() {
+    val app = org.robolectric.RuntimeEnvironment.getApplication()
+    val vm = com.example.ui.RogueTDViewModel(app)
+    assertEquals(0f, vm.uiState.value.deviceRotationAngle)
+    vm.updateDeviceRotation(90f)
+    assertEquals(90f, vm.uiState.value.deviceRotationAngle)
+    vm.updateDeviceRotation(270f)
+    assertEquals(270f, vm.uiState.value.deviceRotationAngle)
+  }
+
+  @Test
+  fun `generated lanes must touch all 4 corners of the map across diverse seeds`() {
+    val seeds = listOf(1L, 42L, 777L, 12345L, 54321L, 99999L, 20261109L)
+    for (seed in seeds) {
+      val level = com.example.engine.MapGenerator.generate(seed)
+      val allLaneTiles = (level.laneAlpha + level.laneBeta).toSet()
+
+      val cornerTL = com.example.model.GridPos(0, 0)
+      val cornerTR = com.example.model.GridPos(level.width - 1, 0)
+      val cornerBL = com.example.model.GridPos(0, level.height - 1)
+      val cornerBR = com.example.model.GridPos(level.width - 1, level.height - 1)
+
+      assertTrue("Seed $seed must touch Top-Left corner", allLaneTiles.contains(cornerTL))
+      assertTrue("Seed $seed must touch Top-Right corner", allLaneTiles.contains(cornerTR))
+      assertTrue("Seed $seed must touch Bottom-Left corner", allLaneTiles.contains(cornerBL))
+      assertTrue("Seed $seed must touch Bottom-Right corner", allLaneTiles.contains(cornerBR))
+    }
+  }
+
+  @Test
+  fun `verify leaderboard service private key is not hardcoded and submission fails safely without key`() = kotlinx.coroutines.runBlocking {
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val lb = com.example.engine.LeaderboardService(context)
+    assertNull(lb.getPrivateKey())
+    val submitted = lb.submitScore("TestPlayer", 1000, 5, 200, false)
+    assertFalse(submitted)
+    val cached = lb.getCachedLeaderboard()
+    assertTrue(cached.isEmpty())
+  }
+
+  @Test
+  fun `map generator paths guarantee strict continuity with manhattan distance 1 and proper spawner core endpoints`() {
+    val testSeeds = listOf(1L, 7L, 42L, 99L, 777L, 1024L, 12345L, 54321L, 99999L, 20261109L)
+    for (seed in testSeeds) {
+      val level = com.example.engine.MapGenerator.generate(seed)
+      val spawnerAlpha = level.tiles.first { it.type == TileType.SPAWNER_ALPHA }.pos
+      val spawnerBeta = level.tiles.first { it.type == TileType.SPAWNER_BETA }.pos
+      val core = level.tiles.first { it.type == TileType.CORE }.pos
+
+      assertEquals("Lane Alpha must start at spawner Alpha on seed $seed", spawnerAlpha, level.laneAlpha.first())
+      assertEquals("Lane Alpha must terminate at core on seed $seed", core, level.laneAlpha.last())
+      assertEquals("Lane Beta must start at spawner Beta on seed $seed", spawnerBeta, level.laneBeta.first())
+      assertEquals("Lane Beta must terminate at core on seed $seed", core, level.laneBeta.last())
+
+      for (i in 0 until level.laneAlpha.size - 1) {
+        val p0 = level.laneAlpha[i]
+        val p1 = level.laneAlpha[i + 1]
+        val dist = kotlin.math.abs(p1.x - p0.x) + kotlin.math.abs(p1.y - p0.y)
+        assertEquals("Lane Alpha step $i -> ${i + 1} on seed $seed must have Manhattan distance 1", 1, dist)
+      }
+
+      for (i in 0 until level.laneBeta.size - 1) {
+        val p0 = level.laneBeta[i]
+        val p1 = level.laneBeta[i + 1]
+        val dist = kotlin.math.abs(p1.x - p0.x) + kotlin.math.abs(p1.y - p0.y)
+        assertEquals("Lane Beta step $i -> ${i + 1} on seed $seed must have Manhattan distance 1", 1, dist)
+      }
+    }
+  }
+
+  @Test
+  fun `verify dreamlo url decoding for name and metadata`() {
+    val json = """
+      {
+        "dreamlo": {
+          "leaderboard": {
+            "entry": [
+              {
+                "name": "Commander-XYZ%20%5BDEV%5D",
+                "score": "12500",
+                "seconds": "992",
+                "text": "scrap%3D750%7Cdev%3Dtrue%7Cuuid%3DTESTUUID%7Cwaves%3D12",
+                "date": "11/9/2026"
+              }
+            ]
+          }
+        }
+      }
+    """.trimIndent()
+
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val service = com.example.engine.LeaderboardService(context)
+    val method = com.example.engine.LeaderboardService::class.java.getDeclaredMethod("parseDreamloJson", String::class.java)
+    method.isAccessible = true
+    @Suppress("UNCHECKED_CAST")
+    val entries = method.invoke(service, json) as List<com.example.model.LeaderboardEntry>
+
+    assertEquals(1, entries.size)
+    val entry = entries[0]
+    assertEquals("Commander-XYZ", entry.name)
+    assertEquals(12500, entry.score)
+    assertEquals(12, entry.wavesCleared)
+    assertEquals(750, entry.scrapEarned)
+    assertTrue(entry.isDevTuned)
+    assertEquals("TESTUUID", entry.deviceUuid)
+  }
+
+  @Test
+  fun `app update manager correctly compares semantic versions`() {
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val manager = com.example.engine.AppUpdateManager(context)
+    try {
+      assertTrue(manager.isNewerVersion("v0.0.0.005", "0.0.0.004"))
+      assertTrue(manager.isNewerVersion("0.0.1.000", "0.0.0.005"))
+      assertFalse(manager.isNewerVersion("v0.0.0.004", "0.0.0.004"))
+      assertFalse(manager.isNewerVersion("v0.0.0.003", "0.0.0.004"))
+    } finally {
+      manager.unregisterReceiver()
+    }
+  }
+
+  @Test
+  fun `orientation bucket calculation applies hysteresis deadband without jitter`() {
+    // Initial bucket at 0 degrees
+    val b0 = MainActivity.computeOrientationBucket(0, 0f)
+    assertEquals(0f, b0)
+
+    // Jitter around 45 degrees boundary (e.g. 40, 45, 50) stays in current bucket due to deadband
+    val b44 = MainActivity.computeOrientationBucket(44, 0f)
+    assertEquals(0f, b44)
+    val b46 = MainActivity.computeOrientationBucket(46, 0f)
+    assertEquals(0f, b46)
+
+    // Firmly inside 90 degree quadrant (within 90 +/- 30)
+    val b90 = MainActivity.computeOrientationBucket(85, 0f)
+    assertEquals(90f, b90)
+
+    // Tilting back towards boundary (e.g. 130) retains 90 degrees
+    val b130 = MainActivity.computeOrientationBucket(130, b90)
+    assertEquals(90f, b130)
+
+    // Firmly inside 180 quadrant
+    val b180 = MainActivity.computeOrientationBucket(175, b90)
+    assertEquals(180f, b180)
+
+    // Firmly inside 270 quadrant
+    val b270 = MainActivity.computeOrientationBucket(265, b180)
+    assertEquals(270f, b270)
+  }
+
+  @Test
+  fun `leaderboard service empty response returns empty entries list`() {
+    val json = """
+      {
+        "dreamlo": {
+          "leaderboard": null
+        }
+      }
+    """.trimIndent()
+
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val service = com.example.engine.LeaderboardService(context)
+    val method = com.example.engine.LeaderboardService::class.java.getDeclaredMethod("parseDreamloJson", String::class.java)
+    method.isAccessible = true
+    @Suppress("UNCHECKED_CAST")
+    val entries = method.invoke(service, json) as List<com.example.model.LeaderboardEntry>
+
+    assertTrue("Empty leaderboard response must produce empty list", entries.isEmpty())
   }
 }
+
 

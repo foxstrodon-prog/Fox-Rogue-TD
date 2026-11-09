@@ -1045,6 +1045,18 @@ data class RunRecord(
 }
 
 /** One row of the global (online) leaderboard. */
+data class LeaderboardEntry(
+    val rank: Int = 1,
+    val name: String,
+    val score: Int = 0,
+    val wavesCleared: Int = 0,
+    val scrapEarned: Int = 0,
+    val isDevTuned: Boolean = false,
+    val date: String = "",
+    val deviceUuid: String = ""
+)
+
+/** One row of the global (online) leaderboard. */
 data class GlobalScoreEntry(
     val rank: Int,
     val playerName: String,

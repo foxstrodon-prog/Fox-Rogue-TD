@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.example.model.*
@@ -30,44 +31,86 @@ fun GameCanvas(
             .fillMaxSize()
             .pointerInput(level.seed) {
                 detectTapGestures { offset ->
-                    val cellW = size.width / gridWidth
-                    val cellH = size.height / gridHeight
-                    val gx = (offset.x / cellW).toInt().coerceIn(0, gridWidth - 1)
-                    val gy = (offset.y / cellH).toInt().coerceIn(0, gridHeight - 1)
-                    val clickedTile = level.tiles.firstOrNull { it.pos.x == gx && it.pos.y == gy }
-                    if (clickedTile != null) {
-                        onTileClicked(clickedTile)
+                    val boardAspect = gridWidth.toFloat() / gridHeight.toFloat()
+                    val viewAspect = size.width.toFloat() / size.height.toFloat()
+                    val (bw, bh) = if (viewAspect < boardAspect) {
+                        val w = size.width.toFloat()
+                        w to (w / boardAspect)
+                    } else {
+                        val h = size.height.toFloat()
+                        (h * boardAspect) to h
+                    }
+                    val ox = (size.width.toFloat() - bw) / 2f
+                    val oy = (size.height.toFloat() - bh) / 2f
+                    val cellW = bw / gridWidth
+                    val cellH = bh / gridHeight
+
+                    val localX = offset.x - ox
+                    val localY = offset.y - oy
+                    if (localX in 0f..bw && localY in 0f..bh) {
+                        val gx = (localX / cellW).toInt().coerceIn(0, gridWidth - 1)
+                        val gy = (localY / cellH).toInt().coerceIn(0, gridHeight - 1)
+                        val clickedTile = level.tiles.firstOrNull { it.pos.x == gx && it.pos.y == gy }
+                        if (clickedTile != null) {
+                            onTileClicked(clickedTile)
+                        }
                     }
                 }
             }
     ) {
-        val cellW = size.width / gridWidth
-        val cellH = size.height / gridHeight
+        val boardAspect = gridWidth.toFloat() / gridHeight.toFloat()
+        val viewAspect = size.width / size.height
+
+        val (boardWidthPx, boardHeightPx) = if (viewAspect < boardAspect) {
+            val bw = size.width
+            val bh = bw / boardAspect
+            bw to bh
+        } else {
+            val bh = size.height
+            val bw = bh * boardAspect
+            bw to bh
+        }
+
+        val boardOriginX = (size.width - boardWidthPx) / 2f
+        val boardOriginY = (size.height - boardHeightPx) / 2f
+
+        val cellW = boardWidthPx / gridWidth
+        val cellH = boardHeightPx / gridHeight
 
         val shakeX = if (state.screenShakeIntensity > 0f) (sin(System.currentTimeMillis() * 0.05f) * state.screenShakeIntensity * 12f).toFloat() else 0f
         val shakeY = if (state.screenShakeIntensity > 0f) (cos(System.currentTimeMillis() * 0.05f) * state.screenShakeIntensity * 12f).toFloat() else 0f
 
-        // Draw Base Terrain Grid
-        drawRect(color = biome.groundColor)
+        // Draw Base Terrain Background
+        drawRect(color = Color(0xFF070B13))
 
-        // Subtle tactical grid lines
-        val gridLineColor = biome.groundSecondary.copy(alpha = 0.5f)
-        for (x in 0..gridWidth) {
-            drawLine(
-                color = gridLineColor,
-                start = Offset(x * cellW + shakeX, 0f + shakeY),
-                end = Offset(x * cellW + shakeX, size.height + shakeY),
-                strokeWidth = 1.dp.toPx()
+        withTransform({
+            translate(boardOriginX, boardOriginY)
+        }) {
+            // Draw Base Terrain Grid
+            drawRect(
+                color = biome.groundColor,
+                topLeft = Offset(shakeX, shakeY),
+                size = Size(boardWidthPx, boardHeightPx)
             )
-        }
-        for (y in 0..gridHeight) {
-            drawLine(
-                color = gridLineColor,
-                start = Offset(0f + shakeX, y * cellH + shakeY),
-                end = Offset(size.width + shakeX, y * cellH + shakeY),
-                strokeWidth = 1.dp.toPx()
-            )
-        }
+
+            // Subtle tactical grid lines
+            val gridLineColor = biome.groundSecondary.copy(alpha = 0.5f)
+            for (x in 0..gridWidth) {
+                drawLine(
+                    color = gridLineColor,
+                    start = Offset(x * cellW + shakeX, 0f + shakeY),
+                    end = Offset(x * cellW + shakeX, boardHeightPx + shakeY),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            for (y in 0..gridHeight) {
+                drawLine(
+                    color = gridLineColor,
+                    start = Offset(0f + shakeX, y * cellH + shakeY),
+                    end = Offset(boardWidthPx + shakeX, y * cellH + shakeY),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
 
         val animFlowTime = if (state.animTimeMs > 0L) state.animTimeMs else System.currentTimeMillis()
 
@@ -333,10 +376,18 @@ fun GameCanvas(
             val effectiveClass = tower.archetype?.towerClass ?: tower.towerClass
             val arch = tower.archetype
             val towerColor = Color(arch?.color ?: effectiveClass.color)
-            val rad = tower.rotationAngleDeg * (PI / 180f).toFloat()
+            val aimAngleDeg = tower.rotationAngleDeg + state.deviceRotationAngle
+            val aimRad = aimAngleDeg * (PI / 180f).toFloat()
             val borderColor = if (tower.isFinalForm) Color(0xFFFFB800) else towerColor.copy(alpha = 0.88f)
 
-            // === 1. FINAL FORM RADIANT HALO (Class-Specific Geometry) ===
+            // Dynamic rotation pivot: Tower heads and glyphs always face upright relative to the player
+            withTransform({
+                rotate(
+                    degrees = -state.deviceRotationAngle,
+                    pivot = Offset(tcx, tcy)
+                )
+            }) {
+                // === 1. FINAL FORM RADIANT HALO (Class-Specific Geometry) ===
             if (tower.isFinalForm) {
                 val auraPulse = (sin(animFlowTime * 0.008f) * 0.15f + 0.85f).toFloat()
                 val haloColor = Color(0xFFFFB800)
@@ -404,14 +455,14 @@ fun GameCanvas(
                         style = Stroke(width = 2.5f)
                     )
 
-                    // Rotary barrel or ballistic cannons protruding along rad
+                    // Rotary barrel or ballistic cannons protruding along aimRad
                     val barrelLen = cellW * 0.35f
-                    val b1X = tcx + cos(rad) * barrelLen
-                    val b1Y = tcy + sin(rad) * barrelLen
+                    val b1X = tcx + cos(aimRad) * barrelLen
+                    val b1Y = tcy + sin(aimRad) * barrelLen
                     drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(b1X, b1Y), strokeWidth = cellW * 0.12f, cap = StrokeCap.Round)
 
                     if (tower.branchTier1 == "A" || tower.isFinalForm) {
-                        val perpAngle = rad + (PI / 2f).toFloat()
+                        val perpAngle = aimRad + (PI / 2f).toFloat()
                         val offX = cos(perpAngle) * (cellW * 0.08f)
                         val offY = sin(perpAngle) * (cellW * 0.08f)
                         drawLine(color = Color.White, start = Offset(tcx + offX, tcy + offY), end = Offset(b1X + offX, b1Y + offY), strokeWidth = cellW * 0.07f, cap = StrokeCap.Round)
@@ -453,9 +504,9 @@ fun GameCanvas(
                     drawCircle(color = borderColor, radius = cellW * 0.05f, center = p2)
                     drawCircle(color = borderColor, radius = cellW * 0.05f, center = p3)
 
-                    // Central focusing crystal / emitter pointing along rad
-                    val beamX = tcx + cos(rad) * (cellW * 0.34f)
-                    val beamY = tcy + sin(rad) * (cellW * 0.34f)
+                    // Central focusing crystal / emitter pointing along aimRad
+                    val beamX = tcx + cos(aimRad) * (cellW * 0.34f)
+                    val beamY = tcy + sin(aimRad) * (cellW * 0.34f)
                     drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(beamX, beamY), strokeWidth = cellW * 0.09f, cap = StrokeCap.Round)
                     drawLine(color = Color.White, start = Offset(tcx, tcy), end = Offset(beamX, beamY), strokeWidth = cellW * 0.04f, cap = StrokeCap.Round)
 
@@ -506,26 +557,26 @@ fun GameCanvas(
 
                     // Sleek precision dual-rail accelerator guides (thin rails along firing vector)
                     val railLength = cellW * 0.38f
-                    val perpAngle = rad + (PI / 2f).toFloat()
+                    val perpAngle = aimRad + (PI / 2f).toFloat()
                     val railSpread = cellW * 0.08f
 
                     val r1StartX = tcx + cos(perpAngle) * railSpread
                     val r1StartY = tcy + sin(perpAngle) * railSpread
-                    val r1EndX = r1StartX + cos(rad) * railLength
-                    val r1EndY = r1StartY + sin(rad) * railLength
+                    val r1EndX = r1StartX + cos(aimRad) * railLength
+                    val r1EndY = r1StartY + sin(aimRad) * railLength
 
                     val r2StartX = tcx - cos(perpAngle) * railSpread
                     val r2StartY = tcy - sin(perpAngle) * railSpread
-                    val r2EndX = r2StartX + cos(rad) * railLength
-                    val r2EndY = r2StartY + sin(rad) * railLength
+                    val r2EndX = r2StartX + cos(aimRad) * railLength
+                    val r2EndY = r2StartY + sin(aimRad) * railLength
 
                     // Outer accelerator rails (crisp thin lines)
                     drawLine(color = borderColor, start = Offset(r1StartX, r1StartY), end = Offset(r1EndX, r1EndY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
                     drawLine(color = borderColor, start = Offset(r2StartX, r2StartY), end = Offset(r2EndX, r2EndY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
 
                     // Core plasma/energy conduit between the twin rails
-                    val coreBeamEndX = tcx + cos(rad) * (railLength * 0.95f)
-                    val coreBeamEndY = tcy + sin(rad) * (railLength * 0.95f)
+                    val coreBeamEndX = tcx + cos(aimRad) * (railLength * 0.95f)
+                    val coreBeamEndY = tcy + sin(aimRad) * (railLength * 0.95f)
                     drawLine(color = Color.White, start = Offset(tcx, tcy), end = Offset(coreBeamEndX, coreBeamEndY), strokeWidth = cellW * 0.035f, cap = StrokeCap.Round)
 
                     // Sleek central reactor hub
@@ -557,6 +608,7 @@ fun GameCanvas(
                     val bS = if (tower.isFinalForm) 6f else 5f
                     drawRect(color = badgeColor, topLeft = Offset(tcx - bS / 2f, badgeY - bS / 2f), size = Size(bS, bS))
                 }
+            }
             }
         }
 
@@ -705,6 +757,7 @@ fun GameCanvas(
                     style = Stroke(width = 2.5f)
                 )
             }
+        }
         }
     }
 }
