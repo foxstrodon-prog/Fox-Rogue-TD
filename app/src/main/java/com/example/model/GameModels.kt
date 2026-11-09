@@ -1,6 +1,7 @@
 package com.example.model
 
 import androidx.compose.ui.graphics.Color
+import java.util.UUID
 
 enum class GameSpeed(val multiplier: Float, val label: String) {
     PAUSED(0f, "PAUSE"),
@@ -51,8 +52,16 @@ enum class TileBuff(
 data class MapTile(
     val pos: GridPos,
     val type: TileType,
-    val buff: TileBuff = TileBuff.NONE
-)
+    val buff: TileBuff = TileBuff.NONE,
+    /**
+     * Clearance-masked buffer tile (inner corner of a lane turn). These are emitted as
+     * [TileType.OBSTACLE] with isClearance = true so towers never visually clip walking creeps.
+     */
+    val isClearance: Boolean = false
+) {
+    /** True only for ordinary empty tiles that are not clearance-masked. */
+    val isBuildable: Boolean get() = type == TileType.EMPTY && !isClearance
+}
 
 data class Biome(
     val name: String,
@@ -781,6 +790,23 @@ data class GlobalAuraSynergy(
     val color: Long
 )
 
+/** Visual-grammar role of an enemy: drives colour coding and (for SUPPORT) aura behaviour. */
+enum class EnemyRole(val label: String, val primaryColor: Long, val accentColor: Long, val tag: String) {
+    ATTACK("Attack", 0xFFFF3B30, 0xFFFF8A00, "ATK"),      // Aggressive crimson / orange
+    DEFENSE("Defense", 0xFF2F6BFF, 0xFF22D3EE, "DEF"),    // Cobalt / shielded cyan
+    SUPPORT("Support", 0xFF10B981, 0xFFFBBF24, "SUP")     // Emerald / amber
+}
+
+/** Geometric archetype of an enemy: Circle = swarm, Triangle = striker, Square = bruiser. */
+enum class EnemyShape(val label: String, val hitboxScale: Float) {
+    CIRCLE("Swarm", 1.00f),
+    TRIANGLE("Striker", 0.90f),
+    SQUARE("Bruiser", 1.20f)
+}
+
+/** Aura behaviour projected by SUPPORT-role enemies onto allies in range. */
+enum class SupportKind { NONE, HEAL, HASTE, AEGIS }
+
 enum class EnemyType(
     val displayName: String,
     val baseHp: Float,
@@ -788,7 +814,11 @@ enum class EnemyType(
     val baseArmor: Float,
     val scrapValue: Int,
     val color: Long,
-    val sizeRatio: Float
+    val sizeRatio: Float,
+    val role: EnemyRole = EnemyRole.ATTACK,
+    val shape: EnemyShape = EnemyShape.CIRCLE,
+    val supportKind: SupportKind = SupportKind.NONE,
+    val auraRadius: Float = 0f
 ) {
     DRONE(
         displayName = "Scuttle Drone",
@@ -796,8 +826,10 @@ enum class EnemyType(
         baseSpeed = 1.60f,
         baseArmor = 0f,
         scrapValue = 12,
-        color = 0xFFEF4444,
-        sizeRatio = 0.55f
+        color = 0xFFFF3B30,
+        sizeRatio = 0.55f,
+        role = EnemyRole.ATTACK,
+        shape = EnemyShape.CIRCLE
     ),
     SOLDIER(
         displayName = "Automaton",
@@ -805,8 +837,10 @@ enum class EnemyType(
         baseSpeed = 1.15f,
         baseArmor = 0.10f,
         scrapValue = 20,
-        color = 0xFFF97316,
-        sizeRatio = 0.75f
+        color = 0xFF22D3EE,
+        sizeRatio = 0.75f,
+        role = EnemyRole.DEFENSE,
+        shape = EnemyShape.CIRCLE
     ),
     SPEEDSTER(
         displayName = "Phase Scout",
@@ -814,8 +848,10 @@ enum class EnemyType(
         baseSpeed = 2.05f,
         baseArmor = 0.05f,
         scrapValue = 24,
-        color = 0xFFEAB308,
-        sizeRatio = 0.60f
+        color = 0xFFFF8A00,
+        sizeRatio = 0.60f,
+        role = EnemyRole.ATTACK,
+        shape = EnemyShape.TRIANGLE
     ),
     BRUISER(
         displayName = "Siege Golem",
@@ -823,8 +859,10 @@ enum class EnemyType(
         baseSpeed = 0.72f,
         baseArmor = 0.35f,
         scrapValue = 48,
-        color = 0xFFEC4899,
-        sizeRatio = 0.95f
+        color = 0xFF2F6BFF,
+        sizeRatio = 0.95f,
+        role = EnemyRole.DEFENSE,
+        shape = EnemyShape.SQUARE
     ),
     DISRUPTOR(
         displayName = "Shield Disruptor",
@@ -832,8 +870,12 @@ enum class EnemyType(
         baseSpeed = 0.98f,
         baseArmor = 0.20f,
         scrapValue = 38,
-        color = 0xFF06B6D4,
-        sizeRatio = 0.85f
+        color = 0xFF10B981,
+        sizeRatio = 0.85f,
+        role = EnemyRole.SUPPORT,
+        shape = EnemyShape.SQUARE,
+        supportKind = SupportKind.AEGIS,
+        auraRadius = 1.6f
     ),
     BOSS(
         displayName = "Vanguard Titan",
@@ -841,9 +883,40 @@ enum class EnemyType(
         baseSpeed = 0.58f,
         baseArmor = 0.30f,
         scrapValue = 220,
-        color = 0xFFA855F7,
-        sizeRatio = 1.40f
-    )
+        color = 0xFF2F6BFF,
+        sizeRatio = 1.40f,
+        role = EnemyRole.DEFENSE,
+        shape = EnemyShape.SQUARE
+    ),
+    MEDIC(
+        displayName = "Repair Wisp",
+        baseHp = 150f,
+        baseSpeed = 1.05f,
+        baseArmor = 0.05f,
+        scrapValue = 34,
+        color = 0xFF10B981,
+        sizeRatio = 0.70f,
+        role = EnemyRole.SUPPORT,
+        shape = EnemyShape.CIRCLE,
+        supportKind = SupportKind.HEAL,
+        auraRadius = 1.7f
+    ),
+    RALLIER(
+        displayName = "Haste Beacon",
+        baseHp = 130f,
+        baseSpeed = 1.20f,
+        baseArmor = 0.05f,
+        scrapValue = 36,
+        color = 0xFFFBBF24,
+        sizeRatio = 0.70f,
+        role = EnemyRole.SUPPORT,
+        shape = EnemyShape.TRIANGLE,
+        supportKind = SupportKind.HASTE,
+        auraRadius = 1.9f
+    );
+
+    /** Collision / targeting radius in grid cells (shape-aware, distinct per archetype). */
+    val hitRadius: Float get() = sizeRatio * 0.35f * shape.hitboxScale
 }
 
 data class EnemyInstance(
@@ -860,68 +933,93 @@ data class EnemyInstance(
     var shockTimerMs: Long = 0L,
     var worldX: Float = 0f,
     var worldY: Float = 0f,
-    val isBoss: Boolean = false
+    val isBoss: Boolean = false,
+    /** Direction of travel in radians (atan2(dy, dx) in grid space); used to orient triangles/squares. */
+    var headingRad: Float = 0f,
+    /** Per-tick transient: speed multiplier granted by an adjacent HASTE support unit (1 = none). */
+    var auraSpeedMul: Float = 1f,
+    /** Per-tick transient: fractional damage reduction granted by an adjacent AEGIS support unit. */
+    var auraDamageReduction: Float = 0f,
+    /** Per-tick transient: true while inside any friendly support aura (for rendering). */
+    var isAuraBuffed: Boolean = false
 ) {
     val isDead: Boolean get() = currentHp <= 0f
     val effectiveSpeed: Float
-        get() = if (slowTimerMs > 0L) speed * slowFactor else speed
+        get() = (if (slowTimerMs > 0L) speed * slowFactor else speed) * auraSpeedMul
 }
 
+/**
+ * Pooled, mutable projectile. Instances are owned and recycled by the ViewModel simulation;
+ * UI code must treat them as read-only and must not retain references across frames.
+ */
 data class Projectile(
-    val id: String,
-    val startX: Float,
-    val startY: Float,
-    var currentX: Float,
-    var currentY: Float,
-    val targetEnemyId: String?,
-    val targetX: Float,
-    val targetY: Float,
-    val speed: Float,
-    val damage: Float,
-    val color: Long,
+    val id: String = UUID.randomUUID().toString(),
+    val startX: Float = 0f,
+    val startY: Float = 0f,
+    var currentX: Float = 0f,
+    var currentY: Float = 0f,
+    val targetEnemyId: String? = null,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val speed: Float = 1f,
+    val damage: Float = 0f,
+    val color: Long = 0xFFFFFFFF,
     val isSplash: Boolean = false,
     val splashRadius: Float = 0f,
     val isMortarArc: Boolean = false,
     val totalDistance: Float = 1f,
     var traveledDistance: Float = 0f,
     val isCrit: Boolean = false,
-    val hasClusterSplit: Boolean = false
+    val hasClusterSplit: Boolean = false,
+    val towerClassIndex: Int = 0
 )
 
 data class LaserBeam(
-    val id: String,
-    val startX: Float,
-    val startY: Float,
-    val endX: Float,
-    val endY: Float,
-    val color: Long,
+    val id: String = UUID.randomUUID().toString(),
+    val startX: Float = 0f,
+    val startY: Float = 0f,
+    val endX: Float = 0f,
+    val endY: Float = 0f,
+    val color: Long = 0xFFFFFFFF,
     var lifeMs: Long = 120L
 )
 
 data class LightningArc(
-    val id: String,
-    val points: List<Pair<Float, Float>>,
+    val id: String = UUID.randomUUID().toString(),
+    val points: List<Pair<Float, Float>> = emptyList(),
     val color: Long = 0xFFB026FF,
     var lifeMs: Long = 180L
 )
 
 data class ExplosionEffect(
-    val id: String,
-    val x: Float,
-    val y: Float,
-    val maxRadius: Float,
+    val id: String = UUID.randomUUID().toString(),
+    val x: Float = 0f,
+    val y: Float = 0f,
+    val maxRadius: Float = 1f,
     var currentRadius: Float = 0f,
-    val color: Long,
+    val color: Long = 0xFFFFFFFF,
     var lifeMs: Long = 250L,
     val maxLifeMs: Long = 250L
 )
 
+data class ShockwaveRing(
+    val id: String = UUID.randomUUID().toString(),
+    val x: Float = 0f,
+    val y: Float = 0f,
+    val maxRadius: Float = 2f,
+    val color: Long = 0xFFFFFFFF,
+    var lifeMs: Long = 600L,
+    val maxLifeMs: Long = 600L
+) {
+    val progress: Float get() = if (maxLifeMs <= 0L) 1f else (1f - lifeMs.toFloat() / maxLifeMs.toFloat()).coerceIn(0f, 1f)
+}
+
 data class FloatingText(
-    val id: String,
-    val x: Float,
-    var y: Float,
-    val text: String,
-    val color: Long,
+    val id: String = UUID.randomUUID().toString(),
+    var x: Float = 0f,
+    var y: Float = 0f,
+    val text: String = "",
+    val color: Long = 0xFFFFFFFF,
     var lifeMs: Long = 750L,
     val maxLifeMs: Long = 750L,
     val isCrit: Boolean = false
@@ -939,9 +1037,195 @@ data class RunRecord(
     val ascendedTowersCount: Int = 0,
     val mvpTower: String,
     val isVictory: Boolean,
-    val timestamp: Long
+    val timestamp: Long,
+    /** True if any dev-console balance value deviated from baseline during the run (DEV/SANDBOX). */
+    val isDevTuned: Boolean = false
 ) {
     val score: Int get() = (wavesCleared * 1000) + (enemiesKilled * 15) + (totalDamage * 0.1f).toInt()
+}
+
+/** One row of the global (online) leaderboard. */
+data class GlobalScoreEntry(
+    val rank: Int,
+    val playerName: String,
+    val wavesCleared: Int,
+    val score: Int,
+    val timestamp: Long = 0L,
+    val isLocalPlayer: Boolean = false
+)
+
+enum class GlobalBoardStatus {
+    IDLE,            // Nothing requested yet
+    LOADING,
+    ONLINE,          // Fresh data from the backend
+    OFFLINE_CACHED,  // Network failed; showing last cached global board (or empty)
+    NOT_CONFIGURED   // No backend configured: local-only fallback
+}
+
+enum class RunSubmissionState {
+    NONE,
+    EXCLUDED_DEV_TUNED,  // Run carries the DEV/SANDBOX watermark: never submitted
+    LOCAL_ONLY,          // Backend not configured
+    PENDING,             // Queued; will retry when online
+    SUBMITTED
+}
+
+enum class TowerDrawStyle { NEON_GLOW, BLUEPRINT_LINE, SOLID_MILITARY, VOID_RING, PIXEL_BLOCK }
+enum class ProjectileStyle { ORB, TRACER, SHELL, DIAMOND, PIXEL }
+enum class HudStyle { GLASS, OUTLINE, PANEL, VOID_GLOW, PIXEL }
+enum class MapStyle { GLOW_CONDUIT, BLUEPRINT, ROAD, VOID_RIBBON, PIXEL_TILES }
+
+/**
+ * Full procedural palette + draw-style definition for one theme.
+ * Covers (a) UI HUD, (b) map grid/paths, (c) Tower 1 Kinetic, (d) Tower 2 Elemental, (e) Tower 3 Siege.
+ * All colours are packed ARGB longs (use Color(value)).
+ */
+data class ThemeSkinConfig(
+    val id: String,
+    val displayName: String,
+    val description: String,
+    // (b) Map grid / paths
+    /** When true the per-run Biome palette is used for ground/path colours (Cyberpunk Neon only). */
+    val useBiomePalette: Boolean,
+    val mapStyle: MapStyle,
+    val ground: Long,
+    val groundAlt: Long,
+    val gridLine: Long,
+    val pathBase: Long,
+    val laneAlpha: Long,
+    val laneBeta: Long,
+    val laneMerged: Long,
+    val obstacle: Long,
+    val clearanceMark: Long,
+    // (a) HUD
+    val hudStyle: HudStyle,
+    val hudCornerDp: Int,
+    val hudBackground: Long,
+    val hudSurface: Long,
+    val hudBorder: Long,
+    val hudAccent: Long,
+    val hudText: Long,
+    val hudTextDim: Long,
+    // (c)(d)(e) Towers
+    /** When false, towers keep their per-type/archetype colours (Cyberpunk Neon). */
+    val overrideTowerColors: Boolean,
+    val kineticColor: Long,
+    val elementalColor: Long,
+    val siegeColor: Long,
+    val kineticStyle: TowerDrawStyle,
+    val elementalStyle: TowerDrawStyle,
+    val siegeStyle: TowerDrawStyle,
+    // Juice
+    val projectileStyle: ProjectileStyle,
+    val shockwaveColor: Long,
+    /** Square (pixel) shockwave instead of round ring. */
+    val shockwaveSquare: Boolean = false
+) {
+    fun towerColor(cls: TowerClass): Long = when (cls) {
+        TowerClass.KINETIC_BALLISTIC -> kineticColor
+        TowerClass.ELEMENTAL_VOID -> elementalColor
+        TowerClass.HEAVY_SIEGE -> siegeColor
+    }
+
+    fun towerStyle(cls: TowerClass): TowerDrawStyle = when (cls) {
+        TowerClass.KINETIC_BALLISTIC -> kineticStyle
+        TowerClass.ELEMENTAL_VOID -> elementalStyle
+        TowerClass.HEAVY_SIEGE -> siegeStyle
+    }
+}
+
+enum class SkinTheme(val config: ThemeSkinConfig) {
+    CYBERPUNK_NEON(
+        ThemeSkinConfig(
+            id = "cyberpunk_neon", displayName = "Cyberpunk Neon",
+            description = "Glowing conduits, biome-driven ground, neon towers.",
+            useBiomePalette = true, mapStyle = MapStyle.GLOW_CONDUIT,
+            ground = 0xFF090E17, groundAlt = 0xFF111C2E, gridLine = 0xFF111C2E, pathBase = 0xFF1E293B,
+            laneAlpha = 0xFF00F0FF, laneBeta = 0xFFFFB800, laneMerged = 0xFFC084FC,
+            obstacle = 0xFF1E3A5F, clearanceMark = 0xFF1E293B,
+            hudStyle = HudStyle.GLASS, hudCornerDp = 10,
+            hudBackground = 0xFF070B14, hudSurface = 0xFF161F30, hudBorder = 0xFF1E293B,
+            hudAccent = 0xFF00F0FF, hudText = 0xFFFFFFFF, hudTextDim = 0xFF94A3B8,
+            overrideTowerColors = false,
+            kineticColor = 0xFF00F0FF, elementalColor = 0xFFA855F7, siegeColor = 0xFFFF7A00,
+            kineticStyle = TowerDrawStyle.NEON_GLOW, elementalStyle = TowerDrawStyle.NEON_GLOW, siegeStyle = TowerDrawStyle.NEON_GLOW,
+            projectileStyle = ProjectileStyle.ORB, shockwaveColor = 0xFF00F0FF
+        )
+    ),
+    MONOCHROME_BLUEPRINT(
+        ThemeSkinConfig(
+            id = "monochrome_blueprint", displayName = "Monochrome Blueprint",
+            description = "Technical drawing: white linework on blueprint blue.",
+            useBiomePalette = false, mapStyle = MapStyle.BLUEPRINT,
+            ground = 0xFF0B2545, groundAlt = 0xFF13315C, gridLine = 0xFF3E6A9E, pathBase = 0xFF134074,
+            laneAlpha = 0xFFEEF4ED, laneBeta = 0xFFB7C9E2, laneMerged = 0xFFFFFFFF,
+            obstacle = 0xFF1B4079, clearanceMark = 0xFF3E6A9E,
+            hudStyle = HudStyle.OUTLINE, hudCornerDp = 2,
+            hudBackground = 0xFF0B2545, hudSurface = 0xFF13315C, hudBorder = 0xFF8DA9C4,
+            hudAccent = 0xFFEEF4ED, hudText = 0xFFEEF4ED, hudTextDim = 0xFF8DA9C4,
+            overrideTowerColors = true,
+            kineticColor = 0xFFEEF4ED, elementalColor = 0xFFB7C9E2, siegeColor = 0xFF8DA9C4,
+            kineticStyle = TowerDrawStyle.BLUEPRINT_LINE, elementalStyle = TowerDrawStyle.BLUEPRINT_LINE, siegeStyle = TowerDrawStyle.BLUEPRINT_LINE,
+            projectileStyle = ProjectileStyle.TRACER, shockwaveColor = 0xFFEEF4ED
+        )
+    ),
+    SOLARIZED_MILITARY(
+        ThemeSkinConfig(
+            id = "solarized_military", displayName = "Solarized Military",
+            description = "Olive drab terrain, dirt roads, brass and rust hardware.",
+            useBiomePalette = false, mapStyle = MapStyle.ROAD,
+            ground = 0xFF1F2A1C, groundAlt = 0xFF2A3826, gridLine = 0xFF3C4B30, pathBase = 0xFF5C4A32,
+            laneAlpha = 0xFFD9A441, laneBeta = 0xFF8FB339, laneMerged = 0xFFE8D8A0,
+            obstacle = 0xFF4B5D3A, clearanceMark = 0xFF3C4B30,
+            hudStyle = HudStyle.PANEL, hudCornerDp = 4,
+            hudBackground = 0xFF1B2318, hudSurface = 0xFF2A3826, hudBorder = 0xFF6B7F4F,
+            hudAccent = 0xFFD9A441, hudText = 0xFFEDE6C8, hudTextDim = 0xFFA3A98A,
+            overrideTowerColors = true,
+            kineticColor = 0xFFC8B560, elementalColor = 0xFF5FA8A0, siegeColor = 0xFFB5651D,
+            kineticStyle = TowerDrawStyle.SOLID_MILITARY, elementalStyle = TowerDrawStyle.SOLID_MILITARY, siegeStyle = TowerDrawStyle.SOLID_MILITARY,
+            projectileStyle = ProjectileStyle.SHELL, shockwaveColor = 0xFFD9A441
+        )
+    ),
+    DEEP_VOID(
+        ThemeSkinConfig(
+            id = "deep_void", displayName = "Deep Void",
+            description = "Starless dark matter ribbons with orbiting ring turrets.",
+            useBiomePalette = false, mapStyle = MapStyle.VOID_RIBBON,
+            ground = 0xFF05030D, groundAlt = 0xFF0B0720, gridLine = 0xFF1B1140, pathBase = 0xFF120B2E,
+            laneAlpha = 0xFFA855F7, laneBeta = 0xFF22D3EE, laneMerged = 0xFFF0ABFC,
+            obstacle = 0xFF2E1065, clearanceMark = 0xFF1B1140,
+            hudStyle = HudStyle.VOID_GLOW, hudCornerDp = 18,
+            hudBackground = 0xFF05030D, hudSurface = 0xFF120B2E, hudBorder = 0xFF4C1D95,
+            hudAccent = 0xFFC084FC, hudText = 0xFFEDE9FE, hudTextDim = 0xFF8B7FB8,
+            overrideTowerColors = true,
+            kineticColor = 0xFF7DD3FC, elementalColor = 0xFFE879F9, siegeColor = 0xFFFB7185,
+            kineticStyle = TowerDrawStyle.VOID_RING, elementalStyle = TowerDrawStyle.VOID_RING, siegeStyle = TowerDrawStyle.VOID_RING,
+            projectileStyle = ProjectileStyle.DIAMOND, shockwaveColor = 0xFFC084FC
+        )
+    ),
+    RETRO_ARCADE(
+        ThemeSkinConfig(
+            id = "retro_arcade", displayName = "Retro Arcade",
+            description = "8-bit palette, blocky pixel tiles and square bullets.",
+            useBiomePalette = false, mapStyle = MapStyle.PIXEL_TILES,
+            ground = 0xFF0A0A12, groundAlt = 0xFF14142B, gridLine = 0xFF2A2A5A, pathBase = 0xFF1C1C3C,
+            laneAlpha = 0xFF39FF14, laneBeta = 0xFFFF3EA5, laneMerged = 0xFFFFFF00,
+            obstacle = 0xFF3A3A7A, clearanceMark = 0xFF2A2A5A,
+            hudStyle = HudStyle.PIXEL, hudCornerDp = 0,
+            hudBackground = 0xFF000000, hudSurface = 0xFF111122, hudBorder = 0xFF39FF14,
+            hudAccent = 0xFFFFFF00, hudText = 0xFFFFFFFF, hudTextDim = 0xFF9999CC,
+            overrideTowerColors = true,
+            kineticColor = 0xFF39FF14, elementalColor = 0xFFFF3EA5, siegeColor = 0xFFFFFF00,
+            kineticStyle = TowerDrawStyle.PIXEL_BLOCK, elementalStyle = TowerDrawStyle.PIXEL_BLOCK, siegeStyle = TowerDrawStyle.PIXEL_BLOCK,
+            projectileStyle = ProjectileStyle.PIXEL, shockwaveColor = 0xFFFFFF00, shockwaveSquare = true
+        )
+    );
+
+    val displayName: String get() = config.displayName
+
+    companion object {
+        fun fromId(id: String?): SkinTheme = values().firstOrNull { it.config.id == id } ?: CYBERPUNK_NEON
+    }
 }
 
 data class LifetimeTelemetry(
@@ -1011,6 +1295,12 @@ data class DevBalanceConfig(
             scrapValue = type.scrapValue
         )
     }
+
+    /**
+     * True when every balance slider / per-unit override matches the shipped baseline.
+     * Anything else marks a run as DEV/SANDBOX (isDevTuned) and excludes it from ranked submissions.
+     */
+    val isBaseline: Boolean get() = exportDiffJson().trim() == "{}"
 
     /**
      * Generates a strict delta / diff-only JSON string containing ONLY values

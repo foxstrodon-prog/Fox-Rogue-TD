@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
@@ -8,6 +9,15 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+// Global-leaderboard backend settings (Firestore REST). Read from environment variables first, then
+// from the git-ignored local.properties. When blank the game runs with local-only leaderboards.
+val leaderboardProps = Properties().apply {
+  val f = rootProject.file("local.properties")
+  if (f.exists()) f.inputStream().use { load(it) }
+}
+fun leaderboardSetting(name: String, default: String = ""): String =
+  (System.getenv(name) ?: leaderboardProps.getProperty(name) ?: default).trim()
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -16,10 +26,14 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 11
-    versionName = "0.0.0.003"
+    versionCode = 12
+    versionName = "0.0.0.004"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID")}\"")
+    buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY")}\"")
+    buildConfigField("String", "LEADERBOARD_COLLECTION", "\"${leaderboardSetting("LEADERBOARD_COLLECTION", "leaderboard")}\"")
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
@@ -33,10 +47,13 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+      val dbgKeystore = file("${rootDir}/debug.keystore")
+      if (dbgKeystore.exists()) {
+        storeFile = dbgKeystore
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -56,8 +73,8 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
   }
   buildFeatures {
     compose = true

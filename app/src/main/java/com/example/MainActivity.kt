@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,7 @@ import com.example.ui.RogueTDViewModel
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
+  // The ViewModel owns the whole match, so rotation / resize never resets the run.
   private val viewModel: RogueTDViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,5 +31,15 @@ class MainActivity : ComponentActivity() {
         }
       }
     }
+  }
+
+  /**
+   * The manifest declares configChanges for orientation/size/density, so the activity is not
+   * recreated on rotation. Compose observes the new window size on its own (BoxWithConstraints);
+   * here we only re-apply the edge-to-edge system bar styling for the new orientation.
+   */
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    enableEdgeToEdge()
   }
 }

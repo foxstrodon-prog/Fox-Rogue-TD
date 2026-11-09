@@ -1,5 +1,6 @@
 package com.example.engine
 
+import com.example.model.EnemyRole
 import com.example.model.EnemyType
 
 data class EnemySpawnEntry(
@@ -18,10 +19,55 @@ data class WaveData(
     val totalEnemies: Int,
     val spawnList: List<EnemySpawnEntry>,
     val completionBonusScrap: Int,
-    val isBossWave: Boolean
+    val isBossWave: Boolean,
+    /** Which visual-grammar roles (Attack / Defense / Support) appear in this wave. */
+    val rolesPresent: Set<EnemyRole> = emptySet()
 )
 
 object WaveGenerator {
+
+    /** Share (0..100) of procedural spawn slots reserved for Support-role units at a given wave. */
+    private fun supportShare(waveNumber: Int): Int = when {
+        waveNumber < 6 -> 0
+        waveNumber < 10 -> 8
+        waveNumber < 20 -> 12
+        else -> 16
+    }
+
+    /**
+     * Picks the enemy archetype for procedural slot [i] of wave [waveNumber].
+     * Visual grammar: Circle swarm / Triangle striker / Square bruiser; Attack (crimson/orange),
+     * Defense (cobalt/cyan), Support (emerald/amber).
+     */
+    private fun pickEnemyType(i: Int, waveNumber: Int): EnemyType {
+        val roll = (i * 13 + waveNumber * 7) % 100
+        val supportPct = supportShare(waveNumber)
+        if (supportPct > 0 && roll >= 100 - supportPct) {
+            return when ((i + waveNumber) % 3) {
+                0 -> EnemyType.MEDIC
+                1 -> EnemyType.RALLIER
+                else -> if (waveNumber >= 10) EnemyType.DISRUPTOR else EnemyType.MEDIC
+            }
+        }
+        return when {
+            roll < 28 -> EnemyType.DRONE                                   // Attack / Circle swarm
+            roll < 50 -> EnemyType.SOLDIER                                 // Defense / Circle basic creep
+            roll < 70 -> EnemyType.SPEEDSTER                               // Attack / Triangle striker
+            waveNumber >= 4 -> EnemyType.BRUISER                           // Defense / Square tank
+            else -> EnemyType.SOLDIER
+        }
+    }
+
+    private fun spawnDelayFor(type: EnemyType): Long = when (type) {
+        EnemyType.DRONE -> 450L
+        EnemyType.SPEEDSTER -> 550L
+        EnemyType.SOLDIER -> 700L
+        EnemyType.DISRUPTOR -> 850L
+        EnemyType.BRUISER -> 1200L
+        EnemyType.BOSS -> 2000L
+        EnemyType.MEDIC -> 800L
+        EnemyType.RALLIER -> 800L
+    }
 
     fun generateWave(waveNumber: Int, enemyCountMultiplier: Float = 1.0f): WaveData {
         val isBossWave = (waveNumber % 10 == 0) || (waveNumber == 5)
@@ -163,24 +209,8 @@ object WaveGenerator {
                 }
 
                 for (i in 0 until enemyCount) {
-                    val roll = (i * 13 + waveNumber * 7) % 100
-                    val type = when {
-                        roll < 30 -> EnemyType.DRONE
-                        roll < 55 -> EnemyType.SOLDIER
-                        roll < 75 -> EnemyType.SPEEDSTER
-                        roll < 88 && canHaveDisruptors -> EnemyType.DISRUPTOR
-                        canHaveBruisers -> EnemyType.BRUISER
-                        else -> EnemyType.SOLDIER
-                    }
-
-                    val delay = when (type) {
-                        EnemyType.DRONE -> 450L
-                        EnemyType.SPEEDSTER -> 550L
-                        EnemyType.SOLDIER -> 700L
-                        EnemyType.DISRUPTOR -> 850L
-                        EnemyType.BRUISER -> 1200L
-                        EnemyType.BOSS -> 2000L
-                    }
+                    val type = pickEnemyType(i, waveNumber)
+                    val delay = spawnDelayFor(type)
 
                     val lane = (i + (if (i % 3 == 0) 1 else 0)) % 2
 
@@ -206,7 +236,8 @@ object WaveGenerator {
             totalEnemies = spawnList.size,
             spawnList = spawnList,
             completionBonusScrap = bonusScrap,
-            isBossWave = isBossWave
+            isBossWave = isBossWave,
+            rolesPresent = spawnList.mapTo(mutableSetOf()) { it.type.role }
         )
     }
 }
