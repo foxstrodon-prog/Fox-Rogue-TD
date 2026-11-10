@@ -122,10 +122,12 @@ jobs:
               --generate-notes
             gh release upload "$TAG" dist/* --clobber
           else
-            echo "Creating new GitHub Release $TAG..."
+            echo "Creating new GitHub Release draft $TAG..."
             gh release create "$TAG" dist/* \
+              --draft \
               --target "$GITHUB_SHA" \
               --title "Dual Front TD $TAG" \
               --generate-notes
           fi
+          echo "Release draft prepared for manual testing and publication by the Lead Developer!"
           echo "Successfully published release $TAG for commit $GITHUB_SHA!"
