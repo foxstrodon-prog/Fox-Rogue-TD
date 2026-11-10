@@ -1,0 +1,26 @@
+## ==============================================================================
+## Template: local.properties.example
+## Copy this file to 'local.properties' and populate with your local values.
+## 'local.properties' is git-ignored and should NEVER be committed.
+## ==============================================================================
+
+# Location of the Android SDK on your local development machine
+# Windows example: sdk.dir=C\:\\Users\\<username>\\AppData\\Local\\Android\\Sdk
+# macOS example:   sdk.dir=/Users/<username>/Library/Android/sdk
+# Linux example:   sdk.dir=/home/<username>/Android/Sdk
+sdk.dir=/path/to/Android/Sdk
+
+# ------------------------------------------------------------------------------
+# Leaderboard Backend Settings (Optional - Firestore REST Backend)
+# When left blank, the game falls back to local-only offline leaderboards.
+# ------------------------------------------------------------------------------
+LEADERBOARD_PROJECT_ID=your_firestore_project_id
+LEADERBOARD_API_KEY=your_firestore_api_key
+LEADERBOARD_COLLECTION=leaderboard
+
+# ------------------------------------------------------------------------------
+# Release Signing Configurations (Optional - for local production APK signing)
+# ------------------------------------------------------------------------------
+# KEYSTORE_PATH=/path/to/your/upload-keystore.jks
+# STORE_PASSWORD=your_keystore_password
+# KEY_PASSWORD=your_key_password

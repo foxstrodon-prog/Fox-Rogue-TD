@@ -1,18 +1,78 @@
-*.iml
-.gradle
-.kotlin
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# ==============================================================================
+# Git Ignore Rules - Rogue TD: Dual-Front
+# Hardened DevSecOps configuration to prevent credential & artifact leaks
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Mobile, Android & Build Artifacts
+# ------------------------------------------------------------------------------
+# Keystores, signing keys, and certificates (NEVER track in version control)
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+signing.properties
+
+# Google & Firebase service configuration files containing client secrets
+google-services.json
+GoogleService-Info.plist
+
+# Gradle and build outputs
+.gradle/
+build/
+app/build/
+bin/
+out/
+*.aab
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+
+# Ignore local build apks (preserve explicit release directory binaries)
+*.apk
+!apk/*.apk
+
+# ------------------------------------------------------------------------------
+# 2. Environment Variables & Secret Configuration Files
+# ------------------------------------------------------------------------------
+# Secret property files
 local.properties
+/local.properties
+!local.properties.example
+secrets.properties
+*.secrets
+
+# Environment variable files
 .env
-debug.keystore
+.env.*
+*.env
+!.env.example
+
+# ------------------------------------------------------------------------------
+# 3. Developer Tools & IDE Settings
+# ------------------------------------------------------------------------------
+# IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+.shelf/
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+
+# ------------------------------------------------------------------------------
+# 4. Operating System & Temporary Files
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+*.swp
+*.bak
+*~
