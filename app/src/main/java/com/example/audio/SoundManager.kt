@@ -10,6 +10,7 @@ import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.PI
 import kotlin.math.exp
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -71,6 +72,10 @@ class SoundManager(context: Context) {
     private val siegeSoundIds = IntArray(5)
     private val siegeLoaded = BooleanArray(5)
 
+    // 15 Upgrade SFX Variants: 3 Turret Classes (Kinetic=0, Elemental=1, Siege=2) x 5 Skin Slots (0..4)
+    private val upgradeSoundIds = Array(3) { IntArray(5) }
+    private val upgradeLoaded = Array(3) { BooleanArray(5) }
+
     // Concurrency / Voice limiting per turret archetype
     private val lastTurretFirePlayMs = LongArray(3)
     private val MIN_TURRET_FIRE_INTERVAL_MS = 65L
@@ -130,6 +135,13 @@ class SoundManager(context: Context) {
         set(value) {
             field = value
             updateMusicVolume()
+            if (!isAudioSuspended && enabled && !isMuted && activeMusicTrack != MusicTrack.NONE) {
+                try {
+                    if (mediaPlayer?.isPlaying == false) {
+                        mediaPlayer?.start()
+                    }
+                } catch (_: Exception) {}
+            }
         }
 
     @Volatile
@@ -140,7 +152,7 @@ class SoundManager(context: Context) {
 
     private var duckUntilMs: Long = 0L
     private val DUCK_FACTOR = 0.50f              // Music ducks by 50% during heavy combat
-    private val PAUSE_ATTENUATION_FACTOR = 0.50f // Music drops by 50% (-6dB) in Pause Menu
+    private val PAUSE_ATTENUATION_FACTOR = 0.50f // Music drops naturally by 50% (-6dB) in Pause Menu
 
     @Volatile
     var activeProfile: SoundProfile = SoundProfile.CYBER_SYNTH
@@ -163,7 +175,7 @@ class SoundManager(context: Context) {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         soundPool = SoundPool.Builder()
-            .setMaxStreams(14)
+            .setMaxStreams(24)
             .setAudioAttributes(attrs)
             .build()
 
@@ -176,7 +188,7 @@ class SoundManager(context: Context) {
     // ---------------------------------------------------------------------------------------------
 
     private fun loadAllSfx(profile: SoundProfile) {
-        val idToTarget = HashMap<Int, Pair<Int, Int>>() // sampleId -> (type: 0=generic,1=kinetic,2=elem,3=siege; index)
+        val idToTarget = HashMap<Int, Triple<Int, Int, Int>>() // sampleId -> (type, index1, index2)
 
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
             if (status == 0) {
@@ -187,6 +199,7 @@ class SoundManager(context: Context) {
                         1 -> kineticLoaded[target.second] = true
                         2 -> elementalLoaded[target.second] = true
                         3 -> siegeLoaded[target.second] = true
+                        4 -> upgradeLoaded[target.second][target.third] = true
                     }
                 }
             }
@@ -202,7 +215,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 genericSoundIds[fx.ordinal] = id
-                idToTarget[id] = Pair(0, fx.ordinal)
+                idToTarget[id] = Triple(0, fx.ordinal, 0)
             } catch (_: Exception) {
                 genericSoundIds[fx.ordinal] = 0
             }
@@ -218,7 +231,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 kineticSoundIds[slot - 1] = id
-                idToTarget[id] = Pair(1, slot - 1)
+                idToTarget[id] = Triple(1, slot - 1, 0)
             } catch (_: Exception) {
                 kineticSoundIds[slot - 1] = 0
             }
@@ -234,7 +247,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 elementalSoundIds[slot - 1] = id
-                idToTarget[id] = Pair(2, slot - 1)
+                idToTarget[id] = Triple(2, slot - 1, 0)
             } catch (_: Exception) {
                 elementalSoundIds[slot - 1] = 0
             }
@@ -250,9 +263,29 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 siegeSoundIds[slot - 1] = id
-                idToTarget[id] = Pair(3, slot - 1)
+                idToTarget[id] = Triple(3, slot - 1, 0)
             } catch (_: Exception) {
                 siegeSoundIds[slot - 1] = 0
+            }
+        }
+
+        // 5. 15 Dedicated Tower Upgrade Sounds (3 Classes x 5 Skins)
+        val classes = listOf(TowerClass.KINETIC_BALLISTIC, TowerClass.ELEMENTAL_VOID, TowerClass.HEAVY_SIEGE)
+        for (c in classes.indices) {
+            val tClass = classes[c]
+            for (slot in 1..5) {
+                try {
+                    val filename = "sfx_upgrade_${tClass.name.lowercase()}_slot${slot}_v1.wav"
+                    val file = File(appContext.cacheDir, filename)
+                    if (!file.exists() || file.length() < 64L) {
+                        FileOutputStream(file).use { it.write(toWav(synthesizeTowerUpgrade(tClass, slot))) }
+                    }
+                    val id = soundPool.load(file.absolutePath, 1)
+                    upgradeSoundIds[c][slot - 1] = id
+                    idToTarget[id] = Triple(4, c, slot - 1)
+                } catch (_: Exception) {
+                    upgradeSoundIds[c][slot - 1] = 0
+                }
             }
         }
     }
@@ -308,9 +341,11 @@ class SoundManager(context: Context) {
 
     /**
      * Preview testing helper for audio variants inside menus.
+     * Ensures audio is playable directly from menus without requiring in-game actions.
      */
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) {
-        if (!enabled || isMuted || isAudioSuspended) return
+        if (!enabled || isMuted) return
+        try { soundPool.autoResume() } catch (_: Exception) {}
         val targetSlot = (slot - 1).coerceIn(0, 4)
         val (soundId, isLoaded) = when (towerClass) {
             TowerClass.KINETIC_BALLISTIC -> Pair(kineticSoundIds[targetSlot], kineticLoaded[targetSlot])
@@ -322,6 +357,46 @@ class SoundManager(context: Context) {
             try {
                 soundPool.play(soundId, v, v, 3, 0, 1.0f)
             } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Dedicated Tower Upgrade Audio (15 Variants: 3 Classes x 5 Skins).
+     * Plays unique class + skin upgrade profile using upgradeVolume bus.
+     */
+    fun playTowerUpgrade(towerClass: TowerClass, skinSlot: Int = 1) {
+        if (!enabled || isMuted || isAudioSuspended) return
+        val c = towerClass.ordinal.coerceIn(0, 2)
+        val s = (skinSlot - 1).coerceIn(0, 4)
+        val soundId = upgradeSoundIds[c][s]
+        val isLoaded = upgradeLoaded[c][s]
+        if (soundId != 0 && isLoaded) {
+            val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)
+            try {
+                soundPool.play(soundId, v, v, 2, 0, 1.0f)
+            } catch (_: Exception) {}
+        } else {
+            play(SoundFx.UPGRADE)
+        }
+    }
+
+    /**
+     * Preview testing helper for tower upgrade audio in pause/sound menus.
+     */
+    fun playTowerUpgradeTestSound(towerClass: TowerClass, skinSlot: Int = 1) {
+        if (!enabled || isMuted) return
+        try { soundPool.autoResume() } catch (_: Exception) {}
+        val c = towerClass.ordinal.coerceIn(0, 2)
+        val s = (skinSlot - 1).coerceIn(0, 4)
+        val soundId = upgradeSoundIds[c][s]
+        val isLoaded = upgradeLoaded[c][s]
+        if (soundId != 0 && isLoaded) {
+            val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)
+            try {
+                soundPool.play(soundId, v, v, 3, 0, 1.0f)
+            } catch (_: Exception) {}
+        } else {
+            play(SoundFx.UPGRADE)
         }
     }
 
@@ -345,6 +420,7 @@ class SoundManager(context: Context) {
 
     /**
      * Resumes audio playback only when returning to active focus and not paused in menu.
+     * Naturally keeps music running at attenuated volume when paused in internal menus.
      */
     fun resumeAudio() {
         isAudioSuspended = false
@@ -352,9 +428,11 @@ class SoundManager(context: Context) {
         try {
             soundPool.autoResume()
         } catch (_: Exception) {}
-        if (!isPaused && activeMusicTrack != MusicTrack.NONE) {
+        if (activeMusicTrack != MusicTrack.NONE) {
             try {
                 if (mediaPlayer?.isPlaying == false) {
+                    val vol = calculateEffectiveMusicVolume()
+                    mediaPlayer?.setVolume(vol, vol)
                     mediaPlayer?.start()
                 }
             } catch (_: Exception) {}
@@ -435,7 +513,7 @@ class SoundManager(context: Context) {
                 prepare()
                 val vol = calculateEffectiveMusicVolume()
                 setVolume(vol, vol)
-                if (!isPaused && !isAudioSuspended) {
+                if (!isAudioSuspended) {
                     start()
                 }
             }
@@ -508,7 +586,7 @@ class SoundManager(context: Context) {
     // ---------------------------------------------------------------------------------------------
 
     private fun getOrCreateMusicFile(track: MusicTrack): File {
-        val filename = "bgm_${track.name.lowercase()}_v3.wav"
+        val filename = "bgm_${track.name.lowercase()}_v4.wav"
         val file = File(appContext.cacheDir, filename)
         if (!file.exists() || file.length() < 256L) {
             FileOutputStream(file).use { it.write(toWav(synthesizeMusic(track))) }
@@ -709,110 +787,258 @@ class SoundManager(context: Context) {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Procedural Music Synthesis (5 Distinct Tracks)
+    // 15 Tower Upgrade Audio Profiles (3 Classes x 5 Skins)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Synthesizes 15 distinct upgrade sounds (3 Tower Classes x 5 Skins).
+     * Replaces single generic upgrade sound with specialized class audio profiles.
+     */
+    private fun synthesizeTowerUpgrade(towerClass: TowerClass, skinSlot: Int): ShortArray = when (towerClass) {
+        TowerClass.KINETIC_BALLISTIC -> when (skinSlot) {
+            1 -> render(durationMs = 450) { t, _ -> // Vector Minimal: crisp pneumatic mechanical lock + high-frequency dual chime (880Hz -> 1320Hz)
+                val env = exp(-t * 7.0) * minOf(1.0, t * 120.0)
+                val mech = sin(2 * PI * 180.0 * t) * exp(-t * 28.0) * 0.4
+                val a = sin(2 * PI * 880.0 * t) * 0.5
+                val b = sin(2 * PI * 1320.0 * (t - 0.08).coerceAtLeast(0.0)) * (if (t > 0.08) 0.6 else 0.0)
+                (mech + (a + b) * env) * 0.85
+            }
+            2 -> render(durationMs = 420) { t, _ -> // Blueprint Schematic: technical digital calibration triad (1046Hz, 1318Hz, 1567Hz)
+                val step = ((t * 18.0).toInt()).coerceIn(0, 2)
+                val freq = when (step) { 0 -> 1046.5; 1 -> 1318.5; else -> 1567.98 }
+                val p = (t % (1.0 / 18.0)) * 18.0
+                val env = exp(-p * 8.0)
+                sin(2 * PI * freq * t) * env * 0.75
+            }
+            3 -> render(durationMs = 500) { t, n -> // Tactical Military: heavy steel bolt clank + pneumatic hydraulic lock hiss
+                val clank1 = (sin(2 * PI * 320.0 * t) * 0.7 + noiseAt(n) * 0.4) * exp(-t * 35.0)
+                val clank2 = if (t > 0.12) (sin(2 * PI * 220.0 * (t - 0.12)) * 0.8 + noiseAt(n) * 0.3) * exp(-(t - 0.12) * 25.0) else 0.0
+                val hiss = noiseAt(n) * 0.25 * exp(-t * 8.0)
+                (clank1 + clank2 + hiss) * 0.85
+            }
+            4 -> render(durationMs = 480) { t, _ -> // Void Rift: phase-shifting occult chime with dark resonant metallic ring
+                val f1 = 660.0 + sin(2 * PI * 12.0 * t) * 40.0
+                val f2 = 990.0
+                val a = sin(2 * PI * f1 * t) * exp(-t * 5.5) * 0.6
+                val b = sin(2 * PI * f2 * t) * exp(-t * 4.5) * 0.5
+                (a + b) * 0.8
+            }
+            else -> render(durationMs = 400) { t, _ -> // Retro Pixel: 8-bit kinetic power-up arpeggio (C5 -> E5 -> G5 -> C6)
+                val step = ((t * 20.0).toInt()).coerceIn(0, 3)
+                val f = when (step) { 0 -> 523.25; 1 -> 659.25; 2 -> 783.99; else -> 1046.5 }
+                val s = sin(2 * PI * f * t)
+                (if (s >= 0) 0.65 else -0.65) * exp(-t * 4.0)
+            }
+        }
+        TowerClass.ELEMENTAL_VOID -> when (skinSlot) {
+            1 -> render(durationMs = 550) { t, _ -> // Vector Minimal: crystal harmonic chime sweep (523Hz -> 1046Hz -> 2093Hz)
+                val f = 523.25 + t * 2400.0
+                val shimmer = sin(2 * PI * f * t) * exp(-t * 5.0) * 0.6 + sin(2 * PI * (f * 1.5) * t) * exp(-t * 6.0) * 0.35
+                shimmer * 0.85
+            }
+            2 -> render(durationMs = 500) { t, _ -> // Blueprint Schematic: high-frequency emitter calibration harmonic sweep
+                val f = 1200.0 * exp(-t * 4.0) + 800.0
+                val mod = sin(2 * PI * 440.0 * t) * 0.3
+                sin(2 * PI * f * t + mod) * exp(-t * 6.0) * 0.75
+            }
+            3 -> render(durationMs = 520) { t, n -> // Tactical Military: deep capacitor energizing hum + resonant industrial relay snap
+                val whine = sin(2 * PI * (200.0 + t * 1800.0) * t) * (if (t < 0.2) t * 5.0 else exp(-(t - 0.2) * 12.0)) * 0.5
+                val snap = if (t > 0.2) (sin(2 * PI * 850.0 * (t - 0.2)) + noiseAt(n) * 0.4) * exp(-(t - 0.2) * 30.0) else 0.0
+                (whine + snap) * 0.85
+            }
+            4 -> render(durationMs = 600) { t, _ -> // Void Rift: dark dimensional singularity swell + occult astral shimmer
+                val sub = sin(2 * PI * 95.0 * t) * exp(-t * 4.0) * 0.7
+                val astral = sin(2 * PI * 1480.0 * t) * sin(2 * PI * 8.0 * t) * exp(-t * 5.0) * 0.45
+                (sub + astral) * 0.85
+            }
+            else -> render(durationMs = 440) { t, _ -> // Retro Pixel: 8-bit space magic glissando chirp with pitch modulation
+                val f = 440.0 + t * 1600.0
+                val s = sin(2 * PI * f * t + sin(2 * PI * 32.0 * t) * 1.5)
+                (if (s >= 0) 0.6 else -0.6) * exp(-t * 4.5)
+            }
+        }
+        TowerClass.HEAVY_SIEGE -> when (skinSlot) {
+            1 -> render(durationMs = 650) { t, _ -> // Vector Minimal: deep resonant bass gong (110Hz) + bright ascending chord overtone
+                val sub = sin(2 * PI * 110.0 * t) * exp(-t * 4.5) * 0.75
+                val chord = (sin(2 * PI * 440.0 * t) + sin(2 * PI * 554.37 * t)) * exp(-t * 6.0) * 0.35
+                (sub + chord) * 0.85
+            }
+            2 -> render(durationMs = 550) { t, _ -> // Blueprint Schematic: hydraulic clamp lock + digital servos engaging
+                val servo = sin(2 * PI * 350.0 * t) * exp(-t * 7.0) * 0.55
+                val lock = if (t > 0.15) sin(2 * PI * 700.0 * (t - 0.15)) * exp(-(t - 0.15) * 18.0) * 0.6 else 0.0
+                (servo + lock) * 0.85
+            }
+            3 -> render(durationMs = 700) { t, n -> // Tactical Military: massive armored bulkhead latch slam + heavy industrial thud
+                val thud = (sin(2 * PI * 65.0 * t) * 0.9 + noiseAt(n) * 0.4) * exp(-t * 8.0)
+                val metal = if (t > 0.08) (sin(2 * PI * 480.0 * (t - 0.08)) + noiseAt(n) * 0.3) * exp(-(t - 0.08) * 22.0) * 0.6 else 0.0
+                (thud + metal) * 0.9
+            }
+            4 -> render(durationMs = 680) { t, _ -> // Void Rift: cosmic implosion sub-bass rumble + resonant void bell
+                val rumble = sin(2 * PI * 55.0 * t) * exp(-t * 3.5) * 0.8
+                val bell = sin(2 * PI * 370.0 * t) * exp(-t * 5.0) * 0.4
+                (rumble + bell) * 0.85
+            }
+            else -> render(durationMs = 480) { t, _ -> // Retro Pixel: retro boss-cannon weapon power-up low-to-high square fanfare
+                val step = ((t * 16.0).toInt()).coerceIn(0, 3)
+                val f = when (step) { 0 -> 146.83; 1 -> 220.00; 2 -> 293.66; else -> 440.00 }
+                val s = sin(2 * PI * f * t)
+                (if (s >= 0) 0.7 else -0.7) * exp(-t * 3.8)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Procedural Music Synthesis (5 Distinct 45-Second Tracks with Tapered Overlaps)
     // ---------------------------------------------------------------------------------------------
 
     private fun synthesizeMusic(track: MusicTrack): ShortArray = when (track) {
         MusicTrack.NONE, MusicTrack.ROLLING_PLAYLIST -> ShortArray(SAMPLE_RATE)
-        MusicTrack.CYBER_AMBIENT -> render(durationMs = 4000) { t, _ ->
-            // Track 1: Sector Zero Synth - A-minor 7th drone + 8-step gentle pulsing arpeggio
-            val root = sin(2 * PI * 110.0 * t) * 0.35 // A2
-            val fifth = sin(2 * PI * 164.81 * t) * 0.25 // E3
-            val minorThird = sin(2 * PI * 130.81 * t) * 0.20 // C3
-            val sub = sin(2 * PI * 55.0 * t) * 0.30 // A1
-
-            val step = ((t / 0.25).toInt() % 8)
-            val arpFreq = when (step) {
-                0 -> 220.0 // A3
-                1 -> 261.63 // C4
-                2 -> 329.63 // E4
-                3 -> 392.00 // G4
-                4 -> 440.00 // A4
-                5 -> 392.00 // G4
-                6 -> 329.63 // E4
-                else -> 261.63 // C4
+        MusicTrack.CYBER_AMBIENT -> render(durationMs = 45000, taperFade = true) { t, _ ->
+            // Track 1: Sector Zero Synth (45s) - Am -> F -> C -> G evolving progression with warm analog pads
+            val chordSec = 11.25
+            val chordIdx = ((t / chordSec).toInt()) % 4
+            val (rootFreq, thirdFreq, fifthFreq) = when (chordIdx) {
+                0 -> Triple(110.00, 130.81, 164.81) // Am (A2, C3, E3)
+                1 -> Triple(87.31, 110.00, 130.81)  // F  (F2, A2, C3)
+                2 -> Triple(65.41, 82.41, 98.00)   // C  (C2, E2, G2)
+                else -> Triple(98.00, 123.47, 146.83) // G (G2, B2, D3)
             }
+
+            // Warm chorused pad drone
+            val chorus = sin(2 * PI * 0.35 * t) * 1.5
+            val padRoot = sin(2 * PI * (rootFreq + chorus) * t) * 0.32
+            val padThird = sin(2 * PI * thirdFreq * t) * 0.22
+            val padFifth = sin(2 * PI * fifthFreq * t) * 0.20
+            val sub = sin(2 * PI * (rootFreq * 0.5) * t) * 0.28
+
+            // 8-step evolving arpeggio shifting with chord
+            val step = ((t / 0.25).toInt()) % 8
+            val arpMultiplier = when (step) {
+                0 -> 2.0; 1 -> 2.4; 2 -> 3.0; 3 -> 3.6; 4 -> 4.0; 5 -> 3.6; 6 -> 3.0; else -> 2.4
+            }
+            val arpFreq = rootFreq * arpMultiplier
             val arpPhase = (t % 0.25) / 0.25
-            val arpEnv = (1.0 - arpPhase) * exp(-arpPhase * 4.0)
+            val arpEnv = (1.0 - arpPhase) * exp(-arpPhase * 4.5)
             val arp = sin(2 * PI * arpFreq * t) * arpEnv * 0.22
 
-            (root + fifth + minorThird + sub + arp) * 0.6
-        }
-        MusicTrack.PULSE_ARPEGGIO -> render(durationMs = 3000) { t, _ ->
-            // Track 2: Dual Front Pulse - D minor electro pulse arpeggio
-            val root = sin(2 * PI * 73.42 * t) * 0.35 // D2
-            val step = ((t / 0.1875).toInt() % 8)
-            val f = when (step) {
-                0 -> 293.66 // D4
-                1 -> 349.23 // F4
-                2 -> 440.00 // A4
-                3 -> 523.25 // C5
-                4 -> 587.33 // D5
-                5 -> 440.00 // A4
-                6 -> 349.23 // F4
-                else -> 293.66 // D4
-            }
-            val phase = (t % 0.1875) / 0.1875
-            val env = exp(-phase * 6.0)
-            val synth = (sin(2 * PI * f * t) + sin(2 * PI * f * 2.0 * t) * 0.3) * env * 0.35
-            (root + synth) * 0.7
-        }
-        MusicTrack.DEEP_SPACE -> render(durationMs = 4500) { t, _ ->
-            // Track 3: Sub-Void Drone - C meditative dark pad with slow pitch LFO
-            val mod = sin(2 * PI * 0.25 * t) * 4.0
-            val pad1 = sin(2 * PI * (65.41 + mod) * t) * 0.40 // C2
-            val pad2 = sin(2 * PI * 98.00 * t) * 0.30 // G2
-            val shimmer = sin(2 * PI * 523.25 * t) * 0.08 * sin(2 * PI * 0.5 * t)
-            (pad1 + pad2 + shimmer) * 0.65
-        }
-        MusicTrack.NEON_OVERDRIVE -> render(durationMs = 3500) { t, _ ->
-            // Track 4: Neon Overdrive - F# minor synthwave bassline & cyber arpeggio
-            val bassRoot = 92.50 // F#2
-            val bassBeat = ((t / 0.21875).toInt() % 16)
-            val bassFreq = when (bassBeat % 4) {
-                0 -> bassRoot
-                1 -> bassRoot
-                2 -> bassRoot * 1.1892 // A2 (minor third)
-                else -> bassRoot * 1.3348 // B2 (fourth)
-            }
-            val bPhase = (t % 0.21875) / 0.21875
-            val bEnv = exp(-bPhase * 5.0)
-            val bass = (sin(2 * PI * bassFreq * t) + sin(2 * PI * bassFreq * 2.0 * t) * 0.4) * bEnv * 0.45
+            // High shimmer overtone
+            val shimmer = sin(2 * PI * (rootFreq * 8.0) * t) * 0.05 * (sin(2 * PI * 0.2 * t) * 0.5 + 0.5)
 
-            val arpStep = ((t / 0.109375).toInt() % 16)
-            val arpNote = when (arpStep) {
-                0, 8 -> 370.00  // F#4
-                1, 9 -> 440.00  // A4
-                2, 10 -> 554.37 // C#5
-                3, 11 -> 659.25 // E5
-                4, 12 -> 740.00 // F#5
-                5, 13 -> 659.25 // E5
-                6, 14 -> 554.37 // C#5
-                else -> 440.00   // A4
+            (padRoot + padThird + padFifth + sub + arp + shimmer) * 0.65
+        }
+
+        MusicTrack.PULSE_ARPEGGIO -> render(durationMs = 45000, taperFade = true) { t, _ ->
+            // Track 2: Dual Front Pulse (45s) - Dm -> Bb -> F -> C high-energy 128 BPM pulse
+            val barDuration = 1.875 // 4 beats at 128 BPM
+            val progressionCycle = (t / (barDuration * 2.0)).toInt() % 4
+            val rootNote = when (progressionCycle) {
+                0 -> 73.42 // D2
+                1 -> 58.27 // Bb1
+                2 -> 87.31 // F2
+                else -> 65.41 // C2
             }
-            val aPhase = (t % 0.109375) / 0.109375
-            val aEnv = exp(-aPhase * 7.0)
-            val lead = sin(2 * PI * arpNote * t) * aEnv * 0.25
+
+            // Pumping 16th-note sub bass
+            val beatPhase = (t % (barDuration / 4.0)) / (barDuration / 4.0)
+            val bassEnv = exp(-beatPhase * 6.0)
+            val bass = (sin(2 * PI * rootNote * t) + sin(2 * PI * rootNote * 2.0 * t) * 0.35) * bassEnv * 0.40
+
+            // 16-step synced resonant arpeggiator
+            val arpStep = ((t / (barDuration / 16.0)).toInt()) % 16
+            val noteOffset = when (arpStep % 8) {
+                0 -> 0; 1 -> 3; 2 -> 7; 3 -> 10; 4 -> 12; 5 -> 10; 6 -> 7; else -> 3
+            }
+            val arpFreq = rootNote * 4.0 * 2.0.pow(noteOffset / 12.0)
+            val aPhase = (t % (barDuration / 16.0)) / (barDuration / 16.0)
+            val aEnv = exp(-aPhase * 7.5)
+            val lead = (sin(2 * PI * arpFreq * t) + sin(2 * PI * arpFreq * 2.0 * t) * 0.25) * aEnv * 0.28
+
+            (bass + lead) * 0.70
+        }
+
+        MusicTrack.DEEP_SPACE -> render(durationMs = 45000, taperFade = true) { t, _ ->
+            // Track 3: Sub-Void Drone (45s) - Deep meditative space drone in C (Cm -> Ab -> Eb -> Gm)
+            val chordDur = 11.25
+            val cIdx = ((t / chordDur).toInt()) % 4
+            val (baseF, pF) = when (cIdx) {
+                0 -> Pair(65.41, 98.00)   // C2 & G2
+                1 -> Pair(51.91, 77.78)   // Ab1 & Eb2
+                2 -> Pair(77.78, 116.54)  // Eb2 & Bb2
+                else -> Pair(49.00, 73.42) // G1 & D2
+            }
+
+            val lfo = sin(2 * PI * 0.12 * t) * 3.5
+            val sub = sin(2 * PI * (baseF * 0.5) * t) * 0.35
+            val pad1 = sin(2 * PI * (baseF + lfo) * t) * 0.35
+            val pad2 = sin(2 * PI * (pF - lfo * 0.5) * t) * 0.28
+            val crystal = sin(2 * PI * (baseF * 8.0) * t) * 0.06 * (sin(2 * PI * 0.4 * t) * 0.5 + 0.5)
+
+            (sub + pad1 + pad2 + crystal) * 0.65
+        }
+
+        MusicTrack.NEON_OVERDRIVE -> render(durationMs = 45000, taperFade = true) { t, _ ->
+            // Track 4: Neon Overdrive (45s) - F#m -> D -> A -> E synthwave bassline & octave lead
+            val barLen = 1.777 // ~135 BPM
+            val step4 = ((t / (barLen * 2.0)).toInt()) % 4
+            val bassRoot = when (step4) {
+                0 -> 92.50 // F#2
+                1 -> 73.42 // D2
+                2 -> 110.00 // A2
+                else -> 82.41 // E2
+            }
+
+            // Gated synthwave bass
+            val bStep = ((t / (barLen / 8.0)).toInt()) % 8
+            val bPhase = (t % (barLen / 8.0)) / (barLen / 8.0)
+            val bEnv = exp(-bPhase * 5.5)
+            val octaveMult = if (bStep % 2 == 1) 2.0 else 1.0
+            val bass = (sin(2 * PI * (bassRoot * octaveMult) * t) + sin(2 * PI * (bassRoot * octaveMult * 2.0) * t) * 0.3) * bEnv * 0.45
+
+            // Melodic synth lead hooks
+            val leadStep = ((t / (barLen / 16.0)).toInt()) % 16
+            val leadNote = when (leadStep) {
+                0, 8 -> bassRoot * 4.0
+                2, 10 -> bassRoot * 4.8
+                4, 12 -> bassRoot * 6.0
+                6, 14 -> bassRoot * 7.2
+                else -> bassRoot * 5.4
+            }
+            val lPhase = (t % (barLen / 16.0)) / (barLen / 16.0)
+            val lEnv = exp(-lPhase * 7.0)
+            val lead = sin(2 * PI * leadNote * t) * lEnv * 0.26
 
             (bass + lead) * 0.65
         }
-        MusicTrack.CELESTIAL_BASTION -> render(durationMs = 4000) { t, _ ->
-            // Track 5: Celestial Bastion - E minor melodic chiptune & crystal harmonic arpeggio
-            val drone = (sin(2 * PI * 82.41 * t) * 0.35 + sin(2 * PI * 123.47 * t) * 0.25)
-            val step = ((t / 0.25).toInt() % 16)
-            val freq = when (step % 8) {
-                0 -> 329.63 // E4
-                1 -> 392.00 // G4
-                2 -> 493.88 // B4
-                3 -> 587.33 // D5
-                4 -> 659.25 // E5
-                5 -> 587.33 // D5
-                6 -> 493.88 // B4
-                else -> 392.00 // G4
+
+        MusicTrack.CELESTIAL_BASTION -> render(durationMs = 45000, taperFade = true) { t, _ ->
+            // Track 5: Celestial Bastion (45s) - Em -> C -> G -> D space hymn with layered bells
+            val barLen = 2.0
+            val cIdx = ((t / (barLen * 2.0)).toInt()) % 4
+            val (emRoot, bellBase) = when (cIdx) {
+                0 -> Pair(82.41, 329.63) // Em (E2, E4)
+                1 -> Pair(65.41, 261.63) // C  (C2, C4)
+                2 -> Pair(98.00, 392.00) // G  (G2, G4)
+                else -> Pair(73.42, 293.66) // D (D2, D4)
+            }
+
+            val drone = (sin(2 * PI * emRoot * t) * 0.35 + sin(2 * PI * (emRoot * 1.5) * t) * 0.25)
+
+            // Ringing chiptune bells & crystal harmonics
+            val chimeStep = ((t / 0.25).toInt()) % 8
+            val chimeFreq = when (chimeStep) {
+                0 -> bellBase
+                1 -> bellBase * 1.2
+                2 -> bellBase * 1.5
+                3 -> bellBase * 1.8
+                4 -> bellBase * 2.0
+                5 -> bellBase * 1.8
+                6 -> bellBase * 1.5
+                else -> bellBase * 1.2
             }
             val phase = (t % 0.25) / 0.25
             val env = exp(-phase * 4.5) * (1.0 - phase)
-            val chime = (sin(2 * PI * freq * t) + sin(2 * PI * freq * 2.0 * t) * 0.35 + sin(2 * PI * freq * 3.0 * t) * 0.15) * env * 0.28
+            val chime = (sin(2 * PI * chimeFreq * t) + sin(2 * PI * chimeFreq * 2.0 * t) * 0.35) * env * 0.28
+
             (drone + chime) * 0.65
         }
     }
@@ -820,14 +1046,25 @@ class SoundManager(context: Context) {
     private val noiseRandom = Random(0xC0FFEE)
     private fun noiseAt(@Suppress("UNUSED_PARAMETER") n: Int): Double = noiseRandom.nextDouble() * 2.0 - 1.0
 
-    private inline fun render(durationMs: Int, sample: (t: Double, n: Int) -> Double): ShortArray {
+    private inline fun render(
+        durationMs: Int,
+        taperFade: Boolean = false,
+        sample: (t: Double, n: Int) -> Double
+    ): ShortArray {
         val count = SAMPLE_RATE * durationMs / 1000
         val out = ShortArray(count)
+        val taperSamples = if (taperFade) (SAMPLE_RATE * 2).coerceAtMost(count / 4) else (SAMPLE_RATE / 100)
         for (i in 0 until count) {
             val t = i.toDouble() / SAMPLE_RATE
             var v = sample(t, i)
-            val tailSamples = SAMPLE_RATE / 100
-            if (i > count - tailSamples) v *= (count - i).toDouble() / tailSamples
+            if (taperFade && i < taperSamples) {
+                val fadeIn = 0.5 * (1.0 - kotlin.math.cos(PI * i / taperSamples))
+                v *= fadeIn
+            }
+            if (i > count - taperSamples) {
+                val fadeOut = 0.5 * (1.0 + kotlin.math.cos(PI * (count - i) / taperSamples))
+                v *= fadeOut
+            }
             v = v.coerceIn(-1.0, 1.0)
             out[i] = (v * 0.75 * Short.MAX_VALUE).toInt().toShort()
         }

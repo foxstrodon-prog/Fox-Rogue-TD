@@ -235,6 +235,7 @@ fun RogueTDScreen(
                 onElementalSfxSlotSelected = { viewModel.setElementalSfxSlot(it) },
                 onSiegeSfxSlotSelected = { viewModel.setSiegeSfxSlot(it) },
                 onPlayTurretTestSound = { cls, slot -> viewModel.playTurretTestSound(cls, slot) },
+                onPlayTowerUpgradeTestSound = { cls, slot -> viewModel.playTowerUpgradeTestSound(cls, slot) },
                 onTurretSkinSlotSelected = { viewModel.setTurretSkinSlot(it) },
                 onMapThemeSlotSelected = { viewModel.setMapThemeSlot(it) },
                 onResume = { viewModel.closePauseMenu() }
@@ -3957,6 +3958,7 @@ fun PauseMenuDialog(
     onElementalSfxSlotSelected: (Int) -> Unit = {},
     onSiegeSfxSlotSelected: (Int) -> Unit = {},
     onPlayTurretTestSound: (TowerClass, Int) -> Unit = { _, _ -> },
+    onPlayTowerUpgradeTestSound: (TowerClass, Int) -> Unit = { _, _ -> },
     onTurretSkinSlotSelected: (Int) -> Unit = {},
     onMapThemeSlotSelected: (Int) -> Unit = {},
     onResume: () -> Unit
@@ -4166,21 +4168,39 @@ fun PauseMenuDialog(
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Icon(
-                                                imageVector = if (isSel) Icons.Filled.CheckCircle else Icons.Filled.MusicNote,
-                                                contentDescription = null,
-                                                tint = if (isSel) Color(0xFFC084FC) else Color(0xFF64748B),
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = label,
-                                                color = if (isSel) Color.White else Color(0xFFCBD5E1),
-                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = 10.5.sp
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = if (isSel) Icons.Filled.CheckCircle else Icons.Filled.MusicNote,
+                                                    contentDescription = null,
+                                                    tint = if (isSel) Color(0xFFC084FC) else Color(0xFF64748B),
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = label,
+                                                    color = if (isSel) Color.White else Color(0xFFCBD5E1),
+                                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 10.5.sp
+                                                )
+                                            }
+                                            if (isSel && track != MusicTrack.NONE) {
+                                                Surface(
+                                                    color = Color(0xFFC084FC).copy(alpha = 0.20f),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC084FC).copy(alpha = 0.6f))
+                                                ) {
+                                                    Text(
+                                                        text = "▶ PREVIEWING",
+                                                        color = Color(0xFFC084FC),
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 8.sp,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -4196,7 +4216,7 @@ fun PauseMenuDialog(
                         ) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("TURRET GUNFIRE AUDIO TESTING (5 SLOTS)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
-                                Text("A/B test gunfire audio profiles across the 3 turret archetypes.", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                                Text("A/B test gunfire audio profiles across the 3 turret archetypes. Tap any slot to test immediately.", color = Color(0xFF94A3B8), fontSize = 9.sp)
 
                                 // Kinetic Ballistics
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -4228,7 +4248,10 @@ fun PauseMenuDialog(
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFF00F0FF) else Color(0xFF334155)),
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .clickable { onKineticSfxSlotSelected(slot) }
+                                                    .clickable {
+                                                        onKineticSfxSlotSelected(slot)
+                                                        onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, slot)
+                                                    }
                                             ) {
                                                 Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                                     Text("Slot $slot", color = if (isSel) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
@@ -4269,7 +4292,10 @@ fun PauseMenuDialog(
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFFD946EF) else Color(0xFF334155)),
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .clickable { onElementalSfxSlotSelected(slot) }
+                                                    .clickable {
+                                                        onElementalSfxSlotSelected(slot)
+                                                        onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, slot)
+                                                    }
                                             ) {
                                                 Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                                     Text("Slot $slot", color = if (isSel) Color.White else Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
@@ -4310,11 +4336,77 @@ fun PauseMenuDialog(
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFFFFB800) else Color(0xFF334155)),
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .clickable { onSiegeSfxSlotSelected(slot) }
+                                                    .clickable {
+                                                        onSiegeSfxSlotSelected(slot)
+                                                        onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, slot)
+                                                    }
                                             ) {
                                                 Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                                     Text("Slot $slot", color = if (isSel) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                                                     Text(slotName.split(" ").first(), color = if (isSel) Color(0xFF0F172A) else Color(0xFF94A3B8), fontSize = 7.5.sp, maxLines = 1)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Section 4: Tower Upgrade Audio Testing (3 Classes x 5 Skins)
+                        Surface(
+                            color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("TOWER UPGRADE AUDIO TESTING (3 CLASSES × 5 SKINS)", color = Color(0xFF00FF9D), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                                Text("Test class-specific and skin-tailored tower upgrade sound profiles directly from the menu.", color = Color(0xFF94A3B8), fontSize = 9.sp)
+
+                                val upgradeClasses = listOf(
+                                    Triple(TowerClass.KINETIC_BALLISTIC, "Kinetic Upgrade", Color(0xFF00F0FF)),
+                                    Triple(TowerClass.ELEMENTAL_VOID, "Elemental Upgrade", Color(0xFFD946EF)),
+                                    Triple(TowerClass.HEAVY_SIEGE, "Siege Upgrade", Color(0xFFFFB800))
+                                )
+
+                                upgradeClasses.forEach { (cls, name, color) ->
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(name, color = color, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                            Button(
+                                                onClick = { onPlayTowerUpgradeTestSound(cls, state.turretSkinSlot) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.Black),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier.height(22.dp)
+                                            ) {
+                                                Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text("TEST (SKIN ${state.turretSkinSlot})", fontWeight = FontWeight.Black, fontSize = 8.5.sp)
+                                            }
+                                        }
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            (1..5).forEach { slot ->
+                                                Surface(
+                                                    color = Color(0xFF0F172A),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f)),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clickable { onPlayTowerUpgradeTestSound(cls, slot) }
+                                                ) {
+                                                    Text(
+                                                        text = "Skin $slot",
+                                                        color = Color.White,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                        modifier = Modifier.padding(vertical = 4.dp)
+                                                    )
                                                 }
                                             }
                                         }

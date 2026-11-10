@@ -260,6 +260,11 @@ class RogueTDViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(isSettingsOpen = open) }
     }
 
+    fun isInternalDialogActive(): Boolean {
+        val s = _uiState.value
+        return s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.showEndRunConfirmDialog || s.showUpdateModal
+    }
+
     fun openPauseMenu() {
         soundManager.isPaused = true
         val currentSpeed = _uiState.value.gameSpeed
@@ -494,6 +499,10 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) {
         soundManager.playTurretTestSound(towerClass, slot)
+    }
+
+    fun playTowerUpgradeTestSound(towerClass: TowerClass, slot: Int) {
+        soundManager.playTowerUpgradeTestSound(towerClass, slot)
     }
 
     fun setTowerVisualSkin(skin: String) {
@@ -1290,7 +1299,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             TowerVector.SUPPORT -> "C"
         }
 
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         _uiState.update {
             it.copy(
@@ -1317,7 +1326,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         tower.towerClass = archetype.towerClass
         tower.finalFormCode = "${tower.branchTier1 ?: "A"}.a"
 
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         _uiState.update {
             it.copy(
@@ -1345,7 +1354,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
         val chosenAura = if (auraIndex == 1) arch.secondaryAura else arch.primaryAura
 
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         _uiState.update {
             it.copy(
@@ -1397,7 +1406,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         val option = TowerUpgradeManager.getTier1Options(tower.type).firstOrNull { it.branchKey == branchKey }
         val name = option?.subName ?: "Branch $branchKey"
 
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         _uiState.update {
             it.copy(
@@ -1421,7 +1430,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         val finalFormDef = TowerUpgradeManager.getFinalForm(tower.type, finalFormCode)
         val name = finalFormDef?.subName ?: "Apex Form"
 
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         _uiState.update {
             it.copy(
@@ -1448,7 +1457,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         tower.pathTiers[pathIndex] = nextTier
         val upgradeName = TowerUpgradeManager.getPathUpgrade(tower.type, pathIndex, nextTier).name
 
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         _uiState.update {
             it.copy(
@@ -1470,7 +1479,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
 
         tower.finalFormCode = "${tower.branchTier1 ?: "A"}.a"
-        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        soundManager.playTowerUpgrade(tower.towerClass, _uiState.value.turretSkinSlot)
 
         // Apply tower's distinctive global boost
         _uiState.update { state ->

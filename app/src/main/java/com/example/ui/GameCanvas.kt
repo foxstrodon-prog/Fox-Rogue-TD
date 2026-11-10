@@ -452,215 +452,598 @@ fun GameCanvas(
                     style = Stroke(width = 2.0f)
                 )
             }
-                // === 1. FINAL FORM RADIANT HALO (Class-Specific Geometry) ===
-            if (tower.isFinalForm) {
-                val auraPulse = (sin(animFlowTime * 0.008f) * 0.15f + 0.85f).toFloat()
-                val haloColor = Color(0xFFFFB800)
+            // === COMPLETE TOWER VISUAL CUSTOMIZATION & LEVEL 1-4 UPGRADE PIPELINE ===
+            val skinSlot = TurretSkinSlot.fromSlot(state.turretSkinSlot)
+            val upgradeLevel = when {
+                tower.isFinalForm || tower.tier >= 4 -> 4
+                tower.tier >= 2 || tower.archetype != null -> 3
+                tower.tier >= 1 || tower.vector != null || tower.branchTier1 != null -> 2
+                else -> 1
+            }
+            val vectorAccentColor = when (tier1Vector) {
+                TowerVector.OFFENSIVE -> Color(0xFFFF2A55)
+                TowerVector.DEFENSIVE -> Color(0xFF00E676)
+                TowerVector.SUPPORT -> Color(0xFFFFD700)
+                null -> Color(0xFF00FF9D)
+            }
+            val archetypeAccentColor = towerColor
+            val apexAuraColor = Color(0xFFFFB800)
+            val auraPulse = (sin(animFlowTime * 0.008f) * 0.15f + 0.85f).toFloat()
+
+            // --- Level 4 Apex Radiant Halo / Corona (All Skins) ---
+            if (upgradeLevel == 4) {
                 when (effectiveClass) {
                     TowerClass.KINETIC_BALLISTIC -> {
-                        // Radiant Circle Halo
-                        drawCircle(
-                            color = haloColor.copy(alpha = 0.25f * auraPulse),
-                            radius = cellW * 0.48f,
-                            center = Offset(tcx, tcy)
-                        )
-                        drawCircle(
-                            color = haloColor,
-                            radius = cellW * 0.44f,
-                            center = Offset(tcx, tcy),
-                            style = Stroke(width = 2f)
-                        )
+                        drawCircle(color = apexAuraColor.copy(alpha = 0.22f * auraPulse), radius = cellW * 0.50f, center = Offset(tcx, tcy))
+                        drawCircle(color = apexAuraColor, radius = cellW * 0.45f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
                     }
                     TowerClass.ELEMENTAL_VOID -> {
-                        // Radiant Triangle Halo
-                        val hRadius = cellW * 0.52f * auraPulse
-                        val haloTri = Path().apply {
-                            moveTo(tcx, tcy - hRadius)
-                            lineTo(tcx + hRadius * 0.866f, tcy + hRadius * 0.5f)
-                            lineTo(tcx - hRadius * 0.866f, tcy + hRadius * 0.5f)
+                        val hR = cellW * 0.54f * auraPulse
+                        val hTri = Path().apply {
+                            moveTo(tcx, tcy - hR)
+                            lineTo(tcx + hR * 0.866f, tcy + hR * 0.5f)
+                            lineTo(tcx - hR * 0.866f, tcy + hR * 0.5f)
                             close()
                         }
-                        drawPath(path = haloTri, color = haloColor.copy(alpha = 0.20f * auraPulse))
-                        drawPath(path = haloTri, color = haloColor, style = Stroke(width = 2f, join = StrokeJoin.Round))
+                        drawPath(path = hTri, color = apexAuraColor.copy(alpha = 0.20f * auraPulse))
+                        drawPath(path = hTri, color = apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
                     }
                     TowerClass.HEAVY_SIEGE -> {
-                        // Radiant Fortified Square Halo
-                        val hSize = cellW * 0.88f * auraPulse
-                        val hTopLeft = Offset(tcx - hSize / 2f, tcy - hSize / 2f)
-                        drawRoundRect(
-                            color = haloColor.copy(alpha = 0.20f * auraPulse),
-                            topLeft = hTopLeft,
-                            size = Size(hSize, hSize),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
-                        )
-                        drawRoundRect(
-                            color = haloColor,
-                            topLeft = hTopLeft,
-                            size = Size(hSize, hSize),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
-                            style = Stroke(width = 2f)
-                        )
+                        val hS = cellW * 0.90f * auraPulse
+                        val hTopLeft = Offset(tcx - hS / 2f, tcy - hS / 2f)
+                        drawRoundRect(color = apexAuraColor.copy(alpha = 0.20f * auraPulse), topLeft = hTopLeft, size = Size(hS, hS), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f))
+                        drawRoundRect(color = apexAuraColor, topLeft = hTopLeft, size = Size(hS, hS), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
                     }
                 }
             }
 
-            // === 2. TOWER BASE CHASSIS (Circle, Triangle, Square) ===
-            when (effectiveClass) {
-                TowerClass.KINETIC_BALLISTIC -> {
-                    // === KINETIC BALLISTICS: CIRCLE BASE ===
-                    drawCircle(
-                        color = Color(0xFF0F172A),
-                        radius = cellW * 0.38f,
-                        center = Offset(tcx, tcy)
-                    )
-                    drawCircle(
-                        color = borderColor,
-                        radius = cellW * 0.38f,
-                        center = Offset(tcx, tcy),
-                        style = Stroke(width = 2.5f)
-                    )
+            // --- Skin-Driven Tower Chassis, Barrels & Level 1-4 Upgrade Cues ---
+            when (skinSlot) {
+                // =========================================================================================
+                // SKIN 1: Vector Minimal / Neon Cyber
+                // =========================================================================================
+                TurretSkinSlot.SLOT_1_DEFAULT -> {
+                    when (effectiveClass) {
+                        TowerClass.KINETIC_BALLISTIC -> {
+                            // Dark neon disc
+                            drawCircle(color = Color(0xFF0F172A), radius = cellW * 0.38f, center = Offset(tcx, tcy))
+                            drawCircle(color = borderColor, radius = cellW * 0.38f, center = Offset(tcx, tcy), style = Stroke(width = 2.5f))
 
-                    // Rotary barrel or ballistic cannons protruding along aimRad
-                    val barrelLen = cellW * 0.35f
-                    val b1X = tcx + cos(aimRad) * barrelLen
-                    val b1Y = tcy + sin(aimRad) * barrelLen
-                    drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(b1X, b1Y), strokeWidth = cellW * 0.12f, cap = StrokeCap.Round)
+                            // Level 2+ Vector Stabilizer Wings
+                            if (upgradeLevel >= 2) {
+                                val perp = aimRad + (PI / 2f).toFloat()
+                                val wingLen = cellW * 0.22f
+                                val wOff = cellW * 0.28f
+                                drawLine(color = vectorAccentColor, start = Offset(tcx + cos(perp) * wOff, tcy + sin(perp) * wOff), end = Offset(tcx + cos(perp) * wOff - cos(aimRad) * wingLen, tcy + sin(perp) * wOff - sin(aimRad) * wingLen), strokeWidth = cellW * 0.05f, cap = StrokeCap.Round)
+                                drawLine(color = vectorAccentColor, start = Offset(tcx - cos(perp) * wOff, tcy - sin(perp) * wOff), end = Offset(tcx - cos(perp) * wOff - cos(aimRad) * wingLen, tcy - sin(perp) * wOff - sin(aimRad) * wingLen), strokeWidth = cellW * 0.05f, cap = StrokeCap.Round)
+                            }
 
-                    if (tower.branchTier1 == "A" || tower.isFinalForm) {
-                        val perpAngle = aimRad + (PI / 2f).toFloat()
-                        val offX = cos(perpAngle) * (cellW * 0.08f)
-                        val offY = sin(perpAngle) * (cellW * 0.08f)
-                        drawLine(color = Color.White, start = Offset(tcx + offX, tcy + offY), end = Offset(b1X + offX, b1Y + offY), strokeWidth = cellW * 0.07f, cap = StrokeCap.Round)
+                            // Level 1-4 Ballistic Barrels
+                            val barrelLen = cellW * 0.36f
+                            val b1X = tcx + cos(aimRad) * barrelLen
+                            val b1Y = tcy + sin(aimRad) * barrelLen
+                            drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(b1X, b1Y), strokeWidth = cellW * 0.12f, cap = StrokeCap.Round)
+
+                            // Level 3+ Heavy Twin Barrels
+                            if (upgradeLevel >= 3) {
+                                val perp = aimRad + (PI / 2f).toFloat()
+                                val off = cellW * 0.09f
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx + cos(perp) * off, tcy + sin(perp) * off), end = Offset(b1X + cos(perp) * off, b1Y + sin(perp) * off), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx - cos(perp) * off, tcy - sin(perp) * off), end = Offset(b1X - cos(perp) * off, b1Y - sin(perp) * off), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                            }
+
+                            // Reactor Core
+                            val coreColor = if (upgradeLevel == 4) apexAuraColor else Color.White
+                            drawCircle(color = coreColor, radius = cellW * 0.14f, center = Offset(tcx, tcy))
+                            drawCircle(color = towerColor, radius = cellW * 0.08f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.ELEMENTAL_VOID -> {
+                            val triRadius = cellW * 0.44f
+                            val p1 = Offset(tcx, tcy - triRadius)
+                            val p2 = Offset(tcx + triRadius * 0.866f, tcy + triRadius * 0.5f)
+                            val p3 = Offset(tcx - triRadius * 0.866f, tcy + triRadius * 0.5f)
+                            val triPath = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+
+                            drawPath(path = triPath, color = Color(0xFF140D26))
+                            drawPath(path = triPath, color = borderColor, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
+
+                            // Level 2+ Inner Vector Rune
+                            if (upgradeLevel >= 2) {
+                                val inR = cellW * 0.24f
+                                val inTri = Path().apply {
+                                    moveTo(tcx, tcy + inR)
+                                    lineTo(tcx - inR * 0.866f, tcy - inR * 0.5f)
+                                    lineTo(tcx + inR * 0.866f, tcy - inR * 0.5f)
+                                    close()
+                                }
+                                drawPath(path = inTri, color = vectorAccentColor.copy(alpha = 0.35f))
+                                drawPath(path = inTri, color = vectorAccentColor, style = Stroke(width = 1.5f, join = StrokeJoin.Round))
+                            }
+
+                            // Focusing Emitter Beam
+                            val beamLen = cellW * (if (upgradeLevel >= 3) 0.38f else 0.32f)
+                            val beamX = tcx + cos(aimRad) * beamLen
+                            val beamY = tcy + sin(aimRad) * beamLen
+                            drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(beamX, beamY), strokeWidth = cellW * 0.09f, cap = StrokeCap.Round)
+                            drawLine(color = if (upgradeLevel == 4) apexAuraColor else Color.White, start = Offset(tcx, tcy), end = Offset(beamX, beamY), strokeWidth = cellW * 0.04f, cap = StrokeCap.Round)
+
+                            // Orbiting Motes (count scales with level)
+                            val moteCount = if (upgradeLevel >= 3) 4 else 3
+                            val orbAngle = animFlowTime * 0.005f
+                            for (i in 0 until moteCount) {
+                                val a = orbAngle + i * (2f * PI.toFloat() / moteCount)
+                                val ox = tcx + cos(a) * (cellW * 0.24f)
+                                val oy = tcy + sin(a) * (cellW * 0.24f)
+                                val mColor = if (upgradeLevel == 4 && i % 2 == 0) apexAuraColor else towerColor
+                                drawCircle(color = mColor, radius = cellW * 0.045f, center = Offset(ox, oy))
+                            }
+                            drawCircle(color = Color.White, radius = cellW * 0.10f, center = Offset(tcx, tcy))
+                            drawCircle(color = towerColor, radius = cellW * 0.06f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.HEAVY_SIEGE -> {
+                            val sqRadius = cellW * 0.38f
+                            val sqTopLeft = Offset(tcx - sqRadius, tcy - sqRadius)
+                            val sqBounds = Size(sqRadius * 2f, sqRadius * 2f)
+
+                            drawRoundRect(color = Color(0xFF0F1420), topLeft = sqTopLeft, size = sqBounds, cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f))
+                            drawRoundRect(color = borderColor, topLeft = sqTopLeft, size = sqBounds, cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
+
+                            // Dual accelerator rails
+                            val railLen = cellW * (if (upgradeLevel >= 3) 0.42f else 0.36f)
+                            val perp = aimRad + (PI / 2f).toFloat()
+                            val spread = cellW * 0.08f
+                            val r1Start = Offset(tcx + cos(perp) * spread, tcy + sin(perp) * spread)
+                            val r1End = Offset(r1Start.x + cos(aimRad) * railLen, r1Start.y + sin(aimRad) * railLen)
+                            val r2Start = Offset(tcx - cos(perp) * spread, tcy - sin(perp) * spread)
+                            val r2End = Offset(r2Start.x + cos(aimRad) * railLen, r2Start.y + sin(aimRad) * railLen)
+
+                            val railColor = if (upgradeLevel >= 3) archetypeAccentColor else borderColor
+                            drawLine(color = railColor, start = r1Start, end = r1End, strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                            drawLine(color = railColor, start = r2Start, end = r2End, strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+
+                            // Level 2+ Vector Reinforcement Brackets
+                            if (upgradeLevel >= 2) {
+                                drawLine(color = vectorAccentColor, start = Offset(r1Start.x - cos(aimRad) * 4f, r1Start.y - sin(aimRad) * 4f), end = Offset(r2Start.x - cos(aimRad) * 4f, r2Start.y - sin(aimRad) * 4f), strokeWidth = cellW * 0.04f)
+                            }
+
+                            // Central Beam Conduit
+                            val coreEnd = Offset(tcx + cos(aimRad) * (railLen * 0.95f), tcy + sin(aimRad) * (railLen * 0.95f))
+                            drawLine(color = if (upgradeLevel == 4) apexAuraColor else Color.White, start = Offset(tcx, tcy), end = coreEnd, strokeWidth = cellW * 0.035f, cap = StrokeCap.Round)
+
+                            // Reactor Hub
+                            drawCircle(color = Color(0xFF0F172A), radius = cellW * 0.13f, center = Offset(tcx, tcy))
+                            drawCircle(color = borderColor, radius = cellW * 0.13f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
+                            drawCircle(color = Color.White, radius = cellW * 0.06f, center = Offset(tcx, tcy))
+                        }
                     }
-                    drawCircle(color = Color.White, radius = cellW * 0.14f, center = Offset(tcx, tcy))
-                    drawCircle(color = towerColor, radius = cellW * 0.08f, center = Offset(tcx, tcy))
                 }
 
-                TowerClass.ELEMENTAL_VOID -> {
-                    // === ELEMENTAL VOID: TRIANGLE BASE ===
-                    val triRadius = cellW * 0.44f
-                    val p1 = Offset(tcx, tcy - triRadius)
-                    val p2 = Offset(tcx + triRadius * 0.866f, tcy + triRadius * 0.5f)
-                    val p3 = Offset(tcx - triRadius * 0.866f, tcy + triRadius * 0.5f)
+                // =========================================================================================
+                // SKIN 2: Blueprint Schematic / Technical CAD
+                // =========================================================================================
+                TurretSkinSlot.SLOT_2_BLUEPRINT -> {
+                    val cadColor = Color(0xFF60A5FA)
+                    val cadWhite = Color.White.copy(alpha = 0.85f)
 
-                    val triPath = Path().apply {
-                        moveTo(p1.x, p1.y)
-                        lineTo(p2.x, p2.y)
-                        lineTo(p3.x, p3.y)
-                        close()
+                    // Architectural Grid Crosshairs & Guideline Circle
+                    val ch = cellW * 0.38f
+                    drawLine(color = cadColor.copy(alpha = 0.40f), start = Offset(tcx - ch, tcy), end = Offset(tcx + ch, tcy), strokeWidth = 1.0f)
+                    drawLine(color = cadColor.copy(alpha = 0.40f), start = Offset(tcx, tcy - ch), end = Offset(tcx, tcy + ch), strokeWidth = 1.0f)
+                    drawCircle(color = cadColor.copy(alpha = 0.30f), radius = cellW * 0.35f, center = Offset(tcx, tcy), style = Stroke(width = 1.0f))
+
+                    when (effectiveClass) {
+                        TowerClass.KINETIC_BALLISTIC -> {
+                            drawCircle(color = Color(0xFF0A192F), radius = cellW * 0.36f, center = Offset(tcx, tcy))
+                            drawCircle(color = cadColor, radius = cellW * 0.36f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
+
+                            // Technical drafting ticks
+                            for (deg in listOf(0, 90, 180, 270)) {
+                                val r = deg * (PI / 180f).toFloat()
+                                drawLine(color = cadWhite, start = Offset(tcx + cos(r) * cellW * 0.33f, tcy + sin(r) * cellW * 0.33f), end = Offset(tcx + cos(r) * cellW * 0.38f, tcy + sin(r) * cellW * 0.38f), strokeWidth = 1.5f)
+                            }
+
+                            // Level 2+ Vector Telemetry Chevrons
+                            if (upgradeLevel >= 2) {
+                                val p = aimRad + (PI / 2f).toFloat()
+                                val wOff = cellW * 0.26f
+                                drawLine(color = vectorAccentColor, start = Offset(tcx + cos(p) * wOff, tcy + sin(p) * wOff), end = Offset(tcx + cos(aimRad) * cellW * 0.28f, tcy + sin(aimRad) * cellW * 0.28f), strokeWidth = 1.5f)
+                                drawLine(color = vectorAccentColor, start = Offset(tcx - cos(p) * wOff, tcy - sin(p) * wOff), end = Offset(tcx + cos(aimRad) * cellW * 0.28f, tcy + sin(aimRad) * cellW * 0.28f), strokeWidth = 1.5f)
+                            }
+
+                            // Schematic Barrel Assembly
+                            val bLen = cellW * 0.36f
+                            val endX = tcx + cos(aimRad) * bLen
+                            val endY = tcy + sin(aimRad) * bLen
+                            drawLine(color = cadWhite, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+
+                            // Level 3+ Archetype Dimension Brackets
+                            if (upgradeLevel >= 3) {
+                                val p = aimRad + (PI / 2f).toFloat()
+                                val off = cellW * 0.08f
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx + cos(p) * off, tcy + sin(p) * off), end = Offset(endX + cos(p) * off, endY + sin(p) * off), strokeWidth = 2.0f)
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx - cos(p) * off, tcy - sin(p) * off), end = Offset(endX - cos(p) * off, endY - sin(p) * off), strokeWidth = 2.0f)
+                            }
+
+                            drawCircle(color = Color(0xFF0F172A), radius = cellW * 0.12f, center = Offset(tcx, tcy))
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else cadColor, radius = cellW * 0.07f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.ELEMENTAL_VOID -> {
+                            val r = cellW * 0.42f
+                            val p1 = Offset(tcx, tcy - r)
+                            val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
+                            val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
+                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+                            drawPath(path = p, color = Color(0xFF0A192F))
+                            drawPath(path = p, color = cadColor, style = Stroke(width = 1.8f))
+
+                            // Vertex CAD Crosses
+                            listOf(p1, p2, p3).forEach { pt ->
+                                drawLine(color = cadWhite, start = Offset(pt.x - 3f, pt.y), end = Offset(pt.x + 3f, pt.y), strokeWidth = 1.2f)
+                                drawLine(color = cadWhite, start = Offset(pt.x, pt.y - 3f), end = Offset(pt.x, pt.y + 3f), strokeWidth = 1.2f)
+                            }
+
+                            // Level 2+ Vector Dimension Arc
+                            if (upgradeLevel >= 2) {
+                                drawCircle(color = vectorAccentColor.copy(alpha = 0.5f), radius = cellW * 0.22f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
+                            }
+
+                            // Level 3+ Archetype Focusing Ray
+                            val bLen = cellW * 0.35f
+                            val bEnd = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen)
+                            drawLine(color = cadColor, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.07f)
+                            if (upgradeLevel >= 3) {
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.03f)
+                            }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else cadWhite, radius = cellW * 0.08f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.HEAVY_SIEGE -> {
+                            val s = cellW * 0.72f
+                            val tl = Offset(tcx - s / 2f, tcy - s / 2f)
+                            drawRect(color = Color(0xFF0A192F), topLeft = tl, size = Size(s, s))
+                            drawRect(color = cadColor, topLeft = tl, size = Size(s, s), style = Stroke(width = 1.8f))
+
+                            // CAD Drafting Diagonal Alignment Marks
+                            drawLine(color = cadColor.copy(alpha = 0.35f), start = tl, end = Offset(tl.x + s, tl.y + s), strokeWidth = 1.0f)
+                            drawLine(color = cadColor.copy(alpha = 0.35f), start = Offset(tl.x + s, tl.y), end = Offset(tl.x, tl.y + s), strokeWidth = 1.0f)
+
+                            // Rail guides
+                            val rLen = cellW * 0.38f
+                            val perp = aimRad + (PI / 2f).toFloat()
+                            val sp = cellW * 0.07f
+                            val r1 = Offset(tcx + cos(perp) * sp, tcy + sin(perp) * sp)
+                            val r2 = Offset(tcx - cos(perp) * sp, tcy - sin(perp) * sp)
+                            drawLine(color = cadWhite, start = r1, end = Offset(r1.x + cos(aimRad) * rLen, r1.y + sin(aimRad) * rLen), strokeWidth = 2.0f)
+                            drawLine(color = cadWhite, start = r2, end = Offset(r2.x + cos(aimRad) * rLen, r2.y + sin(aimRad) * rLen), strokeWidth = 2.0f)
+
+                            if (upgradeLevel >= 2) {
+                                drawLine(color = vectorAccentColor, start = r1, end = r2, strokeWidth = 2.0f)
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawCircle(color = archetypeAccentColor, radius = cellW * 0.12f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
+                            }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else cadColor, radius = cellW * 0.06f, center = Offset(tcx, tcy))
+                        }
                     }
-
-                    drawPath(path = triPath, color = Color(0xFF140D26))
-                    drawPath(path = triPath, color = borderColor, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
-
-                    // Inverted inner rune triangle
-                    val innerRadius = cellW * 0.25f
-                    val innerTri = Path().apply {
-                        moveTo(tcx, tcy + innerRadius)
-                        lineTo(tcx - innerRadius * 0.866f, tcy - innerRadius * 0.5f)
-                        lineTo(tcx + innerRadius * 0.866f, tcy - innerRadius * 0.5f)
-                        close()
-                    }
-                    drawPath(path = innerTri, color = towerColor.copy(alpha = 0.30f))
-                    drawPath(path = innerTri, color = borderColor.copy(alpha = 0.60f), style = Stroke(width = 1.2f, join = StrokeJoin.Round))
-
-                    // Elemental power crystals at 3 triangle vertices
-                    drawCircle(color = borderColor, radius = cellW * 0.05f, center = p1)
-                    drawCircle(color = borderColor, radius = cellW * 0.05f, center = p2)
-                    drawCircle(color = borderColor, radius = cellW * 0.05f, center = p3)
-
-                    // Central focusing crystal / emitter pointing along aimRad
-                    val beamX = tcx + cos(aimRad) * (cellW * 0.34f)
-                    val beamY = tcy + sin(aimRad) * (cellW * 0.34f)
-                    drawLine(color = towerColor, start = Offset(tcx, tcy), end = Offset(beamX, beamY), strokeWidth = cellW * 0.09f, cap = StrokeCap.Round)
-                    drawLine(color = Color.White, start = Offset(tcx, tcy), end = Offset(beamX, beamY), strokeWidth = cellW * 0.04f, cap = StrokeCap.Round)
-
-                    // Orbiting elemental motes
-                    val orbAngle = animFlowTime * 0.005f
-                    for (i in 0 until 3) {
-                        val a = orbAngle + i * (2f * PI.toFloat() / 3f)
-                        val ox = tcx + cos(a) * (cellW * 0.22f)
-                        val oy = tcy + sin(a) * (cellW * 0.22f)
-                        drawCircle(color = towerColor, radius = cellW * 0.045f, center = Offset(ox, oy))
-                    }
-                    drawCircle(color = Color.White, radius = cellW * 0.10f, center = Offset(tcx, tcy))
-                    drawCircle(color = towerColor, radius = cellW * 0.06f, center = Offset(tcx, tcy))
                 }
 
-                TowerClass.HEAVY_SIEGE -> {
-                    // === HEAVY SIEGE: SLEEK MINIMALIST THIN-RAIL CHASSIS ===
-                    val sqRadius = cellW * 0.38f
-                    val sqTopLeft = Offset(tcx - sqRadius, tcy - sqRadius)
-                    val sqBounds = Size(sqRadius * 2f, sqRadius * 2f)
+                // =========================================================================================
+                // SKIN 3: Tactical Military / Heavy Plated Armor
+                // =========================================================================================
+                TurretSkinSlot.SLOT_3_MILITARY -> {
+                    val steelDark = Color(0xFF1E293B)
+                    val steelPlate = Color(0xFF334155)
+                    val rivetColor = Color(0xFF94A3B8)
 
-                    // Outer dark chassis plate with beveled sleek corners
-                    drawRoundRect(
-                        color = Color(0xFF0F1420),
-                        topLeft = sqTopLeft,
-                        size = sqBounds,
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
-                    )
-                    // Precision thin-line border
-                    drawRoundRect(
-                        color = borderColor,
-                        topLeft = sqTopLeft,
-                        size = sqBounds,
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
-                        style = Stroke(width = 2.0f)
-                    )
+                    when (effectiveClass) {
+                        TowerClass.KINETIC_BALLISTIC -> {
+                            // Heavy armored pillbox bunker
+                            drawCircle(color = steelDark, radius = cellW * 0.38f, center = Offset(tcx, tcy))
+                            drawCircle(color = steelPlate, radius = cellW * 0.38f, center = Offset(tcx, tcy), style = Stroke(width = 3.5f))
 
-                    // High-contrast interior diamond power grid
-                    val innerDiamond = Path().apply {
-                        moveTo(tcx, tcy - sqRadius * 0.70f)
-                        lineTo(tcx + sqRadius * 0.70f, tcy)
-                        lineTo(tcx, tcy + sqRadius * 0.70f)
-                        lineTo(tcx - sqRadius * 0.70f, tcy)
-                        close()
+                            // 4 Corner Bolted Rivets
+                            val rOff = cellW * 0.26f
+                            listOf(Offset(tcx - rOff, tcy - rOff), Offset(tcx + rOff, tcy - rOff), Offset(tcx - rOff, tcy + rOff), Offset(tcx + rOff, tcy + rOff)).forEach {
+                                drawCircle(color = rivetColor, radius = 2.5f, center = it)
+                            }
+
+                            // Level 2+ Reactive Armor Chevrons
+                            if (upgradeLevel >= 2) {
+                                val p = aimRad + (PI / 2f).toFloat()
+                                val wOff = cellW * 0.28f
+                                drawRoundRect(color = vectorAccentColor, topLeft = Offset(tcx + cos(p) * wOff - 4f, tcy + sin(p) * wOff - 4f), size = Size(8f, 8f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f))
+                                drawRoundRect(color = vectorAccentColor, topLeft = Offset(tcx - cos(p) * wOff - 4f, tcy - sin(p) * wOff - 4f), size = Size(8f, 8f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f))
+                            }
+
+                            // Heavy Autocannon Muzzle
+                            val bLen = cellW * 0.38f
+                            val endX = tcx + cos(aimRad) * bLen
+                            val endY = tcy + sin(aimRad) * bLen
+                            drawLine(color = steelPlate, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.16f, cap = StrokeCap.Square)
+                            drawLine(color = if (upgradeLevel >= 3) archetypeAccentColor else Color.Black, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+
+                            // Turret Cupola Mantle
+                            drawCircle(color = steelDark, radius = cellW * 0.16f, center = Offset(tcx, tcy))
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else rivetColor, radius = cellW * 0.08f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.ELEMENTAL_VOID -> {
+                            val r = cellW * 0.44f
+                            val p1 = Offset(tcx, tcy - r)
+                            val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
+                            val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
+                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+
+                            drawPath(path = p, color = steelDark)
+                            drawPath(path = p, color = steelPlate, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+
+                            // Reinforced containment brackets
+                            listOf(p1, p2, p3).forEach { pt ->
+                                drawCircle(color = rivetColor, radius = 3.0f, center = pt)
+                            }
+
+                            if (upgradeLevel >= 2) {
+                                drawCircle(color = vectorAccentColor, radius = cellW * 0.18f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
+                            }
+
+                            val bLen = cellW * 0.34f
+                            val bEnd = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen)
+                            drawLine(color = steelPlate, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.10f, cap = StrokeCap.Square)
+                            if (upgradeLevel >= 3) {
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.05f)
+                            }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else Color.White, radius = cellW * 0.09f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.HEAVY_SIEGE -> {
+                            val s = cellW * 0.76f
+                            val tl = Offset(tcx - s / 2f, tcy - s / 2f)
+                            drawRoundRect(color = steelDark, topLeft = tl, size = Size(s, s), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+                            drawRoundRect(color = steelPlate, topLeft = tl, size = Size(s, s), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f), style = Stroke(width = 3.5f))
+
+                            // Corner heavy armor plates
+                            val cSize = cellW * 0.14f
+                            listOf(tl, Offset(tl.x + s - cSize, tl.y), Offset(tl.x, tl.y + s - cSize), Offset(tl.x + s - cSize, tl.y + s - cSize)).forEach {
+                                drawRect(color = steelPlate, topLeft = it, size = Size(cSize, cSize))
+                                drawCircle(color = rivetColor, radius = 2.0f, center = Offset(it.x + cSize / 2f, it.y + cSize / 2f))
+                            }
+
+                            // Heavy Flak Dual Cannons
+                            val bLen = cellW * 0.40f
+                            val perp = aimRad + (PI / 2f).toFloat()
+                            val sp = cellW * 0.09f
+                            val c1 = Offset(tcx + cos(perp) * sp, tcy + sin(perp) * sp)
+                            val c2 = Offset(tcx - cos(perp) * sp, tcy - sin(perp) * sp)
+                            drawLine(color = steelPlate, start = c1, end = Offset(c1.x + cos(aimRad) * bLen, c1.y + sin(aimRad) * bLen), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+                            drawLine(color = steelPlate, start = c2, end = Offset(c2.x + cos(aimRad) * bLen, c2.y + sin(aimRad) * bLen), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+
+                            if (upgradeLevel >= 2) {
+                                drawLine(color = vectorAccentColor, start = c1, end = c2, strokeWidth = 3.0f)
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawCircle(color = archetypeAccentColor, radius = cellW * 0.14f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
+                            }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else rivetColor, radius = cellW * 0.08f, center = Offset(tcx, tcy))
+                        }
                     }
-                    drawPath(path = innerDiamond, color = towerColor.copy(alpha = 0.20f))
-                    drawPath(path = innerDiamond, color = borderColor.copy(alpha = 0.60f), style = Stroke(width = 1.0f))
+                }
 
-                    // Sleek precision dual-rail accelerator guides (thin rails along firing vector)
-                    val railLength = cellW * 0.38f
-                    val perpAngle = aimRad + (PI / 2f).toFloat()
-                    val railSpread = cellW * 0.08f
+                // =========================================================================================
+                // SKIN 4: Void Rift / Astral Occult Relic
+                // =========================================================================================
+                TurretSkinSlot.SLOT_4_VOID -> {
+                    val voidDark = Color(0xFF0D061A)
+                    val voidRift = Color(0xFFA855F7)
+                    val voidGlow = Color(0xFFD946EF)
 
-                    val r1StartX = tcx + cos(perpAngle) * railSpread
-                    val r1StartY = tcy + sin(perpAngle) * railSpread
-                    val r1EndX = r1StartX + cos(aimRad) * railLength
-                    val r1EndY = r1StartY + sin(aimRad) * railLength
+                    // Occult Swirling Astral Corona
+                    drawCircle(color = voidRift.copy(alpha = 0.25f * auraPulse), radius = cellW * 0.42f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
 
-                    val r2StartX = tcx - cos(perpAngle) * railSpread
-                    val r2StartY = tcy - sin(perpAngle) * railSpread
-                    val r2EndX = r2StartX + cos(aimRad) * railLength
-                    val r2EndY = r2StartY + sin(aimRad) * railLength
+                    when (effectiveClass) {
+                        TowerClass.KINETIC_BALLISTIC -> {
+                            drawCircle(color = voidDark, radius = cellW * 0.38f, center = Offset(tcx, tcy))
+                            drawCircle(color = voidRift, radius = cellW * 0.38f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
 
-                    // Outer accelerator rails (crisp thin lines)
-                    drawLine(color = borderColor, start = Offset(r1StartX, r1StartY), end = Offset(r1EndX, r1EndY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
-                    drawLine(color = borderColor, start = Offset(r2StartX, r2StartY), end = Offset(r2EndX, r2EndY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                            // Level 2+ Orbiting Void Slivers
+                            if (upgradeLevel >= 2) {
+                                val sAngle = animFlowTime * 0.007f
+                                for (i in 0 until 2) {
+                                    val a = sAngle + i * PI.toFloat()
+                                    val sx = tcx + cos(a) * cellW * 0.30f
+                                    val sy = tcy + sin(a) * cellW * 0.30f
+                                    drawCircle(color = vectorAccentColor, radius = 3.5f, center = Offset(sx, sy))
+                                }
+                            }
 
-                    // Core plasma/energy conduit between the twin rails
-                    val coreBeamEndX = tcx + cos(aimRad) * (railLength * 0.95f)
-                    val coreBeamEndY = tcy + sin(aimRad) * (railLength * 0.95f)
-                    drawLine(color = Color.White, start = Offset(tcx, tcy), end = Offset(coreBeamEndX, coreBeamEndY), strokeWidth = cellW * 0.035f, cap = StrokeCap.Round)
+                            // Void Singularity Beam Emitter
+                            val bLen = cellW * 0.36f
+                            val endX = tcx + cos(aimRad) * bLen
+                            val endY = tcy + sin(aimRad) * bLen
+                            drawLine(color = voidGlow, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.10f, cap = StrokeCap.Round)
+                            if (upgradeLevel >= 3) {
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.05f, cap = StrokeCap.Round)
+                            }
+                            drawCircle(color = Color.White, radius = cellW * 0.12f, center = Offset(tcx, tcy))
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else voidRift, radius = cellW * 0.07f, center = Offset(tcx, tcy))
+                        }
 
-                    // Sleek central reactor hub
-                    drawCircle(color = Color(0xFF0F172A), radius = cellW * 0.13f, center = Offset(tcx, tcy))
-                    drawCircle(color = borderColor, radius = cellW * 0.13f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
-                    drawCircle(color = Color.White, radius = cellW * 0.06f, center = Offset(tcx, tcy))
-                    drawCircle(color = towerColor, radius = cellW * 0.035f, center = Offset(tcx, tcy))
+                        TowerClass.ELEMENTAL_VOID -> {
+                            val r = cellW * 0.44f
+                            val p1 = Offset(tcx, tcy - r)
+                            val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
+                            val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
+                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+
+                            drawPath(path = p, color = voidDark)
+                            drawPath(path = p, color = voidRift, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
+
+                            // Occult Shard Crystals
+                            listOf(p1, p2, p3).forEach { pt ->
+                                drawCircle(color = voidGlow, radius = cellW * 0.06f, center = pt)
+                            }
+
+                            if (upgradeLevel >= 2) {
+                                drawCircle(color = vectorAccentColor, radius = cellW * 0.20f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
+                            }
+
+                            val bLen = cellW * 0.36f
+                            val bEnd = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen)
+                            drawLine(color = voidGlow, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.09f, cap = StrokeCap.Round)
+                            if (upgradeLevel >= 3) {
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.04f, cap = StrokeCap.Round)
+                            }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else Color.White, radius = cellW * 0.09f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.HEAVY_SIEGE -> {
+                            val s = cellW * 0.74f
+                            val tl = Offset(tcx - s / 2f, tcy - s / 2f)
+                            drawRoundRect(color = voidDark, topLeft = tl, size = Size(s, s), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f))
+                            drawRoundRect(color = voidRift, topLeft = tl, size = Size(s, s), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
+
+                            // Dimensional Monolith Aperture
+                            val innerDiamond = Path().apply {
+                                moveTo(tcx, tcy - s * 0.35f)
+                                lineTo(tcx + s * 0.35f, tcy)
+                                lineTo(tcx, tcy + s * 0.35f)
+                                lineTo(tcx - s * 0.35f, tcy)
+                                close()
+                            }
+                            drawPath(path = innerDiamond, color = voidGlow.copy(alpha = 0.25f))
+
+                            val bLen = cellW * 0.38f
+                            val perp = aimRad + (PI / 2f).toFloat()
+                            val sp = cellW * 0.08f
+                            val r1 = Offset(tcx + cos(perp) * sp, tcy + sin(perp) * sp)
+                            val r2 = Offset(tcx - cos(perp) * sp, tcy - sin(perp) * sp)
+                            drawLine(color = voidRift, start = r1, end = Offset(r1.x + cos(aimRad) * bLen, r1.y + sin(aimRad) * bLen), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                            drawLine(color = voidRift, start = r2, end = Offset(r2.x + cos(aimRad) * bLen, r2.y + sin(aimRad) * bLen), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+
+                            if (upgradeLevel >= 2) {
+                                drawLine(color = vectorAccentColor, start = r1, end = r2, strokeWidth = 2.5f)
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawCircle(color = archetypeAccentColor, radius = cellW * 0.12f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
+                            }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else Color.White, radius = cellW * 0.07f, center = Offset(tcx, tcy))
+                        }
+                    }
+                }
+
+                // =========================================================================================
+                // SKIN 5: Retro Pixel Arcade / 8-Bit Pixel Synth
+                // =========================================================================================
+                TurretSkinSlot.SLOT_5_PIXEL -> {
+                    val pixelDark = Color(0xFF0F172A)
+                    val pixelYellow = Color(0xFFFACC15)
+                    val pUnit = cellW * 0.06f
+
+                    // 4 Stepped Pixel Corners
+                    val bOff = cellW * 0.32f
+                    listOf(Offset(tcx - bOff, tcy - bOff), Offset(tcx + bOff - pUnit, tcy - bOff), Offset(tcx - bOff, tcy + bOff - pUnit), Offset(tcx + bOff - pUnit, tcy + bOff - pUnit)).forEach {
+                        drawRect(color = pixelYellow, topLeft = it, size = Size(pUnit, pUnit))
+                    }
+
+                    when (effectiveClass) {
+                        TowerClass.KINETIC_BALLISTIC -> {
+                            drawCircle(color = pixelDark, radius = cellW * 0.36f, center = Offset(tcx, tcy))
+                            drawCircle(color = pixelYellow, radius = cellW * 0.36f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
+
+                            // Level 2+ Stepped Pixel Wing Pods
+                            if (upgradeLevel >= 2) {
+                                val p = aimRad + (PI / 2f).toFloat()
+                                val wOff = cellW * 0.28f
+                                drawRect(color = vectorAccentColor, topLeft = Offset(tcx + cos(p) * wOff - pUnit / 2f, tcy + sin(p) * wOff - pUnit / 2f), size = Size(pUnit, pUnit))
+                                drawRect(color = vectorAccentColor, topLeft = Offset(tcx - cos(p) * wOff - pUnit / 2f, tcy - sin(p) * wOff - pUnit / 2f), size = Size(pUnit, pUnit))
+                            }
+
+                            // 8-Bit Square Pixel Barrel
+                            val bLen = cellW * 0.34f
+                            val endX = tcx + cos(aimRad) * bLen
+                            val endY = tcy + sin(aimRad) * bLen
+                            drawLine(color = pixelYellow, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.12f, cap = StrokeCap.Square)
+                            if (upgradeLevel >= 3) {
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx, tcy), end = Offset(endX, endY), strokeWidth = cellW * 0.06f, cap = StrokeCap.Square)
+                            }
+                            drawRect(color = if (upgradeLevel == 4) apexAuraColor else Color.White, topLeft = Offset(tcx - pUnit, tcy - pUnit), size = Size(pUnit * 2f, pUnit * 2f))
+                        }
+
+                        TowerClass.ELEMENTAL_VOID -> {
+                            val r = cellW * 0.42f
+                            val p1 = Offset(tcx, tcy - r)
+                            val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
+                            val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
+                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+
+                            drawPath(path = p, color = pixelDark)
+                            drawPath(path = p, color = pixelYellow, style = Stroke(width = 2.0f, join = StrokeJoin.Miter))
+
+                            listOf(p1, p2, p3).forEach { pt ->
+                                drawRect(color = pixelYellow, topLeft = Offset(pt.x - pUnit / 2f, pt.y - pUnit / 2f), size = Size(pUnit, pUnit))
+                            }
+
+                            if (upgradeLevel >= 2) {
+                                drawRect(color = vectorAccentColor, topLeft = Offset(tcx - pUnit * 1.5f, tcy - pUnit * 1.5f), size = Size(pUnit * 3f, pUnit * 3f), style = Stroke(width = 1.5f))
+                            }
+
+                            val bLen = cellW * 0.34f
+                            val bEnd = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen)
+                            drawLine(color = pixelYellow, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.09f, cap = StrokeCap.Square)
+                            if (upgradeLevel >= 3) {
+                                drawLine(color = archetypeAccentColor, start = Offset(tcx, tcy), end = bEnd, strokeWidth = cellW * 0.045f, cap = StrokeCap.Square)
+                            }
+                            drawRect(color = if (upgradeLevel == 4) apexAuraColor else Color.White, topLeft = Offset(tcx - pUnit * 0.8f, tcy - pUnit * 0.8f), size = Size(pUnit * 1.6f, pUnit * 1.6f))
+                        }
+
+                        TowerClass.HEAVY_SIEGE -> {
+                            val s = cellW * 0.72f
+                            val tl = Offset(tcx - s / 2f, tcy - s / 2f)
+                            drawRect(color = pixelDark, topLeft = tl, size = Size(s, s))
+                            drawRect(color = pixelYellow, topLeft = tl, size = Size(s, s), style = Stroke(width = 2.0f))
+
+                            // Stepped Pixel Bevels
+                            drawRect(color = pixelYellow, topLeft = Offset(tl.x, tl.y), size = Size(pUnit, pUnit))
+                            drawRect(color = pixelYellow, topLeft = Offset(tl.x + s - pUnit, tl.y), size = Size(pUnit, pUnit))
+                            drawRect(color = pixelYellow, topLeft = Offset(tl.x, tl.y + s - pUnit), size = Size(pUnit, pUnit))
+                            drawRect(color = pixelYellow, topLeft = Offset(tl.x + s - pUnit, tl.y + s - pUnit), size = Size(pUnit, pUnit))
+
+                            val bLen = cellW * 0.38f
+                            val perp = aimRad + (PI / 2f).toFloat()
+                            val sp = cellW * 0.08f
+                            val r1 = Offset(tcx + cos(perp) * sp, tcy + sin(perp) * sp)
+                            val r2 = Offset(tcx - cos(perp) * sp, tcy - sin(perp) * sp)
+                            drawLine(color = pixelYellow, start = r1, end = Offset(r1.x + cos(aimRad) * bLen, r1.y + sin(aimRad) * bLen), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+                            drawLine(color = pixelYellow, start = r2, end = Offset(r2.x + cos(aimRad) * bLen, r2.y + sin(aimRad) * bLen), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+
+                            if (upgradeLevel >= 2) {
+                                drawLine(color = vectorAccentColor, start = r1, end = r2, strokeWidth = 2.5f)
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawRect(color = archetypeAccentColor, topLeft = Offset(tcx - pUnit * 1.2f, tcy - pUnit * 1.2f), size = Size(pUnit * 2.4f, pUnit * 2.4f), style = Stroke(width = 1.5f))
+                            }
+                            drawRect(color = if (upgradeLevel == 4) apexAuraColor else Color.White, topLeft = Offset(tcx - pUnit * 0.7f, tcy - pUnit * 0.7f), size = Size(pUnit * 1.4f, pUnit * 1.4f))
+                        }
+                    }
                 }
             }
 
-            // === 3. TIER FORM BADGE (Circle, Triangle, Square matching the class) ===
+            // === TIER FORM BADGE (Dynamic Level 1-4 Indicator) ===
             val badgeY = tcy + cellW * 0.28f
-            val badgeColor = if (tower.isFinalForm) Color(0xFFFFB800) else Color(0xFF00FF9D)
+            val badgeColor = when (upgradeLevel) {
+                4 -> apexAuraColor
+                3 -> archetypeAccentColor
+                2 -> vectorAccentColor
+                else -> Color(0xFF94A3B8)
+            }
             when (effectiveClass) {
                 TowerClass.KINETIC_BALLISTIC -> {
-                    drawCircle(color = badgeColor, radius = if (tower.isFinalForm) 3.5f else 2.5f, center = Offset(tcx, badgeY))
+                    drawCircle(color = badgeColor, radius = if (upgradeLevel >= 3) 3.5f else 2.5f, center = Offset(tcx, badgeY))
                 }
                 TowerClass.ELEMENTAL_VOID -> {
-                    val bR = if (tower.isFinalForm) 4.5f else 3.5f
+                    val bR = if (upgradeLevel >= 3) 4.5f else 3.5f
                     val bTri = Path().apply {
                         moveTo(tcx, badgeY - bR)
                         lineTo(tcx + bR * 0.866f, badgeY + bR * 0.5f)
@@ -670,60 +1053,8 @@ fun GameCanvas(
                     drawPath(path = bTri, color = badgeColor)
                 }
                 TowerClass.HEAVY_SIEGE -> {
-                    val bS = if (tower.isFinalForm) 6f else 5f
+                    val bS = if (upgradeLevel >= 3) 6f else 5f
                     drawRect(color = badgeColor, topLeft = Offset(tcx - bS / 2f, badgeY - bS / 2f), size = Size(bS, bS))
-                }
-            }
-
-            // === 4. TURRET VISUAL SKIN OVERLAY (TASK 07) ===
-            val skinSlot = TurretSkinSlot.fromSlot(state.turretSkinSlot)
-            when (skinSlot) {
-                TurretSkinSlot.SLOT_1_DEFAULT -> {
-                    // Default Vector Cyber: clean neon linework
-                }
-                TurretSkinSlot.SLOT_2_BLUEPRINT -> {
-                    // Blueprint Schematic: subtle technical drafting lines & crosshairs
-                    val chLen = cellW * 0.16f
-                    drawLine(color = Color.White.copy(alpha = 0.7f), start = Offset(tcx - chLen, tcy), end = Offset(tcx + chLen, tcy), strokeWidth = 1.0f)
-                    drawLine(color = Color.White.copy(alpha = 0.7f), start = Offset(tcx, tcy - chLen), end = Offset(tcx, tcy + chLen), strokeWidth = 1.0f)
-                    drawCircle(color = Color(0xFF60A5FA).copy(alpha = 0.5f), radius = cellW * 0.36f, center = Offset(tcx, tcy), style = Stroke(width = 1.0f))
-                }
-                TurretSkinSlot.SLOT_3_MILITARY -> {
-                    // Tactical Military: 4 corner reinforcement rivet bolts
-                    val rivetOff = cellW * 0.28f
-                    val rivetRadius = cellW * 0.035f
-                    listOf(
-                        Offset(tcx - rivetOff, tcy - rivetOff),
-                        Offset(tcx + rivetOff, tcy - rivetOff),
-                        Offset(tcx - rivetOff, tcy + rivetOff),
-                        Offset(tcx + rivetOff, tcy + rivetOff)
-                    ).forEach { rPos ->
-                        drawCircle(color = Color(0xFF475569), radius = rivetRadius, center = rPos)
-                        drawCircle(color = Color(0xFF94A3B8), radius = rivetRadius * 0.5f, center = rPos)
-                    }
-                }
-                TurretSkinSlot.SLOT_4_VOID -> {
-                    // Deep Void Rift: shimmering astral corona ring
-                    val pulse = (sin(animFlowTime * 0.008f) * 0.2f + 0.8f).toFloat()
-                    drawCircle(
-                        color = Color(0xFFA855F7).copy(alpha = 0.35f * pulse),
-                        radius = cellW * 0.42f,
-                        center = Offset(tcx, tcy),
-                        style = Stroke(width = 1.8f)
-                    )
-                }
-                TurretSkinSlot.SLOT_5_PIXEL -> {
-                    // Retro Pixel Arcade: 8-bit stepped pixel corners
-                    val pSize = cellW * 0.05f
-                    val bOff = cellW * 0.32f
-                    listOf(
-                        Offset(tcx - bOff, tcy - bOff),
-                        Offset(tcx + bOff - pSize, tcy - bOff),
-                        Offset(tcx - bOff, tcy + bOff - pSize),
-                        Offset(tcx + bOff - pSize, tcy + bOff - pSize)
-                    ).forEach { corner ->
-                        drawRect(color = Color(0xFFFACC15), topLeft = corner, size = Size(pSize, pSize))
-                    }
                 }
             }
         }

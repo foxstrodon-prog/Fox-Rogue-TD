@@ -502,17 +502,17 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 012`() {
-    assertEquals("0.0.0.012", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(20, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 013`() {
+    assertEquals("0.0.0.013", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(21, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.012", "0.0.0.011"))
-    assertTrue(updater.isNewerVersion("0.0.0.012", "0.0.0.011"))
+    assertTrue(updater.isNewerVersion("v0.0.0.013", "0.0.0.012"))
+    assertTrue(updater.isNewerVersion("0.0.0.013", "0.0.0.012"))
     assertFalse(updater.isNewerVersion("v0.0.0.011", "0.0.0.011"))
     assertFalse(updater.isNewerVersion("0.0.0.010", "0.0.0.011"))
   }
@@ -950,6 +950,50 @@ class ExampleRobolectricTest {
     soundManager.setSfxVolumeLevel(0.90f)
     assertEquals(0.90f, soundManager.sfxVolume)
     assertEquals(0.35f, soundManager.upgradeVolume)
+  }
+
+  @Test
+  fun `verify 15 tower upgrade audio variants play and test across all classes and skins`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val soundManager = com.example.audio.SoundManager(context)
+
+    val classes = listOf(
+      com.example.model.TowerClass.KINETIC_BALLISTIC,
+      com.example.model.TowerClass.ELEMENTAL_VOID,
+      com.example.model.TowerClass.HEAVY_SIEGE
+    )
+
+    for (towerClass in classes) {
+      for (slot in 1..5) {
+        soundManager.playTowerUpgrade(towerClass, slot)
+        soundManager.playTowerUpgradeTestSound(towerClass, slot)
+        soundManager.playTurretTestSound(towerClass, slot)
+      }
+    }
+
+    soundManager.release()
+  }
+
+  @Test
+  fun `verify music track preview and natural pause attenuation`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val soundManager = com.example.audio.SoundManager(context)
+
+    soundManager.masterVolume = 1.0f
+    soundManager.musicVolume = 1.0f
+    soundManager.isPaused = true
+
+    // Under pause menu, volume attenuates naturally to 50% without cutting out
+    assertEquals(0.5f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    // Previewing any music track while paused plays at attenuated level
+    soundManager.activeMusicTrack = com.example.audio.MusicTrack.CYBER_AMBIENT
+    assertEquals(0.5f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    soundManager.activeMusicTrack = com.example.audio.MusicTrack.NEON_OVERDRIVE
+    assertEquals(0.5f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    soundManager.release()
   }
 }
 

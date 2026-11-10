@@ -105,8 +105,11 @@ class MainActivity : ComponentActivity() {
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
     // Cut all audio playback immediately when app transitions out of active focus
+    // (Do not suspend if focus shifted to an in-app Compose Dialog such as Pause Menu)
     if (!hasFocus) {
-      viewModel.soundManager.suspendAllAudio()
+      if (!viewModel.isInternalDialogActive()) {
+        viewModel.soundManager.suspendAllAudio()
+      }
     } else {
       viewModel.soundManager.resumeAudio()
     }

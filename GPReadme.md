@@ -4,24 +4,39 @@ Welcome Commanders to **Dual Front TD**! Here is the latest update log directly 
 
 ---
 
-### 🚀 What's New in Version 0.0.0.012
+### 🚀 What's New in Version 0.0.0.013
 
-🏆 **Leaderboard Submission Authorization Fix**
-- Resolved token validation and package-restricted API key rejection (`security_retract rejected` / 403 Forbidden).
-- Your hard-fought high scores and wave clears now upload cleanly and reliably to global leaderboards with automated background retries.
+🎵 **Pause Menu Audio Attenuation & Natural Volume Ducking**
+- Background music now smoothly lowers in volume (50% / -6dB attenuation) upon opening the Pause Menu instead of muting completely.
+- Music streams continuously while tuning strategies and restores to full combat volume the instant gameplay resumes.
 
-🔄 **Display Rotation UI Refactoring & Text Layout**
-- Top Tactical Bar: Expanded margins and reformatted currency into an icon-stacked display to prevent text clipping upon rotation.
-- Bottom Upgrade Menus: Adaptive reorientation! In landscape, tower build and upgrade cards format into full-width stacked rows within the sidebar, ensuring all buttons, stats, and costs remain visible and easy to tap.
+🔊 **Instant Sound Menu & Gunfire Audio Testing**
+- Repaired testing triggers: tapping any turret gunfire slot immediately auditions that weapon sound variant.
+- Music track selection in the sound menu previews and streams directly in the menu without requiring in-game actions.
+- Real-time "▶ PREVIEWING" status badge on the active audio stream.
 
-⚙️ **Consolidated Settings Hub & Streamlined Dev Menu**
-- All audio controls, volume sliders, track selector, gunfire audio testing, skin previews, map themes, and procedural sound profiles are now centralized in the Pause Menu Settings Hub.
-- The Dev Balance Console is now dedicated purely to unit balancing values and live telemetry.
+⏳ **Extended 45-Second Music Tracks & Tapered Transitions**
+- All 5 procedural background music tracks now run for a full 45-second duration with rich chord progressions and synthesizer leads.
+- Raised-cosine tapered overlaps on repeats and transitions guarantee smooth, click-free looping.
 
-🔇 **Instant Focus & Background Audio Termination**
-- Audio cuts immediately the instant the app transitions out of active focus (task view, Home gesture, minimization, screen lock).
-- Zero lingering background music or trailing combat gunfire/explosions once focus is lost.
-- Seamless, glitch-free audio resume when returning to active gameplay.
+🛡️ **Complete Tower Skin Model Replacement & Level 1–4 Visual Cues**
+- Alternate skins (*Vector Minimal, Blueprint Schematic, Tactical Military, Void Rift, Retro Arcade*) now completely replace the base tower models.
+- Every skin features distinctive visual upgrade cues across Level 1 (Base Chassis), Level 2 (Vector Wings), Level 3 (Archetype Twin Barrels / Focus Needles), and Level 4 (Apex Radiant Crown / Corona Halo) that dynamically reflect each tower's class color, vector button color, archetype color, and apex gold.
+
+⚡ **15 Distinct Tower Upgrade Audio Profiles**
+- Replaced the single generic upgrade sound with 15 unique upgrade audio soundscapes (3 Tower Classes × 5 Skins).
+- Kinetic Ballistics, Elemental Void, and Heavy Siege towers each trigger specialized upgrade audio tailored to their active visual skin.
+- Full audition test suite integrated into the Pause Menu Audio Studio.
+
+---
+
+### 📦 Recent Updates Recap
+
+#### Version 0.0.0.012
+- **Leaderboard Authorization Fix**: Resolved token validation and package-restricted API key rejection (`security_retract rejected`).
+- **Display Rotation UI Refactoring**: Top bar margin expansion, stacked currency icon, and landscape adaptive drawer layouts.
+- **Settings Menu Consolidation**: Centralized audio controls and skin pickers in the Pause Menu Settings Hub.
+- **Instant Focus Audio Termination**: Audio cuts immediately when app transitions out of active focus.
 
 🎵 **Extended Music Rotation & Seamless Track Looping**
 - Eliminated abrupt 5-second track cycling!

@@ -1,6 +1,6 @@
-# Dual Front TD – Patch v0.0.0.012 Release Showcase
+# Dual Front TD – Patch v0.0.0.013 Release Showcase
 
-🎮 Dual Front TD v0.0.0.012 is officially LIVE! In this update, we have completely overhauled the audio lifecycle engine, fine-tuned the music rotation system, introduced dedicated upgrade volume controls, added inline turret skin sprite thumbnails, and executed a full contrast audit across all map and lane themes!
+🎮 Dual Front TD v0.0.0.013 is officially LIVE! In this update, we deliver a massive audio and visual overhaul: background music now smoothly attenuates upon pause instead of cutting out, in-menu weapon sound testing and track previews are fully restored, background music tracks are extended to 45 seconds with tapered repeat overlaps, alternate skins now completely replace base tower models with dynamic Level 1–4 visual upgrade cues, and towers now feature 15 distinct upgrade audio profiles!
 
 Download the latest Android APK and portable Windows PC runner directly from GitHub:
 👉 GitHub Release: https://github.com/Tanner2460/Fox-Rogue-TD/releases
@@ -9,21 +9,41 @@ Download the latest Android APK and portable Windows PC runner directly from Git
 ---
 
 ⏱️ TIMESTAMPS / VIDEO CHAPTERS:
-0:00 - Intro & v0.0.0.012 Patch Overview
-0:35 - Leaderboard Submission Authorization Fix
-1:10 - Display Rotation UI Refactoring & Text Layout
-1:50 - Consolidated Settings Hub & Dev Console Cleanup
-2:30 - Instant Focus Audio Termination (Zero Background Leakage)
-3:10 - 45s–75s Music Rotation & Seamless Looping
-3:50 - Dedicated Tower Upgrade Volume Slider
-4:30 - Turret Skin Visual Preview Thumbnails
-5:10 - High-Contrast Map & Lane Color Palettes
-5:50 - Recent Updates Recap (v0.0.0.011 & v0.0.0.010)
-6:30 - How to Download & Play on PC or Android
+0:00 - Intro & v0.0.0.013 Audio & Visual Overview
+0:40 - Pause Menu Natural Audio Attenuation
+1:15 - Direct Sound Menu & Gunfire Audio Testing
+1:55 - 45-Second Extended Music Tracks & Tapered Loops
+2:40 - Complete Tower Skin Replacements (All 5 Slots)
+3:30 - Dynamic Level 1–4 Visual Upgrade Cues
+4:15 - 15 Distinct Tower Upgrade Audio Profiles
+5:00 - Recent Updates Recap (v0.0.0.012 & v0.0.0.011)
+5:45 - How to Download & Play on PC or Android
 
 ---
 
-🚀 WHAT'S NEW IN VERSION 0.0.0.012:
+🚀 WHAT'S NEW IN VERSION 0.0.0.013:
+
+🎵 Pause Menu Audio Attenuation & Natural Volume Ducking
+• Background music now smoothly lowers in volume (50% / -6dB attenuation) upon opening the Pause Menu instead of cutting out completely.
+• Music streams continuously while tuning strategies and restores to full combat volume the instant gameplay resumes.
+
+🔊 Instant Sound Menu & Gunfire Audio Testing
+• Repaired testing triggers: tapping any turret gunfire slot immediately auditions that weapon sound variant.
+• Music track selection in the sound menu previews and streams directly in the menu without requiring in-game actions.
+• Real-time "▶ PREVIEWING" status badge on the active audio stream.
+
+⏳ Extended 45-Second Music Tracks & Tapered Transitions
+• All 5 procedural background music tracks now run for a full 45-second duration with rich chord progressions and synthesizer leads.
+• Raised-cosine tapered overlaps on repeats and transitions guarantee smooth, click-free looping.
+
+🛡️ Complete Tower Skin Model Replacement & Level 1–4 Visual Cues
+• Alternate skins (*Vector Minimal, Blueprint Schematic, Tactical Military, Void Rift, Retro Arcade*) now completely replace the base tower models.
+• Every skin features distinctive visual upgrade cues across Level 1 (Base Chassis), Level 2 (Vector Wings), Level 3 (Archetype Twin Barrels / Focus Needles), and Level 4 (Apex Radiant Crown / Corona Halo) that dynamically reflect each tower's class color, vector button color, archetype color, and apex gold.
+
+⚡ 15 Distinct Tower Upgrade Audio Profiles
+• Replaced the single generic upgrade sound with 15 unique upgrade audio soundscapes (3 Tower Classes × 5 Skins).
+• Kinetic Ballistics, Elemental Void, and Heavy Siege towers each trigger specialized upgrade audio tailored to their active visual skin.
+• Full audition test suite integrated into the Pause Menu Audio Studio.
 
 🏆 Leaderboard Submission Authorization Fix
 • Resolved package-restricted API key rejection (`security_retract rejected` / 403 Forbidden).

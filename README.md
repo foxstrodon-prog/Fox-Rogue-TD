@@ -5,12 +5,13 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.012 Android APK):** [`apk/Dual-Front-TD-v0.0.0.012-debug.apk`](apk/Dual-Front-TD-v0.0.0.012-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.012.apk`](apk/game-release-v0.0.0.012.apk) and [`apk/RogueTD-v0.0.0.012-debug.apk`](apk/RogueTD-v0.0.0.012-debug.apk))
+- **Direct Repository Download (v0.0.0.013 Android APK):** [`apk/Dual-Front-TD-v0.0.0.013-debug.apk`](apk/Dual-Front-TD-v0.0.0.013-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.013.apk`](apk/game-release-v0.0.0.013.apk))
 - **Portable Windows PC Launcher (Single Root Executable):** [`Dual Front TD.exe`](Dual%20Front%20TD.exe)
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, and launch the game in one click.
 - **Google Play "What's New" Release Notes:** [`GPReadme.md`](GPReadme.md) (formatted for Google Play Store updates with recent patch history)
 - **YouTube Release Description & Timestamps:** [`YT_README.md`](YT_README.md) (formatted for video showcases with timestamps and patch notes)
 - **Archived Previous Releases (inside `apk/` folder):**
+  - **v0.0.0.012:** [`apk/Dual-Front-TD-v0.0.0.012-debug.apk`](apk/Dual-Front-TD-v0.0.0.012-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.012.exe`](apk/Dual-Front-TD-v0.0.0.012.exe)
   - **v0.0.0.011:** [`apk/Dual-Front-TD-v0.0.0.011-debug.apk`](apk/Dual-Front-TD-v0.0.0.011-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.011.exe`](apk/Dual-Front-TD-v0.0.0.011.exe)
   - **v0.0.0.010:** [`apk/Dual-Front-TD-v0.0.0.010-debug.apk`](apk/Dual-Front-TD-v0.0.0.010-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.010.exe`](apk/Dual-Front-TD-v0.0.0.010.exe)
   - **v0.0.0.009:** [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) | [`apk/Fox-Rogue-TD-v0.0.0.009.exe`](apk/Fox-Rogue-TD-v0.0.0.009.exe)
@@ -22,7 +23,25 @@ You can find the ready-to-run builds in this repository:
 
 ---
 
-### ✨ What's New in Version 0.0.0.012:
+### ✨ What's New in Version 0.0.0.013:
+
+- **Pause Menu Audio Attenuation & Natural Volume Ducking**:
+  - Background music now smoothly lowers in volume (50% / -6dB attenuation) upon opening the Pause Menu instead of cutting out completely.
+  - Music streams seamlessly while navigating menus and returns to full volume instantly upon resuming gameplay.
+- **Direct Sound Menu & Gunfire Audio Testing**:
+  - Restored and repaired audio testing controls: tapping any turret gunfire slot immediately auditions that weapon sound variant.
+  - Music track selection in the sound menu previews and streams directly in the menu without requiring active gameplay.
+  - Added dedicated "▶ PREVIEWING" indicators on selected music tracks.
+- **Extended 45-Second Music Tracks & Tapered Overlaps**:
+  - All 5 background music tracks now feature a full 45-second duration with rich evolving chord progressions, basslines, and arpeggiators.
+  - Implemented 2.0-second raised-cosine tapered overlaps on repeats and transitions for smooth, click-free looping.
+- **Complete Tower Skin Model Replacement & Level 1–4 Visual Upgrade Cues**:
+  - Alternate skins (*Vector Minimal, Blueprint Schematic, Tactical Military, Void Rift, Retro Arcade*) now completely replace the base tower models in `GameCanvas.kt`.
+  - Every skin incorporates distinctive visual upgrade cues across Level 1 (Base Chassis), Level 2 (Vector Stabilizers / Wings), Level 3 (Archetype Twin Barrels / Focus Needles), and Level 4 (Apex Radiant Crown / Corona Halo) that dynamically match each tower's class color, vector button color, archetype color, and apex gold.
+- **15 Distinct Tower Upgrade Audio Profiles**:
+  - Replaced the single generic upgrade sound with 15 specialized upgrade audio soundscapes (3 Tower Classes × 5 Skins).
+  - Kinetic Ballistics, Elemental Void, and Heavy Siege towers each play customized upgrade audio tailored to their active visual skin.
+  - Dedicated upgrade audio audition section embedded in the Pause Menu Audio Studio.
 
 - **Leaderboard Submission Authorization Fix**:
   - Resolved Google Cloud package-restricted API key rejection (`SECURITY_REJECTED` / HTTP 403 Forbidden) by appending `?key=$apiKey` to REST document URLs and attaching the `X-Android-Package: com.aistudio.roguetd.xtkp` request header.
