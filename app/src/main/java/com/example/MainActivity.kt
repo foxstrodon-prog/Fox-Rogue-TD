@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.OrientationEventListener
 import android.view.Surface
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,9 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface as ComposeSurface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.example.model.GameSpeed
 import com.example.ui.RogueTDScreen
 import com.example.ui.RogueTDViewModel
 import com.example.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
   // The ViewModel owns the whole match, so rotation / resize never resets the run.
@@ -27,6 +33,23 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+
+    // Screen keep-awake management tied directly to active game loop state
+    lifecycleScope.launch {
+      repeatOnLifecycle(Lifecycle.State.STARTED) {
+        viewModel.uiState.collect { state ->
+          val isPlaying = state.gameSpeed != GameSpeed.PAUSED &&
+                  !state.isPauseMenuOpen &&
+                  !state.isGameOver &&
+                  !state.isVictory
+          if (isPlaying) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          }
+        }
+      }
+    }
 
     orientationEventListener = object : OrientationEventListener(this) {
       override fun onOrientationChanged(orientation: Int) {
@@ -71,6 +94,8 @@ class MainActivity : ComponentActivity() {
   override fun onStop() {
     super.onStop()
     orientationEventListener?.disable()
+    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    viewModel.openPauseMenu()
   }
 
   override fun onDestroy() {

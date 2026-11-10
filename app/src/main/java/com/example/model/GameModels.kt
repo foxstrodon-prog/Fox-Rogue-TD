@@ -120,6 +120,19 @@ enum class TowerClass(
     }
 }
 
+enum class ElementAffinity(val label: String, val colorHex: Long) {
+    RED("Red", 0xFFFF2A55),
+    GREEN("Green", 0xFF00E676),
+    YELLOW("Yellow", 0xFFFFD700);
+
+    fun counters(other: ElementAffinity): Boolean =
+        (this == RED && other == GREEN) ||
+        (this == GREEN && other == YELLOW) ||
+        (this == YELLOW && other == RED)
+
+    fun isWeakTo(other: ElementAffinity): Boolean = other.counters(this)
+}
+
 enum class TowerVector(
     val idName: String,
     val displayName: String,
@@ -128,8 +141,14 @@ enum class TowerVector(
     val description: String
 ) {
     OFFENSIVE("offensive", "Offensive", "Heavy firepower & burst damage", 0xFFFF2A55, "Focuses on massive damage, rapid cannons, and heavy ordnance"),
-    DEFENSIVE("defensive", "Defensive", "Crowd control, stasis & area denial", 0xFF00F0FF, "Focuses on slowing, trapping, and electrical arcs"),
-    SUPPORT("support", "Support", "Targeting uplinks, armor shred & economy", 0xFFFFB800, "Focuses on range uplinks, stripping enemy armor, and credit yields")
+    DEFENSIVE("defensive", "Defensive", "Crowd control, stasis & area denial", 0xFF00E676, "Focuses on slowing, trapping, and electrical arcs"),
+    SUPPORT("support", "Support", "Targeting uplinks, armor shred & economy", 0xFFFFD700, "Focuses on range uplinks, stripping enemy armor, and credit yields");
+
+    val affinity: ElementAffinity get() = when (this) {
+        OFFENSIVE -> ElementAffinity.RED
+        DEFENSIVE -> ElementAffinity.GREEN
+        SUPPORT -> ElementAffinity.YELLOW
+    }
 }
 
 data class AuraOption(
@@ -200,7 +219,7 @@ enum class TowerArchetype(
         baseRange = 4.6f,
         baseDamage = 130f,
         baseFireRate = 0.9f,
-        color = 0xFFFF0055,
+        color = 0xFFE0E7FF,
         primaryAura = AuraOption("Execution Aura", "+25% Damage against enemies below 40% health", "+25% EXEC"),
         secondaryAura = AuraOption("Headhunter Aura", "Critical hits award +4 bonus Credits", "+4 CRIT CR")
     ),
@@ -260,7 +279,7 @@ enum class TowerArchetype(
         baseRange = 4.2f,
         baseDamage = 35f,
         baseFireRate = 2.2f,
-        color = 0xFF00FF9D,
+        color = 0xFF06B6D4,
         primaryAura = AuraOption("Global Targeting Aura", "+25% Range to all defense towers", "+25% RNG"),
         secondaryAura = AuraOption("Spotter Uplink", "Reveals enemy weak points, granting +20% Critical Strike Chance", "+20% CRIT")
     ),
@@ -274,7 +293,7 @@ enum class TowerArchetype(
         baseRange = 2.5f,
         baseDamage = 28f,
         baseFireRate = 2.5f,
-        color = 0xFF10B981,
+        color = 0xFF94A3B8,
         primaryAura = AuraOption("Munitions Logistics", "Reduces all tower upgrade and placement costs by 15%", "-15% COST"),
         secondaryAura = AuraOption("High-Velocity Powder", "+20% Projectile flight speed and +15% kinetic base damage", "+15% DMG")
     ),
@@ -288,7 +307,7 @@ enum class TowerArchetype(
         baseRange = 2.6f,
         baseDamage = 40f,
         baseFireRate = 2.0f,
-        color = 0xFFFFD700,
+        color = 0xFFC084FC,
         primaryAura = AuraOption("Scrap Bounty Aura", "+35% Scrap Credits awarded from all creep kills", "+35% SCRAP"),
         secondaryAura = AuraOption("Material Recycling", "Defeated boss/elite creeps drop +100 bonus Credits", "+100 BOSS CR")
     ),
@@ -307,7 +326,7 @@ enum class TowerArchetype(
         baseRange = 3.2f,
         baseDamage = 85f,
         baseFireRate = 4.6f,
-        color = 0xFFFF0055,
+        color = 0xFFFB7185,
         primaryAura = AuraOption("Solar Focus Aura", "+25% Critical Strike Chance & 2.5x Crit Damage", "2.5x CRIT"),
         secondaryAura = AuraOption("Thermal Dissolution", "Laser weapons melt and bypass 100% of creep armor", "MELT ARMOR"),
         isBeam = true
@@ -401,7 +420,7 @@ enum class TowerArchetype(
         baseRange = 2.6f,
         baseDamage = 35f,
         baseFireRate = 3.0f,
-        color = 0xFFFFD700,
+        color = 0xFFA78BFA,
         primaryAura = AuraOption("Dynamo Harvest Aura", "+40% Scrap harvested from electrified or burned creeps", "+40% DYNAMO"),
         secondaryAura = AuraOption("Grid Battery Subsidy", "Generates +60 bonus Credits at the end of each wave", "+60 CR/WAVE")
     ),
@@ -465,7 +484,7 @@ enum class TowerArchetype(
         baseRange = 5.2f,
         baseDamage = 280f,
         baseFireRate = 0.45f,
-        color = 0xFFEF4444,
+        color = 0xFF64748B,
         primaryAura = AuraOption("Colossus Buster Aura", "Towers deal +50% bonus damage to Boss and Colossus enemies", "+50% BOSS DMG"),
         secondaryAura = AuraOption("Kinetic Piercer", "Slugs punch through up to 4 enemies in a straight line", "LINE PIERCE")
     ),
@@ -479,7 +498,7 @@ enum class TowerArchetype(
         baseRange = 5.0f,
         baseDamage = 210f,
         baseFireRate = 0.6f,
-        color = 0xFFFF2A55,
+        color = 0xFF818CF8,
         primaryAura = AuraOption("Orbital Sweep Aura", "Periodically drops kinetic orbital strikes on lane bottlenecks", "ORBITAL BOMB"),
         secondaryAura = AuraOption("Global Range Net", "+35% Attack range to all long-range weapons", "+35% RNG")
     ),
@@ -560,7 +579,7 @@ enum class TowerArchetype(
         baseRange = 3.8f,
         baseDamage = 45f,
         baseFireRate = 1.8f,
-        color = 0xFFE11D48,
+        color = 0xFFBE185D,
         primaryAura = AuraOption("Overcharge Command", "All defense towers deal +25% Base Damage across the map", "+25% GLOBAL DMG"),
         secondaryAura = AuraOption("Siege Coordination", "+20% Attack speed and +15% range to all heavy and mortar towers", "+20% SIEGE SPD")
     ),
@@ -574,7 +593,7 @@ enum class TowerArchetype(
         baseRange = 2.6f,
         baseDamage = 40f,
         baseFireRate = 2.0f,
-        color = 0xFFFBBF24,
+        color = 0xFFB45309,
         primaryAura = AuraOption("War Chest Dividend", "+50% Scrap Credits awarded at the completion of each wave", "+50% WAVE CR"),
         secondaryAura = AuraOption("Compound Interest", "Earn +5% bonus Credits based on current bank every wave", "+5% INTEREST")
     );
@@ -722,6 +741,41 @@ data class TowerInstance(
     val isMaxed: Boolean get() = isTier3 || finalFormCode != null
     val isAscended: Boolean get() = isTier3 || finalFormCode != null
 
+    val shape: EnemyShape get() = when (archetype?.towerClass ?: towerClass) {
+        TowerClass.KINETIC_BALLISTIC -> EnemyShape.CIRCLE
+        TowerClass.ELEMENTAL_VOID -> EnemyShape.TRIANGLE
+        TowerClass.HEAVY_SIEGE -> EnemyShape.SQUARE
+    }
+
+    val affinity: ElementAffinity get() = when (archetype?.vector ?: vector) {
+        TowerVector.OFFENSIVE -> ElementAffinity.RED
+        TowerVector.DEFENSIVE -> ElementAffinity.GREEN
+        TowerVector.SUPPORT -> ElementAffinity.YELLOW
+        null -> when (branchTier1) {
+            "A" -> ElementAffinity.RED
+            "B" -> ElementAffinity.GREEN
+            "C" -> ElementAffinity.YELLOW
+            else -> when (type) {
+                TowerType.GATLING, TowerType.MORTAR -> ElementAffinity.RED
+                TowerType.CRYO, TowerType.VOID -> ElementAffinity.GREEN
+                TowerType.TESLA, TowerType.LASER -> ElementAffinity.YELLOW
+            }
+        }
+    }
+
+    fun getEffectiveCombatRange(
+        tileBuff: TileBuff = TileBuff.NONE,
+        globalRangeBonus: Float = 0f,
+        balanceRange: Float? = null
+    ): Float {
+        val t1Def = if (branchTier1 != null) com.example.engine.TowerUpgradeManager.getTier1Options(type).firstOrNull { it.branchKey == branchTier1 } else null
+        val ffDef = if (finalFormCode != null) com.example.engine.TowerUpgradeManager.getFinalForm(type, finalFormCode!!) else null
+        val towerRngMul = ffDef?.rangeMultiplier ?: t1Def?.rangeMultiplier ?: (if (isTier3) 1.35f else if (isTier2) 1.20f else if (branchTier1 == "C" || vector == TowerVector.SUPPORT) 1.35f else 1.0f)
+        val baseRng = archetype?.baseRange ?: balanceRange ?: type.baseRange
+        val tileRngBonus = if (tileBuff == TileBuff.HIGH_GROUND) 0.35f else 0.0f
+        return baseRng * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
+    }
+
     val activeAura: AuraOption? get() {
         val arch = archetype ?: return null
         return if (selectedAuraIndex == 1) arch.secondaryAura else arch.primaryAura
@@ -817,6 +871,7 @@ enum class EnemyType(
     val sizeRatio: Float,
     val role: EnemyRole = EnemyRole.ATTACK,
     val shape: EnemyShape = EnemyShape.CIRCLE,
+    val elementAffinity: ElementAffinity = ElementAffinity.RED,
     val supportKind: SupportKind = SupportKind.NONE,
     val auraRadius: Float = 0f
 ) {
@@ -829,7 +884,8 @@ enum class EnemyType(
         color = 0xFFFF3B30,
         sizeRatio = 0.55f,
         role = EnemyRole.ATTACK,
-        shape = EnemyShape.CIRCLE
+        shape = EnemyShape.CIRCLE,
+        elementAffinity = ElementAffinity.RED
     ),
     SOLDIER(
         displayName = "Automaton",
@@ -840,7 +896,8 @@ enum class EnemyType(
         color = 0xFF22D3EE,
         sizeRatio = 0.75f,
         role = EnemyRole.DEFENSE,
-        shape = EnemyShape.CIRCLE
+        shape = EnemyShape.CIRCLE,
+        elementAffinity = ElementAffinity.GREEN
     ),
     SPEEDSTER(
         displayName = "Phase Scout",
@@ -851,7 +908,8 @@ enum class EnemyType(
         color = 0xFFFF8A00,
         sizeRatio = 0.60f,
         role = EnemyRole.ATTACK,
-        shape = EnemyShape.TRIANGLE
+        shape = EnemyShape.TRIANGLE,
+        elementAffinity = ElementAffinity.YELLOW
     ),
     BRUISER(
         displayName = "Siege Golem",
@@ -862,7 +920,8 @@ enum class EnemyType(
         color = 0xFF2F6BFF,
         sizeRatio = 0.95f,
         role = EnemyRole.DEFENSE,
-        shape = EnemyShape.SQUARE
+        shape = EnemyShape.SQUARE,
+        elementAffinity = ElementAffinity.GREEN
     ),
     DISRUPTOR(
         displayName = "Shield Disruptor",
@@ -874,6 +933,7 @@ enum class EnemyType(
         sizeRatio = 0.85f,
         role = EnemyRole.SUPPORT,
         shape = EnemyShape.SQUARE,
+        elementAffinity = ElementAffinity.GREEN,
         supportKind = SupportKind.AEGIS,
         auraRadius = 1.6f
     ),
@@ -886,7 +946,8 @@ enum class EnemyType(
         color = 0xFF2F6BFF,
         sizeRatio = 1.40f,
         role = EnemyRole.DEFENSE,
-        shape = EnemyShape.SQUARE
+        shape = EnemyShape.SQUARE,
+        elementAffinity = ElementAffinity.RED
     ),
     MEDIC(
         displayName = "Repair Wisp",
@@ -898,6 +959,7 @@ enum class EnemyType(
         sizeRatio = 0.70f,
         role = EnemyRole.SUPPORT,
         shape = EnemyShape.CIRCLE,
+        elementAffinity = ElementAffinity.GREEN,
         supportKind = SupportKind.HEAL,
         auraRadius = 1.7f
     ),
@@ -911,6 +973,7 @@ enum class EnemyType(
         sizeRatio = 0.70f,
         role = EnemyRole.SUPPORT,
         shape = EnemyShape.TRIANGLE,
+        elementAffinity = ElementAffinity.YELLOW,
         supportKind = SupportKind.HASTE,
         auraRadius = 1.9f
     );
@@ -971,7 +1034,9 @@ data class Projectile(
     var traveledDistance: Float = 0f,
     val isCrit: Boolean = false,
     val hasClusterSplit: Boolean = false,
-    val towerClassIndex: Int = 0
+    val towerClassIndex: Int = 0,
+    val sourceShape: EnemyShape = EnemyShape.CIRCLE,
+    val sourceAffinity: ElementAffinity = ElementAffinity.RED
 )
 
 data class LaserBeam(

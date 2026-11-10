@@ -26,8 +26,8 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 13
-    versionName = "0.0.0.005"
+    versionCode = 14
+    versionName = "0.0.0.006"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

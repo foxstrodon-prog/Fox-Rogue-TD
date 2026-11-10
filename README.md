@@ -5,11 +5,36 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.005 Android APK):** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk)
-- **Portable Windows PC Launcher (v0.0.0.005 Widescreen Runner):** [`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe) (also mirror-saved in [`apk/RogueTD-v0.0.0.005.exe`](apk/RogueTD-v0.0.0.005.exe))
+- **Direct Repository Download (v0.0.0.006 Android APK):** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk)
+- **Portable Windows PC Launcher (v0.0.0.006 Widescreen Runner):** [`RogueTD-v0.0.0.006.exe`](RogueTD-v0.0.0.006.exe) (also mirror-saved in [`apk/RogueTD-v0.0.0.006.exe`](apk/RogueTD-v0.0.0.006.exe))
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, lock the display to **Widescreen Mode (Landscape)**, and launch the game in one click.
-- **Previous Release (v0.0.0.004):** [`apk/RogueTD-v0.0.0.004-debug.apk`](apk/RogueTD-v0.0.0.004-debug.apk)
+- **Previous Releases:**
+  - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe)
+  - **v0.0.0.004:** [`apk/RogueTD-v0.0.0.004-debug.apk`](apk/RogueTD-v0.0.0.004-debug.apk)
 - **Automated GitHub Actions:** Every commit and release automatically builds the latest APK under the repository's **Actions** tab as a downloadable artifact.
+
+---
+
+### ✨ What's New in Version 0.0.0.006:
+
+- **Multi-Dimensional Combat Matrix (`DamageCalculator`)**:
+  - Implemented full tactical rock-paper-scissors elemental affinities (`RED` > `GREEN` > `YELLOW` > `RED`), dealing +25% advantage damage or suffering -20% resist penalty.
+  - Deep geometric silhouette synergy: Kinetic towers match Circle enemies, Elemental Void matches Triangles, and Heavy Siege crushes Squares (+35% match bonus vs -20% mismatch resistance).
+- **Heading-Oriented Creep Motion**:
+  - Triangle striker enemies and directional drones dynamically rotate to their true path tangent heading (`atan2(dy, dx)`) during segment interpolation, eliminating static East-facing sprites on curved lanes.
+- **Combat Range & Visualizer Perfect Synchronization**:
+  - Tower selection range circles in `GameCanvas` are now dynamically synchronized with `globalRangeBonus` from active sniper and orbital kinetic aura upgrades, ensuring 1:1 visual fidelity with Euclidean combat targeting (`dist <= effectiveRange + enemy.type.hitRadius`).
+- **Archetype Vector Resolution & Tier-1 Ring Alignment**:
+  - `TowerInstance.affinity` and `tier1Vector` now evaluate `archetype?.vector` before falling back to base tower type defaults, ensuring custom archetypes correctly project their designated vector aura rings (Red = Offensive, Green = Defensive, Yellow = Support).
+- **Floating Combat Text Engine Overhaul**:
+  - Resolved a simulation loop bug where stale state snapshots were erasing combat damage numbers mid-tick.
+  - Refined floating text thresholds to eliminate routine number clutter while emphasizing high-impact events: critical strikes (`CRIT!`), elemental weak points (`WEAK!`), shape resists (`RESIST`), and devastating blasts (>60 damage).
+- **Minimal Top HUD Layout Stabilization**:
+  - Replaced individual child `graphicsLayer` rotation with stable layout measurements in `MinimalTopHud`, eliminating element overflow, clipping, and button overlap across device rotations.
+- **Lifecycle & Background Pause Protection**:
+  - Automatically invokes `viewModel.openPauseMenu()` in `MainActivity.onStop()`, ensuring matches are paused when the device screen locks or the application is backgrounded, eliminating unintended loss or battery drain.
+- **Comprehensive Automated Test Suite**:
+  - 35 automated unit and Robolectric tests validating damage matrices, range synchronization, Euclidean hitboxes, lane continuity, and lifecycle state management.
 
 ---
 
@@ -92,10 +117,10 @@ To build the APK locally using Gradle:
 The output artifacts will be generated at:
 ```
 app/build/outputs/apk/debug/app-debug.apk
-RogueTD-v0.0.0.005.exe
+RogueTD-v0.0.0.006.exe
 ```
 Or find the versioned distribution files in:
 ```
-apk/RogueTD-v0.0.0.005-debug.apk
-apk/RogueTD-v0.0.0.005.exe
+apk/RogueTD-v0.0.0.006-debug.apk
+apk/RogueTD-v0.0.0.006.exe
 ```

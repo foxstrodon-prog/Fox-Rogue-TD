@@ -9,6 +9,8 @@ import com.example.model.GridPos
 import com.example.model.TileType
 import com.example.model.TowerInstance
 import com.example.model.TowerType
+import com.example.model.EnemyInstance
+import com.example.model.EnemyType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -500,19 +502,19 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 005`() {
-    assertEquals("0.0.0.005", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(13, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 006`() {
+    assertEquals("0.0.0.006", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(14, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.006", "0.0.0.005"))
-    assertTrue(updater.isNewerVersion("0.0.0.006", "0.0.0.005"))
-    assertFalse(updater.isNewerVersion("v0.0.0.005", "0.0.0.005"))
-    assertFalse(updater.isNewerVersion("0.0.0.004", "0.0.0.005"))
+    assertTrue(updater.isNewerVersion("v0.0.0.007", "0.0.0.006"))
+    assertTrue(updater.isNewerVersion("0.0.0.007", "0.0.0.006"))
+    assertFalse(updater.isNewerVersion("v0.0.0.006", "0.0.0.006"))
+    assertFalse(updater.isNewerVersion("0.0.0.005", "0.0.0.006"))
   }
 
   @Test
@@ -696,6 +698,157 @@ class ExampleRobolectricTest {
 
     assertTrue("Empty leaderboard response must produce empty list", entries.isEmpty())
   }
+
+  @Test
+  fun `damage calculator applies shape bonus on match and resistance penalty on mismatch`() {
+    val baseDmg = 100f
+    // Shape match: Circle vs Circle
+    val matchRes = com.example.engine.DamageCalculator.calculateDamage(
+      baseDamage = baseDmg,
+      towerShape = com.example.model.EnemyShape.CIRCLE,
+      towerAffinity = com.example.model.ElementAffinity.RED,
+      enemyShape = com.example.model.EnemyShape.CIRCLE,
+      enemyAffinity = com.example.model.ElementAffinity.RED,
+      enemyArmor = 0f
+    )
+    assertTrue(matchRes.isShapeMatch)
+    assertEquals(1.20f, matchRes.shapeMultiplier, 0.001f)
+    assertEquals(120f, matchRes.finalDamage, 0.01f)
+
+    // Shape mismatch: Circle vs Triangle
+    val mismatchRes = com.example.engine.DamageCalculator.calculateDamage(
+      baseDamage = baseDmg,
+      towerShape = com.example.model.EnemyShape.CIRCLE,
+      towerAffinity = com.example.model.ElementAffinity.RED,
+      enemyShape = com.example.model.EnemyShape.TRIANGLE,
+      enemyAffinity = com.example.model.ElementAffinity.RED,
+      enemyArmor = 0f
+    )
+    assertFalse(mismatchRes.isShapeMatch)
+    assertEquals(0.50f, mismatchRes.shapeMultiplier, 0.001f)
+    assertEquals(50f, mismatchRes.finalDamage, 0.01f)
+  }
+
+  @Test
+  fun `damage calculator elemental color affinity rock-paper-scissors counter loop`() {
+    val baseDmg = 100f
+    val shape = com.example.model.EnemyShape.CIRCLE
+
+    // Red > Green (Advantage)
+    val redVsGreen = com.example.engine.DamageCalculator.calculateDamage(
+      baseDamage = baseDmg,
+      towerShape = shape,
+      towerAffinity = com.example.model.ElementAffinity.RED,
+      enemyShape = shape,
+      enemyAffinity = com.example.model.ElementAffinity.GREEN
+    )
+    assertTrue(redVsGreen.isColorAdvantage)
+    assertFalse(redVsGreen.isColorDisadvantage)
+    assertEquals(1.30f, redVsGreen.colorMultiplier, 0.001f)
+
+    // Green > Yellow (Advantage)
+    val greenVsYellow = com.example.engine.DamageCalculator.calculateDamage(
+      baseDamage = baseDmg,
+      towerShape = shape,
+      towerAffinity = com.example.model.ElementAffinity.GREEN,
+      enemyShape = shape,
+      enemyAffinity = com.example.model.ElementAffinity.YELLOW
+    )
+    assertTrue(greenVsYellow.isColorAdvantage)
+    assertEquals(1.30f, greenVsYellow.colorMultiplier, 0.001f)
+
+    // Yellow > Red (Advantage)
+    val yellowVsRed = com.example.engine.DamageCalculator.calculateDamage(
+      baseDamage = baseDmg,
+      towerShape = shape,
+      towerAffinity = com.example.model.ElementAffinity.YELLOW,
+      enemyShape = shape,
+      enemyAffinity = com.example.model.ElementAffinity.RED
+    )
+    assertTrue(yellowVsRed.isColorAdvantage)
+    assertEquals(1.30f, yellowVsRed.colorMultiplier, 0.001f)
+
+    // Green vs Red (Disadvantage)
+    val greenVsRed = com.example.engine.DamageCalculator.calculateDamage(
+      baseDamage = baseDmg,
+      towerShape = shape,
+      towerAffinity = com.example.model.ElementAffinity.GREEN,
+      enemyShape = shape,
+      enemyAffinity = com.example.model.ElementAffinity.RED
+    )
+    assertFalse(greenVsRed.isColorAdvantage)
+    assertTrue(greenVsRed.isColorDisadvantage)
+    assertEquals(0.70f, greenVsRed.colorMultiplier, 0.001f)
+  }
+
+  @Test
+  fun `tier-1 archetype vector colors and 27 advanced tower distinct colors constraint`() {
+    val offensiveRed = 0xFFFF2A55
+    val defensiveGreen = 0xFF00E676
+    val supportYellow = 0xFFFFD700
+
+    assertEquals(offensiveRed, com.example.model.TowerVector.OFFENSIVE.color)
+    assertEquals(defensiveGreen, com.example.model.TowerVector.DEFENSIVE.color)
+    assertEquals(supportYellow, com.example.model.TowerVector.SUPPORT.color)
+
+    val reservedColors = setOf(offensiveRed, defensiveGreen, supportYellow)
+    val archetypes = com.example.model.TowerArchetype.entries
+    assertEquals("Must have 27 specialization upgrades", 27, archetypes.size)
+
+    for (arch in archetypes) {
+      assertFalse(
+        "Archetype ${arch.name} must not reuse reserved Tier-1 archetype colors",
+        reservedColors.contains(arch.color)
+      )
+    }
+  }
+
+  @Test
+  fun `effective combat range and Euclidean distance check are synchronized`() {
+    val tower = TowerInstance(
+      id = "test-tower",
+      type = TowerType.GATLING,
+      gridPos = GridPos(2, 2)
+    )
+    val baseRange = tower.getEffectiveCombatRange()
+    assertEquals(TowerType.GATLING.baseRange, baseRange, 0.001f)
+
+    // High ground tile buff grants +35% range
+    val buffedRange = tower.getEffectiveCombatRange(tileBuff = com.example.model.TileBuff.HIGH_GROUND)
+    assertEquals(TowerType.GATLING.baseRange * 1.35f, buffedRange, 0.001f)
+
+    // Global range aura (+25%)
+    val globalBuffedRange = tower.getEffectiveCombatRange(globalRangeBonus = 0.25f)
+    assertEquals(TowerType.GATLING.baseRange * 1.25f, globalBuffedRange, 0.001f)
+
+    // Verify Euclidean targeting boundary: dist <= effectiveRange + enemy.type.hitRadius
+    val enemyInRange = EnemyInstance(
+      id = "e1",
+      type = EnemyType.DRONE,
+      laneIndex = 0,
+      maxHp = 100f,
+      currentHp = 100f,
+      speed = 1.0f,
+      worldX = 2.0f + baseRange + EnemyType.DRONE.hitRadius - 0.01f,
+      worldY = 2.0f
+    )
+    val distInRange = kotlin.math.hypot(enemyInRange.worldX - tower.gridPos.x, enemyInRange.worldY - tower.gridPos.y)
+    assertTrue(distInRange <= (baseRange + enemyInRange.type.hitRadius))
+
+    val enemyOutOfRange = EnemyInstance(
+      id = "e2",
+      type = EnemyType.DRONE,
+      laneIndex = 0,
+      maxHp = 100f,
+      currentHp = 100f,
+      speed = 1.0f,
+      worldX = 2.0f + baseRange + EnemyType.DRONE.hitRadius + 0.1f,
+      worldY = 2.0f
+    )
+    val distOutOfRange = kotlin.math.hypot(enemyOutOfRange.worldX - tower.gridPos.x, enemyOutOfRange.worldY - tower.gridPos.y)
+    assertFalse(distOutOfRange <= (baseRange + enemyOutOfRange.type.hitRadius))
+  }
 }
+
 
 

@@ -36,6 +36,7 @@ data class GameUIState(
     val globalSolarCritsEnabled: Boolean = false,
     val globalVoidShredEnabled: Boolean = false,
     val globalDamageBonus: Float = 1.0f,
+    val globalRangeBonus: Float = 0f,
     val scrapBountyBonus: Float = 1.0f,
 
     val coreHp: Int = 30,
@@ -441,6 +442,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                 val t = enemy.segmentProgress
                 enemy.worldX = p0.x + (p1.x - p0.x) * t
                 enemy.worldY = p0.y + (p1.y - p0.y) * t
+                enemy.headingRad = atan2((p1.y - p0.y).toFloat(), (p1.x - p0.x).toFloat())
                 survivingEnemies.add(enemy)
             }
         }
@@ -523,15 +525,17 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
             val towerDmgMul = ffDef?.damageMultiplier ?: t1Def?.damageMultiplier ?: 1.0f
             val towerSpdMul = ffDef?.fireRateMultiplier ?: t1Def?.fireRateMultiplier ?: 1.0f
-            val towerRngMul = ffDef?.rangeMultiplier ?: t1Def?.rangeMultiplier ?: 1.0f
 
             val isVectorSynergy = (tower.vector != null && tower.vector == tileBuff.vectorCategory)
             val synergyDmgBonus = if (isVectorSynergy) 0.15f else 0.0f
             val synergySpdBonus = if (isVectorSynergy) 0.15f else 0.0f
 
             val customTConfig = state.balanceConfig.getTowerBalance(tower.type)
-            val tileRngBonus = if (tileBuff == TileBuff.HIGH_GROUND) 0.35f else 0.0f
-            val effectiveRange = customTConfig.range * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
+            val effectiveRange = tower.getEffectiveCombatRange(
+                tileBuff = tileBuff,
+                globalRangeBonus = globalRangeBonus,
+                balanceRange = customTConfig.range
+            )
 
             val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
@@ -542,11 +546,10 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             val towerY = tower.gridPos.y.toFloat()
 
             // Targets in range across BOTH lanes!
-            // Hitbox correction: accounts for enemy sprite width (enemy.type.sizeRatio * 0.35f) and lane curve border overlap (+0.25f)
+            // Euclidean distance check matching exact indicated circular perimeter: dist <= effectiveRange + enemy.type.hitRadius
             val inRangeEnemies = survivingEnemies.filter { enemy ->
-                val enemyEffectiveRadius = enemy.type.sizeRatio * 0.35f
-                val dist = hypot(enemy.worldX - towerX, enemy.worldY - towerY)
-                dist <= (effectiveRange + enemyEffectiveRadius + 0.25f)
+                val dist = hypot(enemy.worldX - tower.gridPos.x, enemy.worldY - tower.gridPos.y)
+                dist <= (effectiveRange + enemy.type.hitRadius)
             }
 
             if (inRangeEnemies.isEmpty()) {
@@ -594,7 +597,9 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                                 damage = finalDmg,
                                 color = tower.type.color,
                                 isCrit = isCrit,
-                                hasClusterSplit = (p2 >= 2) // Ricochet
+                                hasClusterSplit = (p2 >= 2), // Ricochet
+                                sourceShape = tower.shape,
+                                sourceAffinity = tower.affinity
                             )
                         )
                         // Twin minigun tracer if Path 0 Tier 2
@@ -612,7 +617,9 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                                     speed = 16f,
                                     damage = finalDmg * 0.75f,
                                     color = 0xFFFFFFFF,
-                                    isCrit = isCrit
+                                    isCrit = isCrit,
+                                    sourceShape = tower.shape,
+                                    sourceAffinity = tower.affinity
                                 )
                             )
                         }
@@ -670,7 +677,9 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                                 isMortarArc = true,
                                 totalDistance = maxOf(0.1f, dist),
                                 isCrit = isCrit,
-                                hasClusterSplit = (p0 >= 1)
+                                hasClusterSplit = (p0 >= 1),
+                                sourceShape = tower.shape,
+                                sourceAffinity = tower.affinity
                             )
                         )
                     }
@@ -721,7 +730,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                     newExplosions.add(ExplosionEffect(UUID.randomUUID().toString(), destX, destY, proj.splashRadius, color = proj.color))
                     val splashTargets = survivingEnemies.filter { hypot(it.worldX - destX, it.worldY - destY) <= proj.splashRadius }
                     for (st in splashTargets) {
-                        applyDamageToEnemy(st, proj.damage, null, proj.isCrit, armorPierce = false)
+                        applyDamageToEnemy(st, proj.damage, null, proj.isCrit, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
                     }
 
                     // Mortar Cluster Munitions
@@ -733,19 +742,19 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                             newExplosions.add(ExplosionEffect(UUID.randomUUID().toString(), destX + offsetX, destY + offsetY, 0.9f, color = 0xFFFFB800, lifeMs = 200L))
                             val clusterTargets = survivingEnemies.filter { hypot(it.worldX - (destX + offsetX), it.worldY - (destY + offsetY)) <= 0.9f }
                             for (ct in clusterTargets) {
-                                applyDamageToEnemy(ct, proj.damage * 0.45f, null, false, armorPierce = false)
+                                applyDamageToEnemy(ct, proj.damage * 0.45f, null, false, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
                             }
                         }
                     }
                 } else {
                     val hitEnemy = survivingEnemies.firstOrNull { it.id == proj.targetEnemyId }
                     if (hitEnemy != null) {
-                        applyDamageToEnemy(hitEnemy, proj.damage, null, proj.isCrit, armorPierce = false)
+                        applyDamageToEnemy(hitEnemy, proj.damage, null, proj.isCrit, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
                         // Gatling Ricochet
                         if (proj.hasClusterSplit) {
                             val bounceTarget = survivingEnemies.firstOrNull { it.id != hitEnemy.id && hypot(it.worldX - hitEnemy.worldX, it.worldY - hitEnemy.worldY) < 2.5f }
                             if (bounceTarget != null) {
-                                applyDamageToEnemy(bounceTarget, proj.damage * 0.50f, null, false, armorPierce = false)
+                                applyDamageToEnemy(bounceTarget, proj.damage * 0.50f, null, false, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
                             }
                         }
                     }
@@ -805,7 +814,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             it.lifeMs <= 0
         }
 
-        val updatedFloatingTexts = state.floatingTexts.mapNotNull { ft ->
+        val updatedFloatingTexts = _uiState.value.floatingTexts.mapNotNull { ft ->
             val remLife = ft.lifeMs - deltaMs
             if (remLife <= 0) null
             else ft.copy(lifeMs = remLife, y = ft.y - (deltaSec * 0.7f))
@@ -858,6 +867,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
                 activeGlobalSynergies = synergies,
                 harmonicGridActive = isHarmonicActive,
                 harmonicPadsCount = harmonicCount,
+                globalRangeBonus = globalRangeBonus,
                 animTimeMs = nowMs,
                 coreHp = newCoreHp,
                 scrap = prev.scrap + scrapGained,
@@ -878,10 +888,29 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun applyDamageToEnemy(enemy: EnemyInstance, rawDamage: Float, sourceTower: TowerInstance?, isCrit: Boolean, armorPierce: Boolean) {
+    private fun applyDamageToEnemy(
+        enemy: EnemyInstance,
+        rawDamage: Float,
+        sourceTower: TowerInstance?,
+        isCrit: Boolean,
+        armorPierce: Boolean,
+        sourceShape: EnemyShape? = null,
+        sourceAffinity: ElementAffinity? = null
+    ) {
         val state = _uiState.value
         val armor = if (armorPierce || state.globalVoidShredEnabled) 0f else enemy.type.baseArmor
-        val finalDamage = rawDamage * (1f - armor)
+        val towerShape = sourceTower?.shape ?: sourceShape ?: EnemyShape.CIRCLE
+        val towerAffinity = sourceTower?.affinity ?: sourceAffinity ?: ElementAffinity.RED
+
+        val combatResult = DamageCalculator.calculateDamage(
+            baseDamage = rawDamage,
+            towerShape = towerShape,
+            towerAffinity = towerAffinity,
+            enemyShape = enemy.type.shape,
+            enemyAffinity = enemy.type.elementAffinity,
+            enemyArmor = armor
+        )
+        val finalDamage = combatResult.finalDamage
 
         enemy.currentHp -= finalDamage
         sourceTower?.let {
@@ -891,12 +920,24 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
         _uiState.update { it.copy(totalDamageDealt = it.totalDamageDealt + finalDamage) }
 
-        if (isCrit || finalDamage > 80f) {
+        if (isCrit || (combatResult.isShapeMatch && combatResult.isColorAdvantage) || combatResult.shapeMultiplier < 1.0f || finalDamage > 60f) {
+            val tag = when {
+                isCrit -> "${finalDamage.toInt()} CRIT!"
+                combatResult.isShapeMatch && combatResult.isColorAdvantage -> "${finalDamage.toInt()} WEAK!"
+                combatResult.shapeMultiplier < 1.0f -> "${finalDamage.toInt()} RESIST"
+                else -> "${finalDamage.toInt()}"
+            }
+            val textColor = when {
+                isCrit -> 0xFFFFB800
+                combatResult.isShapeMatch && combatResult.isColorAdvantage -> 0xFF00FF9D
+                combatResult.shapeMultiplier < 1.0f -> 0xFF94A3B8
+                else -> 0xFFFFFFFF
+            }
             addFloatingText(
                 x = enemy.worldX,
                 y = enemy.worldY - 0.2f,
-                text = if (isCrit) "${finalDamage.toInt()} CRIT!" else "${finalDamage.toInt()}",
-                color = if (isCrit) 0xFFFFB800 else 0xFFFFFFFF,
+                text = tag,
+                color = textColor,
                 isCrit = isCrit
             )
         }

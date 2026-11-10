@@ -340,22 +340,21 @@ fun GameCanvas(
             }
         }
 
-        // Draw Selected Tower Range Circle
+        // Draw Selected Tower Range Circle (Exact 1:1 scale with combat range R_render = R_combat)
         state.selectedTower?.let { tower ->
             val tile = level.tiles.firstOrNull { it.pos == tower.gridPos }
             val tileBuff = tile?.buff ?: TileBuff.NONE
-            val arch = tower.archetype
-            val baseRng = arch?.baseRange ?: tower.type.baseRange
-            val rangeBonus = (if (tileBuff == TileBuff.HIGH_GROUND) 0.30f else 0.0f) +
-                    (if (tower.branchTier1 == "C") 0.35f else 0.0f) +
-                    (if (tower.isTier3) 0.35f else if (tower.isTier2) 0.20f else 0.0f)
-            val effectiveRange = baseRng * (1.0f + rangeBonus)
+            val effectiveRange = tower.getEffectiveCombatRange(
+                tileBuff = tileBuff,
+                globalRangeBonus = state.globalRangeBonus,
+                balanceRange = state.balanceConfig.getTowerBalance(tower.type).range
+            )
             val pixelRadius = effectiveRange * cellW
 
             val tcx = (tower.gridPos.x + 0.5f) * cellW + shakeX
             val tcy = (tower.gridPos.y + 0.5f) * cellH + shakeY
 
-            val rangeColor = Color(arch?.color ?: tower.type.color)
+            val rangeColor = Color(tower.archetype?.color ?: tower.type.color)
             drawCircle(
                 color = rangeColor.copy(alpha = 0.12f),
                 radius = pixelRadius,
@@ -370,23 +369,44 @@ fun GameCanvas(
         }
 
         // Draw Towers with Distinctive Silhouette (Circle for Kinetic, Triangle for Elemental, Square for Heavy)
+        // Static locked map coordinate system: tower orientation stays aligned to combat aim
         for (tower in state.towers) {
             val tcx = (tower.gridPos.x + 0.5f) * cellW + shakeX
             val tcy = (tower.gridPos.y + 0.5f) * cellH + shakeY
             val effectiveClass = tower.archetype?.towerClass ?: tower.towerClass
             val arch = tower.archetype
             val towerColor = Color(arch?.color ?: effectiveClass.color)
-            val aimAngleDeg = tower.rotationAngleDeg + state.deviceRotationAngle
+            val aimAngleDeg = tower.rotationAngleDeg
             val aimRad = aimAngleDeg * (PI / 180f).toFloat()
             val borderColor = if (tower.isFinalForm) Color(0xFFFFB800) else towerColor.copy(alpha = 0.88f)
 
-            // Dynamic rotation pivot: Tower heads and glyphs always face upright relative to the player
-            withTransform({
-                rotate(
-                    degrees = -state.deviceRotationAngle,
-                    pivot = Offset(tcx, tcy)
+            // === TIER-1 ARCHETYPE IDENTIFIER RING (Offensive = Red, Defense = Green, Support = Yellow) ===
+            val tier1Vector = tower.archetype?.vector ?: tower.vector ?: when (tower.branchTier1) {
+                "A" -> TowerVector.OFFENSIVE
+                "B" -> TowerVector.DEFENSIVE
+                "C" -> TowerVector.SUPPORT
+                else -> null
+            }
+            if (tier1Vector != null || tower.tier >= 1) {
+                val ringColor = when (tier1Vector) {
+                    TowerVector.OFFENSIVE -> Color(0xFFFF2A55) // Red
+                    TowerVector.DEFENSIVE -> Color(0xFF00E676) // Green
+                    TowerVector.SUPPORT -> Color(0xFFFFD700)   // Yellow
+                    null -> Color(0xFFFF2A55)
+                }
+                drawCircle(
+                    color = ringColor.copy(alpha = 0.30f),
+                    radius = cellW * 0.44f,
+                    center = Offset(tcx, tcy),
+                    style = Stroke(width = 3.5f)
                 )
-            }) {
+                drawCircle(
+                    color = ringColor,
+                    radius = cellW * 0.41f,
+                    center = Offset(tcx, tcy),
+                    style = Stroke(width = 2.0f)
+                )
+            }
                 // === 1. FINAL FORM RADIANT HALO (Class-Specific Geometry) ===
             if (tower.isFinalForm) {
                 val auraPulse = (sin(animFlowTime * 0.008f) * 0.15f + 0.85f).toFloat()
@@ -609,7 +629,6 @@ fun GameCanvas(
                     drawRect(color = badgeColor, topLeft = Offset(tcx - bS / 2f, badgeY - bS / 2f), size = Size(bS, bS))
                 }
             }
-            }
         }
 
         // Draw Laser Beams
@@ -663,11 +682,12 @@ fun GameCanvas(
             }
         }
 
-        // Draw Enemies on BOTH lanes
+        // Draw Enemies on BOTH lanes with Distinct Geometric Shapes & Elemental Color Affinities
         for (enemy in state.enemies) {
             val ecx = (enemy.worldX + 0.5f) * cellW + shakeX
             val ecy = (enemy.worldY + 0.5f) * cellH + shakeY
             val enemyColor = Color(enemy.type.color)
+            val affinityColor = Color(enemy.type.elementAffinity.colorHex)
             val enemyRadius = cellW * 0.28f * enemy.type.sizeRatio
 
             if (enemy.slowTimerMs > 0) {
@@ -677,13 +697,72 @@ fun GameCanvas(
                 drawCircle(color = Color(0xFFB026FF).copy(alpha = 0.4f), radius = enemyRadius * 1.35f, center = Offset(ecx, ecy), style = Stroke(width = 2f))
             }
 
-            if (enemy.isBoss) {
-                drawCircle(color = Color(0xFF581C87), radius = enemyRadius * 1.25f, center = Offset(ecx, ecy))
-                drawCircle(color = enemyColor, radius = enemyRadius, center = Offset(ecx, ecy))
-                drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
-            } else {
-                drawCircle(color = enemyColor, radius = enemyRadius, center = Offset(ecx, ecy))
-                drawCircle(color = Color.Black.copy(alpha = 0.4f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
+            when (enemy.type.shape) {
+                EnemyShape.CIRCLE -> {
+                    if (enemy.isBoss) {
+                        drawCircle(color = Color(0xFF581C87), radius = enemyRadius * 1.35f, center = Offset(ecx, ecy))
+                        drawCircle(color = affinityColor, radius = enemyRadius * 1.15f, center = Offset(ecx, ecy), style = Stroke(width = 3.0f))
+                        drawCircle(color = enemyColor, radius = enemyRadius, center = Offset(ecx, ecy))
+                        drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
+                    } else {
+                        drawCircle(color = enemyColor, radius = enemyRadius, center = Offset(ecx, ecy))
+                        drawCircle(color = affinityColor, radius = enemyRadius, center = Offset(ecx, ecy), style = Stroke(width = 2.2f))
+                        drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
+                        drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
+                    }
+                }
+                EnemyShape.TRIANGLE -> {
+                    val triRadius = enemyRadius * 1.25f
+                    val heading = enemy.headingRad
+                    val cosH = cos(heading)
+                    val sinH = sin(heading)
+                    val perpCos = cos(heading + (PI / 2f).toFloat())
+                    val perpSin = sin(heading + (PI / 2f).toFloat())
+
+                    val tipX = ecx + cosH * triRadius
+                    val tipY = ecy + sinH * triRadius
+                    val baseBackX = ecx - cosH * (triRadius * 0.65f)
+                    val baseBackY = ecy - sinH * (triRadius * 0.65f)
+                    val halfBase = triRadius * 0.85f
+
+                    val p1 = Offset(tipX, tipY)
+                    val p2 = Offset(baseBackX + perpCos * halfBase, baseBackY + perpSin * halfBase)
+                    val p3 = Offset(baseBackX - perpCos * halfBase, baseBackY - perpSin * halfBase)
+
+                    val triPath = Path().apply {
+                        moveTo(p1.x, p1.y)
+                        lineTo(p2.x, p2.y)
+                        lineTo(p3.x, p3.y)
+                        close()
+                    }
+
+                    if (enemy.isBoss) {
+                        drawPath(path = triPath, color = Color(0xFF581C87))
+                        drawPath(path = triPath, color = affinityColor, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+                        drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
+                    } else {
+                        drawPath(path = triPath, color = enemyColor)
+                        drawPath(path = triPath, color = affinityColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+                        drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
+                        drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
+                    }
+                }
+                EnemyShape.SQUARE -> {
+                    val sqRadius = enemyRadius * 0.95f
+                    val sqSize = sqRadius * 2f
+                    val sqTopLeft = Offset(ecx - sqRadius, ecy - sqRadius)
+
+                    if (enemy.isBoss) {
+                        drawRoundRect(color = Color(0xFF581C87), topLeft = sqTopLeft, size = Size(sqSize, sqSize), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+                        drawRoundRect(color = affinityColor, topLeft = sqTopLeft, size = Size(sqSize, sqSize), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f), style = Stroke(width = 3.5f))
+                        drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
+                    } else {
+                        drawRoundRect(color = enemyColor, topLeft = sqTopLeft, size = Size(sqSize, sqSize), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+                        drawRoundRect(color = affinityColor, topLeft = sqTopLeft, size = Size(sqSize, sqSize), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f), style = Stroke(width = 2.2f))
+                        drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
+                        drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
+                    }
+                }
             }
 
             val hpBarW = cellW * 0.70f * enemy.type.sizeRatio

@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -280,7 +281,9 @@ fun MinimalTopHud(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Wave badge
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
                             .size(6.dp)
@@ -2197,16 +2200,33 @@ fun DevBalanceSettingsDialog(
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0 = Economy & Combat Sliders, 1 = Tower Efficiency Telemetry
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            color = Color(0xFF0B132B),
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.8f)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.88f)
-                .padding(4.dp)
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = !isLandscape)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = if (isLandscape) Alignment.CenterEnd else Alignment.Center
         ) {
+            Surface(
+                color = Color(0xFF0B132B),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.8f)),
+                modifier = if (isLandscape) {
+                    Modifier
+                        .width(420.dp)
+                        .fillMaxHeight()
+                        .padding(top = 8.dp, bottom = 8.dp, end = 8.dp)
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.88f)
+                        .padding(4.dp)
+                }
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2653,6 +2673,7 @@ fun DevBalanceSettingsDialog(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -3305,34 +3326,27 @@ fun PauseMenuDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Filled.PauseCircle, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "GAME PAUSED",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 16.sp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    color = Color(0xFF00F0FF).copy(alpha = 0.20f),
-                                    shape = RoundedCornerShape(4.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.7f))
-                                ) {
-                                    Text(
-                                        text = "v${com.example.BuildConfig.VERSION_NAME}",
-                                        color = Color(0xFF00F0FF),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 10.sp,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Build ${com.example.BuildConfig.VERSION_CODE} • Combat Simulation Halted",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 8.5.sp
+                                text = "GAME PAUSED",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = Color(0xFF00F0FF).copy(alpha = 0.20f),
+                                shape = RoundedCornerShape(4.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.7f))
+                            ) {
+                                Text(
+                                    text = "v${com.example.BuildConfig.VERSION_NAME}",
+                                    color = Color(0xFF00F0FF),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
                         }
                     }
 
