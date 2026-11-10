@@ -10,7 +10,7 @@ import com.example.model.LeaderboardResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class ScoreSubmissionWorker(
+class ScoreSubmissionWorker @JvmOverloads constructor(
   context: Context,
   params: WorkerParameters,
   private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),

@@ -88,7 +88,7 @@ data class GameUIState(
     val showUpdateModal: Boolean = false
 )
 
-class RogueTDViewModel(
+class RogueTDViewModel @JvmOverloads constructor(
     application: Application,
     val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(
         store = LeaderboardStore(application),

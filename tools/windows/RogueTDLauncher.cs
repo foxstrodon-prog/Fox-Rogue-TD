@@ -144,7 +144,7 @@ namespace RogueTDLauncher
 
             if (Directory.Exists(apkDir))
             {
-                var apks = Directory.GetFiles(apkDir, "RogueTD-*.apk")
+                var apks = Directory.GetFiles(apkDir, "*.apk")
                                     .OrderByDescending(f => File.GetLastWriteTime(f))
                                     .ToList();
                 if (apks.Count > 0) return apks[0];
@@ -164,10 +164,31 @@ namespace RogueTDLauncher
 
             for (int i = 1; i < lines.Length; i++)
             {
-                var parts = lines[i].Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 2 && parts[1] == "device")
+                var line = lines[i].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+
+                var tabIdx = line.LastIndexOf('\t');
+                string serial = null;
+                string status = null;
+
+                if (tabIdx > 0)
                 {
-                    attached.Add(parts[0]);
+                    serial = line.Substring(0, tabIdx).Trim();
+                    status = line.Substring(tabIdx + 1).Trim();
+                }
+                else
+                {
+                    var lastSpace = line.LastIndexOf(' ');
+                    if (lastSpace > 0)
+                    {
+                        serial = line.Substring(0, lastSpace).Trim();
+                        status = line.Substring(lastSpace + 1).Trim();
+                    }
+                }
+
+                if (status == "device" && !string.IsNullOrEmpty(serial))
+                {
+                    attached.Add(serial);
                 }
             }
 

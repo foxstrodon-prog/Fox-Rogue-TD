@@ -17,7 +17,7 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
-class FirestoreLeaderboardApi(
+class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
   private val projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
   private val apiKey: String = com.example.BuildConfig.LEADERBOARD_API_KEY,
