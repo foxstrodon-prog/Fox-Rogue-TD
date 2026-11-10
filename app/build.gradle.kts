@@ -53,6 +53,12 @@ android {
         storePassword = "android"
         keyAlias = "androiddebugkey"
         keyPassword = "android"
+      } else {
+        val std = getByName("debug")
+        storeFile = std.storeFile
+        storePassword = std.storePassword
+        keyAlias = std.keyAlias
+        keyPassword = std.keyPassword
       }
     }
   }
