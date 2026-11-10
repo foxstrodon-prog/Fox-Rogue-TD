@@ -17,7 +17,8 @@ tasks.register<Exec>("buildWindowsLauncher") {
 tasks.register<Exec>("uploadGitHubRelease") {
   description = "Compiles APK, Windows launcher, and publishes a new GitHub Release with binary assets"
   group = "distribution"
+  dependsOn(":app:assembleDebug", "buildWindowsLauncher")
   workingDir = rootDir
-  commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "tools/release.ps1")
+  commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "tools/release.ps1", "-SkipBuild")
 }
 
