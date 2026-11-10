@@ -1341,6 +1341,45 @@ enum class SkinTheme(val config: ThemeSkinConfig) {
     }
 }
 
+/** 5 selectable visual skins for turrets (1 Default + 4 Candidates) */
+enum class TurretSkinSlot(val slot: Int, val displayName: String, val description: String) {
+    SLOT_1_DEFAULT(1, "Vector Cyber (Default)", "Sleek glowing vector geometry and rotary/crystal emitters"),
+    SLOT_2_BLUEPRINT(2, "Monochrome Blueprint", "Technical drafting lines, measurement crosshairs, and white schematics"),
+    SLOT_3_MILITARY(3, "Solarized Military", "Armored composite plating, heavy bolted rivets, and reinforced brass barrels"),
+    SLOT_4_VOID(4, "Deep Void", "Ethereal dark-matter chassis, floating halo rings, and cosmic void motes"),
+    SLOT_5_PIXEL(5, "Retro Pixel Arcade", "Crisp 8-bit faceted pixel geometry and high-contrast arcade borders");
+
+    companion object {
+        fun fromSlot(slot: Int): TurretSkinSlot = values().firstOrNull { it.slot == slot } ?: SLOT_1_DEFAULT
+    }
+}
+
+/** 5 selectable environment themes for map grid and lane pathways (1 Default + 4 Candidates) */
+enum class MapThemeSlot(val slot: Int, val displayName: String, val description: String) {
+    SLOT_1_DEFAULT(1, "Cyberpunk Grid (Default)", "Dark slate terrain with glowing neon cyan/amber energy conduits"),
+    SLOT_2_BLUEPRINT(2, "Blueprint Schematic", "Technical blueprint deep navy with crisp white drafting pathways"),
+    SLOT_3_OUTPOST(3, "Solarized Outpost", "Tactical olive terrain with dirt-road asphalt pathways and amber hazard lines"),
+    SLOT_4_VOID(4, "Void Rift", "Starless dark-matter ground with radiant violet/magenta dimensional pathways"),
+    SLOT_5_MATRIX(5, "Retro Matrix", "Arcade midnight black surface with glowing green/yellow phosphor conduits");
+
+    companion object {
+        fun fromSlot(slot: Int): MapThemeSlot = values().firstOrNull { it.slot == slot } ?: SLOT_1_DEFAULT
+    }
+}
+
+/** 5 selectable gunfire audio variants per archetype (1 Default + 4 Candidates) */
+enum class TurretSfxSlot(val slot: Int, val kineticName: String, val elementalName: String, val siegeName: String) {
+    SLOT_1_DEFAULT(1, "Rotary Gunfire (Default)", "Phase Beam (Default)", "Artillery Blast (Default)"),
+    SLOT_2_VARIANT_A(2, "Heavy Autocannon", "Plasma Burn", "Sonic Detonator"),
+    SLOT_3_VARIANT_B(3, "Hyper Pulse", "Ion Discharge", "Flak Burst"),
+    SLOT_4_VARIANT_C(4, "Gauss Needle", "Void Pulse", "Concussion Mortar"),
+    SLOT_5_VARIANT_D(5, "Rail Crack", "Arc Flare", "Plasma Howitzer");
+
+    companion object {
+        fun fromSlot(slot: Int): TurretSfxSlot = values().firstOrNull { it.slot == slot } ?: SLOT_1_DEFAULT
+    }
+}
+
 data class LifetimeTelemetry(
     val totalRuns: Int = 0,
     val totalVictories: Int = 0,
@@ -1396,6 +1435,16 @@ data class DevBalanceConfig(
     val minLaneLength: Int = 12,              // 8 to 25 slider
     val maxLaneLength: Int = 26,              // 15 to 40 slider
     val enemiesPerRoundMultiplier: Float = 1.0f, // 0.5x to 3.0x enemies per round
+    val masterVolume: Float = 0.7f,
+    val musicVolume: Float = 0.45f,
+    val sfxVolume: Float = 0.8f,
+    val isMuted: Boolean = false,
+    val musicTrackName: String = "ROLLING_PLAYLIST",
+    val kineticSfxSlot: Int = 1,
+    val elementalSfxSlot: Int = 1,
+    val siegeSfxSlot: Int = 1,
+    val turretSkinSlot: Int = 1,
+    val mapThemeSlot: Int = 1,
     val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
     val customEnemyConfigs: Map<String, EnemyUnitBalance> = emptyMap()
 ) {
@@ -1584,6 +1633,18 @@ data class DevBalanceConfig(
         if (maxLaneLength != default.maxLaneLength) diffMap["maxLaneLength"] = maxLaneLength
         if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) diffMap["enemiesPerRoundMultiplier"] = enemiesPerRoundMultiplier
 
+        // Audio & Visual Settings Diffs
+        if (Math.abs(masterVolume - default.masterVolume) > 0.01f) diffMap["masterVolume"] = masterVolume
+        if (Math.abs(musicVolume - default.musicVolume) > 0.01f) diffMap["musicVolume"] = musicVolume
+        if (Math.abs(sfxVolume - default.sfxVolume) > 0.01f) diffMap["sfxVolume"] = sfxVolume
+        if (isMuted != default.isMuted) diffMap["isMuted"] = isMuted
+        if (musicTrackName != default.musicTrackName) diffMap["musicTrackName"] = musicTrackName
+        if (kineticSfxSlot != default.kineticSfxSlot) diffMap["kineticSfxSlot"] = kineticSfxSlot
+        if (elementalSfxSlot != default.elementalSfxSlot) diffMap["elementalSfxSlot"] = elementalSfxSlot
+        if (siegeSfxSlot != default.siegeSfxSlot) diffMap["siegeSfxSlot"] = siegeSfxSlot
+        if (turretSkinSlot != default.turretSkinSlot) diffMap["turretSkinSlot"] = turretSkinSlot
+        if (mapThemeSlot != default.mapThemeSlot) diffMap["mapThemeSlot"] = mapThemeSlot
+
         // Tower diffs across all 39 units (L1 Base, L2 Specializations, L3 Final Forms)
         val towerDiffs = mutableMapOf<String, Map<String, Any>>()
         val allDescriptors = getAll39TowerDescriptors()
@@ -1637,7 +1698,7 @@ data class DevBalanceConfig(
         entries.forEachIndexed { i, (k, v) ->
             sb.append("  \"").append(k).append("\": ")
             when (v) {
-                is Number -> sb.append(v)
+                is Number, is Boolean -> sb.append(v)
                 is String -> sb.append("\"").append(v).append("\"")
                 is Map<*, *> -> {
                     sb.append("{\n")

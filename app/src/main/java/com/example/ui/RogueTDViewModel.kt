@@ -87,10 +87,16 @@ data class GameUIState(
     val updateUIState: AppUpdateState = AppUpdateState(),
     val showUpdateModal: Boolean = false,
     val soundProfile: com.example.audio.SoundProfile = com.example.audio.SoundProfile.CYBER_SYNTH,
-    val musicTrack: com.example.audio.MusicTrack = com.example.audio.MusicTrack.CYBER_AMBIENT,
+    val musicTrack: com.example.audio.MusicTrack = com.example.audio.MusicTrack.ROLLING_PLAYLIST,
     val masterVolume: Float = 0.7f,
     val sfxVolume: Float = 0.8f,
     val musicVolume: Float = 0.45f,
+    val isAudioMuted: Boolean = false,
+    val kineticSfxSlot: Int = 1,
+    val elementalSfxSlot: Int = 1,
+    val siegeSfxSlot: Int = 1,
+    val turretSkinSlot: Int = 1,
+    val mapThemeSlot: Int = 1,
     val towerVisualSkin: String = "Vector Blueprint"
 )
 
@@ -106,7 +112,22 @@ class RogueTDViewModel @JvmOverloads constructor(
     val appUpdateManager = AppUpdateManager(application, viewModelScope)
     val soundManager = com.example.audio.SoundManager(application)
 
-    private val _uiState = MutableStateFlow(GameUIState(balanceConfig = telemetryManager.getBalanceConfig()))
+    private val initialConfig = telemetryManager.getBalanceConfig()
+    private val _uiState = MutableStateFlow(
+        GameUIState(
+            balanceConfig = initialConfig,
+            masterVolume = initialConfig.masterVolume,
+            musicVolume = initialConfig.musicVolume,
+            sfxVolume = initialConfig.sfxVolume,
+            isAudioMuted = initialConfig.isMuted,
+            musicTrack = runCatching { com.example.audio.MusicTrack.valueOf(initialConfig.musicTrackName) }.getOrDefault(com.example.audio.MusicTrack.ROLLING_PLAYLIST),
+            kineticSfxSlot = initialConfig.kineticSfxSlot,
+            elementalSfxSlot = initialConfig.elementalSfxSlot,
+            siegeSfxSlot = initialConfig.siegeSfxSlot,
+            turretSkinSlot = initialConfig.turretSkinSlot,
+            mapThemeSlot = initialConfig.mapThemeSlot
+        )
+    )
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
 
     private var devTunedThisRun: Boolean = false
@@ -117,6 +138,13 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var updateDismissedForSession: Boolean = false
 
     init {
+        val config = _uiState.value.balanceConfig
+        soundManager.setMasterVolumeLevel(config.masterVolume)
+        soundManager.setMusicVolumeLevel(config.musicVolume)
+        soundManager.setSfxVolumeLevel(config.sfxVolume)
+        soundManager.setMutedState(config.isMuted)
+        soundManager.activeMusicTrack = _uiState.value.musicTrack
+
         refreshTelemetry()
         startNewRun()
         checkForAppUpdates()
@@ -230,6 +258,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun openPauseMenu() {
+        soundManager.isPaused = true
         val currentSpeed = _uiState.value.gameSpeed
         val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else _uiState.value.prePauseSpeed
         _uiState.update {
@@ -242,6 +271,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun closePauseMenu() {
+        soundManager.isPaused = false
         val resumeSpeed = if (_uiState.value.prePauseSpeed != GameSpeed.PAUSED) _uiState.value.prePauseSpeed else GameSpeed.NORMAL
         _uiState.update {
             it.copy(
@@ -252,6 +282,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun requestEndRun() {
+        soundManager.isPaused = true
         val currentSpeed = _uiState.value.gameSpeed
         val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else _uiState.value.prePauseSpeed
         _uiState.update {
@@ -264,6 +295,9 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun dismissEndRunConfirm() {
+        if (!_uiState.value.isPauseMenuOpen) {
+            soundManager.isPaused = false
+        }
         val resumeSpeed = if (!_uiState.value.isPauseMenuOpen && _uiState.value.prePauseSpeed != GameSpeed.PAUSED) _uiState.value.prePauseSpeed else GameSpeed.PAUSED
         _uiState.update {
             it.copy(
@@ -274,6 +308,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun confirmEndRun() {
+        soundManager.isPaused = false
         val state = _uiState.value
         val wavesCompleted = if (state.isWaveActive) maxOf(0, state.waveNumber - 1) else state.waveNumber
         recordRunCompletion(isVictory = false, waves = wavesCompleted)
@@ -298,13 +333,34 @@ class RogueTDViewModel @JvmOverloads constructor(
             devTunedThisRun = true
         }
         telemetryManager.saveBalanceConfig(newConfig)
+        soundManager.setMasterVolumeLevel(newConfig.masterVolume)
+        soundManager.setMusicVolumeLevel(newConfig.musicVolume)
+        soundManager.setSfxVolumeLevel(newConfig.sfxVolume)
+        soundManager.setMutedState(newConfig.isMuted)
         _uiState.update { it.copy(balanceConfig = newConfig) }
     }
 
     fun resetBalanceConfigToDefaults() {
         val defaultConfig = DevBalanceConfig()
         telemetryManager.saveBalanceConfig(defaultConfig)
-        _uiState.update { it.copy(balanceConfig = defaultConfig) }
+        soundManager.setMasterVolumeLevel(defaultConfig.masterVolume)
+        soundManager.setMusicVolumeLevel(defaultConfig.musicVolume)
+        soundManager.setSfxVolumeLevel(defaultConfig.sfxVolume)
+        soundManager.setMutedState(defaultConfig.isMuted)
+        _uiState.update {
+            it.copy(
+                balanceConfig = defaultConfig,
+                masterVolume = defaultConfig.masterVolume,
+                musicVolume = defaultConfig.musicVolume,
+                sfxVolume = defaultConfig.sfxVolume,
+                isAudioMuted = defaultConfig.isMuted,
+                kineticSfxSlot = defaultConfig.kineticSfxSlot,
+                elementalSfxSlot = defaultConfig.elementalSfxSlot,
+                siegeSfxSlot = defaultConfig.siegeSfxSlot,
+                turretSkinSlot = defaultConfig.turretSkinSlot,
+                mapThemeSlot = defaultConfig.mapThemeSlot
+            )
+        }
     }
 
     fun resetTowerPerformance() {
@@ -323,22 +379,106 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun setMusicTrack(track: com.example.audio.MusicTrack) {
         soundManager.activeMusicTrack = track
-        _uiState.update { it.copy(musicTrack = track) }
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(musicTrackName = track.name)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(musicTrack = track, balanceConfig = updated)
+        }
     }
 
     fun setMasterVolume(level: Float) {
         soundManager.setMasterVolumeLevel(level)
-        _uiState.update { it.copy(masterVolume = level) }
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(masterVolume = level)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(masterVolume = level, balanceConfig = updated)
+        }
     }
 
     fun setSfxVolume(level: Float) {
         soundManager.setSfxVolumeLevel(level)
-        _uiState.update { it.copy(sfxVolume = level) }
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(sfxVolume = level)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(sfxVolume = level, balanceConfig = updated)
+        }
     }
 
     fun setMusicVolume(level: Float) {
         soundManager.setMusicVolumeLevel(level)
-        _uiState.update { it.copy(musicVolume = level) }
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(musicVolume = level)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(musicVolume = level, balanceConfig = updated)
+        }
+    }
+
+    fun toggleAudioMute(): Boolean {
+        val newMuted = soundManager.toggleMute()
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(isMuted = newMuted)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(isAudioMuted = newMuted, balanceConfig = updated)
+        }
+        return newMuted
+    }
+
+    fun setAudioMuted(muted: Boolean) {
+        soundManager.setMutedState(muted)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(isMuted = muted)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(isAudioMuted = muted, balanceConfig = updated)
+        }
+    }
+
+    fun setKineticSfxSlot(slot: Int) {
+        val clamped = slot.coerceIn(1, 5)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(kineticSfxSlot = clamped)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(kineticSfxSlot = clamped, balanceConfig = updated)
+        }
+    }
+
+    fun setElementalSfxSlot(slot: Int) {
+        val clamped = slot.coerceIn(1, 5)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(elementalSfxSlot = clamped)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(elementalSfxSlot = clamped, balanceConfig = updated)
+        }
+    }
+
+    fun setSiegeSfxSlot(slot: Int) {
+        val clamped = slot.coerceIn(1, 5)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(siegeSfxSlot = clamped)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(siegeSfxSlot = clamped, balanceConfig = updated)
+        }
+    }
+
+    fun setTurretSkinSlot(slot: Int) {
+        val clamped = slot.coerceIn(1, 5)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(turretSkinSlot = clamped)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(turretSkinSlot = clamped, balanceConfig = updated)
+        }
+    }
+
+    fun setMapThemeSlot(slot: Int) {
+        val clamped = slot.coerceIn(1, 5)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(mapThemeSlot = clamped)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(mapThemeSlot = clamped, balanceConfig = updated)
+        }
+    }
+
+    fun playTurretTestSound(towerClass: TowerClass, slot: Int) {
+        soundManager.playTurretTestSound(towerClass, slot)
     }
 
     fun setTowerVisualSkin(skin: String) {
@@ -458,6 +598,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     private fun tickSimulation(deltaSec: Float, deltaMs: Long, nowMs: Long = System.currentTimeMillis()) {
         virtualSimTimeMs += deltaMs
+        soundManager.updateTick(nowMs, deltaMs)
         val state = _uiState.value
         val level = state.level ?: return
 
@@ -664,6 +805,14 @@ class RogueTDViewModel @JvmOverloads constructor(
 
             if (simNowMs - tower.lastShotTimeMs >= cooldownMs) {
                 tower.lastShotTimeMs = simNowMs
+
+                // Trigger Turret Gunfire Audio (TASK 05 & TASK 06)
+                val sfxSlot = when (tower.towerClass) {
+                    TowerClass.KINETIC_BALLISTIC -> state.kineticSfxSlot
+                    TowerClass.ELEMENTAL_VOID -> state.elementalSfxSlot
+                    TowerClass.HEAVY_SIEGE -> state.siegeSfxSlot
+                }
+                soundManager.playTurretFire(tower.towerClass, sfxSlot)
 
                 val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.30f else 0.0f
                 val apexBonus = if (tower.isFinalForm) 0.30f else 0.0f
@@ -1071,9 +1220,18 @@ class RogueTDViewModel @JvmOverloads constructor(
         val state = _uiState.value
         val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).roundToInt()
 
-        if (state.scrap < cost) return
-        if (state.towers.any { it.gridPos == tile.pos }) return
-        if (!TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)) return
+        if (state.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
+        if (state.towers.any { it.gridPos == tile.pos }) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
+        if (!TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         val newTower = TowerInstance(
             id = UUID.randomUUID().toString(),
@@ -1081,6 +1239,8 @@ class RogueTDViewModel @JvmOverloads constructor(
             towerClass = towerClass,
             tier = 0
         )
+
+        soundManager.play(com.example.audio.SoundFx.PLACE)
 
         _uiState.update {
             it.copy(
@@ -1102,7 +1262,10 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToVector(tower: TowerInstance, vector: TowerVector) {
         if (tower.tier != 0 && tower.branchTier1 == null) return
         val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.tier = 1
         tower.vector = vector
@@ -1111,6 +1274,8 @@ class RogueTDViewModel @JvmOverloads constructor(
             TowerVector.DEFENSIVE -> "B"
             TowerVector.SUPPORT -> "C"
         }
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         _uiState.update {
             it.copy(
@@ -1126,13 +1291,18 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToArchetype(tower: TowerInstance, archetype: TowerArchetype) {
         if (tower.tier != 1 && !tower.isTier1) return
         val cost = TowerUpgradeManager.getTier2Cost(archetype)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.tier = 2
         tower.archetype = archetype
         tower.vector = archetype.vector
         tower.towerClass = archetype.towerClass
         tower.finalFormCode = "${tower.branchTier1 ?: "A"}.a"
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         _uiState.update {
             it.copy(
@@ -1149,13 +1319,18 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToTier3Global(tower: TowerInstance, auraIndex: Int = 0) {
         if (tower.tier != 2 && !tower.isTier2) return
         val cost = TowerUpgradeManager.getTier3GlobalCost(tower, _uiState.value.towers)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.tier = 3
         tower.isTier3GlobalActive = true
         tower.selectedAuraIndex = auraIndex
         val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
         val chosenAura = if (auraIndex == 1) arch.secondaryAura else arch.primaryAura
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         _uiState.update {
             it.copy(
@@ -1198,11 +1373,16 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToTier1(tower: TowerInstance, branchKey: String) {
         if (!tower.isBase) return
         val cost = TowerUpgradeManager.getTier1Cost(tower, branchKey)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.branchTier1 = branchKey
         val option = TowerUpgradeManager.getTier1Options(tower.type).firstOrNull { it.branchKey == branchKey }
         val name = option?.subName ?: "Branch $branchKey"
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         _uiState.update {
             it.copy(
@@ -1217,11 +1397,16 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToFinalForm(tower: TowerInstance, finalFormCode: String) {
         if (!tower.isTier1) return
         val cost = TowerUpgradeManager.getFinalFormCost(tower, finalFormCode, _uiState.value.towers)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.finalFormCode = finalFormCode
         val finalFormDef = TowerUpgradeManager.getFinalForm(tower.type, finalFormCode)
         val name = finalFormDef?.subName ?: "Apex Form"
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         _uiState.update {
             it.copy(
@@ -1240,10 +1425,15 @@ class RogueTDViewModel @JvmOverloads constructor(
 
         val nextTier = currentTier + 1
         val cost = TowerUpgradeManager.getUpgradeCost(tower, pathIndex, nextTier, _uiState.value.towers)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.pathTiers[pathIndex] = nextTier
         val upgradeName = TowerUpgradeManager.getPathUpgrade(tower.type, pathIndex, nextTier).name
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         _uiState.update {
             it.copy(
@@ -1259,9 +1449,13 @@ class RogueTDViewModel @JvmOverloads constructor(
         if (!tower.isMaxed || tower.isAscended) return
 
         val cost = TowerUpgradeManager.getAscensionCost(tower)
-        if (_uiState.value.scrap < cost) return
+        if (_uiState.value.scrap < cost) {
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            return
+        }
 
         tower.finalFormCode = "${tower.branchTier1 ?: "A"}.a"
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
 
         // Apply tower's distinctive global boost
         _uiState.update { state ->
@@ -1287,6 +1481,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun sellSelectedTower() {
         val tower = _uiState.value.selectedTower ?: return
         val sellVal = tower.getSellValue()
+        soundManager.play(com.example.audio.SoundFx.SELL)
 
         _uiState.update {
             it.copy(

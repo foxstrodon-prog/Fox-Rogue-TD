@@ -502,19 +502,19 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 010`() {
-    assertEquals("0.0.0.010", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(18, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 011`() {
+    assertEquals("0.0.0.011", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(19, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.010", "0.0.0.009"))
-    assertTrue(updater.isNewerVersion("0.0.0.010", "0.0.0.009"))
-    assertFalse(updater.isNewerVersion("v0.0.0.009", "0.0.0.009"))
-    assertFalse(updater.isNewerVersion("0.0.0.008", "0.0.0.009"))
+    assertTrue(updater.isNewerVersion("v0.0.0.011", "0.0.0.010"))
+    assertTrue(updater.isNewerVersion("0.0.0.011", "0.0.0.010"))
+    assertFalse(updater.isNewerVersion("v0.0.0.010", "0.0.0.010"))
+    assertFalse(updater.isNewerVersion("0.0.0.009", "0.0.0.010"))
   }
 
   @Test
@@ -836,7 +836,95 @@ class ExampleRobolectricTest {
     val distOutOfRange = kotlin.math.hypot(enemyOutOfRange.worldX - tower.gridPos.x, enemyOutOfRange.worldY - tower.gridPos.y)
     assertFalse(distOutOfRange <= (baseRange + enemyOutOfRange.type.hitRadius))
   }
+
+  @Test
+  fun `audio engine volume attenuation and combat ducking behavior`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val soundManager = com.example.audio.SoundManager(context)
+
+    soundManager.masterVolume = 1.0f
+    soundManager.musicVolume = 1.0f
+    soundManager.isPaused = false
+    soundManager.isDucked = false
+
+    // Normal full volume
+    assertEquals(1.0f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    // Pause Menu attenuation: drops by 50% (-6dB)
+    soundManager.isPaused = true
+    assertEquals(0.5f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    // Moving music slider while paused updates live effective volume relative to master
+    soundManager.musicVolume = 0.8f
+    assertEquals(0.4f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    soundManager.masterVolume = 0.5f
+    assertEquals(0.2f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    // Resume from pause
+    soundManager.isPaused = false
+    assertEquals(0.4f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    // Dynamic Combat Ducking: drops by 50% during heavy weapon fire
+    soundManager.triggerCombatDucking(durationMs = 500L)
+    assertTrue(soundManager.isDucked)
+    assertEquals(0.2f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    // Mute suppresses output entirely
+    soundManager.isMuted = true
+    assertEquals(0.0f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
+
+    soundManager.release()
+  }
+
+  @Test
+  fun `turret audio variants, visual skins, and map themes slots exist and map accurately`() {
+    assertEquals(5, com.example.model.TurretSkinSlot.values().size)
+    assertEquals(5, com.example.model.MapThemeSlot.values().size)
+    assertEquals(5, com.example.model.TurretSfxSlot.values().size)
+
+    for (i in 1..5) {
+      assertEquals(i, com.example.model.TurretSkinSlot.fromSlot(i).slot)
+      assertEquals(i, com.example.model.MapThemeSlot.fromSlot(i).slot)
+      assertEquals(i, com.example.model.TurretSfxSlot.fromSlot(i).slot)
+    }
+
+    // Default fallbacks for out-of-range slot indices
+    assertEquals(com.example.model.TurretSkinSlot.SLOT_1_DEFAULT, com.example.model.TurretSkinSlot.fromSlot(99))
+    assertEquals(com.example.model.MapThemeSlot.SLOT_1_DEFAULT, com.example.model.MapThemeSlot.fromSlot(-1))
+  }
+
+  @Test
+  fun `exportDiffJson serializes non-default audio and customization state`() {
+    val baseline = com.example.model.DevBalanceConfig()
+    assertEquals("{}", baseline.exportDiffJson())
+
+    val tuned = baseline.copy(
+      masterVolume = 0.45f,
+      musicVolume = 0.60f,
+      sfxVolume = 0.90f,
+      isMuted = true,
+      musicTrackName = "PULSE_ARPEGGIO",
+      kineticSfxSlot = 2,
+      elementalSfxSlot = 3,
+      siegeSfxSlot = 4,
+      turretSkinSlot = 2,
+      mapThemeSlot = 5
+    )
+    val diff = tuned.exportDiffJson()
+    assertTrue(diff.contains("\"masterVolume\": 0.45"))
+    assertTrue(diff.contains("\"musicVolume\": 0.6"))
+    assertTrue(diff.contains("\"sfxVolume\": 0.9"))
+    assertTrue(diff.contains("\"isMuted\": true"))
+    assertTrue(diff.contains("\"musicTrackName\": \"PULSE_ARPEGGIO\""))
+    assertTrue(diff.contains("\"kineticSfxSlot\": 2"))
+    assertTrue(diff.contains("\"elementalSfxSlot\": 3"))
+    assertTrue(diff.contains("\"siegeSfxSlot\": 4"))
+    assertTrue(diff.contains("\"turretSkinSlot\": 2"))
+    assertTrue(diff.contains("\"mapThemeSlot\": 5"))
+  }
 }
+
 
 
 

@@ -5,10 +5,12 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.010 Android APK):** [`apk/Dual-Front-TD-v0.0.0.010-debug.apk`](apk/Dual-Front-TD-v0.0.0.010-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.010.apk`](apk/game-release-v0.0.0.010.apk) and [`apk/RogueTD-v0.0.0.010-debug.apk`](apk/RogueTD-v0.0.0.010-debug.apk))
+- **Direct Repository Download (v0.0.0.011 Android APK):** [`apk/Dual-Front-TD-v0.0.0.011-debug.apk`](apk/Dual-Front-TD-v0.0.0.011-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.011.apk`](apk/game-release-v0.0.0.011.apk) and [`apk/RogueTD-v0.0.0.011-debug.apk`](apk/RogueTD-v0.0.0.011-debug.apk))
 - **Portable Windows PC Launcher (Single Root Executable):** [`Dual Front TD.exe`](Dual%20Front%20TD.exe)
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, and launch the game in one click.
+- **Google Play "What's New" Release Notes:** [`GPReadme.md`](GPReadme.md) (formatted for Google Play Store updates with recent patch history)
 - **Archived Previous Releases (inside `apk/` folder):**
+  - **v0.0.0.010:** [`apk/Dual-Front-TD-v0.0.0.010-debug.apk`](apk/Dual-Front-TD-v0.0.0.010-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.010.exe`](apk/Dual-Front-TD-v0.0.0.010.exe)
   - **v0.0.0.009:** [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) | [`apk/Fox-Rogue-TD-v0.0.0.009.exe`](apk/Fox-Rogue-TD-v0.0.0.009.exe)
   - **v0.0.0.008:** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) | [`apk/Fox-Rogue-TD-v0.0.0.008.exe`](apk/Fox-Rogue-TD-v0.0.0.008.exe)
   - **v0.0.0.007:** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) | [`apk/RogueTD-v0.0.0.007.exe`](apk/RogueTD-v0.0.0.007.exe)
@@ -18,7 +20,24 @@ You can find the ready-to-run builds in this repository:
 
 ---
 
-### ✨ What's New in Version 0.0.0.010:
+### ✨ What's New in Version 0.0.0.011:
+
+- **Complete Sound System Overhaul & Audio Architecture**:
+  - **Music Player Track Switching Fix**: Fixed audio buffer lock-in so selecting tracks in the UI immediately swaps the active playback stream seamlessly.
+  - **Dynamic Combat Ducking**: Implemented dynamic volume ducking on the background music bus during heavy turret firing and explosions to prevent audio clipping.
+  - **Pause Menu Attenuation & Real-Time Slider Linking**: Background music automatically drops to 35% attenuation upon pause; adjusting the volume slider while paused provides immediate real-time auditory feedback.
+  - **Rolling Playlist Support**: 5 background music tracks (*Sector Zero Synth, Dual Front Pulse, Sub-Void Drone, Hyper-Grid Ambient, and Mute*) cycling smoothly.
+  - **Turret Gunfire Audio Restoration & Voice Concurrency Caps**: Restored firing sound triggers across all 3 turret archetypes (Kinetic, Elemental, Siege) with 65ms rate limiting to prevent volume blow-out.
+  - **Turret SFX Variation Testing Slots**: 5 gunfire audio candidate slots per turret type (15 total procedural SFX variants) with live preview test triggers.
+- **Aesthetic Lab & Visual Skin Pipelines**:
+  - **5 Turret Visual Skin Slots**: Default Production mesh plus 4 experimental skins (*Vector Minimal, Cyber Neon, Heavy Industrial, Void Glyph*) with distinct geometric silhouettes and animated firing flourishes.
+  - **5 Map & Lane Environment Theme Slots**: Default Cyber Grid plus 4 procedural biome palettes (*Neon Grid, Solarized Desert, Deep Void, Obsidian Magma*) altering conduit lines, background styling, and boosted tile glows.
+  - **Pause Menu Customization Studio**: Elevated sound and skin selection out of the hidden Dev Menu into an accessible, player-facing Pause Menu subsection.
+  - **Delta-State Balance & Asset Export**: Corrected boolean serialization in diff-only delta JSON export.
+- **Google Play Store Release Documentation**:
+  - Created [`GPReadme.md`](GPReadme.md) formatted specifically for Google Play Store updates ("What's New") showing a rolling window of recent patches with redirection to GitHub for older changelogs.
+- **Release Verification & Governance Hardening**:
+  - Codified the Lead Developer Manual Release Gate, ensuring all release candidate artifacts are tested personally before publishing.
 
 - **Official Rebrand to "Dual Front TD"**:
   - Rebranded application name to **Dual Front TD** across manifest, strings, and build artifacts (`Dual-Front-TD-v0.0.0.010-debug.apk`).
@@ -108,7 +127,7 @@ Dual Front TD.exe
 ```
 Versioned distribution files:
 ```
-apk/Dual-Front-TD-v0.0.0.010-debug.apk
+apk/Dual-Front-TD-v0.0.0.011-debug.apk
 apk/Dual Front TD.exe
-apk/Dual-Front-TD-v0.0.0.010.exe
+apk/Dual-Front-TD-v0.0.0.011.exe
 ```

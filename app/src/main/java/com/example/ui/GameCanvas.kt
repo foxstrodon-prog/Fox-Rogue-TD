@@ -86,15 +86,58 @@ fun GameCanvas(
         withTransform({
             translate(boardOriginX, boardOriginY)
         }) {
+            val themeSlot = MapThemeSlot.fromSlot(state.mapThemeSlot)
+            val groundColor = when (themeSlot) {
+                MapThemeSlot.SLOT_1_DEFAULT -> biome.groundColor
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF0B192C)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF1C1917)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFF090514)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF020B05)
+            }
+            val gridLineColor = when (themeSlot) {
+                MapThemeSlot.SLOT_1_DEFAULT -> biome.groundSecondary.copy(alpha = 0.5f)
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF1E3E62).copy(alpha = 0.7f)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF292524).copy(alpha = 0.7f)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFF2E1065).copy(alpha = 0.7f)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF064E3B).copy(alpha = 0.7f)
+            }
+            val pathBaseColor = when (themeSlot) {
+                MapThemeSlot.SLOT_1_DEFAULT -> biome.pathColor
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF16253D)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF44403C)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFF1E103A)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF065F46)
+            }
+            val colorAlpha = when (themeSlot) {
+                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFF00F0FF)
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF38BDF8)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFF59E0B)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFFA855F7)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF10B981)
+            }
+            val colorBeta = when (themeSlot) {
+                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFFFB800)
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF93C5FD)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFD97706)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFFEC4899)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF34D399)
+            }
+            val colorMerged = when (themeSlot) {
+                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFC084FC)
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFFE2E8F0)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFFDE68A)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFFF472B6)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFFA7F3D0)
+            }
+
             // Draw Base Terrain Grid
             drawRect(
-                color = biome.groundColor,
+                color = groundColor,
                 topLeft = Offset(shakeX, shakeY),
                 size = Size(boardWidthPx, boardHeightPx)
             )
 
             // Subtle tactical grid lines
-            val gridLineColor = biome.groundSecondary.copy(alpha = 0.5f)
             for (x in 0..gridWidth) {
                 drawLine(
                     color = gridLineColor,
@@ -112,23 +155,23 @@ fun GameCanvas(
                 )
             }
 
-        val animFlowTime = if (state.animTimeMs > 0L) state.animTimeMs else System.currentTimeMillis()
+            val animFlowTime = if (state.animTimeMs > 0L) state.animTimeMs else System.currentTimeMillis()
 
-        // 1. Draw Clean Organic Gradient Pathways (Merge into radiant violet, then split naturally)
-        drawSmoothMergedPathways(
-            laneAlpha = level.laneAlpha,
-            laneBeta = level.laneBeta,
-            intersections = level.intersectionPoints,
-            cellW = cellW,
-            cellH = cellH,
-            shakeX = shakeX,
-            shakeY = shakeY,
-            pathColor = biome.pathColor,
-            colorAlpha = Color(0xFF00F0FF),
-            colorBeta = Color(0xFFFFB800),
-            colorMerged = Color(0xFFC084FC), // Radiant violet gradient shift when merged!
-            animTime = animFlowTime
-        )
+            // 1. Draw Clean Organic Gradient Pathways (Merge into radiant violet, then split naturally)
+            drawSmoothMergedPathways(
+                laneAlpha = level.laneAlpha,
+                laneBeta = level.laneBeta,
+                intersections = level.intersectionPoints,
+                cellW = cellW,
+                cellH = cellH,
+                shakeX = shakeX,
+                shakeY = shakeY,
+                pathColor = pathBaseColor,
+                colorAlpha = colorAlpha,
+                colorBeta = colorBeta,
+                colorMerged = colorMerged, // Radiant violet gradient shift when merged!
+                animTime = animFlowTime
+            )
 
         // Draw Tiles (Obstacles, Buffs, Spawners, Core)
         for (tile in level.tiles) {
@@ -627,6 +670,58 @@ fun GameCanvas(
                 TowerClass.HEAVY_SIEGE -> {
                     val bS = if (tower.isFinalForm) 6f else 5f
                     drawRect(color = badgeColor, topLeft = Offset(tcx - bS / 2f, badgeY - bS / 2f), size = Size(bS, bS))
+                }
+            }
+
+            // === 4. TURRET VISUAL SKIN OVERLAY (TASK 07) ===
+            val skinSlot = TurretSkinSlot.fromSlot(state.turretSkinSlot)
+            when (skinSlot) {
+                TurretSkinSlot.SLOT_1_DEFAULT -> {
+                    // Default Vector Cyber: clean neon linework
+                }
+                TurretSkinSlot.SLOT_2_BLUEPRINT -> {
+                    // Blueprint Schematic: subtle technical drafting lines & crosshairs
+                    val chLen = cellW * 0.16f
+                    drawLine(color = Color.White.copy(alpha = 0.7f), start = Offset(tcx - chLen, tcy), end = Offset(tcx + chLen, tcy), strokeWidth = 1.0f)
+                    drawLine(color = Color.White.copy(alpha = 0.7f), start = Offset(tcx, tcy - chLen), end = Offset(tcx, tcy + chLen), strokeWidth = 1.0f)
+                    drawCircle(color = Color(0xFF60A5FA).copy(alpha = 0.5f), radius = cellW * 0.36f, center = Offset(tcx, tcy), style = Stroke(width = 1.0f))
+                }
+                TurretSkinSlot.SLOT_3_MILITARY -> {
+                    // Tactical Military: 4 corner reinforcement rivet bolts
+                    val rivetOff = cellW * 0.28f
+                    val rivetRadius = cellW * 0.035f
+                    listOf(
+                        Offset(tcx - rivetOff, tcy - rivetOff),
+                        Offset(tcx + rivetOff, tcy - rivetOff),
+                        Offset(tcx - rivetOff, tcy + rivetOff),
+                        Offset(tcx + rivetOff, tcy + rivetOff)
+                    ).forEach { rPos ->
+                        drawCircle(color = Color(0xFF475569), radius = rivetRadius, center = rPos)
+                        drawCircle(color = Color(0xFF94A3B8), radius = rivetRadius * 0.5f, center = rPos)
+                    }
+                }
+                TurretSkinSlot.SLOT_4_VOID -> {
+                    // Deep Void Rift: shimmering astral corona ring
+                    val pulse = (sin(animFlowTime * 0.008f) * 0.2f + 0.8f).toFloat()
+                    drawCircle(
+                        color = Color(0xFFA855F7).copy(alpha = 0.35f * pulse),
+                        radius = cellW * 0.42f,
+                        center = Offset(tcx, tcy),
+                        style = Stroke(width = 1.8f)
+                    )
+                }
+                TurretSkinSlot.SLOT_5_PIXEL -> {
+                    // Retro Pixel Arcade: 8-bit stepped pixel corners
+                    val pSize = cellW * 0.05f
+                    val bOff = cellW * 0.32f
+                    listOf(
+                        Offset(tcx - bOff, tcy - bOff),
+                        Offset(tcx + bOff - pSize, tcy - bOff),
+                        Offset(tcx - bOff, tcy + bOff - pSize),
+                        Offset(tcx + bOff - pSize, tcy + bOff - pSize)
+                    ).forEach { corner ->
+                        drawRect(color = Color(0xFFFACC15), topLeft = corner, size = Size(pSize, pSize))
+                    }
                 }
             }
         }
