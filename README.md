@@ -1,20 +1,54 @@
-# Rogue TD: Dual-Front
+# Dual Front TD
 
 A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.009 Android APK):** [`apk/Fox-Rogue-TD-v0.0.0.009.apk`](apk/Fox-Rogue-TD-v0.0.0.009.apk) (also mirror-saved as [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) and [`apk/RogueTD-v0.0.0.009-debug.apk`](apk/RogueTD-v0.0.0.009-debug.apk))
-- **Portable Windows PC Launcher (v0.0.0.009 Widescreen Runner):** [`Fox-Rogue-TD.exe`](Fox-Rogue-TD.exe) (also mirror-saved as [`Fox-Rogue-TD-v0.0.0.009.exe`](Fox-Rogue-TD-v0.0.0.009.exe) and [`RogueTD-v0.0.0.009.exe`](RogueTD-v0.0.0.009.exe))
-  - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, lock the display to **Widescreen Mode (Landscape)**, and launch the game in one click.
-- **Previous Releases:**
-  - **v0.0.0.008:** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) | [`Fox-Rogue-TD-v0.0.0.008.exe`](Fox-Rogue-TD-v0.0.0.008.exe)
-  - **v0.0.0.007:** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) | [`RogueTD-v0.0.0.007.exe`](RogueTD-v0.0.0.007.exe)
-  - **v0.0.0.006:** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk) | [`RogueTD-v0.0.0.006.exe`](RogueTD-v0.0.0.006.exe)
-  - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe)
-  - **v0.0.0.004:** [`apk/RogueTD-v0.0.0.004-debug.apk`](apk/RogueTD-v0.0.0.004-debug.apk)
+- **Direct Repository Download (v0.0.0.010 Android APK):** [`apk/Dual-Front-TD-v0.0.0.010-debug.apk`](apk/Dual-Front-TD-v0.0.0.010-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.010.apk`](apk/game-release-v0.0.0.010.apk) and [`apk/RogueTD-v0.0.0.010-debug.apk`](apk/RogueTD-v0.0.0.010-debug.apk))
+- **Portable Windows PC Launcher (Single Root Executable):** [`Dual Front TD.exe`](Dual%20Front%20TD.exe)
+  - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, and launch the game in one click.
+- **Archived Previous Releases (inside `apk/` folder):**
+  - **v0.0.0.009:** [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) | [`apk/Fox-Rogue-TD-v0.0.0.009.exe`](apk/Fox-Rogue-TD-v0.0.0.009.exe)
+  - **v0.0.0.008:** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) | [`apk/Fox-Rogue-TD-v0.0.0.008.exe`](apk/Fox-Rogue-TD-v0.0.0.008.exe)
+  - **v0.0.0.007:** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) | [`apk/RogueTD-v0.0.0.007.exe`](apk/RogueTD-v0.0.0.007.exe)
+  - **v0.0.0.006:** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk) | [`apk/RogueTD-v0.0.0.006.exe`](apk/RogueTD-v0.0.0.006.exe)
+  - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`apk/RogueTD-v0.0.0.005.exe`](apk/RogueTD-v0.0.0.005.exe)
 - **Automated GitHub Actions:** Every commit and release automatically builds the latest APK under the repository's **Actions** tab as a downloadable artifact.
+
+---
+
+### ✨ What's New in Version 0.0.0.010:
+
+- **Official Rebrand to "Dual Front TD"**:
+  - Rebranded application name to **Dual Front TD** across manifest, strings, and build artifacts (`Dual-Front-TD-v0.0.0.010-debug.apk`).
+- **Complete 39-Tower Dev-Console Coverage**:
+  - Fully dynamic dev menu support for **all 39 towers** (3 Level 1 base towers, 9 Level 2 specializations, and 27 Level 3 final forms).
+  - Includes family and tier filter chips, custom renaming text fields, real-time stat summaries, individual reset buttons, and granular sliders for Base Damage (5–450 DMG), Targeting Range (1.5–7.5 cells), Attack Rate (0.2–8.0/s), and Deployment Cost (40–600 Credits).
+  - "Export Defaults" button generates strict diff-only delta JSON capturing only modified unit settings.
+- **Fixed Canvas Orientation & Dynamic Rotating HUD Overlays**:
+  - Locked `MainActivity` canvas to portrait, ensuring map grid coordinates, hitboxes, and curve bezier paths never shift or distort during physical phone rotation.
+  - Dynamically rotates HUD text chips and action buttons to match device tilt angle (0°, 90°, 180°, 270°) with fluid animation.
+- **Procedural Audio Synthesizer & Skins Studio**:
+  - Procedural PCM audio synthesis engine (`SoundManager.kt`) with zero asset overhead and 100% copyright freedom.
+  - Master, SFX, and Music volume sliders.
+  - 4 selectable procedural sound profiles: *Cyber Synth, Retro 8-Bit Arcade, Heavy Acoustic Impact, and Sci-Fi Laser Grid*, with live interactive test buttons (*Kinetic, Elemental, Siege, Upgrade*).
+  - 4 procedural ambient synthesizer music tracks: *Sector Zero Synth, Dual Front Pulse, Sub-Void Drone, and Mute*.
+  - 7 customizable tower & map themes: *Vector Blueprint, Cyberpunk Neon, Solarized Military, Deep Void, Retro 8-Bit Arcade, Clean Minimalist, and Gold Elite*.
+- **Accurate Live Combat DPS & Telemetry Reset Window**:
+  - Integrated `getEffectiveDamage()`, `getEffectiveFireRate()`, and `getEffectiveDps()` calculation into tower inspection.
+  - Prominent "RESET WINDOW" button on the Telemetry tab in the Dev Console to capture and diagnose tower performance over focused test windows.
+- **Global Economy Tuning Sliders**:
+  - Added macro sliders for overall tower fire rate multiplier (0.2x–3.0x), overall enemy health multiplier (0.5x–3.0x), overall enemy speed multiplier (0.2x–3.0x), starting credits (100–600 C), and enemies per round (0.5x–3.0x).
+- **Decoupled Simulation Clock (3.5x / 5x / 10x Synchronization)**:
+  - Decoupled tower weapon cooldowns from real-world wall clock milliseconds to virtual simulation time (`virtualSimTimeMs`), perfectly synchronizing weapon fire cadences with fast-forward gameplay speeds.
+- **Expanded Map Grid & Smart Spawner Recommendation**:
+  - Expanded map height from 14 to **16 rows** (`DEFAULT_WIDTH = 10`), extending the board upward to the HUD.
+  - Smart Wave 1 placement recommendation prioritizes proximity to spawners, center column alignment, and early lane reach.
+- **Windows .exe Consolidation**:
+  - Root directory contains only the updated standalone [`Dual Front TD.exe`](Dual%20Front%20TD.exe). All past executables archived in `apk/`.
+- **Firebase & Google Services Integration**:
+  - Added `google-services.json` integration, Google Services Gradle plugin 4.5.0, and Firebase BoM 35.1.0 with Analytics and Firestore REST leaderboard transport.
 
 ---
 
@@ -25,115 +59,14 @@ You can find the ready-to-run builds in this repository:
   - Resolves runtime crash (`NoSuchMethodException: RogueTDViewModel.<init> [class android.app.Application]`) under Android's default `ViewModelProvider.AndroidViewModelFactory` and WorkManager's `WorkerFactory`.
 - **Widescreen Windows Launcher Resilience**:
   - Hardened `RogueTDLauncher.cs` device serial parsing to properly handle wireless / mDNS TLS ADB devices containing whitespace or parenthesized index names.
-  - Expanded APK resolution to automatically match any valid project APK pattern (`Fox-Rogue-TD-*.apk`, `game-release-*.apk`, `RogueTD-*.apk`).
-- **Comprehensive Multi-Asset Release & Packaging Pipeline**:
-  - Updated automated CI workflow (`.github/workflows/release.yml`) and local release script (`tools/release.ps1`) to stage and attach all named APK flavors (`Fox-Rogue-TD-v0.0.0.009.apk`, `game-release-v0.0.0.009.apk`, `RogueTD-v0.0.0.009-debug.apk`) alongside standalone Windows launchers (`Fox-Rogue-TD-v0.0.0.009.exe`, `RogueTD-v0.0.0.009.exe`, `Fox-Rogue-TD.exe`).
-  - Added pre-release health verification and reflection safety checks to Lead Release Engineering Agent (Mike) specifications.
-
----
-
-### ✨ What's New in Version 0.0.0.008:
-
-- **Hardened Online Leaderboard & Resilient Firestore REST Transport**:
-  - Implemented zero-allocation, coroutine-cancellable OkHttp transport (`OkHttpClientProvider` with bounded timeouts: 10s connect, 15s read, 10s write, 20s call) and `Call.awaitResponse()`.
-  - Replaced legacy Dreamlo backend with direct Firestore REST API (`submitScore` via documentId and `fetchTopScores` via structuredQuery).
-  - 100% Firebase Spark tier compliant ($0 budget, strictly avoiding Blaze-required Cloud Functions and Cloud Storage, with queries capped at 50 documents and client-side 30s cache TTL / 3s debounce).
-  - Idempotent score submissions using deterministic `runId` document keys; HTTP 409 treated as idempotent success.
-- **Persistent Device Identity & Atomic Local Queue**:
-  - Full 36-character UUID v4 device identity (`PlayerIdentity`) stored persistently, generating standardized commander callsigns (`Commander-<HEX4>`).
-  - Coroutine-safe `LeaderboardStore` utilizing `androidx.core.util.AtomicFile` for zero-corruption file operations across `cache.json`, `pending_queue.json` (capped at 20 with 7-day TTL), and `submitted_ids.json` (LRU set of 100).
-- **Offline Background Synchronization via WorkManager**:
-  - Created `ScoreSubmissionWorker` with network constraints (`NetworkType.CONNECTED`) and exponential backoff retry criteria.
-  - Automatically retries unsubmitted runs upon reconnecting without blocking the main game loop or draining battery.
-- **UI State Binding & Error Diagnostics**:
-  - `TelemetryLeaderboardDialog` displays distinct visual indicators for `ONLINE` (verified green badge), `OFFLINE_CACHED` (amber offline mode badge with relative timestamp), `NOT_CONFIGURED`, and `ERROR` with manual refresh triggers.
-  - Local player entries are highlighted with a dedicated cyan border and commander badge.
-  - `RunSummaryDialog` features dynamic upload status chips: "Uploading Run...", "Score Submitted to Global Leaderboard", "Queued for Upload (Offline)", and "Dev Tuned • Excluded from Online Leaderboard".
-- **Telemetry Sanitization & Issue Template Fixes**:
-  - Eliminated hardcoded fake telemetry seed entries (`Apex_Ghost`, `Nova_Prime`); fresh installs start with clean telemetry.
-  - Corrected community issue template URLs in `.github/ISSUE_TEMPLATE/config.yml` from `Foxstrodon/Fox-Rogue-TD` to `foxstrodon-prog/Fox-Rogue-TD`.
-
-- **Automated GitHub Release & Asset Upload Pipeline**:
-  - Implemented `.github/workflows/release.yml` triggering on tags (`v*`) or manual workflow dispatch. It automatically parses `versionName`, executes automated tests, compiles the release APK, standardizes naming to `game-release-vX.X.X.XXX.apk`, creates formal GitHub Releases, and attaches the binary assets.
-  - Added local one-click release automation script `tools/release.ps1` and Gradle task `./gradlew uploadGitHubRelease` for local automated builds and releases via GitHub CLI (`gh`).
-- **Startup / Boot Asynchronous Auto-Update Check & Modal**:
-  - Automatically queries the GitHub Releases API (`GET /repos/{owner}/{repo}/releases/latest`) on game initialization.
-  - When a newer tag is detected, displays an in-game **Update Modal** showing version comparison, formatted release notes, download progress, and an "Update Now" action alongside an optional "Later" / "Skip" button.
-  - Downloads the APK directly into the application's cache directory via Android's native `DownloadManager` and triggers installation via secure `FileProvider` (`Intent.ACTION_VIEW` with MIME type `application/vnd.android.package-archive`).
-- **Comprehensive DevSecOps & Community Standards Compliance**:
-  - Integrated full GitHub community files: `LICENSE` (MIT), `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1), `CONTRIBUTING.md`, `SECURITY.md`, issue templates for bugs and feature requests, and `PULL_REQUEST_TEMPLATE.md`.
-  - Hardened `.gitignore` and added `local.properties.example` and `.env.example` to prevent credential exposure.
-
----
-
-### ✨ What's New in Version 0.0.0.006:
-
-- **Multi-Dimensional Combat Matrix (`DamageCalculator`)**:
-  - Implemented full tactical rock-paper-scissors elemental affinities (`RED` > `GREEN` > `YELLOW` > `RED`), dealing +25% advantage damage or suffering -20% resist penalty.
-  - Deep geometric silhouette synergy: Kinetic towers match Circle enemies, Elemental Void matches Triangles, and Heavy Siege crushes Squares (+35% match bonus vs -20% mismatch resistance).
-- **Heading-Oriented Creep Motion**:
-  - Triangle striker enemies and directional drones dynamically rotate to their true path tangent heading (`atan2(dy, dx)`) during segment interpolation, eliminating static East-facing sprites on curved lanes.
-- **Combat Range & Visualizer Perfect Synchronization**:
-  - Tower selection range circles in `GameCanvas` are now dynamically synchronized with `globalRangeBonus` from active sniper and orbital kinetic aura upgrades, ensuring 1:1 visual fidelity with Euclidean combat targeting (`dist <= effectiveRange + enemy.type.hitRadius`).
-- **Archetype Vector Resolution & Tier-1 Ring Alignment**:
-  - `TowerInstance.affinity` and `tier1Vector` now evaluate `archetype?.vector` before falling back to base tower type defaults, ensuring custom archetypes correctly project their designated vector aura rings (Red = Offensive, Green = Defensive, Yellow = Support).
-- **Floating Combat Text Engine Overhaul**:
-  - Resolved a simulation loop bug where stale state snapshots were erasing combat damage numbers mid-tick.
-  - Refined floating text thresholds to eliminate routine number clutter while emphasizing high-impact events: critical strikes (`CRIT!`), elemental weak points (`WEAK!`), shape resists (`RESIST`), and devastating blasts (>60 damage).
-- **Minimal Top HUD Layout Stabilization**:
-  - Replaced individual child `graphicsLayer` rotation with stable layout measurements in `MinimalTopHud`, eliminating element overflow, clipping, and button overlap across device rotations.
-- **Lifecycle & Background Pause Protection**:
-  - Automatically invokes `viewModel.openPauseMenu()` in `MainActivity.onStop()`, ensuring matches are paused when the device screen locks or the application is backgrounded, eliminating unintended loss or battery drain.
-- **Comprehensive Automated Test Suite**:
-  - 35 automated unit and Robolectric tests validating damage matrices, range synchronization, Euclidean hitboxes, lane continuity, and lifecycle state management.
-
----
-
-### ✨ What's New in Version 0.0.0.005:
-
-- **Portable Windows PC Runner & Default Widescreen Launcher**: Added a standalone, zero-dependency Windows executable ([`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe)) that automatically locates ADB, detects active devices or boots the local AVD emulator, installs/updates the game, locks orientation into **Widescreen Landscape Mode**, and launches the game in one click. Integrated directly into Gradle via `./gradlew buildWindowsLauncher`.
-- **Full-Map 4-Corner Procedural Lane Generation & Guaranteed Continuity**: Overhaul of the map generator guaranteeing that generated creep lanes route through and touch all four outer corners of the map (`Top-Left`, `Top-Right`, `Bottom-Left`, and `Bottom-Right`). Eliminates perimeter dead zones and replaces legacy leg concatenation with strict step-by-step obstacle and path avoidance, ensuring 100% continuous 4-way orthogonal Manhattan adjacency (`|Δx| + |Δy| == 1`) without gaps, diagonal jumps, or creep teleportation.
-- **Display-Aware Turret Alignment & Barrel Aiming**:
-  - Reconciled device accelerometer tilt angles with Android display window rotation (`Surface.ROTATION_*`), ensuring tower chassis, radiant halos, and status badges remain perfectly upright across portrait and landscape orientations without sideways double-rotation.
-  - Isolated chassis counter-rotation from weapon barrel transforms so kinetic rotary cannons, elemental emitters, and heavy dual-rails aim precisely along true target trajectories in screen coordinates.
-- **In-App GitHub Release Auto-Updater**: Zero-friction sideload updates outside Google Play. The game checks the GitHub Releases API for published release tags, displays an adaptive in-game progress banner, manages background downloads via Android's native `DownloadManager` with concurrency guards, and triggers prompt-based installation via `FileProvider` (`REQUEST_INSTALL_PACKAGES`) with automatic internal storage fallback.
-- **Global Online Leaderboard (Ktor REST via Dreamlo)**: Worldwide competition subsystem powered by a coroutine-native Ktor HTTP client. Automatically submits post-run tactical scores with robust URL-decoding for all metadata attributes (`scrap`, `uuid`, `waves`, `dev`), manages persistent anonymous commander callsigns (`Commander-<UUID>`), features top-50 ranked standings with medal displays (🥇, 🥈, 🥉), developer tuning indicators (`[DEV]`), and resilient offline-cached fallback.
-- **Aspect-Ratio Preserved Game Canvas & Letterbox Coordinate Mapping**: Centralized canvas translation preserves grid proportions across phones, tablets, and foldables. Touch inputs, interactive tower placements, and floating combat text share unified reciprocal coordinate transformations, guaranteeing pixel-perfect alignment.
-- **Ergonomic Responsive Tactical HUD**: Window configuration-driven layout switching docks the `TowerBuildUpgradeDrawer` as a full-width bottom sheet in portrait mode and transitions it into a scrollable 340dp side drawer in landscape mode.
-- **Security & Battery Hardening**:
-  - Scoped `OrientationEventListener` to `onStart()` / `onStop()` lifecycles to eliminate sensor battery drain when the application is backgrounded.
-  - Eliminated hardcoded private administrative credentials from client code.
-  - Replaced automatic installation popups with user-confirmed install actions and download debouncing to prevent interrupting live gameplay waves.
-  - Restricted `FileProvider` path definitions in `file_paths.xml` to least-privilege download directories (`<files-path>` and `<external-files-path>`).
-- **Comprehensive Automated Test Suite**: 29 automated Robolectric unit tests covering 4-corner path continuity, core reachability, coordinate transforms, leaderboard serialization, and update lifecycle states.
-
----
-
-### ✨ What's New in Version 0.0.0.004:
-- **Tier 3 Global Aura Connective Network**: Tier 3 towers emit visual connective laser lines and traveling energy pulse nodes connecting to all empowered towers across the grid map.
-- **Radiant Organic Pathway Merging**: Clean, smooth gradient pathways shifting to radiant violet/indigo energy channels at lane junctions and intersection crossover tiles.
-- **Harmonic Grid Energy Matrix**: Populating 6+ boosted floor plates activates the Harmonic Grid bonus (+20% damage, +25% income) featuring radiant concentric energy nodes and golden harmony halos.
-- **Tactical Tutorial Guidance**: Bouncing directional chevron indicator on Wave 1 highlighting boosted pads for first-time placement.
-- **Global Leaderboard & Offline Support**: Integrated REST backend for global high scores with seamless offline-cached leaderboard fallback.
-- **Toolchain & Engine Optimizations**: Updated to AGP 9.5.0-rc02 with Java 17 compatibility, optimized visual effect pooling, and enhanced Compose render performance.
-
----
-
-### ✨ What's New in Version 0.0.0.003:
-- **In-Game Version Display in Pause Menu**: Live build version number (`BuildConfig.VERSION_NAME`) dynamically rendered in the Pause Menu header (`v0.0.0.003`) and dialog footer (`ROGUE TD • BUILD v0.0.0.003`).
-- **HUD & UI Transparency**: Reduced visual occlusion with high-opacity transparent top bar (`alpha = 0.65f`). Synergies consolidated into a lightweight `🌟 (count)` dropdown.
-- **Accurate Lane Targeting Hitboxes**: Eliminated discrepancies between visual range indicators and projectile triggering on lane curves and intersections.
-- **Visual Sleek Heavy Tower Redesign**: Heavy Siege tower redesigned to match the sleek minimalist "thin rail" aesthetic of the primary towers.
-- **Custom App Launcher Icon**: Custom thin-rail sentry turret adaptive launcher icon.
-- **Omnidirectional Procedural Paths**: Dynamic pathing entering and exiting from all 4 borders (North, South, East, West) with multi-axis crossover merge spines and configurable min/max lane lengths.
-- **Expanded Dev Balance Console**: Tap-to-expand unit balance cards for all towers and enemies, inline name editing, tactical identity confirmation & cross-referencing, and "Export New Defaults" button generating clean diff-only delta JSON.
+  - Expanded APK resolution to automatically match any valid project APK pattern.
 
 ---
 
 ## 🎮 Core Gameplay Systems
 
 - **Dual-Front Creep Assault**: Enemies spawn along dual conduits (`Lane Alpha` and `Lane Beta`), winding through all 4 map corners, merging across a shared central nexus, and converging on your Core.
-- **Tactical Tower Evolution**: 6 base tower archetypes, each supporting 3 distinct Tier-1 branching paths and 9 specialized Final Forms (54 total final forms).
+- **Tactical Tower Evolution**: 3 base towers branching into 9 Level 2 specializations and 27 Level 3 advanced forms (39 total units).
 - **Synergy Matrix**: Pair towers of differing elemental and tactical classes to trigger global combat bonuses (Amplifier, High Ground, Conduit matrices).
 - **Deep Telemetry & Scoring**: Detailed per-run breakdown tracking enemies neutralized, total DPS output, MVP defense towers, scrap economy, and worldwide leaderboard standings.
 
@@ -141,10 +74,10 @@ You can find the ready-to-run builds in this repository:
 
 ## 🛠️ Tech Stack & Architecture
 
-- **Language**: Kotlin 2.0+
+- **Language**: Kotlin 2.2.10
 - **UI Framework**: Jetpack Compose & Material 3
 - **Architecture**: MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
-- **Networking**: Ktor 3.0.3 with OkHttp Engine
+- **Backend / Services**: Google Services Gradle Plugin 4.5.0, Firebase BoM 35.1.0, Firestore REST, Firebase Analytics
 - **Graphics**: Hardware-accelerated Compose Canvas with `withTransform` translation/rotation matrices
 - **Testing**: Robolectric, JUnit 4, AndroidX Test Runner
 
@@ -158,7 +91,7 @@ To build the APK locally using Gradle:
 # Build debug APK
 ./gradlew assembleDebug
 
-# Compile portable Windows widescreen launcher (.exe)
+# Compile portable Windows launcher (.exe)
 ./gradlew buildWindowsLauncher
 
 # Run unit and Robolectric tests
@@ -171,11 +104,11 @@ To build the APK locally using Gradle:
 The output artifacts will be generated at:
 ```
 app/build/outputs/apk/debug/app-debug.apk
-RogueTD-v0.0.0.007.exe
+Dual Front TD.exe
 ```
-Or find the versioned distribution files in:
+Versioned distribution files:
 ```
-apk/game-release-v0.0.0.007.apk
-apk/RogueTD-v0.0.0.007-debug.apk
-apk/RogueTD-v0.0.0.007.exe
+apk/Dual-Front-TD-v0.0.0.010-debug.apk
+apk/Dual Front TD.exe
+apk/Dual-Front-TD-v0.0.0.010.exe
 ```

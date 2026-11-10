@@ -31,8 +31,8 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID")}\"")
-    buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY")}\"")
+    buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID", "roguetddualfront")}\"")
+    buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY", "AIzaSyC0wSzTFMWWFd6zFW5bmXf_-jiX2fbdhRs")}\"")
     buildConfigField("String", "LEADERBOARD_COLLECTION", "\"${leaderboardSetting("LEADERBOARD_COLLECTION", "leaderboard")}\"")
   }
 
@@ -126,6 +126,7 @@ dependencies {
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  implementation(libs.firebase.analytics)
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 
