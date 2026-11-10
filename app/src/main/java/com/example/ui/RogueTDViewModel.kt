@@ -90,6 +90,7 @@ data class GameUIState(
     val musicTrack: com.example.audio.MusicTrack = com.example.audio.MusicTrack.ROLLING_PLAYLIST,
     val masterVolume: Float = 0.7f,
     val sfxVolume: Float = 0.8f,
+    val upgradeVolume: Float = 0.85f,
     val musicVolume: Float = 0.45f,
     val isAudioMuted: Boolean = false,
     val kineticSfxSlot: Int = 1,
@@ -119,6 +120,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             masterVolume = initialConfig.masterVolume,
             musicVolume = initialConfig.musicVolume,
             sfxVolume = initialConfig.sfxVolume,
+            upgradeVolume = initialConfig.upgradeVolume,
             isAudioMuted = initialConfig.isMuted,
             musicTrack = runCatching { com.example.audio.MusicTrack.valueOf(initialConfig.musicTrackName) }.getOrDefault(com.example.audio.MusicTrack.ROLLING_PLAYLIST),
             kineticSfxSlot = initialConfig.kineticSfxSlot,
@@ -142,6 +144,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.setMasterVolumeLevel(config.masterVolume)
         soundManager.setMusicVolumeLevel(config.musicVolume)
         soundManager.setSfxVolumeLevel(config.sfxVolume)
+        soundManager.setUpgradeVolumeLevel(config.upgradeVolume)
         soundManager.setMutedState(config.isMuted)
         soundManager.activeMusicTrack = _uiState.value.musicTrack
 
@@ -336,6 +339,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.setMasterVolumeLevel(newConfig.masterVolume)
         soundManager.setMusicVolumeLevel(newConfig.musicVolume)
         soundManager.setSfxVolumeLevel(newConfig.sfxVolume)
+        soundManager.setUpgradeVolumeLevel(newConfig.upgradeVolume)
         soundManager.setMutedState(newConfig.isMuted)
         _uiState.update { it.copy(balanceConfig = newConfig) }
     }
@@ -346,6 +350,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.setMasterVolumeLevel(defaultConfig.masterVolume)
         soundManager.setMusicVolumeLevel(defaultConfig.musicVolume)
         soundManager.setSfxVolumeLevel(defaultConfig.sfxVolume)
+        soundManager.setUpgradeVolumeLevel(defaultConfig.upgradeVolume)
         soundManager.setMutedState(defaultConfig.isMuted)
         _uiState.update {
             it.copy(
@@ -353,6 +358,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 masterVolume = defaultConfig.masterVolume,
                 musicVolume = defaultConfig.musicVolume,
                 sfxVolume = defaultConfig.sfxVolume,
+                upgradeVolume = defaultConfig.upgradeVolume,
                 isAudioMuted = defaultConfig.isMuted,
                 kineticSfxSlot = defaultConfig.kineticSfxSlot,
                 elementalSfxSlot = defaultConfig.elementalSfxSlot,
@@ -401,6 +407,15 @@ class RogueTDViewModel @JvmOverloads constructor(
             val updated = prev.balanceConfig.copy(sfxVolume = level)
             telemetryManager.saveBalanceConfig(updated)
             prev.copy(sfxVolume = level, balanceConfig = updated)
+        }
+    }
+
+    fun setUpgradeVolume(level: Float) {
+        soundManager.setUpgradeVolumeLevel(level)
+        _uiState.update { prev ->
+            val updated = prev.balanceConfig.copy(upgradeVolume = level)
+            telemetryManager.saveBalanceConfig(updated)
+            prev.copy(upgradeVolume = level, balanceConfig = updated)
         }
     }
 

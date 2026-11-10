@@ -1438,6 +1438,7 @@ data class DevBalanceConfig(
     val masterVolume: Float = 0.7f,
     val musicVolume: Float = 0.45f,
     val sfxVolume: Float = 0.8f,
+    val upgradeVolume: Float = 0.85f,
     val isMuted: Boolean = false,
     val musicTrackName: String = "ROLLING_PLAYLIST",
     val kineticSfxSlot: Int = 1,
@@ -1637,6 +1638,7 @@ data class DevBalanceConfig(
         if (Math.abs(masterVolume - default.masterVolume) > 0.01f) diffMap["masterVolume"] = masterVolume
         if (Math.abs(musicVolume - default.musicVolume) > 0.01f) diffMap["musicVolume"] = musicVolume
         if (Math.abs(sfxVolume - default.sfxVolume) > 0.01f) diffMap["sfxVolume"] = sfxVolume
+        if (Math.abs(upgradeVolume - default.upgradeVolume) > 0.01f) diffMap["upgradeVolume"] = upgradeVolume
         if (isMuted != default.isMuted) diffMap["isMuted"] = isMuted
         if (musicTrackName != default.musicTrackName) diffMap["musicTrackName"] = musicTrackName
         if (kineticSfxSlot != default.kineticSfxSlot) diffMap["kineticSfxSlot"] = kineticSfxSlot

@@ -108,26 +108,28 @@ fun GameCanvas(
                 MapThemeSlot.SLOT_4_VOID -> Color(0xFF1E103A)
                 MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF065F46)
             }
+            // Strict Contrast Audit (TASK 5): Path 1, Path 2, and Intersection must each utilize
+            // distinct, contrasting colors with zero shared or mimicking hues.
             val colorAlpha = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFF00F0FF)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF38BDF8)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFF59E0B)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFFA855F7)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF10B981)
+                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFF00F0FF) // Electric Neon Cyan
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF00E5FF) // Blueprint Technical Cyan
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFF59E0B) // Desert Tactical Amber
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFFA855F7) // Astral Cosmic Purple
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF10B981) // Terminal Matrix Emerald
             }
             val colorBeta = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFFFB800)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF93C5FD)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFD97706)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFFEC4899)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF34D399)
+                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFFF6B00) // Solar Flame Orange (high contrast vs cyan & fuchsia)
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFFFFD600) // High-Voltage Signal Yellow (high contrast vs cyan & coral)
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF06B6D4) // Arctic Ice Cyan (cool contrast vs warm amber & lime)
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFFF43F5E) // Supernova Rose Pink (high contrast vs purple & aquamarine)
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF6366F1) // Electric Cyber Indigo (cool contrast vs emerald & gold)
             }
             val colorMerged = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFC084FC)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFFE2E8F0)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFFDE68A)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFFF472B6)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFFA7F3D0)
+                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFD946EF) // Radiant Fuchsia Magenta
+                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFFFF2A6D) // Crimson Alert Coral Red
+                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF84CC16) // Toxic Acid Lime Green
+                MapThemeSlot.SLOT_4_VOID -> Color(0xFF06F9D2) // Quantum Electric Aquamarine
+                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFFFBBF24) // Blazing Solar Gold
             }
 
             // Draw Base Terrain Grid
@@ -182,10 +184,10 @@ fun GameCanvas(
 
             when (tile.type) {
                 TileType.PATH_MERGED, TileType.PATH_INTERSECTION -> {
-                    // Smooth, seamless energy junction - no bulky train ties or odd overlay tiles
+                    // Smooth, seamless energy junction - highlights with theme-specific intersection color (TASK 5)
                     val pulse = (sin(animFlowTime * 0.005f) * 0.15f + 0.85f).toFloat()
                     drawCircle(
-                        color = Color(0xFFC084FC).copy(alpha = 0.20f * pulse),
+                        color = colorMerged.copy(alpha = 0.28f * pulse),
                         radius = cellW * 0.35f,
                         center = Offset(centerX, centerY)
                     )

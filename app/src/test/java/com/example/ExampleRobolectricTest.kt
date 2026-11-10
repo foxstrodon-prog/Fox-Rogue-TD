@@ -502,19 +502,19 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 011`() {
-    assertEquals("0.0.0.011", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(19, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 012`() {
+    assertEquals("0.0.0.012", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(20, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.011", "0.0.0.010"))
-    assertTrue(updater.isNewerVersion("0.0.0.011", "0.0.0.010"))
-    assertFalse(updater.isNewerVersion("v0.0.0.010", "0.0.0.010"))
-    assertFalse(updater.isNewerVersion("0.0.0.009", "0.0.0.010"))
+    assertTrue(updater.isNewerVersion("v0.0.0.012", "0.0.0.011"))
+    assertTrue(updater.isNewerVersion("0.0.0.012", "0.0.0.011"))
+    assertFalse(updater.isNewerVersion("v0.0.0.011", "0.0.0.011"))
+    assertFalse(updater.isNewerVersion("0.0.0.010", "0.0.0.011"))
   }
 
   @Test
@@ -903,6 +903,7 @@ class ExampleRobolectricTest {
       masterVolume = 0.45f,
       musicVolume = 0.60f,
       sfxVolume = 0.90f,
+      upgradeVolume = 0.95f,
       isMuted = true,
       musicTrackName = "PULSE_ARPEGGIO",
       kineticSfxSlot = 2,
@@ -915,6 +916,7 @@ class ExampleRobolectricTest {
     assertTrue(diff.contains("\"masterVolume\": 0.45"))
     assertTrue(diff.contains("\"musicVolume\": 0.6"))
     assertTrue(diff.contains("\"sfxVolume\": 0.9"))
+    assertTrue(diff.contains("\"upgradeVolume\": 0.95"))
     assertTrue(diff.contains("\"isMuted\": true"))
     assertTrue(diff.contains("\"musicTrackName\": \"PULSE_ARPEGGIO\""))
     assertTrue(diff.contains("\"kineticSfxSlot\": 2"))
@@ -922,6 +924,32 @@ class ExampleRobolectricTest {
     assertTrue(diff.contains("\"siegeSfxSlot\": 4"))
     assertTrue(diff.contains("\"turretSkinSlot\": 2"))
     assertTrue(diff.contains("\"mapThemeSlot\": 5"))
+  }
+
+  @Test
+  fun `verify audio suspension immediately terminates playback and restores on resume`() {
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val soundManager = com.example.audio.SoundManager(context)
+
+    assertFalse(soundManager.isAudioSuspended)
+    soundManager.suspendAllAudio()
+    assertTrue(soundManager.isAudioSuspended)
+    assertEquals(0f, soundManager.calculateEffectiveMusicVolume())
+
+    soundManager.resumeAudio()
+    assertFalse(soundManager.isAudioSuspended)
+  }
+
+  @Test
+  fun `verify upgradeVolume independent control`() {
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val soundManager = com.example.audio.SoundManager(context)
+
+    soundManager.setUpgradeVolumeLevel(0.35f)
+    assertEquals(0.35f, soundManager.upgradeVolume)
+    soundManager.setSfxVolumeLevel(0.90f)
+    assertEquals(0.90f, soundManager.sfxVolume)
+    assertEquals(0.35f, soundManager.upgradeVolume)
   }
 }
 

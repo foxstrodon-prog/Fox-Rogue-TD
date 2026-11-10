@@ -86,7 +86,7 @@ class SoundManager(context: Context) {
     )
     private var currentRollingIndex: Int = 0
     private var playlistTrackElapsedMs: Long = 0L
-    private val PLAYLIST_TRACK_WINDOW_MS = 90_000L // 1.5 minutes per song (enforces 1-2 min window)
+    private val PLAYLIST_TRACK_WINDOW_MS = 60_000L // 1.0 minute per song (targets 45s to 1m15s)
 
     // Dynamic Volume & Attenuation State
     @Volatile
@@ -113,6 +113,12 @@ class SoundManager(context: Context) {
         }
 
     @Volatile
+    var upgradeVolume: Float = 0.85f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+        }
+
+    @Volatile
     var musicVolume: Float = 0.45f
         set(value) {
             field = value.coerceIn(0f, 1f)
@@ -125,6 +131,9 @@ class SoundManager(context: Context) {
             field = value
             updateMusicVolume()
         }
+
+    @Volatile
+    var isAudioSuspended: Boolean = false
 
     @Volatile
     var isDucked: Boolean = false
@@ -250,15 +259,17 @@ class SoundManager(context: Context) {
 
     /**
      * Plays generic game effects (placement, upgrades, invalid buzz).
+     * UPGRADE effects use dedicated upgradeVolume.
      */
     fun play(fx: SoundFx, volume: Float = 1f, rate: Float = 1f) {
-        if (!enabled || isMuted) return
+        if (!enabled || isMuted || isAudioSuspended) return
         val idx = fx.ordinal
         if (idx !in genericLoaded.indices || !genericLoaded[idx]) return
         val now = System.nanoTime()
         if (now - lastGenericPlayNs[idx] < fx.minIntervalMs * 1_000_000L) return
         lastGenericPlayNs[idx] = now
-        val v = (volume * masterVolume * sfxVolume).coerceIn(0f, 1f)
+        val effectiveChannelVol = if (fx == SoundFx.UPGRADE) upgradeVolume else sfxVolume
+        val v = (volume * masterVolume * effectiveChannelVol).coerceIn(0f, 1f)
         try {
             soundPool.play(genericSoundIds[idx], v, v, 1, 0, rate.coerceIn(0.5f, 2f))
         } catch (_: Exception) {}
@@ -269,7 +280,7 @@ class SoundManager(context: Context) {
      * Triggers dynamic combat ducking on the background music player.
      */
     fun playTurretFire(towerClass: TowerClass, slot: Int = 1) {
-        if (!enabled || isMuted) return
+        if (!enabled || isMuted || isAudioSuspended) return
         val archetypeIdx = towerClass.ordinal
         val nowMs = System.currentTimeMillis()
         if (nowMs - lastTurretFirePlayMs[archetypeIdx] < MIN_TURRET_FIRE_INTERVAL_MS) return
@@ -299,7 +310,7 @@ class SoundManager(context: Context) {
      * Preview testing helper for audio variants inside menus.
      */
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) {
-        if (!enabled || isMuted) return
+        if (!enabled || isMuted || isAudioSuspended) return
         val targetSlot = (slot - 1).coerceIn(0, 4)
         val (soundId, isLoaded) = when (towerClass) {
             TowerClass.KINETIC_BALLISTIC -> Pair(kineticSoundIds[targetSlot], kineticLoaded[targetSlot])
@@ -310,6 +321,42 @@ class SoundManager(context: Context) {
             val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
             try {
                 soundPool.play(soundId, v, v, 3, 0, 1.0f)
+            } catch (_: Exception) {}
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Lifecycle Audio Suspension & Termination (TASK 1)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Instantly cuts all audio playback when focus is lost (Task view, Home button, minimize).
+     * Eliminates lingering background music and trailing SFX/explosions immediately.
+     */
+    fun suspendAllAudio() {
+        isAudioSuspended = true
+        try {
+            mediaPlayer?.pause()
+        } catch (_: Exception) {}
+        try {
+            soundPool.autoPause()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Resumes audio playback only when returning to active focus and not paused in menu.
+     */
+    fun resumeAudio() {
+        isAudioSuspended = false
+        if (!enabled || isMuted) return
+        try {
+            soundPool.autoResume()
+        } catch (_: Exception) {}
+        if (!isPaused && activeMusicTrack != MusicTrack.NONE) {
+            try {
+                if (mediaPlayer?.isPlaying == false) {
+                    mediaPlayer?.start()
+                }
             } catch (_: Exception) {}
         }
     }
@@ -333,8 +380,8 @@ class SoundManager(context: Context) {
             updateMusicVolume()
         }
 
-        // Rolling playlist cyclical progress
-        if (activeMusicTrack == MusicTrack.ROLLING_PLAYLIST && enabled && !isMuted && !isPaused) {
+        // Rolling playlist cyclical progress: target between 45s and 1m15s (TASK 2)
+        if (activeMusicTrack == MusicTrack.ROLLING_PLAYLIST && enabled && !isMuted && !isPaused && !isAudioSuspended) {
             playlistTrackElapsedMs += dtMs
             if (playlistTrackElapsedMs >= PLAYLIST_TRACK_WINDOW_MS) {
                 advanceRollingPlaylist()
@@ -346,7 +393,7 @@ class SoundManager(context: Context) {
         currentRollingIndex = (currentRollingIndex + 1) % rollingPlaylistTracks.size
         playlistTrackElapsedMs = 0L
         val nextTrack = rollingPlaylistTracks[currentRollingIndex]
-        playTrackInternal(nextTrack, loop = false)
+        playTrackInternal(nextTrack, loop = true)
     }
 
     private fun playTrack(track: MusicTrack) {
@@ -357,7 +404,7 @@ class SoundManager(context: Context) {
 
         if (track == MusicTrack.ROLLING_PLAYLIST) {
             val target = rollingPlaylistTracks[currentRollingIndex]
-            playTrackInternal(target, loop = false)
+            playTrackInternal(target, loop = true)
         } else {
             playTrackInternal(track, loop = true)
         }
@@ -373,7 +420,7 @@ class SoundManager(context: Context) {
             }
             mediaPlayer = null
 
-            if (!enabled || isMuted || targetTrack == MusicTrack.NONE) return
+            if (!enabled || isMuted || isAudioSuspended || targetTrack == MusicTrack.NONE) return
 
             val file = getOrCreateMusicFile(targetTrack)
             mediaPlayer = MediaPlayer().apply {
@@ -385,15 +432,12 @@ class SoundManager(context: Context) {
                 )
                 setDataSource(file.absolutePath)
                 isLooping = loop
-                setOnCompletionListener {
-                    if (activeMusicTrack == MusicTrack.ROLLING_PLAYLIST) {
-                        advanceRollingPlaylist()
-                    }
-                }
                 prepare()
                 val vol = calculateEffectiveMusicVolume()
                 setVolume(vol, vol)
-                start()
+                if (!isPaused && !isAudioSuspended) {
+                    start()
+                }
             }
         } catch (_: Exception) {
             mediaPlayer = null
@@ -413,7 +457,7 @@ class SoundManager(context: Context) {
     }
 
     fun calculateEffectiveMusicVolume(): Float {
-        if (!enabled || isMuted || activeMusicTrack == MusicTrack.NONE) return 0f
+        if (!enabled || isMuted || isAudioSuspended || activeMusicTrack == MusicTrack.NONE) return 0f
         val base = (masterVolume * musicVolume).coerceIn(0f, 1f)
         val pauseFactor = if (isPaused) PAUSE_ATTENUATION_FACTOR else 1.0f
         val duckFactor = if (isDucked && !isPaused) DUCK_FACTOR else 1.0f
@@ -433,6 +477,10 @@ class SoundManager(context: Context) {
 
     fun setSfxVolumeLevel(level: Float) {
         sfxVolume = level
+    }
+
+    fun setUpgradeVolumeLevel(level: Float) {
+        upgradeVolume = level
     }
 
     fun setMusicVolumeLevel(level: Float) {
@@ -460,7 +508,7 @@ class SoundManager(context: Context) {
     // ---------------------------------------------------------------------------------------------
 
     private fun getOrCreateMusicFile(track: MusicTrack): File {
-        val filename = "bgm_${track.name.lowercase()}_v2.wav"
+        val filename = "bgm_${track.name.lowercase()}_v3.wav"
         val file = File(appContext.cacheDir, filename)
         if (!file.exists() || file.length() < 256L) {
             FileOutputStream(file).use { it.write(toWav(synthesizeMusic(track))) }

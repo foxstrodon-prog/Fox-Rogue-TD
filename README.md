@@ -5,11 +5,13 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.011 Android APK):** [`apk/Dual-Front-TD-v0.0.0.011-debug.apk`](apk/Dual-Front-TD-v0.0.0.011-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.011.apk`](apk/game-release-v0.0.0.011.apk) and [`apk/RogueTD-v0.0.0.011-debug.apk`](apk/RogueTD-v0.0.0.011-debug.apk))
+- **Direct Repository Download (v0.0.0.012 Android APK):** [`apk/Dual-Front-TD-v0.0.0.012-debug.apk`](apk/Dual-Front-TD-v0.0.0.012-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.012.apk`](apk/game-release-v0.0.0.012.apk) and [`apk/RogueTD-v0.0.0.012-debug.apk`](apk/RogueTD-v0.0.0.012-debug.apk))
 - **Portable Windows PC Launcher (Single Root Executable):** [`Dual Front TD.exe`](Dual%20Front%20TD.exe)
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, and launch the game in one click.
 - **Google Play "What's New" Release Notes:** [`GPReadme.md`](GPReadme.md) (formatted for Google Play Store updates with recent patch history)
+- **YouTube Release Description & Timestamps:** [`YT_README.md`](YT_README.md) (formatted for video showcases with timestamps and patch notes)
 - **Archived Previous Releases (inside `apk/` folder):**
+  - **v0.0.0.011:** [`apk/Dual-Front-TD-v0.0.0.011-debug.apk`](apk/Dual-Front-TD-v0.0.0.011-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.011.exe`](apk/Dual-Front-TD-v0.0.0.011.exe)
   - **v0.0.0.010:** [`apk/Dual-Front-TD-v0.0.0.010-debug.apk`](apk/Dual-Front-TD-v0.0.0.010-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.010.exe`](apk/Dual-Front-TD-v0.0.0.010.exe)
   - **v0.0.0.009:** [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) | [`apk/Fox-Rogue-TD-v0.0.0.009.exe`](apk/Fox-Rogue-TD-v0.0.0.009.exe)
   - **v0.0.0.008:** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) | [`apk/Fox-Rogue-TD-v0.0.0.008.exe`](apk/Fox-Rogue-TD-v0.0.0.008.exe)
@@ -20,7 +22,25 @@ You can find the ready-to-run builds in this repository:
 
 ---
 
-### ✨ What's New in Version 0.0.0.011:
+### ✨ What's New in Version 0.0.0.012:
+
+- **Instant Background & Focus Audio Termination**:
+  - Immediately cuts all audio streams the instant the app transitions out of active focus (task view, Home gesture, minimization, screen lock).
+  - Eliminates lingering background music or trailing gunfire/explosion sound effects once focus is lost.
+  - Seamless, glitch-free audio resume when returning to active gameplay.
+- **Extended Music Track Duration & Seamless Looping**:
+  - Eliminated abrupt 5-second track cycling; music per track now targets between 45 seconds and 1 minute 15 seconds (60s default cycle).
+  - Procedural synthesizer tracks loop smoothly and transition cleanly without jarring cuts or clicks.
+- **Dedicated Upgrade Sound Volume Slider**:
+  - Independent volume slider dedicated specifically to tower upgrade sound effects, separating upgrade audio from combat gunfire and master SFX channels.
+  - Exposed directly in the Pause Menu Audio Customization Studio and the Dev Console.
+- **Turret Skin Visual Preview Thumbnails**:
+  - Real-time inline sprite thumbnails rendered next to each of the 5 skin slots in the Pause Menu, enabling players to inspect chassis designs and firing flourishes before committing to a selection.
+- **Map & Lane Theme Strict Contrast Audit**:
+  - Enforced strict visual separation across all 5 map themes: Path 1 (Alpha), Path 2 (Beta), and their intersection zones now use distinct, high-contrast tri-color palettes with zero shared or mimicking hues.
+  - Intersection tile glow dynamically synchronizes with the theme's unique junction accent color.
+- **YouTube Release Documentation Artifact (`YT_README.md`)**:
+  - Automated release pipeline deliverable generating YouTube-ready descriptions with chapters/timestamps, patch notes, and GitHub referral links.
 
 - **Complete Sound System Overhaul & Audio Architecture**:
   - **Music Player Track Switching Fix**: Fixed audio buffer lock-in so selecting tracks in the UI immediately swaps the active playback stream seamlessly.
@@ -127,7 +147,7 @@ Dual Front TD.exe
 ```
 Versioned distribution files:
 ```
-apk/Dual-Front-TD-v0.0.0.011-debug.apk
+apk/Dual-Front-TD-v0.0.0.012-debug.apk
 apk/Dual Front TD.exe
-apk/Dual-Front-TD-v0.0.0.011.exe
+apk/Dual-Front-TD-v0.0.0.012.exe
 ```

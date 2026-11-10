@@ -1,10 +1,14 @@
 package com.example.ui
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -223,6 +227,7 @@ fun RogueTDScreen(
                 onMasterVolumeChanged = { viewModel.setMasterVolume(it) },
                 onMusicVolumeChanged = { viewModel.setMusicVolume(it) },
                 onSfxVolumeChanged = { viewModel.setSfxVolume(it) },
+                onUpgradeVolumeChanged = { viewModel.setUpgradeVolume(it) },
                 onToggleAudioMute = { viewModel.toggleAudioMute() },
                 onMusicTrackSelected = { viewModel.setMusicTrack(it) },
                 onKineticSfxSlotSelected = { viewModel.setKineticSfxSlot(it) },
@@ -277,6 +282,7 @@ fun RogueTDScreen(
                 onMusicTrackChanged = { viewModel.setMusicTrack(it) },
                 onMasterVolumeChanged = { viewModel.setMasterVolume(it) },
                 onSfxVolumeChanged = { viewModel.setSfxVolume(it) },
+                onUpgradeVolumeChanged = { viewModel.setUpgradeVolume(it) },
                 onMusicVolumeChanged = { viewModel.setMusicVolume(it) },
                 onTowerVisualSkinChanged = { viewModel.setTowerVisualSkin(it) },
                 onPlayTestSound = { viewModel.playTestSound(it) },
@@ -2702,6 +2708,7 @@ fun DevBalanceSettingsDialog(
     onMusicTrackChanged: (MusicTrack) -> Unit,
     onMasterVolumeChanged: (Float) -> Unit,
     onSfxVolumeChanged: (Float) -> Unit,
+    onUpgradeVolumeChanged: (Float) -> Unit = {},
     onMusicVolumeChanged: (Float) -> Unit,
     onTowerVisualSkinChanged: (String) -> Unit,
     onPlayTestSound: (SoundFx) -> Unit,
@@ -3226,13 +3233,26 @@ fun DevBalanceSettingsDialog(
                                     item {
                                         BalanceSliderCard(
                                             title = "SFX Volume",
-                                            subtitle = "Weapon discharge and placement effect audio",
+                                            subtitle = "Weapon discharge and combat sound effects",
                                             value = uiState.sfxVolume,
                                             range = 0f..1.0f,
                                             steps = 20,
                                             valueFormatter = { "${(it * 100).toInt()}%" },
                                             color = Color(0xFF00F0FF),
                                             onValueChange = onSfxVolumeChanged
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Upgrade SFX Volume",
+                                            subtitle = "Dedicated tower upgrade audio channel (TASK 3)",
+                                            value = uiState.upgradeVolume,
+                                            range = 0f..1.0f,
+                                            steps = 20,
+                                            valueFormatter = { "${(it * 100).toInt()}%" },
+                                            color = Color(0xFF00FF9D),
+                                            onValueChange = onUpgradeVolumeChanged
                                         )
                                     }
 
@@ -4096,6 +4116,118 @@ fun CollapsibleEnemyBalanceCard(
     }
 }
 
+/**
+ * Visual thumbnail preview for turret skin slots (TASK 4).
+ * Displays an inline sprite thumbnail rendering chassis, core, and skin overlay.
+ */
+@Composable
+fun TurretSkinPreviewThumbnail(
+    skinSlot: TurretSkinSlot,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(36.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val radius = size.width * 0.42f
+
+        // Base circular chassis foundation
+        drawCircle(
+            color = Color(0xFF1E293B),
+            radius = radius,
+            center = Offset(cx, cy)
+        )
+        drawCircle(
+            color = if (isSelected) Color(0xFF00FF9D) else Color(0xFF475569),
+            radius = radius * 0.85f,
+            center = Offset(cx, cy),
+            style = Stroke(width = 1.5.dp.toPx())
+        )
+        drawCircle(
+            color = if (isSelected) Color(0xFF00F0FF) else Color(0xFF94A3B8),
+            radius = radius * 0.35f,
+            center = Offset(cx, cy)
+        )
+
+        // Visual skin features (TASK 4)
+        when (skinSlot) {
+            TurretSkinSlot.SLOT_1_DEFAULT -> {
+                // Sleek Neon Vector: concentric energy aura
+                drawCircle(
+                    color = Color(0xFF00F0FF).copy(alpha = 0.7f),
+                    radius = radius * 0.58f,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
+            TurretSkinSlot.SLOT_2_BLUEPRINT -> {
+                // Blueprint Schematic: technical crosshairs & drafting ring
+                val ch = radius * 0.75f
+                drawLine(
+                    color = Color.White.copy(alpha = 0.85f),
+                    start = Offset(cx - ch, cy),
+                    end = Offset(cx + ch, cy),
+                    strokeWidth = 1.dp.toPx()
+                )
+                drawLine(
+                    color = Color.White.copy(alpha = 0.85f),
+                    start = Offset(cx, cy - ch),
+                    end = Offset(cx, cy + ch),
+                    strokeWidth = 1.dp.toPx()
+                )
+                drawCircle(
+                    color = Color(0xFF60A5FA).copy(alpha = 0.65f),
+                    radius = radius * 0.95f,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
+            TurretSkinSlot.SLOT_3_MILITARY -> {
+                // Tactical Military: heavy armor with 4 corner rivet bolts
+                val rOff = radius * 0.55f
+                val rRad = 2.dp.toPx()
+                listOf(
+                    Offset(cx - rOff, cy - rOff),
+                    Offset(cx + rOff, cy - rOff),
+                    Offset(cx - rOff, cy + rOff),
+                    Offset(cx + rOff, cy + rOff)
+                ).forEach { rPos ->
+                    drawCircle(color = Color(0xFF475569), radius = rRad, center = rPos)
+                    drawCircle(color = Color(0xFFCBD5E1), radius = rRad * 0.5f, center = rPos)
+                }
+            }
+            TurretSkinSlot.SLOT_4_VOID -> {
+                // Deep Void Rift: astral purple corona ring
+                drawCircle(
+                    color = Color(0xFFA855F7).copy(alpha = 0.85f),
+                    radius = radius * 0.95f,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 1.8.dp.toPx())
+                )
+                drawCircle(
+                    color = Color(0xFFEC4899).copy(alpha = 0.5f),
+                    radius = radius * 0.65f,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
+            TurretSkinSlot.SLOT_5_PIXEL -> {
+                // Retro Pixel Arcade: 8-bit stepped golden corners
+                val pSize = 3.5.dp.toPx()
+                val bOff = radius * 0.68f
+                listOf(
+                    Offset(cx - bOff, cy - bOff),
+                    Offset(cx + bOff - pSize, cy - bOff),
+                    Offset(cx - bOff, cy + bOff - pSize),
+                    Offset(cx + bOff - pSize, cy + bOff - pSize)
+                ).forEach { corner ->
+                    drawRect(color = Color(0xFFFACC15), topLeft = corner, size = Size(pSize, pSize))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun PauseMenuDialog(
     state: GameUIState,
@@ -4109,6 +4241,7 @@ fun PauseMenuDialog(
     onMasterVolumeChanged: (Float) -> Unit = {},
     onMusicVolumeChanged: (Float) -> Unit = {},
     onSfxVolumeChanged: (Float) -> Unit = {},
+    onUpgradeVolumeChanged: (Float) -> Unit = {},
     onToggleAudioMute: () -> Unit = {},
     onMusicTrackSelected: (MusicTrack) -> Unit = {},
     onKineticSfxSlotSelected: (Int) -> Unit = {},
@@ -4272,6 +4405,20 @@ fun PauseMenuDialog(
                                         onValueChange = onSfxVolumeChanged,
                                         valueRange = 0f..1f,
                                         colors = SliderDefaults.colors(thumbColor = Color(0xFFFFB800), activeTrackColor = Color(0xFFFFB800))
+                                    )
+                                }
+
+                                // Upgrade Sound Effects Volume (TASK 3)
+                                Column {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Upgrade Sound Effects", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("${(state.upgradeVolume * 100).roundToInt()}%", color = Color(0xFF00FF9D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Slider(
+                                        value = state.upgradeVolume,
+                                        onValueChange = onUpgradeVolumeChanged,
+                                        valueRange = 0f..1f,
+                                        colors = SliderDefaults.colors(thumbColor = Color(0xFF00FF9D), activeTrackColor = Color(0xFF00FF9D))
                                     )
                                 }
                             }
@@ -4486,28 +4633,39 @@ fun PauseMenuDialog(
                                             .fillMaxWidth()
                                             .clickable { onTurretSkinSlotSelected(skin.slot) }
                                     ) {
-                                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = if (isSel) Icons.Filled.CheckCircle else Icons.Filled.Palette,
-                                                    contentDescription = null,
-                                                    tint = if (isSel) Color(0xFF00FF9D) else Color(0xFF64748B),
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Inline Visual Thumbnail Preview (TASK 4)
+                                            TurretSkinPreviewThumbnail(
+                                                skinSlot = skin,
+                                                isSelected = isSel
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = if (isSel) Icons.Filled.CheckCircle else Icons.Filled.Palette,
+                                                        contentDescription = null,
+                                                        tint = if (isSel) Color(0xFF00FF9D) else Color(0xFF64748B),
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(5.dp))
+                                                    Text(
+                                                        text = "Slot ${skin.slot}: ${skin.displayName}",
+                                                        color = if (isSel) Color.White else Color(0xFFE2E8F0),
+                                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                                        fontSize = 10.5.sp
+                                                    )
+                                                }
                                                 Text(
-                                                    text = "Slot ${skin.slot}: ${skin.displayName}",
-                                                    color = if (isSel) Color.White else Color(0xFFE2E8F0),
-                                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                                    fontSize = 10.5.sp
+                                                    text = skin.description,
+                                                    color = Color(0xFF94A3B8),
+                                                    fontSize = 8.5.sp,
+                                                    modifier = Modifier.padding(start = 18.dp, top = 2.dp)
                                                 )
                                             }
-                                            Text(
-                                                text = skin.description,
-                                                color = Color(0xFF94A3B8),
-                                                fontSize = 8.5.sp,
-                                                modifier = Modifier.padding(start = 20.dp, top = 2.dp)
-                                            )
                                         }
                                     }
                                 }

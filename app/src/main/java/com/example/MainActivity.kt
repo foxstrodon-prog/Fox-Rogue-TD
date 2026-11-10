@@ -91,17 +91,40 @@ class MainActivity : ComponentActivity() {
     }
   }
 
+  override fun onResume() {
+    super.onResume()
+    viewModel.soundManager.resumeAudio()
+  }
+
+  override fun onPause() {
+    super.onPause()
+    // Instantly terminate all audio on focus/lifecycle transition (TASK 1)
+    viewModel.soundManager.suspendAllAudio()
+  }
+
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    // Cut all audio playback immediately when app transitions out of active focus
+    if (!hasFocus) {
+      viewModel.soundManager.suspendAllAudio()
+    } else {
+      viewModel.soundManager.resumeAudio()
+    }
+  }
+
   override fun onStop() {
     super.onStop()
     orientationEventListener?.disable()
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     viewModel.openPauseMenu()
+    viewModel.soundManager.suspendAllAudio()
   }
 
   override fun onDestroy() {
     super.onDestroy()
     orientationEventListener?.disable()
     orientationEventListener = null
+    viewModel.soundManager.suspendAllAudio()
   }
 
   /**
