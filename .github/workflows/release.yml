@@ -2,12 +2,15 @@ name: Automated GitHub Release & APK Upload
 
 on:
   push:
+    branches:
+      - main
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Version tag (e.g., v0.0.0.007) - leave empty to auto-detect from app/build.gradle.kts'
+        description: 'Version tag override (e.g., v0.0.0.007) - leave empty to auto-detect from app/build.gradle.kts'
         required: false
         default: ''
 
@@ -16,7 +19,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Publish Release Assets
+    name: Build & Publish Release on Commit
     runs-on: ubuntu-latest
 
     steps:
@@ -45,14 +48,14 @@ jobs:
             GRADLE_VER=$(grep -E 'versionName\s*=\s*' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
             RAW_VER="v${GRADLE_VER}"
           fi
-          
-          # Normalize tag with leading 'v'
+
+          # Ensure leading 'v'
           if [[ ! "$RAW_VER" =~ ^v ]]; then
             RELEASE_TAG="v${RAW_VER}"
           else
             RELEASE_TAG="${RAW_VER}"
           fi
-          
+
           echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
           echo "Target Release Tag: ${RELEASE_TAG}"
 
@@ -66,33 +69,47 @@ jobs:
         run: |
           TAG="${{ steps.version_step.outputs.tag }}"
           mkdir -p dist
-          
+
           # 1. Primary named asset: game-release-vX.X.X.XXX.apk
           cp app/build/outputs/apk/debug/app-debug.apk "dist/game-release-${TAG}.apk"
-          
+
           # 2. Project standard debug apk: RogueTD-vX.X.X.XXX-debug.apk
           cp app/build/outputs/apk/debug/app-debug.apk "dist/RogueTD-${TAG}-debug.apk"
-          
-          # 3. Include Windows executable runner if present in repo or apk folder
+
+          # 3. Include Windows executable runner if present
           if [ -f "${TAG}.exe" ]; then
             cp "${TAG}.exe" "dist/RogueTD-${TAG}.exe"
           elif [ -f "apk/${TAG}.exe" ]; then
             cp "apk/${TAG}.exe" "dist/RogueTD-${TAG}.exe"
           fi
-          
+
           echo "Staged release distribution assets:"
           ls -lh dist
 
-      - name: Create GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload Build Artifacts to Workflow Run
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.version_step.outputs.tag }}
-          name: "Rogue TD: Dual-Front ${{ steps.version_step.outputs.tag }}"
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            dist/*.apk
-            dist/*.exe
+          name: RogueTD-${{ steps.version_step.outputs.tag }}-assets
+          path: dist/*
+
+      - name: Publish or Update GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version_step.outputs.tag }}
+        run: |
+          echo "Checking if GitHub Release $TAG already exists..."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists. Updating release target and uploading latest assets with --clobber..."
+            gh release edit "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Rogue TD: Dual-Front $TAG" \
+              --generate-notes
+            gh release upload "$TAG" dist/* --clobber
+          else
+            echo "Creating new GitHub Release $TAG..."
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "Rogue TD: Dual-Front $TAG" \
+              --generate-notes
+          fi
+          echo "Successfully published release $TAG for commit $GITHUB_SHA!"
