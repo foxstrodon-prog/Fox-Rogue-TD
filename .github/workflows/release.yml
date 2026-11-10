@@ -78,30 +78,22 @@ jobs:
           TAG="${{ steps.version_step.outputs.tag }}"
           mkdir -p dist
 
-          # 1. Primary named asset: game-release-vX.X.X.XXX.apk
+          # 1. Primary named asset: Dual-Front-TD-vX.X.X.XXX-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/Dual-Front-TD-${TAG}-debug.apk"
+
+          # 2. Compatibility alias: game-release-vX.X.X.XXX.apk
           cp app/build/outputs/apk/debug/app-debug.apk "dist/game-release-${TAG}.apk"
 
-          # 2. Project standard debug apk: RogueTD-vX.X.X.XXX-debug.apk
+          # 3. Legacy alias: RogueTD-vX.X.X.XXX-debug.apk
           cp app/build/outputs/apk/debug/app-debug.apk "dist/RogueTD-${TAG}-debug.apk"
 
-          # 3. Fox-Rogue-TD named apk: Fox-Rogue-TD-vX.X.X.XXX.apk
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/Fox-Rogue-TD-${TAG}.apk"
-
           # 4. Include Windows executable runners if present
-          if [ -f "RogueTD-${TAG}.exe" ]; then
-            cp "RogueTD-${TAG}.exe" "dist/RogueTD-${TAG}.exe"
+          if [ -f "Dual Front TD.exe" ]; then
+            cp "Dual Front TD.exe" "dist/Dual Front TD.exe"
+            cp "Dual Front TD.exe" "dist/Dual-Front-TD-${TAG}.exe"
           fi
-          if [ -f "Fox-Rogue-TD-${TAG}.exe" ]; then
-            cp "Fox-Rogue-TD-${TAG}.exe" "dist/Fox-Rogue-TD-${TAG}.exe"
-          fi
-          if [ -f "Fox-Rogue-TD.exe" ]; then
-            cp "Fox-Rogue-TD.exe" "dist/Fox-Rogue-TD.exe"
-          fi
-          if [ -f "apk/RogueTD-${TAG}.exe" ]; then
-            cp "apk/RogueTD-${TAG}.exe" "dist/RogueTD-${TAG}.exe"
-          fi
-          if [ -f "apk/Fox-Rogue-TD-${TAG}.exe" ]; then
-            cp "apk/Fox-Rogue-TD-${TAG}.exe" "dist/Fox-Rogue-TD-${TAG}.exe"
+          if [ -f "apk/Dual-Front-TD-${TAG}.exe" ]; then
+            cp "apk/Dual-Front-TD-${TAG}.exe" "dist/Dual-Front-TD-${TAG}.exe"
           fi
 
           echo "Staged release distribution assets:"
@@ -110,7 +102,7 @@ jobs:
       - name: Upload Build Artifacts to Workflow Run
         uses: actions/upload-artifact@v4
         with:
-          name: RogueTD-${{ steps.version_step.outputs.tag }}-assets
+          name: Dual-Front-TD-${{ steps.version_step.outputs.tag }}-assets
           path: dist/*
 
       - name: Publish or Update GitHub Release
@@ -123,14 +115,14 @@ jobs:
             echo "Release $TAG exists. Updating release target and uploading latest assets with --clobber..."
             gh release edit "$TAG" \
               --target "$GITHUB_SHA" \
-              --title "Rogue TD: Dual-Front $TAG" \
+              --title "Dual Front TD $TAG" \
               --generate-notes
             gh release upload "$TAG" dist/* --clobber
           else
             echo "Creating new GitHub Release $TAG..."
             gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
-              --title "Rogue TD: Dual-Front $TAG" \
+              --title "Dual Front TD $TAG" \
               --generate-notes
           fi
           echo "Successfully published release $TAG for commit $GITHUB_SHA!"

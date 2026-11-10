@@ -17,14 +17,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
         <!--
-            No orientation lock: the activity rotates freely (default `unspecified` follows the
-            system auto-rotate setting) and handles configuration changes itself, so the running
-            match is never recreated or reset on rotation / resize / fold / multi-window changes.
+            Orientation locked to portrait for the core tactical map grid: rotating the device
+            preserves the fixed canvas coordinates and hitboxes while HUD text and overlays
+            adaptively rotate to match the user's orientation.
         -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|density|uiMode|fontScale|layoutDirection"
             android:theme="@style/Theme.MyApplication">

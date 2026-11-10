@@ -29,7 +29,7 @@ class ExampleRobolectricTest {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("Rogue TD", appName)
+    assertEquals("Dual Front TD", appName)
   }
 
   @Test
@@ -502,9 +502,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 009`() {
-    assertEquals("0.0.0.009", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(17, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 010`() {
+    assertEquals("0.0.0.010", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(18, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test

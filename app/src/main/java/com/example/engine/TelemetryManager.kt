@@ -284,7 +284,8 @@ class TelemetryManager(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        if (map.isEmpty()) {
+        val hasReset = prefs.getBoolean("has_reset_telemetry", false)
+        if (map.isEmpty() && !hasReset) {
             map["Vulcan Minigun"] = TowerPerformanceRecord("Vulcan Minigun", TowerClass.KINETIC_BALLISTIC, 24500.0, 142L, 4, 480L)
             map["Twin Flak Cannon"] = TowerPerformanceRecord("Twin Flak Cannon", TowerClass.KINETIC_BALLISTIC, 18900.0, 98L, 3, 510L)
             map["Frost Spire"] = TowerPerformanceRecord("Frost Spire", TowerClass.ELEMENTAL_VOID, 14200.0, 62L, 2, 420L)
@@ -294,6 +295,13 @@ class TelemetryManager(private val context: Context) {
         }
 
         return map.values.sortedByDescending { it.totalDamage }
+    }
+
+    fun resetTowerPerformance() {
+        prefs.edit()
+            .putString("tower_performance_records", "[]")
+            .putBoolean("has_reset_telemetry", true)
+            .apply()
     }
 
     suspend fun recordTowerSessionAsync(towers: List<TowerInstance>) = withContext(Dispatchers.IO) {

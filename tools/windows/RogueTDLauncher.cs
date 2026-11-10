@@ -15,10 +15,10 @@ namespace RogueTDLauncher
 
         static int Main(string[] args)
         {
-            Console.Title = "Rogue TD: Dual-Front - Windows Widescreen Launcher";
+            Console.Title = "Dual Front TD - Windows Launcher";
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("=================================================");
-            Console.WriteLine("    ROGUE TD: DUAL-FRONT - PC WIDESCREEN RUNNER  ");
+            Console.WriteLine("         DUAL FRONT TD - PC LAUNCHER             ");
             Console.WriteLine("=================================================");
             Console.ResetColor();
 

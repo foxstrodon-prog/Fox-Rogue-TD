@@ -776,6 +776,41 @@ data class TowerInstance(
         return baseRng * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
     }
 
+    fun getEffectiveDamage(
+        balanceConfig: DevBalanceConfig = DevBalanceConfig(),
+        tileBuff: TileBuff = TileBuff.NONE,
+        globalDamageBonus: Float = 0f
+    ): Float {
+        val bal = balanceConfig.getEffectiveTowerBalance(type, branchTier1, finalFormCode)
+        val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.30f else 0.0f
+        val apexBonus = if (isFinalForm) 0.30f else 0.0f
+        val classDmgMul = when (towerClass) {
+            TowerClass.KINETIC_BALLISTIC -> balanceConfig.kineticDamageMultiplier
+            TowerClass.ELEMENTAL_VOID -> balanceConfig.elementalDamageMultiplier
+            TowerClass.HEAVY_SIEGE -> balanceConfig.heavyDamageMultiplier
+        }
+        return bal.damage * classDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
+    }
+
+    fun getEffectiveFireRate(
+        balanceConfig: DevBalanceConfig = DevBalanceConfig(),
+        tileBuff: TileBuff = TileBuff.NONE,
+        globalFireRateBonus: Float = 0f
+    ): Float {
+        val bal = balanceConfig.getEffectiveTowerBalance(type, branchTier1, finalFormCode)
+        val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
+        return bal.fireRate * balanceConfig.globalTowerFireRateMultiplier * (1.0f + tileSpdBonus + globalFireRateBonus)
+    }
+
+    fun getEffectiveDps(
+        balanceConfig: DevBalanceConfig = DevBalanceConfig(),
+        tileBuff: TileBuff = TileBuff.NONE,
+        globalDamageBonus: Float = 0f,
+        globalFireRateBonus: Float = 0f
+    ): Float {
+        return getEffectiveDamage(balanceConfig, tileBuff, globalDamageBonus) * getEffectiveFireRate(balanceConfig, tileBuff, globalFireRateBonus)
+    }
+
     val activeAura: AuraOption? get() {
         val arch = archetype ?: return null
         return if (selectedAuraIndex == 1) arch.secondaryAura else arch.primaryAura
@@ -1333,14 +1368,30 @@ data class EnemyUnitBalance(
     val scrapValue: Int
 )
 
+data class TowerBalanceDescriptor(
+    val key: String,
+    val displayName: String,
+    val level: Int, // 1 = Base (L1), 2 = Specialization (L2), 3 = Apex Final Form (L3)
+    val family: TowerType,
+    val branchTier1: String? = null,
+    val finalFormCode: String? = null,
+    val defaultDamage: Float,
+    val defaultRange: Float,
+    val defaultFireRate: Float,
+    val defaultCost: Int,
+    val specialEffectValue: Float = 0f
+)
+
 data class DevBalanceConfig(
     val startingScrap: Int = 220,             // Default reduced early income
     val globalIncomeMultiplier: Float = 1.0f,  // 0.2x to 3.0x slider
+    val globalTowerFireRateMultiplier: Float = 1.0f, // 0.2x to 3.0x overall tower fire rate slider
+    val enemyHpMultiplier: Float = 1.0f,       // 0.5x to 3.0x enemy health difficulty
+    val enemySpeedMultiplier: Float = 1.0f,    // 0.2x to 3.0x enemy movement speed slider
     val kineticDamageMultiplier: Float = 1.0f, // 0.2x to 3.0x per class/tower sliders
     val elementalDamageMultiplier: Float = 1.0f,
     val heavyDamageMultiplier: Float = 1.0f,
     val waveBonusMultiplier: Float = 1.0f,     // 0.2x to 2.5x end of wave bonus
-    val enemyHpMultiplier: Float = 1.0f,       // 0.5x to 3.0x enemy difficulty
     val buildCostMultiplier: Float = 1.0f,     // 0.5x to 2.0x tower build costs
     val minLaneLength: Int = 12,              // 8 to 25 slider
     val maxLaneLength: Int = 26,              // 15 to 40 slider
@@ -1348,6 +1399,14 @@ data class DevBalanceConfig(
     val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
     val customEnemyConfigs: Map<String, EnemyUnitBalance> = emptyMap()
 ) {
+    fun getTowerKey(type: TowerType, branchTier1: String? = null, finalFormCode: String? = null): String {
+        return when {
+            finalFormCode != null -> "${type.name}_$finalFormCode"
+            branchTier1 != null -> "${type.name}_$branchTier1"
+            else -> type.name
+        }
+    }
+
     fun getTowerBalance(type: TowerType): TowerUnitBalance {
         return customTowerConfigs[type.name] ?: TowerUnitBalance(
             customName = null,
@@ -1362,6 +1421,129 @@ data class DevBalanceConfig(
                 else -> 0f
             }
         )
+    }
+
+    fun getEffectiveTowerBalance(
+        type: TowerType,
+        branchTier1: String? = null,
+        finalFormCode: String? = null
+    ): TowerUnitBalance {
+        val key = getTowerKey(type, branchTier1, finalFormCode)
+        val custom = customTowerConfigs[key]
+        if (custom != null) return custom
+
+        return when {
+            finalFormCode != null -> {
+                val ff = com.example.engine.TowerUpgradeManager.getFinalForm(type, finalFormCode)
+                val dmgMul = ff?.damageMultiplier ?: 1.0f
+                val spdMul = ff?.fireRateMultiplier ?: 1.0f
+                val rngMul = ff?.rangeMultiplier ?: 1.0f
+                val cost = ff?.cost ?: (type.baseCost * 2)
+                TowerUnitBalance(
+                    customName = ff?.subName,
+                    damage = type.baseDamage * dmgMul,
+                    range = type.baseRange * rngMul,
+                    fireRate = type.baseFireRate * spdMul,
+                    cost = cost,
+                    specialEffectValue = when {
+                        type.isSplash -> type.splashRadius
+                        type.slowPercent > 0f -> type.slowPercent
+                        type.chains > 0 -> type.chains.toFloat()
+                        else -> 0f
+                    }
+                )
+            }
+            branchTier1 != null -> {
+                val t1 = com.example.engine.TowerUpgradeManager.getTier1Options(type).firstOrNull { it.branchKey == branchTier1 }
+                val dmgMul = t1?.damageMultiplier ?: 1.0f
+                val spdMul = t1?.fireRateMultiplier ?: 1.0f
+                val rngMul = t1?.rangeMultiplier ?: 1.0f
+                val cost = t1?.cost ?: (type.baseCost * 1.5f).toInt()
+                TowerUnitBalance(
+                    customName = t1?.subName,
+                    damage = type.baseDamage * dmgMul,
+                    range = type.baseRange * rngMul,
+                    fireRate = type.baseFireRate * spdMul,
+                    cost = cost,
+                    specialEffectValue = when {
+                        type.isSplash -> type.splashRadius
+                        type.slowPercent > 0f -> type.slowPercent
+                        type.chains > 0 -> type.chains.toFloat()
+                        else -> 0f
+                    }
+                )
+            }
+            else -> getTowerBalance(type)
+        }
+    }
+
+    companion object {
+        fun getAll39TowerDescriptors(): List<TowerBalanceDescriptor> {
+            val list = mutableListOf<TowerBalanceDescriptor>()
+            val baseTypes = listOf(TowerType.GATLING, TowerType.CRYO, TowerType.TESLA)
+
+            for (type in baseTypes) {
+                // L1 Base (3 towers)
+                list.add(
+                    TowerBalanceDescriptor(
+                        key = type.name,
+                        displayName = type.displayName,
+                        level = 1,
+                        family = type,
+                        defaultDamage = type.baseDamage,
+                        defaultRange = type.baseRange,
+                        defaultFireRate = type.baseFireRate,
+                        defaultCost = type.baseCost,
+                        specialEffectValue = when {
+                            type.isSplash -> type.splashRadius
+                            type.slowPercent > 0f -> type.slowPercent
+                            type.chains > 0 -> type.chains.toFloat()
+                            else -> 0f
+                        }
+                    )
+                )
+
+                // L2 Tier 1 Options (9 towers: 3 per base)
+                val t1Options = com.example.engine.TowerUpgradeManager.getTier1Options(type)
+                for (opt in t1Options) {
+                    list.add(
+                        TowerBalanceDescriptor(
+                            key = "${type.name}_${opt.branchKey}",
+                            displayName = "${type.displayName} - ${opt.subName}",
+                            level = 2,
+                            family = type,
+                            branchTier1 = opt.branchKey,
+                            defaultDamage = type.baseDamage * opt.damageMultiplier,
+                            defaultRange = type.baseRange * opt.rangeMultiplier,
+                            defaultFireRate = type.baseFireRate * opt.fireRateMultiplier,
+                            defaultCost = opt.cost,
+                            specialEffectValue = 0f
+                        )
+                    )
+                }
+
+                // L3 Final Forms (27 towers: 9 per base)
+                val finalForms = com.example.engine.TowerUpgradeManager.get9FinalForms(type)
+                for (ff in finalForms) {
+                    list.add(
+                        TowerBalanceDescriptor(
+                            key = "${type.name}_${ff.code}",
+                            displayName = "${type.displayName} - ${ff.subName}",
+                            level = 3,
+                            family = type,
+                            branchTier1 = ff.code.substringBefore("."),
+                            finalFormCode = ff.code,
+                            defaultDamage = type.baseDamage * ff.damageMultiplier,
+                            defaultRange = type.baseRange * ff.rangeMultiplier,
+                            defaultFireRate = type.baseFireRate * ff.fireRateMultiplier,
+                            defaultCost = ff.cost,
+                            specialEffectValue = 0f
+                        )
+                    )
+                }
+            }
+            return list
+        }
     }
 
     fun getEnemyBalance(type: EnemyType): EnemyUnitBalance {
@@ -1390,24 +1572,27 @@ data class DevBalanceConfig(
 
         if (startingScrap != default.startingScrap) diffMap["startingScrap"] = startingScrap
         if (globalIncomeMultiplier != default.globalIncomeMultiplier) diffMap["globalIncomeMultiplier"] = globalIncomeMultiplier
+        if (globalTowerFireRateMultiplier != default.globalTowerFireRateMultiplier) diffMap["globalTowerFireRateMultiplier"] = globalTowerFireRateMultiplier
+        if (enemyHpMultiplier != default.enemyHpMultiplier) diffMap["enemyHpMultiplier"] = enemyHpMultiplier
+        if (enemySpeedMultiplier != default.enemySpeedMultiplier) diffMap["enemySpeedMultiplier"] = enemySpeedMultiplier
         if (kineticDamageMultiplier != default.kineticDamageMultiplier) diffMap["kineticDamageMultiplier"] = kineticDamageMultiplier
         if (elementalDamageMultiplier != default.elementalDamageMultiplier) diffMap["elementalDamageMultiplier"] = elementalDamageMultiplier
         if (heavyDamageMultiplier != default.heavyDamageMultiplier) diffMap["heavyDamageMultiplier"] = heavyDamageMultiplier
         if (waveBonusMultiplier != default.waveBonusMultiplier) diffMap["waveBonusMultiplier"] = waveBonusMultiplier
-        if (enemyHpMultiplier != default.enemyHpMultiplier) diffMap["enemyHpMultiplier"] = enemyHpMultiplier
         if (buildCostMultiplier != default.buildCostMultiplier) diffMap["buildCostMultiplier"] = buildCostMultiplier
         if (minLaneLength != default.minLaneLength) diffMap["minLaneLength"] = minLaneLength
         if (maxLaneLength != default.maxLaneLength) diffMap["maxLaneLength"] = maxLaneLength
         if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) diffMap["enemiesPerRoundMultiplier"] = enemiesPerRoundMultiplier
 
-        // Tower diffs
+        // Tower diffs across all 39 units (L1 Base, L2 Specializations, L3 Final Forms)
         val towerDiffs = mutableMapOf<String, Map<String, Any>>()
-        for (type in TowerType.values()) {
-            val curr = getTowerBalance(type)
-            val defTower = default.getTowerBalance(type)
+        val allDescriptors = getAll39TowerDescriptors()
+        for (desc in allDescriptors) {
+            val curr = getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
+            val defTower = default.getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
             val tDiff = mutableMapOf<String, Any>()
 
-            if (!curr.customName.isNullOrBlank() && curr.customName != type.displayName) {
+            if (!curr.customName.isNullOrBlank() && curr.customName != defTower.customName) {
                 tDiff["customName"] = curr.customName
             }
             if (Math.abs(curr.damage - defTower.damage) > 0.01f) tDiff["damage"] = curr.damage
@@ -1419,7 +1604,7 @@ data class DevBalanceConfig(
             }
 
             if (tDiff.isNotEmpty()) {
-                towerDiffs[type.name] = tDiff
+                towerDiffs[desc.key] = tDiff
             }
         }
         if (towerDiffs.isNotEmpty()) diffMap["customTowers"] = towerDiffs

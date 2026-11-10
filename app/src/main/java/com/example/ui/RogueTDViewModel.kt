@@ -85,7 +85,13 @@ data class GameUIState(
     val leaderboardStatus: GlobalBoardStatus = GlobalBoardStatus.IDLE,
     val leaderboardErrorMessage: String? = null,
     val updateUIState: AppUpdateState = AppUpdateState(),
-    val showUpdateModal: Boolean = false
+    val showUpdateModal: Boolean = false,
+    val soundProfile: com.example.audio.SoundProfile = com.example.audio.SoundProfile.CYBER_SYNTH,
+    val musicTrack: com.example.audio.MusicTrack = com.example.audio.MusicTrack.CYBER_AMBIENT,
+    val masterVolume: Float = 0.7f,
+    val sfxVolume: Float = 0.8f,
+    val musicVolume: Float = 0.45f,
+    val towerVisualSkin: String = "Vector Blueprint"
 )
 
 class RogueTDViewModel @JvmOverloads constructor(
@@ -98,6 +104,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     private val telemetryManager = TelemetryManager(application)
     val appUpdateManager = AppUpdateManager(application, viewModelScope)
+    val soundManager = com.example.audio.SoundManager(application)
 
     private val _uiState = MutableStateFlow(GameUIState(balanceConfig = telemetryManager.getBalanceConfig()))
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
@@ -192,6 +199,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     override fun onCleared() {
         super.onCleared()
         appUpdateManager.unregisterReceiver()
+        soundManager.release()
     }
 
     fun refreshTelemetry() {
@@ -299,11 +307,50 @@ class RogueTDViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(balanceConfig = defaultConfig) }
     }
 
+    fun resetTowerPerformance() {
+        telemetryManager.resetTowerPerformance()
+        _uiState.update { it.copy(towerPerformance = telemetryManager.getTowerPerformance()) }
+    }
+
     fun toggleSynergyPanel() {
         _uiState.update { it.copy(isSynergyPanelExpanded = !it.isSynergyPanelExpanded) }
     }
 
+    fun setSoundProfile(profile: com.example.audio.SoundProfile) {
+        soundManager.activeProfile = profile
+        _uiState.update { it.copy(soundProfile = profile) }
+    }
+
+    fun setMusicTrack(track: com.example.audio.MusicTrack) {
+        soundManager.activeMusicTrack = track
+        _uiState.update { it.copy(musicTrack = track) }
+    }
+
+    fun setMasterVolume(level: Float) {
+        soundManager.setMasterVolumeLevel(level)
+        _uiState.update { it.copy(masterVolume = level) }
+    }
+
+    fun setSfxVolume(level: Float) {
+        soundManager.setSfxVolumeLevel(level)
+        _uiState.update { it.copy(sfxVolume = level) }
+    }
+
+    fun setMusicVolume(level: Float) {
+        soundManager.setMusicVolumeLevel(level)
+        _uiState.update { it.copy(musicVolume = level) }
+    }
+
+    fun setTowerVisualSkin(skin: String) {
+        _uiState.update { it.copy(towerVisualSkin = skin) }
+    }
+
+    fun playTestSound(fx: com.example.audio.SoundFx) {
+        soundManager.play(fx)
+    }
+
     fun startNewRun() {
+        virtualSimTimeMs = 0L
         devTunedThisRun = false
         gameLoopJob?.cancel()
 
@@ -407,7 +454,10 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
     }
 
+    private var virtualSimTimeMs: Long = 0L
+
     private fun tickSimulation(deltaSec: Float, deltaMs: Long, nowMs: Long = System.currentTimeMillis()) {
+        virtualSimTimeMs += deltaMs
         val state = _uiState.value
         val level = state.level ?: return
 
@@ -471,7 +521,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
             val path = if (enemy.laneIndex == 0) level.laneAlpha else level.laneBeta
             val globalSlow = if (state.globalFrostSlowBonus > 0f) (1f - state.globalFrostSlowBonus) else 1.0f
-            val moveDistance = enemy.effectiveSpeed * globalSlow * deltaSec
+            val moveDistance = enemy.effectiveSpeed * state.balanceConfig.enemySpeedMultiplier * globalSlow * deltaSec
             enemy.segmentProgress += moveDistance
 
             while (enemy.segmentProgress >= 1f && enemy.currentPathSegmentIndex < path.size - 1) {
@@ -550,7 +600,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         val newBeams = state.laserBeams.toMutableList()
         val newArcs = state.lightningArcs.toMutableList()
         val newExplosions = state.explosions.toMutableList()
-        val nowMs = System.currentTimeMillis()
+        val simNowMs = virtualSimTimeMs
 
         val boostedTiles = level.tiles.filter { it.buff != TileBuff.NONE }
         val harmonicCount = towers.count { t -> boostedTiles.any { it.pos == t.gridPos } }
@@ -575,7 +625,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             val synergyDmgBonus = if (isVectorSynergy) 0.15f else 0.0f
             val synergySpdBonus = if (isVectorSynergy) 0.15f else 0.0f
 
-            val customTConfig = state.balanceConfig.getTowerBalance(tower.type)
+            val customTConfig = state.balanceConfig.getEffectiveTowerBalance(tower.type, tower.branchTier1, tower.finalFormCode)
             val effectiveRange = tower.getEffectiveCombatRange(
                 tileBuff = tileBuff,
                 globalRangeBonus = globalRangeBonus,
@@ -584,7 +634,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
             val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
-            val fireRate = customTConfig.fireRate * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
+            val fireRate = customTConfig.fireRate * state.balanceConfig.globalTowerFireRateMultiplier * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
             val cooldownMs = (1000f / fireRate).toLong()
 
             val towerX = tower.gridPos.x.toFloat()
@@ -612,8 +662,8 @@ class RogueTDViewModel @JvmOverloads constructor(
             tower.targetEnemyId = target.id
             tower.rotationAngleDeg = (atan2(target.worldY - towerY, target.worldX - towerX) * (180f / PI.toFloat()))
 
-            if (nowMs - tower.lastShotTimeMs >= cooldownMs) {
-                tower.lastShotTimeMs = nowMs
+            if (simNowMs - tower.lastShotTimeMs >= cooldownMs) {
+                tower.lastShotTimeMs = simNowMs
 
                 val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.30f else 0.0f
                 val apexBonus = if (tower.isFinalForm) 0.30f else 0.0f

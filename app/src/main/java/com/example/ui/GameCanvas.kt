@@ -803,9 +803,26 @@ fun GameCanvas(
             )
         }
 
-        // Tactical Tutorial Pointer: Animated bouncing arrow pointing to a boosted pad on Wave 1
+        // Tactical Tutorial Pointer: Animated bouncing arrow pointing to a boosted pad near the beginning/center on Wave 1
         if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
-            val targetTile = level.tiles.firstOrNull { it.type == TileType.EMPTY && it.buff != TileBuff.NONE }
+            val candidates = level.tiles.filter { it.type == TileType.EMPTY }
+            val targetTile = candidates.maxByOrNull { tile ->
+                val hasBuffScore = if (tile.buff != TileBuff.NONE) 100f else 0f
+                val spawnerAlpha = level.laneAlpha.first()
+                val spawnerBeta = level.laneBeta.first()
+                val dAlpha = hypot((tile.pos.x - spawnerAlpha.x).toFloat(), (tile.pos.y - spawnerAlpha.y).toFloat())
+                val dBeta = hypot((tile.pos.x - spawnerBeta.x).toFloat(), (tile.pos.y - spawnerBeta.y).toFloat())
+                val dCenter = hypot((tile.pos.x - gridWidth / 2f), (tile.pos.y - gridHeight / 2f))
+
+                val earlyLaneAlpha = level.laneAlpha.take(maxOf(3, level.laneAlpha.size / 2))
+                val earlyLaneBeta = level.laneBeta.take(maxOf(3, level.laneBeta.size / 2))
+                val alphaCoverage = earlyLaneAlpha.count { hypot((tile.pos.x - it.x).toFloat(), (tile.pos.y - it.y).toFloat()) <= 2.8f }
+                val betaCoverage = earlyLaneBeta.count { hypot((tile.pos.x - it.x).toFloat(), (tile.pos.y - it.y).toFloat()) <= 2.8f }
+                val coverageScore = (alphaCoverage + betaCoverage) * 15f
+                val proximityScore = 50f - minOf(dAlpha, dBeta) * 3f - dCenter * 2f
+
+                hasBuffScore + coverageScore + proximityScore
+            }
             if (targetTile != null) {
                 val bx = (targetTile.pos.x + 0.5f) * cellW + shakeX
                 val by = (targetTile.pos.y + 0.5f) * cellH + shakeY

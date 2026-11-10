@@ -1,5 +1,5 @@
 # ==============================================================================
-# Automated Release & GitHub Upload Script - Rogue TD: Dual-Front
+# Automated Release & GitHub Upload Script - Dual Front TD
 # Compiles APK and Windows Runner, packages assets, and creates GitHub Release
 # ==============================================================================
 [CmdletBinding()]
@@ -17,7 +17,7 @@ $ProjectRoot = Split-Path -Parent $ScriptDir
 Set-Location $ProjectRoot
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "Rogue TD: Automated Release & APK Upload Pipeline" -ForegroundColor Cyan
+Write-Host "Dual Front TD: Automated Release & APK Upload Pipeline" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. Determine Version
@@ -67,19 +67,25 @@ if (-not $SkipBuild) {
 $BuiltApk = Join-Path $ProjectRoot "app/build/outputs/apk/debug/app-debug.apk"
 if (-not (Test-Path $BuiltApk)) {
     # Check if existing artifact exists in apk/ folder
-    $FallbackApk = Join-Path $ProjectRoot ("apk/Fox-Rogue-TD-" + $Tag + ".apk")
+    $FallbackApk = Join-Path $ProjectRoot ("apk/Dual-Front-TD-" + $Tag + "-debug.apk")
     if (Test-Path $FallbackApk) {
         $BuiltApk = $FallbackApk
     } else {
-        Write-Error "Built APK not found at $BuiltApk or in apk directory."
+        $FallbackApk2 = Join-Path $ProjectRoot ("apk/game-release-" + $Tag + ".apk")
+        if (Test-Path $FallbackApk2) {
+            $BuiltApk = $FallbackApk2
+        } else {
+            Write-Error "Built APK not found at $BuiltApk or in apk directory."
+        }
     }
 }
 
-# 4. Compile Portable Windows Widescreen Launcher (if not skipped)
+# 4. Compile Portable Windows Launcher (if not skipped)
 if (-not $SkipBuild) {
     Write-Host "`n[3/5] Compiling Portable Windows Launcher..." -ForegroundColor Yellow
     try {
-        & powershell -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tools/windows/build-launcher.ps1")
+        & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /out:"Dual Front TD.exe" /target:exe /platform:anycpu tools\windows\RogueTDLauncher.cs
+        Copy-Item "Dual Front TD.exe" -Destination (Join-Path $ProjectRoot ("apk/Dual-Front-TD-" + $Tag + ".exe")) -Force
     } catch {
         Write-Warning ("Windows launcher build skipped: " + $_)
     }
@@ -92,21 +98,19 @@ if (-not (Test-Path $ApkDir)) {
     New-Item -ItemType Directory -Path $ApkDir | Out-Null
 }
 
-$FoxApk = Join-Path $ApkDir ("Fox-Rogue-TD-" + $Tag + ".apk")
+$DualApk = Join-Path $ApkDir ("Dual-Front-TD-" + $Tag + "-debug.apk")
 $StandardApk = Join-Path $ApkDir ("game-release-" + $Tag + ".apk")
 $DebugApk = Join-Path $ApkDir ("RogueTD-" + $Tag + "-debug.apk")
-$FoxExeInApk = Join-Path $ApkDir ("Fox-Rogue-TD-" + $Tag + ".exe")
-$WinExeInApk = Join-Path $ApkDir ("RogueTD-" + $Tag + ".exe")
-$WinExeInRoot = Join-Path $ProjectRoot ("Fox-Rogue-TD.exe")
+$WinExeInApk = Join-Path $ApkDir ("Dual-Front-TD-" + $Tag + ".exe")
+$WinExeInRoot = Join-Path $ProjectRoot ("Dual Front TD.exe")
 
 if (Test-Path $BuiltApk) {
-    Copy-Item $BuiltApk $FoxApk -Force
+    Copy-Item $BuiltApk $DualApk -Force
     Copy-Item $BuiltApk $StandardApk -Force
     Copy-Item $BuiltApk $DebugApk -Force
 }
 
-$AssetsToUpload = @($FoxApk, $StandardApk, $DebugApk)
-if (Test-Path $FoxExeInApk) { $AssetsToUpload += $FoxExeInApk }
+$AssetsToUpload = @($DualApk, $StandardApk, $DebugApk)
 if (Test-Path $WinExeInApk) { $AssetsToUpload += $WinExeInApk }
 if (Test-Path $WinExeInRoot) { $AssetsToUpload += $WinExeInRoot }
 
@@ -133,7 +137,7 @@ if ($null -ne $ghCmd) {
         $GhArgs = @("release", "create", $Tag)
         foreach ($asset in $AssetsToUpload) { $GhArgs += $asset }
         $GhArgs += "--title"
-        $GhArgs += ("Fox-Rogue-TD " + $Tag)
+        $GhArgs += ("Dual Front TD " + $Tag)
         $GhArgs += "--generate-notes"
         if ($Draft) { $GhArgs += "--draft" }
         if ($Prerelease) { $GhArgs += "--prerelease" }
@@ -168,7 +172,7 @@ if (-not $publishedViaRest -and -not [string]::IsNullOrEmpty($env:GITHUB_TOKEN))
         if ($null -eq $rel) {
             $createBody = @{
                 tag_name = $Tag
-                name = ("Fox-Rogue-TD " + $Tag)
+                name = ("Dual Front TD " + $Tag)
                 generate_release_notes = $true
                 draft = [bool]$Draft
                 prerelease = [bool]$Prerelease
@@ -203,7 +207,7 @@ if (-not $publishedViaRest -and -not [string]::IsNullOrEmpty($env:GITHUB_TOKEN))
 if (-not $publishedViaRest) {
     Write-Host "`n  -> Staging completed locally." -ForegroundColor Cyan
     Write-Host "  -> To trigger the automated GitHub Release & APK Upload Actions workflow:" -ForegroundColor White
-    Write-ForegroundColor "     1. Commit the release assets and documentation:" -Color Yellow
+    Write-Host "     1. Commit the release assets and documentation:" -ForegroundColor Yellow
     Write-Host "        git commit -m `"Release $Tag: Final pass build, binaries, and documentation update`"" -ForegroundColor Gray
     Write-Host "     2. Tag the release:" -ForegroundColor Yellow
     Write-Host "        git tag -a $Tag -m `"Release $Tag`"" -ForegroundColor Gray

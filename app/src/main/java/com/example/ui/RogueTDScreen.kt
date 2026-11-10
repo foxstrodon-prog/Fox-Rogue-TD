@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -39,6 +40,7 @@ import com.example.engine.GeneratedLevel
 import com.example.engine.TowerUpgradeManager
 import com.example.engine.UpdateDownloadStatus
 import com.example.model.*
+import com.example.audio.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -256,8 +258,17 @@ fun RogueTDScreen(
             DevBalanceSettingsDialog(
                 config = state.balanceConfig,
                 towerPerformance = state.towerPerformance,
+                uiState = state,
                 onConfigChanged = { viewModel.updateBalanceConfig(it) },
                 onResetDefaults = { viewModel.resetBalanceConfigToDefaults() },
+                onResetTelemetry = { viewModel.resetTowerPerformance() },
+                onSoundProfileChanged = { viewModel.setSoundProfile(it) },
+                onMusicTrackChanged = { viewModel.setMusicTrack(it) },
+                onMasterVolumeChanged = { viewModel.setMasterVolume(it) },
+                onSfxVolumeChanged = { viewModel.setSfxVolume(it) },
+                onMusicVolumeChanged = { viewModel.setMusicVolume(it) },
+                onTowerVisualSkinChanged = { viewModel.setTowerVisualSkin(it) },
+                onPlayTestSound = { viewModel.playTestSound(it) },
                 onDismiss = { viewModel.toggleSettingsView(false) }
             )
         }
@@ -283,6 +294,12 @@ fun MinimalTopHud(
 ) {
     var showSynergyDropdown by remember { mutableStateOf(false) }
 
+    val hudRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = state.deviceRotationAngle,
+        animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+        label = "hudRotation"
+    )
+
     Surface(
         color = Color(0xFF070B14).copy(alpha = 0.65f), // High transparency so background map remains visible underneath
         shape = RoundedCornerShape(10.dp),
@@ -297,6 +314,7 @@ fun MinimalTopHud(
             ) {
                 // Wave badge
                 Row(
+                    modifier = Modifier.rotate(hudRotation),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -317,7 +335,8 @@ fun MinimalTopHud(
                 // Core HP (Heart Icon)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(5.dp)
+                    shape = RoundedCornerShape(5.dp),
+                    modifier = Modifier.rotate(hudRotation)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -342,7 +361,8 @@ fun MinimalTopHud(
                 // Credits
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(5.dp)
+                    shape = RoundedCornerShape(5.dp),
+                    modifier = Modifier.rotate(hudRotation)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -366,7 +386,7 @@ fun MinimalTopHud(
 
                 // Consolidated Synergies Indicator with Dropdown (Symbol + count)
                 val activeSynergiesCount = state.activeGlobalSynergies.size
-                Box {
+                Box(modifier = Modifier.rotate(hudRotation)) {
                     Surface(
                         color = if (activeSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
                         shape = RoundedCornerShape(5.dp),
@@ -458,6 +478,7 @@ fun MinimalTopHud(
                     shape = RoundedCornerShape(5.dp),
                     border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
                     modifier = Modifier
+                        .rotate(hudRotation)
                         .clip(RoundedCornerShape(5.dp))
                         .clickable { onToggleAutoWave() }
                         .padding(1.dp)
@@ -485,6 +506,7 @@ fun MinimalTopHud(
                     shape = RoundedCornerShape(5.dp),
                     modifier = Modifier
                         .height(26.dp)
+                        .rotate(hudRotation)
                         .testTag("deploy_wave_button")
                 ) {
                     Icon(
@@ -505,6 +527,7 @@ fun MinimalTopHud(
                     onClick = onOpenPauseMenu,
                     modifier = Modifier
                         .size(26.dp)
+                        .rotate(hudRotation)
                         .clip(RoundedCornerShape(5.dp))
                         .background(Color(0xFF161F30).copy(alpha = 0.70f))
                         .testTag("pause_menu_button")
@@ -803,9 +826,6 @@ fun BranchingTowerInspector(
 ) {
     val sellValue = tower.getSellValue()
     val arch = tower.archetype
-    val baseDamage = arch?.baseDamage ?: tower.type.baseDamage
-    val baseFireRate = arch?.baseFireRate ?: tower.type.baseFireRate
-    val baseRange = arch?.baseRange ?: tower.type.baseRange
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // --- HEADER ---
@@ -900,10 +920,14 @@ fun BranchingTowerInspector(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Section 1: Base Stats
+                // Section 1: Effective Combat Stats with accurate DPS
+                val effDmg = tower.getEffectiveDamage()
+                val effSpd = tower.getEffectiveFireRate()
+                val effDps = tower.getEffectiveDps()
+                val effRng = tower.getEffectiveCombatRange()
                 Column {
-                    Text(text = "BASE STATS", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
-                    Text(text = "DMG: ${baseDamage.toInt()} | SPD: ${baseFireRate}x | RNG: ${baseRange}u", color = Color.White, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "COMBAT STATS (LIVE DPS)", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
+                    Text(text = "DMG: ${effDmg.toInt()} | SPD: ${String.format(Locale.US, "%.1f", effSpd)}/s | DPS: ${effDps.toInt()} | RNG: ${effRng.toInt()}u", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
                 // Section 2: Local Upgrades
                 Column {
@@ -2659,11 +2683,23 @@ fun SummaryStatRow(label: String, value: String) {
 fun DevBalanceSettingsDialog(
     config: DevBalanceConfig,
     towerPerformance: List<TowerPerformanceRecord>,
+    uiState: GameUIState,
     onConfigChanged: (DevBalanceConfig) -> Unit,
     onResetDefaults: () -> Unit,
+    onResetTelemetry: () -> Unit,
+    onSoundProfileChanged: (SoundProfile) -> Unit,
+    onMusicTrackChanged: (MusicTrack) -> Unit,
+    onMasterVolumeChanged: (Float) -> Unit,
+    onSfxVolumeChanged: (Float) -> Unit,
+    onMusicVolumeChanged: (Float) -> Unit,
+    onTowerVisualSkinChanged: (String) -> Unit,
+    onPlayTestSound: (SoundFx) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Economy & Combat Sliders, 1 = Tower Efficiency Telemetry
+    var selectedTab by remember { mutableStateOf(0) } // 0 = ECONOMY, 1 = 39 TOWERS, 2 = TELEMETRY, 3 = AUDIO & SKINS
+    var showExportModal by remember { mutableStateOf(false) }
+    var exportJsonText by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -2682,234 +2718,720 @@ fun DevBalanceSettingsDialog(
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.8f)),
                 modifier = if (isLandscape) {
                     Modifier
-                        .width(420.dp)
+                        .width(460.dp)
                         .fillMaxHeight()
                         .padding(top = 8.dp, bottom = 8.dp, end = 8.dp)
                 } else {
                     Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.88f)
+                        .fillMaxHeight(0.92f)
                         .padding(4.dp)
                 }
             ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(14.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFFFB800).copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(imageVector = Icons.Filled.Tune, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "DEV BALANCE CONSOLE",
-                                color = Color.White,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "v${com.example.BuildConfig.VERSION_NAME} • On-the-fly unit & economy balance sliders",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 9.sp
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Tabs: Sliders vs Telemetry
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color(0xFF131F37),
-                    contentColor = Color(0xFFFFB800),
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = { Text("SLIDERS", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = { Text("TOWER TELEMETRY", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (selectedTab == 0) {
-                    // Sliders View
-                    var showExportModal by remember { mutableStateOf(false) }
-                    var exportJsonText by remember { mutableStateOf("") }
-                    val context = androidx.compose.ui.platform.LocalContext.current
-
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        item {
-                            Text(
-                                text = "GLOBAL ECONOMY & ROUND SLIDERS",
-                                color = Color(0xFFFFD700),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(bottom = 2.dp)
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFFFB800).copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(imageVector = Icons.Filled.Tune, contentDescription = null, tint = Color(0xFFFFB800), modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "DEV BALANCE CONSOLE",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    text = "v${com.example.BuildConfig.VERSION_NAME} • Dual Front TD Dev Architect Tools",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 8.5.sp
+                                )
+                            }
                         }
 
-                        // Starting Scrap
-                        item {
-                            BalanceSliderCard(
-                                title = "Starting Credits (Early Economy)",
-                                subtitle = "Lower credits early to avoid effortless initial defense",
-                                value = config.startingScrap.toFloat(),
-                                range = 100f..600f,
-                                steps = 9,
-                                valueFormatter = { "${it.toInt()} C" },
-                                color = Color(0xFFFFD700),
-                                onValueChange = { onConfigChanged(config.copy(startingScrap = it.roundToInt())) }
-                            )
-                        }
-
-                        // Enemies Per Round Slider
-                        item {
-                            BalanceSliderCard(
-                                title = "Enemies Per Round Multiplier",
-                                subtitle = "Scale hostile assault volume per wave across both lanes",
-                                value = config.enemiesPerRoundMultiplier,
-                                range = 0.5f..3.0f,
-                                steps = 24,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFFFF2A55),
-                                onValueChange = { onConfigChanged(config.copy(enemiesPerRoundMultiplier = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-
-                        // Minimum Lane Length Slider
-                        item {
-                            BalanceSliderCard(
-                                title = "Min Lane Path Length",
-                                subtitle = "Minimum tile travel distance for procedural lane generation",
-                                value = config.minLaneLength.toFloat(),
-                                range = 8f..25f,
-                                steps = 16,
-                                valueFormatter = { "${it.toInt()} tiles" },
-                                color = Color(0xFF00F0FF),
-                                onValueChange = {
-                                    val newMin = it.roundToInt()
-                                    val newMax = maxOf(newMin + 2, config.maxLaneLength)
-                                    onConfigChanged(config.copy(minLaneLength = newMin, maxLaneLength = newMax))
-                                }
-                            )
-                        }
-
-                        // Maximum Lane Length Slider
-                        item {
-                            BalanceSliderCard(
-                                title = "Max Lane Path Length",
-                                subtitle = "Maximum tile curve winding distance across grid terrain",
-                                value = config.maxLaneLength.toFloat(),
-                                range = 15f..40f,
-                                steps = 24,
-                                valueFormatter = { "${it.toInt()} tiles" },
-                                color = Color(0xFF38BDF8),
-                                onValueChange = {
-                                    val newMax = it.roundToInt()
-                                    val newMin = minOf(newMax - 2, config.minLaneLength)
-                                    onConfigChanged(config.copy(maxLaneLength = newMax, minLaneLength = newMin))
-                                }
-                            )
-                        }
-
-                        // Overall Income Multiplier
-                        item {
-                            BalanceSliderCard(
-                                title = "Overall Income Multiplier",
-                                subtitle = "Scales enemy bounties and resource drops on-the-fly",
-                                value = config.globalIncomeMultiplier,
-                                range = 0.2f..3.0f,
-                                steps = 27,
-                                valueFormatter = { String.format(Locale.US, "%.2fx", it) },
-                                color = Color(0xFFFFB800),
-                                onValueChange = { onConfigChanged(config.copy(globalIncomeMultiplier = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "INDIVIDUAL TOWER UNITS (TAP LEFT TO EXPAND)",
-                                color = Color(0xFF00F0FF),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(bottom = 2.dp)
-                            )
-                        }
-
-                        // Collapsible Tower Unit Cards for every tower
-                        items(TowerType.values()) { type ->
-                            val currentTowerBal = config.getTowerBalance(type)
-                            CollapsibleTowerBalanceCard(
-                                towerType = type,
-                                balance = currentTowerBal,
-                                allTowers = TowerType.values().map { config.getTowerBalance(it) },
-                                onBalanceChanged = { updated ->
-                                    val updatedMap = config.customTowerConfigs.toMutableMap()
-                                    updatedMap[type.name] = updated
-                                    onConfigChanged(config.copy(customTowerConfigs = updatedMap))
-                                }
-                            )
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "INDIVIDUAL ENEMY HOSTILES (TAP LEFT TO EXPAND)",
-                                color = Color(0xFFFF2A55),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(bottom = 2.dp)
-                            )
-                        }
-
-                        // Collapsible Enemy Unit Cards for every hostile
-                        items(EnemyType.values()) { type ->
-                            val currentEnemyBal = config.getEnemyBalance(type)
-                            CollapsibleEnemyBalanceCard(
-                                enemyType = type,
-                                balance = currentEnemyBal,
-                                onBalanceChanged = { updated ->
-                                    val updatedMap = config.customEnemyConfigs.toMutableMap()
-                                    updatedMap[type.name] = updated
-                                    onConfigChanged(config.copy(customEnemyConfigs = updatedMap))
-                                }
-                            )
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
+                            Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Action Buttons Row: Reset Defaults, Export New Defaults (Diff Only), Apply & Close
+                    // 4 Navigation Tabs
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color(0xFF131F37),
+                        contentColor = Color(0xFFFFB800),
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("ECONOMY", fontWeight = FontWeight.Bold, fontSize = 9.sp) }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("39 TOWERS", fontWeight = FontWeight.Bold, fontSize = 9.sp) }
+                        )
+                        Tab(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            text = { Text("TELEMETRY", fontWeight = FontWeight.Bold, fontSize = 9.sp) }
+                        )
+                        Tab(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            text = { Text("AUDIO & SKINS", fontWeight = FontWeight.Bold, fontSize = 9.sp) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Content Area for active tab
+                    Box(modifier = Modifier.weight(1f)) {
+                        when (selectedTab) {
+                            0 -> {
+                                // Tab 0: Economy & Global Combat Sliders
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    item {
+                                        Text(
+                                            text = "GLOBAL COMBAT & ECONOMY MULTIPLIERS",
+                                            color = Color(0xFFFFD700),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.padding(bottom = 2.dp)
+                                        )
+                                    }
+
+                                    // Starting Scrap
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Starting Credits (Early Economy)",
+                                            subtitle = "Default 220 Credits for tactical round placement",
+                                            value = config.startingScrap.toFloat(),
+                                            range = 100f..600f,
+                                            steps = 9,
+                                            valueFormatter = { "${it.toInt()} C" },
+                                            color = Color(0xFFFFD700),
+                                            onValueChange = { onConfigChanged(config.copy(startingScrap = it.roundToInt())) }
+                                        )
+                                    }
+
+                                    // Global Tower Fire Rate Multiplier
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Overall Tower Fire Rate Multiplier",
+                                            subtitle = "Accelerates/slows all 39 towers firing speed",
+                                            value = config.globalTowerFireRateMultiplier,
+                                            range = 0.2f..3.0f,
+                                            steps = 27,
+                                            valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                            color = Color(0xFF00FF9D),
+                                            onValueChange = { onConfigChanged(config.copy(globalTowerFireRateMultiplier = (it * 100).roundToInt() / 100f)) }
+                                        )
+                                    }
+
+                                    // Overall Enemy Health Multiplier
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Overall Unit Health Multiplier",
+                                            subtitle = "Scales enemy base HP pool across all waves",
+                                            value = config.enemyHpMultiplier,
+                                            range = 0.5f..3.0f,
+                                            steps = 24,
+                                            valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                            color = Color(0xFFFF2A55),
+                                            onValueChange = { onConfigChanged(config.copy(enemyHpMultiplier = (it * 100).roundToInt() / 100f)) }
+                                        )
+                                    }
+
+                                    // Overall Unit Speed Multiplier
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Overall Unit Speed Multiplier",
+                                            subtitle = "Scales hostile lane traversal movement velocity",
+                                            value = config.enemySpeedMultiplier,
+                                            range = 0.2f..3.0f,
+                                            steps = 27,
+                                            valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                            color = Color(0xFF38BDF8),
+                                            onValueChange = { onConfigChanged(config.copy(enemySpeedMultiplier = (it * 100).roundToInt() / 100f)) }
+                                        )
+                                    }
+
+                                    // Overall Income Multiplier
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Overall Income Multiplier",
+                                            subtitle = "Scales enemy bounties and resource drops on-the-fly",
+                                            value = config.globalIncomeMultiplier,
+                                            range = 0.2f..3.0f,
+                                            steps = 27,
+                                            valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                            color = Color(0xFFFFB800),
+                                            onValueChange = { onConfigChanged(config.copy(globalIncomeMultiplier = (it * 100).roundToInt() / 100f)) }
+                                        )
+                                    }
+
+                                    // Enemies Per Round Slider
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Enemies Per Round Multiplier",
+                                            subtitle = "Scale hostile assault volume per wave across both lanes",
+                                            value = config.enemiesPerRoundMultiplier,
+                                            range = 0.5f..3.0f,
+                                            steps = 24,
+                                            valueFormatter = { String.format(Locale.US, "%.2fx", it) },
+                                            color = Color(0xFFFF6600),
+                                            onValueChange = { onConfigChanged(config.copy(enemiesPerRoundMultiplier = (it * 100).roundToInt() / 100f)) }
+                                        )
+                                    }
+
+                                    // Minimum Lane Length Slider
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Min Lane Path Length",
+                                            subtitle = "Minimum tile travel distance for procedural lane generation",
+                                            value = config.minLaneLength.toFloat(),
+                                            range = 8f..25f,
+                                            steps = 16,
+                                            valueFormatter = { "${it.toInt()} tiles" },
+                                            color = Color(0xFF00F0FF),
+                                            onValueChange = {
+                                                val newMin = it.roundToInt()
+                                                val newMax = maxOf(newMin + 2, config.maxLaneLength)
+                                                onConfigChanged(config.copy(minLaneLength = newMin, maxLaneLength = newMax))
+                                            }
+                                        )
+                                    }
+
+                                    // Maximum Lane Length Slider
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Max Lane Path Length",
+                                            subtitle = "Maximum tile curve winding distance across grid terrain",
+                                            value = config.maxLaneLength.toFloat(),
+                                            range = 15f..40f,
+                                            steps = 24,
+                                            valueFormatter = { "${it.toInt()} tiles" },
+                                            color = Color(0xFFB026FF),
+                                            onValueChange = {
+                                                val newMax = it.roundToInt()
+                                                val newMin = minOf(newMax - 2, config.minLaneLength)
+                                                onConfigChanged(config.copy(maxLaneLength = newMax, minLaneLength = newMin))
+                                            }
+                                        )
+                                    }
+
+                                    item {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "INDIVIDUAL ENEMY HOSTILES (TAP LEFT TO EXPAND)",
+                                            color = Color(0xFFFF2A55),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.padding(bottom = 2.dp)
+                                        )
+                                    }
+
+                                    // Collapsible Enemy Unit Cards for every hostile
+                                    items(EnemyType.values()) { type ->
+                                        val currentEnemyBal = config.getEnemyBalance(type)
+                                        CollapsibleEnemyBalanceCard(
+                                            enemyType = type,
+                                            balance = currentEnemyBal,
+                                            onBalanceChanged = { updated ->
+                                                val updatedMap = config.customEnemyConfigs.toMutableMap()
+                                                updatedMap[type.name] = updated
+                                                onConfigChanged(config.copy(customEnemyConfigs = updatedMap))
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            1 -> {
+                                // Tab 1: All 39 Towers (L1 Base, L2 Spec, L3 Final Forms)
+                                val all39Descriptors = remember { DevBalanceConfig.getAll39TowerDescriptors() }
+                                var familyFilter by remember { mutableStateOf("ALL") }
+                                var levelFilter by remember { mutableStateOf(0) }
+
+                                val filteredDescriptors = remember(familyFilter, levelFilter) {
+                                    all39Descriptors.filter { desc ->
+                                        (familyFilter == "ALL" || desc.family.name == familyFilter) &&
+                                        (levelFilter == 0 || desc.level == levelFilter)
+                                    }
+                                }
+
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    // Filter Row 1: Tower Family
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        listOf("ALL" to "All 39", "GATLING" to "Gatling (13)", "CRYO" to "Cryo (13)", "TESLA" to "Tesla (13)").forEach { (key, label) ->
+                                            val isSel = familyFilter == key
+                                            Surface(
+                                                color = if (isSel) Color(0xFFFFB800) else Color(0xFF131F37),
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable { familyFilter = key }
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    color = if (isSel) Color.Black else Color.White,
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.padding(vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    // Filter Row 2: Level / Tier
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        listOf(0 to "All Tiers", 1 to "L1 Base (3)", 2 to "L2 Spec (9)", 3 to "L3 Final (27)").forEach { (lvl, label) ->
+                                            val isSel = levelFilter == lvl
+                                            Surface(
+                                                color = if (isSel) Color(0xFF00F0FF) else Color(0xFF131F37),
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable { levelFilter = lvl }
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    color = if (isSel) Color.Black else Color(0xFF94A3B8),
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.padding(vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(filteredDescriptors, key = { it.key }) { desc ->
+                                            val currentBal = config.getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
+                                            Collapsible39TowerCard(
+                                                descriptor = desc,
+                                                balance = currentBal,
+                                                onBalanceChanged = { updated ->
+                                                    val updatedMap = config.customTowerConfigs.toMutableMap()
+                                                    updatedMap[desc.key] = updated
+                                                    onConfigChanged(config.copy(customTowerConfigs = updatedMap))
+                                                },
+                                                onResetToDefault = {
+                                                    val updatedMap = config.customTowerConfigs.toMutableMap()
+                                                    updatedMap.remove(desc.key)
+                                                    onConfigChanged(config.copy(customTowerConfigs = updatedMap))
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            2 -> {
+                                // Tab 2: Tower Telemetry & Live Combat Profiling
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "TOWER EFFECTIVENESS TELEMETRY",
+                                                color = Color(0xFF00F0FF),
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 11.sp
+                                            )
+                                            Text(
+                                                text = "Reset telemetry to capture focused diagnostic windows",
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 8.5.sp
+                                            )
+                                        }
+
+                                        Button(
+                                            onClick = onResetTelemetry,
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF2A55), contentColor = Color.White),
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(30.dp)
+                                        ) {
+                                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("RESET WINDOW", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    if (towerPerformance.isEmpty()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF131F37))
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "No telemetry captured in this window.\nDeploy waves or place towers to view live combat statistics.",
+                                                color = Color(0xFF64748B),
+                                                fontSize = 10.sp,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    } else {
+                                        LazyColumn(
+                                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            items(towerPerformance) { record ->
+                                                Surface(
+                                                    color = Color(0xFF131F37),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(record.towerClass.color).copy(alpha = 0.4f)),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = record.towerClass.shapeSymbol,
+                                                            color = Color(record.towerClass.color),
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            modifier = Modifier.width(20.dp)
+                                                        )
+
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                            ) {
+                                                                Text(
+                                                                    text = record.towerName,
+                                                                    color = Color.White,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 11.sp
+                                                                )
+                                                                Text(
+                                                                    text = "${record.totalBuilt} built",
+                                                                    color = Color(0xFF94A3B8),
+                                                                    fontSize = 9.sp
+                                                                )
+                                                            }
+
+                                                            Spacer(modifier = Modifier.height(2.dp))
+
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                            ) {
+                                                                Text(
+                                                                    text = "DMG: ${record.totalDamage.toInt()} | Kills: ${record.totalKills}",
+                                                                    color = Color(0xFF00FF9D),
+                                                                    fontSize = 9.sp
+                                                                )
+                                                                Text(
+                                                                    text = "DPS/Cost: ${String.format(Locale.US, "%.1f", record.dpsCostEfficiency)}",
+                                                                    color = Color(0xFFFFD700),
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    fontSize = 9.sp
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            3 -> {
+                                // Tab 3: Audio Synthesis, Music & Skins Studio
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    item {
+                                        Text(
+                                            text = "PROCEDURAL AUDIO & SOUND CONTROLS",
+                                            color = Color(0xFF00FF9D),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Master Audio Volume",
+                                            subtitle = "Overall sound output ceiling",
+                                            value = uiState.masterVolume,
+                                            range = 0f..1.0f,
+                                            steps = 20,
+                                            valueFormatter = { "${(it * 100).toInt()}%" },
+                                            color = Color(0xFF00FF9D),
+                                            onValueChange = onMasterVolumeChanged
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "SFX Volume",
+                                            subtitle = "Weapon discharge and placement effect audio",
+                                            value = uiState.sfxVolume,
+                                            range = 0f..1.0f,
+                                            steps = 20,
+                                            valueFormatter = { "${(it * 100).toInt()}%" },
+                                            color = Color(0xFF00F0FF),
+                                            onValueChange = onSfxVolumeChanged
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Music Volume",
+                                            subtitle = "Procedural background synthesizer volume",
+                                            value = uiState.musicVolume,
+                                            range = 0f..1.0f,
+                                            steps = 20,
+                                            valueFormatter = { "${(it * 100).toInt()}%" },
+                                            color = Color(0xFFFFB800),
+                                            onValueChange = onMusicVolumeChanged
+                                        )
+                                    }
+
+                                    item {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "PROCEDURAL SOUND FX PROFILES",
+                                            color = Color(0xFF00F0FF),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+
+                                    item {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            SoundProfile.values().forEach { profile ->
+                                                val isSelected = uiState.soundProfile == profile
+                                                Surface(
+                                                    color = if (isSelected) Color(0xFF00F0FF).copy(alpha = 0.2f) else Color(0xFF131F37),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(
+                                                        1.dp,
+                                                        if (isSelected) Color(0xFF00F0FF) else Color(0xFF1E293B)
+                                                    ),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable { onSoundProfileChanged(profile) }
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = profile.label,
+                                                            color = if (isSelected) Color(0xFF00F0FF) else Color.White,
+                                                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
+                                                            fontSize = 10.sp
+                                                        )
+                                                        if (isSelected) {
+                                                            Text("ACTIVE", color = Color(0xFF00FF9D), fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    item {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "TEST FIRING SOUND EFFECTS",
+                                            color = Color(0xFFFFB800),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Button(
+                                                onClick = { onPlayTestSound(SoundFx.FIRE_KINETIC) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F0FF), contentColor = Color.Black),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                                modifier = Modifier.weight(1f).height(30.dp)
+                                            ) {
+                                                Text("KINETIC", fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Button(
+                                                onClick = { onPlayTestSound(SoundFx.FIRE_ELEMENTAL) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB026FF), contentColor = Color.White),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                                modifier = Modifier.weight(1f).height(30.dp)
+                                            ) {
+                                                Text("ELEMENTAL", fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Button(
+                                                onClick = { onPlayTestSound(SoundFx.FIRE_SIEGE) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF7A00), contentColor = Color.White),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                                modifier = Modifier.weight(1f).height(30.dp)
+                                            ) {
+                                                Text("SIEGE", fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Button(
+                                                onClick = { onPlayTestSound(SoundFx.UPGRADE) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                                modifier = Modifier.weight(1f).height(30.dp)
+                                            ) {
+                                                Text("UPGRADE", fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+
+                                    item {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "PROCEDURAL BACKGROUND MUSIC",
+                                            color = Color(0xFFB026FF),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+
+                                    item {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            MusicTrack.values().forEach { track ->
+                                                val isSelected = uiState.musicTrack == track
+                                                Surface(
+                                                    color = if (isSelected) Color(0xFFB026FF).copy(alpha = 0.2f) else Color(0xFF131F37),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(
+                                                        1.dp,
+                                                        if (isSelected) Color(0xFFB026FF) else Color(0xFF1E293B)
+                                                    ),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable { onMusicTrackChanged(track) }
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = track.label,
+                                                            color = if (isSelected) Color(0xFFB026FF) else Color.White,
+                                                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
+                                                            fontSize = 10.sp
+                                                        )
+                                                        if (isSelected) {
+                                                            Text("PLAYING", color = Color(0xFF00FF9D), fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    item {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "TOWER & MAP VISUAL SKINS",
+                                            color = Color(0xFFFFD700),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+
+                                    item {
+                                        val skins = listOf("Vector Blueprint", "Cyberpunk Neon", "Solarized Military", "Deep Void", "Retro 8-Bit Arcade", "Clean Minimalist", "Gold Elite")
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            skins.forEach { skin ->
+                                                val isSelected = uiState.towerVisualSkin == skin
+                                                Surface(
+                                                    color = if (isSelected) Color(0xFFFFD700).copy(alpha = 0.2f) else Color(0xFF131F37),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = androidx.compose.foundation.BorderStroke(
+                                                        1.dp,
+                                                        if (isSelected) Color(0xFFFFD700) else Color(0xFF1E293B)
+                                                    ),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable { onTowerVisualSkinChanged(skin) }
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = skin,
+                                                            color = if (isSelected) Color(0xFFFFD700) else Color.White,
+                                                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
+                                                            fontSize = 10.sp
+                                                        )
+                                                        if (isSelected) {
+                                                            Text("ACTIVE", color = Color(0xFF00FF9D), fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Bottom Action Bar
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -2927,10 +3449,9 @@ fun DevBalanceSettingsDialog(
                         ) {
                             Icon(imageVector = Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(3.dp))
-                            Text("RESET", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text("RESET ALL", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        // EXPORT NEW DEFAULTS (DIFF-ONLY JSON)
                         Button(
                             onClick = {
                                 exportJsonText = config.exportDiffJson()
@@ -3054,91 +3575,8 @@ fun DevBalanceSettingsDialog(
                             }
                         }
                     }
-                } else {
-                    // Tower Efficiency Telemetry View
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "TOWER EFFECTIVENESS TELEMETRY",
-                            color = Color(0xFF00F0FF),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 10.sp
-                        )
-                        Text(
-                            text = "Historical telemetry tracked across runs to guide unit balancing sliders",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 8.5.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(towerPerformance) { record ->
-                                Surface(
-                                    color = Color(0xFF131F37),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(record.towerClass.color).copy(alpha = 0.4f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = record.towerClass.shapeSymbol,
-                                            color = Color(record.towerClass.color),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Black,
-                                            modifier = Modifier.width(20.dp)
-                                        )
-
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    text = record.towerName,
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 11.sp
-                                                )
-                                                Text(
-                                                    text = "${record.totalBuilt} built",
-                                                    color = Color(0xFF94A3B8),
-                                                    fontSize = 9.sp
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.height(2.dp))
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    text = "DMG: ${record.totalDamage.toInt()} | Kills: ${record.totalKills}",
-                                                    color = Color(0xFF00FF9D),
-                                                    fontSize = 9.sp
-                                                )
-                                                Text(
-                                                    text = "DPS/Cost: ${String.format(Locale.US, "%.1f", record.dpsCostEfficiency)}",
-                                                    color = Color(0xFFFFD700),
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 9.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
-        }
         }
     }
 }
@@ -3197,39 +3635,27 @@ fun BalanceSliderCard(
 }
 
 @Composable
-fun CollapsibleTowerBalanceCard(
-    towerType: TowerType,
+fun Collapsible39TowerCard(
+    descriptor: TowerBalanceDescriptor,
     balance: TowerUnitBalance,
-    allTowers: List<TowerUnitBalance>,
-    onBalanceChanged: (TowerUnitBalance) -> Unit
+    onBalanceChanged: (TowerUnitBalance) -> Unit,
+    onResetToDefault: () -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     var isEditingName by remember { mutableStateOf(false) }
-    var nameDraft by remember(balance.customName) { mutableStateOf(balance.customName ?: towerType.displayName) }
+    var nameDraft by remember(balance.customName) { mutableStateOf(balance.customName ?: descriptor.displayName) }
 
-    val currentName = balance.customName ?: towerType.displayName
-    val towerColor = Color(towerType.color)
-
-    // Identity analysis & cross-referencing
-    val dps = balance.damage * balance.fireRate
-    val overlaps = remember(balance, allTowers) {
-        allTowers.filter { other ->
-            other != balance &&
-            Math.abs((other.damage * other.fireRate) - dps) < (dps * 0.08f) &&
-            Math.abs(other.range - balance.range) < 0.4f
-        }
+    val currentName = balance.customName ?: descriptor.displayName
+    val towerColor = Color(descriptor.family.color)
+    val levelColor = when (descriptor.level) {
+        1 -> Color(0xFF00FF9D)
+        2 -> Color(0xFF00F0FF)
+        else -> Color(0xFFFFB800)
     }
-
-    val identityRole = remember(balance, towerType) {
-        when {
-            towerType.isBeam -> "Continuous High-Heat Melting Beam"
-            towerType.isSplash -> "Kinetic Area-Denial & Splash Shells"
-            towerType.chains > 0 -> "Multi-Arc Lightning Voltage Surge"
-            towerType.slowPercent > 0f -> "Cryogenic Stasis & Slow Chilling"
-            balance.range >= 4.0f -> "Long-Range Precision Interceptor"
-            balance.fireRate >= 3.0f -> "High-Cadence Rapid Anti-Swarm"
-            else -> "Tactical Point-Defense Kinetic Battery"
-        }
+    val levelLabel = when (descriptor.level) {
+        1 -> "L1 BASE"
+        2 -> "L2 SPEC"
+        else -> "L3 FINAL"
     }
 
     Surface(
@@ -3242,12 +3668,11 @@ fun CollapsibleTowerBalanceCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
-            // Header Row: Left-side click toggles expanded state!
+            // Header Row: click to expand / collapse
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left click zone to expand / collapse
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -3275,33 +3700,39 @@ fun CollapsibleTowerBalanceCard(
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                color = levelColor.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(end = 4.dp)
+                            ) {
+                                Text(
+                                    text = levelLabel,
+                                    color = levelColor,
+                                    fontSize = 7.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
                             Text(
                                 text = currentName,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "(${towerType.name})",
-                                color = Color(0xFF64748B),
-                                fontSize = 8.5.sp
+                                fontSize = 10.5.sp
                             )
                         }
                         Text(
                             text = "DMG: ${balance.damage.toInt()} | RNG: ${String.format(Locale.US, "%.1f", balance.range)} | SPD: ${String.format(Locale.US, "%.1f", balance.fireRate)}/s | ${balance.cost}C",
                             color = Color(0xFF94A3B8),
-                            fontSize = 8.5.sp
+                            fontSize = 8.sp
                         )
                     }
                 }
 
-                // Edit name button on right of header
                 IconButton(
                     onClick = {
                         if (isEditingName) {
                             val trimmed = nameDraft.trim()
-                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == towerType.displayName) null else trimmed))
+                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == descriptor.displayName) null else trimmed))
                             isEditingName = false
                         } else {
                             nameDraft = currentName
@@ -3320,7 +3751,6 @@ fun CollapsibleTowerBalanceCard(
                 }
             }
 
-            // Inline Name Editor TextField if active
             if (isEditingName) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
@@ -3331,7 +3761,7 @@ fun CollapsibleTowerBalanceCard(
                         value = nameDraft,
                         onValueChange = { nameDraft = it },
                         singleLine = true,
-                        placeholder = { Text(towerType.displayName, fontSize = 10.sp) },
+                        placeholder = { Text(descriptor.displayName, fontSize = 10.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = towerColor,
                             unfocusedBorderColor = Color(0xFF334155),
@@ -3346,7 +3776,7 @@ fun CollapsibleTowerBalanceCard(
                     Button(
                         onClick = {
                             val trimmed = nameDraft.trim()
-                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == towerType.displayName) null else trimmed))
+                            onBalanceChanged(balance.copy(customName = if (trimmed.isEmpty() || trimmed == descriptor.displayName) null else trimmed))
                             isEditingName = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = towerColor, contentColor = Color.Black),
@@ -3359,50 +3789,6 @@ fun CollapsibleTowerBalanceCard(
                 }
             }
 
-            // Identity Role Badge & Cross-Reference Warnings
-            Spacer(modifier = Modifier.height(3.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF0F172A))
-                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "IDENTITY: $identityRole",
-                    color = towerColor,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                if (overlaps.isNotEmpty()) {
-                    Text(
-                        text = "⚠️ SIMILAR STATS DETECTED",
-                        color = Color(0xFFFFB800),
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                } else {
-                    Text(
-                        text = "✓ DISTINCT",
-                        color = Color(0xFF00FF9D),
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            if (overlaps.isNotEmpty()) {
-                Text(
-                    text = "Suggestion: Differentiate DPS (${dps.toInt()}) or Range from other units for unique tactical niche.",
-                    color = Color(0xFFFFB800).copy(alpha = 0.85f),
-                    fontSize = 7.5.sp,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-
-            // Collapsible Granular Sliders Area
             AnimatedVisibility(visible = isExpanded) {
                 Column(
                     modifier = Modifier
@@ -3410,121 +3796,62 @@ fun CollapsibleTowerBalanceCard(
                         .padding(top = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Base Damage Slider
                     BalanceSliderCard(
                         title = "Base Damage Per Shot",
                         subtitle = "Direct kinetic/energy burst power",
                         value = balance.damage,
-                        range = 5f..350f,
-                        steps = 68,
+                        range = 5f..450f,
+                        steps = 88,
                         valueFormatter = { "${it.toInt()} DMG" },
                         color = Color(0xFFFF2A55),
                         onValueChange = { onBalanceChanged(balance.copy(damage = it.roundToInt().toFloat())) }
                     )
 
-                    // Base Range Slider
                     BalanceSliderCard(
                         title = "Targeting Range Radius",
-                        subtitle = "Grid radius (triggers accurately along lane sprite)",
+                        subtitle = "Grid cell targeting distance",
                         value = balance.range,
-                        range = 1.5f..7.0f,
-                        steps = 21,
+                        range = 1.5f..7.5f,
+                        steps = 24,
                         valueFormatter = { String.format(Locale.US, "%.1f cells", it) },
                         color = Color(0xFF00F0FF),
                         onValueChange = { onBalanceChanged(balance.copy(range = (it * 10).roundToInt() / 10f)) }
                     )
 
-                    // Fire Rate Slider
                     BalanceSliderCard(
                         title = "Attack Rate (Shots / sec)",
                         subtitle = "Frequency of defensive weapon discharge",
                         value = balance.fireRate,
-                        range = 0.2f..6.0f,
-                        steps = 28,
+                        range = 0.2f..8.0f,
+                        steps = 39,
                         valueFormatter = { String.format(Locale.US, "%.1f/s", it) },
                         color = Color(0xFFFFB800),
                         onValueChange = { onBalanceChanged(balance.copy(fireRate = (it * 10).roundToInt() / 10f)) }
                     )
 
-                    // Cost Slider
                     BalanceSliderCard(
                         title = "Deployment Credit Cost",
-                        subtitle = "Initial scrap investment required",
+                        subtitle = "Credits required for construction",
                         value = balance.cost.toFloat(),
-                        range = 40f..400f,
-                        steps = 35,
+                        range = 40f..600f,
+                        steps = 55,
                         valueFormatter = { "${it.toInt()} C" },
                         color = Color(0xFFFFD700),
                         onValueChange = { onBalanceChanged(balance.copy(cost = (it / 10).roundToInt() * 10)) }
                     )
 
-                    // Special Effect Slider (Splash Radius, Slow %, or Chains)
-                    when {
-                        towerType.isSplash -> {
-                            BalanceSliderCard(
-                                title = "Splash Explosion Radius",
-                                subtitle = "Detonation blast footprint in grid cells",
-                                value = balance.specialEffectValue.coerceAtLeast(0.5f),
-                                range = 0.5f..4.0f,
-                                steps = 13,
-                                valueFormatter = { String.format(Locale.US, "%.1f cells", it) },
-                                color = Color(0xFFFF5722),
-                                onValueChange = { onBalanceChanged(balance.copy(specialEffectValue = (it * 10).roundToInt() / 10f)) }
-                            )
-                        }
-                        towerType.slowPercent > 0f -> {
-                            BalanceSliderCard(
-                                title = "Cryo Slowdown Factor",
-                                subtitle = "Speed impairment applied to affected hostiles",
-                                value = balance.specialEffectValue.coerceAtLeast(0.1f),
-                                range = 0.10f..0.80f,
-                                steps = 13,
-                                valueFormatter = { "${(it * 100).toInt()}% Slow" },
-                                color = Color(0xFF00F0FF),
-                                onValueChange = { onBalanceChanged(balance.copy(specialEffectValue = (it * 100).roundToInt() / 100f)) }
-                            )
-                        }
-                        towerType.chains > 0 -> {
-                            BalanceSliderCard(
-                                title = "Tesla Chain Targets",
-                                subtitle = "Maximum arc jumps across adjacent enemies",
-                                value = balance.specialEffectValue.coerceAtLeast(1f),
-                                range = 1f..8f,
-                                steps = 6,
-                                valueFormatter = { "${it.toInt()} Arcs" },
-                                color = Color(0xFFB388FF),
-                                onValueChange = { onBalanceChanged(balance.copy(specialEffectValue = it.roundToInt().toFloat())) }
-                            )
-                        }
-                    }
-
-                    // Reset this tower button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(
                             onClick = {
-                                onBalanceChanged(
-                                    TowerUnitBalance(
-                                        customName = null,
-                                        damage = towerType.baseDamage,
-                                        range = towerType.baseRange,
-                                        fireRate = towerType.baseFireRate,
-                                        cost = towerType.baseCost,
-                                        specialEffectValue = when {
-                                            towerType.isSplash -> towerType.splashRadius
-                                            towerType.slowPercent > 0f -> towerType.slowPercent
-                                            towerType.chains > 0 -> towerType.chains.toFloat()
-                                            else -> 0f
-                                        }
-                                    )
-                                )
+                                onResetToDefault()
                                 isEditingName = false
                             },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("Reset ${towerType.displayName} Defaults", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                            Text("Reset ${descriptor.displayName} Defaults", color = Color(0xFF94A3B8), fontSize = 9.sp)
                         }
                     }
                 }
