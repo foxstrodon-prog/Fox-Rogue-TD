@@ -203,8 +203,8 @@ class AppUpdateManager(
         try {
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             val targetFileName = updateInfo.apkFileName ?: "RogueTD-v${updateInfo.latestVersion}.apk"
-            val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            val destFile = if (downloadsDir != null) File(downloadsDir, targetFileName) else File(context.filesDir, targetFileName)
+            val cacheTargetDir = context.externalCacheDir ?: context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+            val destFile = File(cacheTargetDir, targetFileName)
 
             if (destFile.exists()) {
                 destFile.delete()
@@ -214,8 +214,13 @@ class AppUpdateManager(
                 .setTitle("Rogue TD Update v${updateInfo.latestVersion}")
                 .setDescription("Downloading latest release APK...")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, targetFileName)
                 .setMimeType("application/vnd.android.package-archive")
+
+            try {
+                request.setDestinationUri(Uri.fromFile(destFile))
+            } catch (_: Exception) {
+                request.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, targetFileName)
+            }
 
             activeDownloadId = downloadManager.enqueue(request)
 

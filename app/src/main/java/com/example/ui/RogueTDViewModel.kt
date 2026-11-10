@@ -80,7 +80,8 @@ data class GameUIState(
     val onlineLeaderboard: List<LeaderboardEntry> = emptyList(),
     val leaderboardStatus: GlobalBoardStatus = GlobalBoardStatus.IDLE,
     val leaderboardErrorMessage: String? = null,
-    val updateUIState: AppUpdateState = AppUpdateState()
+    val updateUIState: AppUpdateState = AppUpdateState(),
+    val showUpdateModal: Boolean = false
 )
 
 class RogueTDViewModel(application: Application) : AndroidViewModel(application) {
@@ -95,6 +96,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     private var pendingSpawns: MutableList<EnemySpawnEntry> = mutableListOf()
     private var nextSpawnTimeMs: Long = 0L
     private var waveHasStartedSpawning: Boolean = false
+    private var updateDismissedForSession: Boolean = false
 
     init {
         refreshTelemetry()
@@ -104,7 +106,13 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             appUpdateManager.updateState.collect { updateState ->
-                _uiState.update { it.copy(updateUIState = updateState) }
+                _uiState.update { prev ->
+                    val shouldOpenModal = if (updateState.status == UpdateDownloadStatus.AVAILABLE && !updateDismissedForSession) true else prev.showUpdateModal
+                    prev.copy(
+                        updateUIState = updateState,
+                        showUpdateModal = shouldOpenModal
+                    )
+                }
             }
         }
     }
@@ -146,6 +154,15 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             val info = state.updateInfo ?: return
             appUpdateManager.startDownload(info)
         }
+    }
+
+    fun dismissUpdateModal() {
+        updateDismissedForSession = true
+        _uiState.update { it.copy(showUpdateModal = false) }
+    }
+
+    fun openUpdateModal() {
+        _uiState.update { it.copy(showUpdateModal = true) }
     }
 
     override fun onCleared() {

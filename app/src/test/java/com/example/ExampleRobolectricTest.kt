@@ -502,19 +502,19 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 006`() {
-    assertEquals("0.0.0.006", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(14, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 007`() {
+    assertEquals("0.0.0.007", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(15, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.007", "0.0.0.006"))
-    assertTrue(updater.isNewerVersion("0.0.0.007", "0.0.0.006"))
-    assertFalse(updater.isNewerVersion("v0.0.0.006", "0.0.0.006"))
-    assertFalse(updater.isNewerVersion("0.0.0.005", "0.0.0.006"))
+    assertTrue(updater.isNewerVersion("v0.0.0.008", "0.0.0.007"))
+    assertTrue(updater.isNewerVersion("0.0.0.008", "0.0.0.007"))
+    assertFalse(updater.isNewerVersion("v0.0.0.007", "0.0.0.007"))
+    assertFalse(updater.isNewerVersion("0.0.0.006", "0.0.0.007"))
   }
 
   @Test

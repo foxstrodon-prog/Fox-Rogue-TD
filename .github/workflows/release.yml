@@ -1,0 +1,98 @@
+name: Automated GitHub Release & APK Upload
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag (e.g., v0.0.0.007) - leave empty to auto-detect from app/build.gradle.kts'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release Assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Determine Version Tag
+        id: version_step
+        run: |
+          if [ -n "${{ github.event.inputs.version_tag }}" ]; then
+            RAW_VER="${{ github.event.inputs.version_tag }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            RAW_VER="${GITHUB_REF#refs/tags/}"
+          else
+            GRADLE_VER=$(grep -E 'versionName\s*=\s*' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+            RAW_VER="v${GRADLE_VER}"
+          fi
+          
+          # Normalize tag with leading 'v'
+          if [[ ! "$RAW_VER" =~ ^v ]]; then
+            RELEASE_TAG="v${RAW_VER}"
+          else
+            RELEASE_TAG="${RAW_VER}"
+          fi
+          
+          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Target Release Tag: ${RELEASE_TAG}"
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Assemble Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Stage Release Binaries
+        run: |
+          TAG="${{ steps.version_step.outputs.tag }}"
+          mkdir -p dist
+          
+          # 1. Primary named asset: game-release-vX.X.X.XXX.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/game-release-${TAG}.apk"
+          
+          # 2. Project standard debug apk: RogueTD-vX.X.X.XXX-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/RogueTD-${TAG}-debug.apk"
+          
+          # 3. Include Windows executable runner if present in repo or apk folder
+          if [ -f "${TAG}.exe" ]; then
+            cp "${TAG}.exe" "dist/RogueTD-${TAG}.exe"
+          elif [ -f "apk/${TAG}.exe" ]; then
+            cp "apk/${TAG}.exe" "dist/RogueTD-${TAG}.exe"
+          fi
+          
+          echo "Staged release distribution assets:"
+          ls -lh dist
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version_step.outputs.tag }}
+          name: "Rogue TD: Dual-Front ${{ steps.version_step.outputs.tag }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/*.apk
+            dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

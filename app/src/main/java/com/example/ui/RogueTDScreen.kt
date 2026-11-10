@@ -93,7 +93,13 @@ fun RogueTDScreen(
         if (state.updateUIState.status in listOf(UpdateDownloadStatus.AVAILABLE, UpdateDownloadStatus.DOWNLOADING, UpdateDownloadStatus.READY_TO_INSTALL)) {
             UpdateBanner(
                 updateState = state.updateUIState,
-                onDownloadAndInstall = { viewModel.downloadAndInstallUpdate() },
+                onDownloadAndInstall = {
+                    if (state.updateUIState.status == UpdateDownloadStatus.AVAILABLE) {
+                        viewModel.openUpdateModal()
+                    } else {
+                        viewModel.downloadAndInstallUpdate()
+                    }
+                },
                 modifier = Modifier
                     .align(if (isLandscape) Alignment.BottomStart else Alignment.TopCenter)
                     .padding(if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp) else PaddingValues(top = 46.dp))
@@ -253,6 +259,15 @@ fun RogueTDScreen(
                 onConfigChanged = { viewModel.updateBalanceConfig(it) },
                 onResetDefaults = { viewModel.resetBalanceConfigToDefaults() },
                 onDismiss = { viewModel.toggleSettingsView(false) }
+            )
+        }
+
+        // === STARTUP / BOOT AUTO-UPDATE MODAL ===
+        if (state.showUpdateModal && state.updateUIState.updateInfo?.isUpdateAvailable == true) {
+            UpdateModalDialog(
+                updateState = state.updateUIState,
+                onDownloadAndInstall = { viewModel.downloadAndInstallUpdate() },
+                onDismiss = { viewModel.dismissUpdateModal() }
             )
         }
     }
@@ -1980,11 +1995,232 @@ fun UpdateBanner(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "New update available: v${info.latestVersion} [Download & Install]",
+                        text = "New update available: v${info.latestVersion} [View & Update]",
                         color = Color(0xFF00F0FF),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UpdateModalDialog(
+    updateState: AppUpdateState,
+    onDownloadAndInstall: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val info = updateState.updateInfo ?: return
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = Color(0xFF0F172A),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.8.dp, Color(0xFF00F0FF)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header Icon & Title
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF00F0FF).copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SystemUpdate,
+                        contentDescription = "Update Available",
+                        tint = Color(0xFF00F0FF),
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "SYSTEM UPDATE AVAILABLE",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp
+                )
+
+                Surface(
+                    color = Color(0xFF1E293B),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.padding(vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "v${info.currentVersion} ➔ v${info.latestVersion}",
+                        color = Color(0xFF00F0FF),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.5.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+
+                if (info.releaseTitle.isNotBlank() && info.releaseTitle != "v${info.latestVersion}") {
+                    Text(
+                        text = info.releaseTitle,
+                        color = Color(0xFFFFB800),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Scrollable Release Notes
+                if (info.releaseNotes.isNotBlank()) {
+                    Text(
+                        text = "RELEASE NOTES",
+                        color = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 9.sp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        color = Color(0xFF161F30),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 140.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = info.releaseNotes,
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 10.5.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Progress or status
+                when (updateState.status) {
+                    UpdateDownloadStatus.DOWNLOADING -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { updateState.progressPercent / 100f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = Color(0xFF00F0FF),
+                                trackColor = Color(0xFF1E293B)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Downloading APK: ${updateState.progressPercent}%",
+                                color = Color(0xFF00F0FF),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                    UpdateDownloadStatus.READY_TO_INSTALL -> {
+                        Surface(
+                            color = Color(0xFF00FF9D).copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00FF9D),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "APK downloaded. Ready to install.",
+                                    color = Color(0xFF00FF9D),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                    UpdateDownloadStatus.FAILED -> {
+                        Text(
+                            text = updateState.errorMessage ?: "Update download failed.",
+                            color = Color(0xFFFF2A55),
+                            fontSize = 10.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    else -> {}
+                }
+
+                // Action Buttons (Update Now & Later/Skip)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                    ) {
+                        Text("LATER", fontWeight = FontWeight.Bold, fontSize = 10.5.sp)
+                    }
+
+                    Button(
+                        onClick = onDownloadAndInstall,
+                        enabled = updateState.status != UpdateDownloadStatus.DOWNLOADING,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (updateState.status == UpdateDownloadStatus.READY_TO_INSTALL) Color(0xFF00FF9D) else Color(0xFF00F0FF),
+                            contentColor = Color.Black
+                        ),
+                        modifier = Modifier
+                            .weight(1.4f)
+                            .height(40.dp)
+                    ) {
+                        Text(
+                            text = when (updateState.status) {
+                                UpdateDownloadStatus.READY_TO_INSTALL -> "INSTALL NOW"
+                                UpdateDownloadStatus.DOWNLOADING -> "DOWNLOADING..."
+                                UpdateDownloadStatus.FAILED -> "RETRY"
+                                else -> "UPDATE NOW"
+                            },
+                            fontWeight = FontWeight.Black,
+                            fontSize = 10.5.sp
+                        )
+                    }
                 }
             }
         }

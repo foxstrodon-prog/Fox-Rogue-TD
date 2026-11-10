@@ -5,13 +5,29 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.006 Android APK):** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk)
-- **Portable Windows PC Launcher (v0.0.0.006 Widescreen Runner):** [`RogueTD-v0.0.0.006.exe`](RogueTD-v0.0.0.006.exe) (also mirror-saved in [`apk/RogueTD-v0.0.0.006.exe`](apk/RogueTD-v0.0.0.006.exe))
+- **Direct Repository Download (v0.0.0.007 Android APK):** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) (also mirror-saved as [`apk/RogueTD-v0.0.0.007-debug.apk`](apk/RogueTD-v0.0.0.007-debug.apk))
+- **Portable Windows PC Launcher (v0.0.0.007 Widescreen Runner):** [`RogueTD-v0.0.0.007.exe`](RogueTD-v0.0.0.007.exe) (also mirror-saved in [`apk/RogueTD-v0.0.0.007.exe`](apk/RogueTD-v0.0.0.007.exe))
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, lock the display to **Widescreen Mode (Landscape)**, and launch the game in one click.
 - **Previous Releases:**
+  - **v0.0.0.006:** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk) | [`RogueTD-v0.0.0.006.exe`](RogueTD-v0.0.0.006.exe)
   - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe)
   - **v0.0.0.004:** [`apk/RogueTD-v0.0.0.004-debug.apk`](apk/RogueTD-v0.0.0.004-debug.apk)
 - **Automated GitHub Actions:** Every commit and release automatically builds the latest APK under the repository's **Actions** tab as a downloadable artifact.
+
+---
+
+### ✨ What's New in Version 0.0.0.007:
+
+- **Automated GitHub Release & Asset Upload Pipeline**:
+  - Implemented `.github/workflows/release.yml` triggering on tags (`v*`) or manual workflow dispatch. It automatically parses `versionName`, executes automated tests, compiles the release APK, standardizes naming to `game-release-vX.X.X.XXX.apk`, creates formal GitHub Releases, and attaches the binary assets.
+  - Added local one-click release automation script `tools/release.ps1` and Gradle task `./gradlew uploadGitHubRelease` for local automated builds and releases via GitHub CLI (`gh`).
+- **Startup / Boot Asynchronous Auto-Update Check & Modal**:
+  - Automatically queries the GitHub Releases API (`GET /repos/{owner}/{repo}/releases/latest`) on game initialization.
+  - When a newer tag is detected, displays an in-game **Update Modal** showing version comparison, formatted release notes, download progress, and an "Update Now" action alongside an optional "Later" / "Skip" button.
+  - Downloads the APK directly into the application's cache directory via Android's native `DownloadManager` and triggers installation via secure `FileProvider` (`Intent.ACTION_VIEW` with MIME type `application/vnd.android.package-archive`).
+- **Comprehensive DevSecOps & Community Standards Compliance**:
+  - Integrated full GitHub community files: `LICENSE` (MIT), `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1), `CONTRIBUTING.md`, `SECURITY.md`, issue templates for bugs and feature requests, and `PULL_REQUEST_TEMPLATE.md`.
+  - Hardened `.gitignore` and added `local.properties.example` and `.env.example` to prevent credential exposure.
 
 ---
 
@@ -112,15 +128,19 @@ To build the APK locally using Gradle:
 
 # Run unit and Robolectric tests
 ./gradlew testDebugUnitTest
+
+# Compile APK, Windows runner, and publish release to GitHub
+./gradlew uploadGitHubRelease
 ```
 
 The output artifacts will be generated at:
 ```
 app/build/outputs/apk/debug/app-debug.apk
-RogueTD-v0.0.0.006.exe
+RogueTD-v0.0.0.007.exe
 ```
 Or find the versioned distribution files in:
 ```
-apk/RogueTD-v0.0.0.006-debug.apk
-apk/RogueTD-v0.0.0.006.exe
+apk/game-release-v0.0.0.007.apk
+apk/RogueTD-v0.0.0.007-debug.apk
+apk/RogueTD-v0.0.0.007.exe
 ```

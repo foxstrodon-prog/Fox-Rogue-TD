@@ -14,3 +14,10 @@ tasks.register<Exec>("buildWindowsLauncher") {
   commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "tools/windows/build-launcher.ps1")
 }
 
+tasks.register<Exec>("uploadGitHubRelease") {
+  description = "Compiles APK, Windows launcher, and publishes a new GitHub Release with binary assets"
+  group = "distribution"
+  workingDir = rootDir
+  commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "tools/release.ps1")
+}
+
