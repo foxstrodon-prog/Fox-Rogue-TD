@@ -84,11 +84,24 @@ jobs:
           # 2. Project standard debug apk: RogueTD-vX.X.X.XXX-debug.apk
           cp app/build/outputs/apk/debug/app-debug.apk "dist/RogueTD-${TAG}-debug.apk"
 
-          # 3. Include Windows executable runner if present
-          if [ -f "${TAG}.exe" ]; then
-            cp "${TAG}.exe" "dist/RogueTD-${TAG}.exe"
-          elif [ -f "apk/${TAG}.exe" ]; then
-            cp "apk/${TAG}.exe" "dist/RogueTD-${TAG}.exe"
+          # 3. Fox-Rogue-TD named apk: Fox-Rogue-TD-vX.X.X.XXX.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/Fox-Rogue-TD-${TAG}.apk"
+
+          # 4. Include Windows executable runners if present
+          if [ -f "RogueTD-${TAG}.exe" ]; then
+            cp "RogueTD-${TAG}.exe" "dist/RogueTD-${TAG}.exe"
+          fi
+          if [ -f "Fox-Rogue-TD-${TAG}.exe" ]; then
+            cp "Fox-Rogue-TD-${TAG}.exe" "dist/Fox-Rogue-TD-${TAG}.exe"
+          fi
+          if [ -f "Fox-Rogue-TD.exe" ]; then
+            cp "Fox-Rogue-TD.exe" "dist/Fox-Rogue-TD.exe"
+          fi
+          if [ -f "apk/RogueTD-${TAG}.exe" ]; then
+            cp "apk/RogueTD-${TAG}.exe" "dist/RogueTD-${TAG}.exe"
+          fi
+          if [ -f "apk/Fox-Rogue-TD-${TAG}.exe" ]; then
+            cp "apk/Fox-Rogue-TD-${TAG}.exe" "dist/Fox-Rogue-TD-${TAG}.exe"
           fi
 
           echo "Staged release distribution assets:"

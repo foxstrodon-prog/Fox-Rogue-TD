@@ -92,19 +92,26 @@ if (-not (Test-Path $ApkDir)) {
 }
 
 $StandardApk = Join-Path $ApkDir ("game-release-" + $Tag + ".apk")
+$FoxApk = Join-Path $ApkDir ("Fox-Rogue-TD-" + $Tag + ".apk")
 $DebugApk = Join-Path $ApkDir ("RogueTD-" + $Tag + "-debug.apk")
 $WinExeInApk = Join-Path $ApkDir ("RogueTD-" + $Tag + ".exe")
-$WinExeInRoot = Join-Path $ProjectRoot ("RogueTD-" + $Tag + ".exe")
+$FoxExeInApk = Join-Path $ApkDir ("Fox-Rogue-TD-" + $Tag + ".exe")
+$WinExeInRoot = Join-Path $ProjectRoot ("Fox-Rogue-TD.exe")
 
 if (Test-Path $BuiltApk) {
     Copy-Item $BuiltApk $StandardApk -Force
+    Copy-Item $BuiltApk $FoxApk -Force
     Copy-Item $BuiltApk $DebugApk -Force
 }
 
-$AssetsToUpload = @($StandardApk, $DebugApk)
+$AssetsToUpload = @($StandardApk, $FoxApk, $DebugApk)
 if (Test-Path $WinExeInApk) {
     $AssetsToUpload += $WinExeInApk
-} elseif (Test-Path $WinExeInRoot) {
+}
+if (Test-Path $FoxExeInApk) {
+    $AssetsToUpload += $FoxExeInApk
+}
+if (Test-Path $WinExeInRoot) {
     $AssetsToUpload += $WinExeInRoot
 }
 
@@ -161,12 +168,12 @@ if ($null -ne $ghCmd) {
 } else {
     Write-Host "`nGitHub CLI ('gh') is not installed locally on this machine." -ForegroundColor Yellow
     Write-Host "All release binaries have been compiled and staged locally:" -ForegroundColor Green
-    Write-Host ("   - " + $StandardApk) -ForegroundColor Cyan
-    Write-Host ("   - " + $DebugApk) -ForegroundColor Cyan
-    Write-Host ("   - " + $WinExeInApk) -ForegroundColor Cyan
+    foreach ($asset in $AssetsToUpload) {
+        Write-Host ("   - " + (Split-Path -Leaf $asset)) -ForegroundColor Cyan
+    }
     Write-Host "`nTo publish this release to GitHub Releases immediately:" -ForegroundColor White
     Write-Host "   git push origin main" -ForegroundColor Green
-    Write-Host "The GitHub Actions workflow (.github/workflows/release.yml) will trigger automatically on push and publish the release with these assets!" -ForegroundColor Gray
+    Write-Host "The GitHub Actions workflow (.github/workflows/release.yml) will trigger automatically on push and publish the release with these assets attached!" -ForegroundColor Gray
 }
 
 Write-Host ("`nCompleted release pipeline for version " + $Version + ".") -ForegroundColor Cyan

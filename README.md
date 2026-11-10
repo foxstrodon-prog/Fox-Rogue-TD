@@ -5,15 +5,30 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.008 Android APK):** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) (also mirror-saved as [`apk/RogueTD-v0.0.0.008-debug.apk`](apk/RogueTD-v0.0.0.008-debug.apk))
-- **Portable Windows PC Launcher (v0.0.0.008 Widescreen Runner):** [`Fox-Rogue-TD.exe`](Fox-Rogue-TD.exe) (also mirror-saved as [`Fox-Rogue-TD-v0.0.0.008.exe`](Fox-Rogue-TD-v0.0.0.008.exe))
+- **Direct Repository Download (v0.0.0.009 Android APK):** [`apk/Fox-Rogue-TD-v0.0.0.009.apk`](apk/Fox-Rogue-TD-v0.0.0.009.apk) (also mirror-saved as [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) and [`apk/RogueTD-v0.0.0.009-debug.apk`](apk/RogueTD-v0.0.0.009-debug.apk))
+- **Portable Windows PC Launcher (v0.0.0.009 Widescreen Runner):** [`Fox-Rogue-TD.exe`](Fox-Rogue-TD.exe) (also mirror-saved as [`Fox-Rogue-TD-v0.0.0.009.exe`](Fox-Rogue-TD-v0.0.0.009.exe) and [`RogueTD-v0.0.0.009.exe`](RogueTD-v0.0.0.009.exe))
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, lock the display to **Widescreen Mode (Landscape)**, and launch the game in one click.
 - **Previous Releases:**
+  - **v0.0.0.008:** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) | [`Fox-Rogue-TD-v0.0.0.008.exe`](Fox-Rogue-TD-v0.0.0.008.exe)
   - **v0.0.0.007:** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) | [`RogueTD-v0.0.0.007.exe`](RogueTD-v0.0.0.007.exe)
   - **v0.0.0.006:** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk) | [`RogueTD-v0.0.0.006.exe`](RogueTD-v0.0.0.006.exe)
   - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe)
   - **v0.0.0.004:** [`apk/RogueTD-v0.0.0.004-debug.apk`](apk/RogueTD-v0.0.0.004-debug.apk)
 - **Automated GitHub Actions:** Every commit and release automatically builds the latest APK under the repository's **Actions** tab as a downloadable artifact.
+
+---
+
+### ✨ What's New in Version 0.0.0.009:
+
+- **Reflective Instantiation Safety & Lifecycle Fixes**:
+  - Added `@JvmOverloads` annotations to `RogueTDViewModel`, `ScoreSubmissionWorker`, and `FirestoreLeaderboardApi`.
+  - Resolves runtime crash (`NoSuchMethodException: RogueTDViewModel.<init> [class android.app.Application]`) under Android's default `ViewModelProvider.AndroidViewModelFactory` and WorkManager's `WorkerFactory`.
+- **Widescreen Windows Launcher Resilience**:
+  - Hardened `RogueTDLauncher.cs` device serial parsing to properly handle wireless / mDNS TLS ADB devices containing whitespace or parenthesized index names.
+  - Expanded APK resolution to automatically match any valid project APK pattern (`Fox-Rogue-TD-*.apk`, `game-release-*.apk`, `RogueTD-*.apk`).
+- **Comprehensive Multi-Asset Release & Packaging Pipeline**:
+  - Updated automated CI workflow (`.github/workflows/release.yml`) and local release script (`tools/release.ps1`) to stage and attach all named APK flavors (`Fox-Rogue-TD-v0.0.0.009.apk`, `game-release-v0.0.0.009.apk`, `RogueTD-v0.0.0.009-debug.apk`) alongside standalone Windows launchers (`Fox-Rogue-TD-v0.0.0.009.exe`, `RogueTD-v0.0.0.009.exe`, `Fox-Rogue-TD.exe`).
+  - Added pre-release health verification and reflection safety checks to Lead Release Engineering Agent (Mike) specifications.
 
 ---
 
