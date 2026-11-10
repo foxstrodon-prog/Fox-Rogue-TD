@@ -10,17 +10,32 @@ Download the latest Android APK and portable Windows PC runner directly from Git
 
 ⏱️ TIMESTAMPS / VIDEO CHAPTERS:
 0:00 - Intro & v0.0.0.012 Patch Overview
-0:35 - Instant Focus Audio Termination (Zero Background Leakage)
-1:15 - 45s–75s Music Rotation & Seamless Looping
-2:05 - Dedicated Tower Upgrade Volume Slider
-2:50 - Turret Skin Visual Preview Thumbnails
-3:40 - High-Contrast Map & Lane Color Palettes
-4:30 - Recent Updates Recap (v0.0.0.011 & v0.0.0.010)
-5:25 - How to Download & Play on PC or Android
+0:35 - Leaderboard Submission Authorization Fix
+1:10 - Display Rotation UI Refactoring & Text Layout
+1:50 - Consolidated Settings Hub & Dev Console Cleanup
+2:30 - Instant Focus Audio Termination (Zero Background Leakage)
+3:10 - 45s–75s Music Rotation & Seamless Looping
+3:50 - Dedicated Tower Upgrade Volume Slider
+4:30 - Turret Skin Visual Preview Thumbnails
+5:10 - High-Contrast Map & Lane Color Palettes
+5:50 - Recent Updates Recap (v0.0.0.011 & v0.0.0.010)
+6:30 - How to Download & Play on PC or Android
 
 ---
 
 🚀 WHAT'S NEW IN VERSION 0.0.0.012:
+
+🏆 Leaderboard Submission Authorization Fix
+• Resolved package-restricted API key rejection (`security_retract rejected` / 403 Forbidden).
+• High scores and wave statistics now upload reliably to global leaderboards with automated retry handling.
+
+🔄 Display Rotation UI Refactoring & Text Layout
+• Top Tactical HUD: Expanded margins and stacked currency layout prevent text clipping during device rotation.
+• Bottom Upgrade Menus: Adaptive reorientation formats tower build and upgrade cards into full-width stacked rows within the landscape sidebar.
+
+⚙️ Consolidated Settings Hub & Streamlined Dev Menu
+• All audio controls, volume sliders, track selector, gunfire audio testing, skin previews, map themes, and procedural sound profiles centralized in the Pause Menu Settings Hub.
+• Dev Balance Console stripped of duplicate audio/visual pickers and dedicated purely to unit balancing values and live telemetry.
 
 🔇 Instant Background & Focus Audio Termination
 • Audio cuts immediately the millisecond the app transitions out of active focus (task view, Home gesture, minimization, screen lock).
@@ -34,7 +49,7 @@ Download the latest Android APK and portable Windows PC runner directly from Git
 
 🎚️ Dedicated Tower Upgrade Audio Volume Slider
 • Separated tower upgrade sound effects from combat weapons and master SFX channels into an independent bus.
-• Live volume slider in the Pause Menu and Dev Console provides real-time auditory feedback as you tune.
+• Live volume slider in the Pause Menu provides real-time auditory feedback as you tune.
 
 🛡️ Inline Turret Skin Visual Preview Thumbnails
 • Inspect the visual mesh, chassis style, and firing flourishes before committing to a selection!

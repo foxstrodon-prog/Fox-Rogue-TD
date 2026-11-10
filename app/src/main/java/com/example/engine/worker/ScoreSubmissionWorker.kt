@@ -33,7 +33,12 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
         is LeaderboardResult.Failure -> {
           when (result.kind) {
             FailureKind.SECURITY_REJECTED -> {
-              store.removePending(item.runId)
+              store.incrementAttempt(item.runId)
+              if (item.attempts >= 5) {
+                store.removePending(item.runId)
+              } else {
+                return@withContext Result.retry()
+              }
             }
             FailureKind.RATE_LIMITED,
             FailureKind.TIMEOUT,

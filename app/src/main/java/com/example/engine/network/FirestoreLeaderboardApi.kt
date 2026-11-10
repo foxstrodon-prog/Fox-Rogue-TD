@@ -34,7 +34,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       )
     }
 
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=${item.runId}"
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=${item.runId}&key=$apiKey"
 
     val fieldsObj = JSONObject().apply {
       put("callsign", JSONObject().put("stringValue", sanitizeCallsign(item.callsign)))
@@ -53,6 +53,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     val request = Request.Builder()
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
+      .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
       .post(requestBodyJson.toString().toRequestBody(mediaType))
       .build()
 
@@ -100,7 +101,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       )
     }
 
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery"
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery?key=$apiKey"
 
     val queryJson = JSONObject().apply {
       val structuredQuery = JSONObject().apply {
@@ -131,6 +132,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     val request = Request.Builder()
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
+      .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
       .post(queryJson.toString().toRequestBody(mediaType))
       .build()
 

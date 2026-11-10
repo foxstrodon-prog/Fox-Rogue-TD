@@ -6,6 +6,18 @@ Welcome Commanders to **Dual Front TD**! Here is the latest update log directly 
 
 ### 🚀 What's New in Version 0.0.0.012
 
+🏆 **Leaderboard Submission Authorization Fix**
+- Resolved token validation and package-restricted API key rejection (`security_retract rejected` / 403 Forbidden).
+- Your hard-fought high scores and wave clears now upload cleanly and reliably to global leaderboards with automated background retries.
+
+🔄 **Display Rotation UI Refactoring & Text Layout**
+- Top Tactical Bar: Expanded margins and reformatted currency into an icon-stacked display to prevent text clipping upon rotation.
+- Bottom Upgrade Menus: Adaptive reorientation! In landscape, tower build and upgrade cards format into full-width stacked rows within the sidebar, ensuring all buttons, stats, and costs remain visible and easy to tap.
+
+⚙️ **Consolidated Settings Hub & Streamlined Dev Menu**
+- All audio controls, volume sliders, track selector, gunfire audio testing, skin previews, map themes, and procedural sound profiles are now centralized in the Pause Menu Settings Hub.
+- The Dev Balance Console is now dedicated purely to unit balancing values and live telemetry.
+
 🔇 **Instant Focus & Background Audio Termination**
 - Audio cuts immediately the instant the app transitions out of active focus (task view, Home gesture, minimization, screen lock).
 - Zero lingering background music or trailing combat gunfire/explosions once focus is lost.
@@ -18,7 +30,7 @@ Welcome Commanders to **Dual Front TD**! Here is the latest update log directly 
 
 🎚️ **Dedicated Tower Upgrade Audio Volume Slider**
 - Separated tower upgrade sound effects from combat weapons and master SFX channels into an independent channel.
-- Live volume slider in the Pause Menu and Dev Console provides real-time auditory feedback as you tune.
+- Live volume slider in the Pause Menu provides real-time auditory feedback as you tune.
 
 🛡️ **Inline Turret Skin Visual Preview Thumbnails**
 - Inspect the visual mesh, chassis style, and firing flourishes before committing to a selection!

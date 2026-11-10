@@ -24,6 +24,15 @@ You can find the ready-to-run builds in this repository:
 
 ### ✨ What's New in Version 0.0.0.012:
 
+- **Leaderboard Submission Authorization Fix**:
+  - Resolved Google Cloud package-restricted API key rejection (`SECURITY_REJECTED` / HTTP 403 Forbidden) by appending `?key=$apiKey` to REST document URLs and attaching the `X-Android-Package: com.aistudio.roguetd.xtkp` request header.
+  - Hardened `ScoreSubmissionWorker` to retry pending scores up to 5 times rather than dropping un-uploaded player runs on network or authorization errors.
+- **Display Rotation UI Refactoring & Text Layout**:
+  - **Top HUD**: Expanded margin padding (10dp horizontal x 6dp vertical) to prevent text/chip clipping upon rotation; reformatted the currency display to stack the Diamond symbol vertically above the numeric scrap count to conserve horizontal width.
+  - **Bottom Upgrade Menus & Drawers**: Dynamically reorients across portrait and landscape. In landscape orientation, `BuildTowerDrawer` and `BranchingTowerInspector` stack action cards vertically in full-width rows inside the right sidebar with vertical scrolling, ensuring stats, costs, and buttons remain fully legible and clickable.
+- **Settings Menu Consolidation & Dev Menu Cleanup**:
+  - Centralized all audio controls, volume sliders, track selector, gunfire audio testing, skin previews, map themes, and procedural sound profiles into a unified Settings Hub inside the in-game Pause Menu.
+  - Stripped all redundant audio sliders and visual skin pickers from the Dev Balance Console, keeping it strictly dedicated to gameplay balance values and unit telemetry.
 - **Instant Background & Focus Audio Termination**:
   - Immediately cuts all audio streams the instant the app transitions out of active focus (task view, Home gesture, minimization, screen lock).
   - Eliminates lingering background music or trailing gunfire/explosion sound effects once focus is lost.
@@ -33,7 +42,7 @@ You can find the ready-to-run builds in this repository:
   - Procedural synthesizer tracks loop smoothly and transition cleanly without jarring cuts or clicks.
 - **Dedicated Upgrade Sound Volume Slider**:
   - Independent volume slider dedicated specifically to tower upgrade sound effects, separating upgrade audio from combat gunfire and master SFX channels.
-  - Exposed directly in the Pause Menu Audio Customization Studio and the Dev Console.
+  - Exposed directly in the Pause Menu Audio Customization Studio.
 - **Turret Skin Visual Preview Thumbnails**:
   - Real-time inline sprite thumbnails rendered next to each of the 5 skin slots in the Pause Menu, enabling players to inspect chassis designs and firing flourishes before committing to a selection.
 - **Map & Lane Theme Strict Contrast Audit**:
