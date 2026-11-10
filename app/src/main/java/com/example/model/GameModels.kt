@@ -1136,7 +1136,8 @@ enum class GlobalBoardStatus {
     LOADING,
     ONLINE,          // Fresh data from the backend
     OFFLINE_CACHED,  // Network failed; showing last cached global board (or empty)
-    NOT_CONFIGURED   // No backend configured: local-only fallback
+    NOT_CONFIGURED,  // No backend configured: local-only fallback
+    ERROR            // Network or server error with failure details
 }
 
 enum class RunSubmissionState {

@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Community Discussions
-    url: https://github.com/Foxstrodon/Fox-Rogue-TD/discussions
+    url: https://github.com/foxstrodon-prog/Fox-Rogue-TD/discussions
     about: Ask gameplay questions, share defense strategies, or discuss tower builds with other commanders.
   - name: 🚨 Security Vulnerability Reporting
-    url: https://github.com/Foxstrodon/Fox-Rogue-TD/security/advisories/new
+    url: https://github.com/foxstrodon-prog/Fox-Rogue-TD/security/advisories/new
     about: Privately report a security issue or credential exposure to repository maintainers.

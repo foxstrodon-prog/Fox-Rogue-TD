@@ -4,7 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.engine.*
+import com.example.engine.repository.LeaderboardRepository
+import com.example.engine.storage.LeaderboardStore
+import com.example.engine.worker.LeaderboardWorkScheduler
 import com.example.model.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,14 +81,20 @@ data class GameUIState(
     val playerLifetimeTelemetry: LifetimeTelemetry = LifetimeTelemetry(),
     val animTimeMs: Long = 0L,
     val deviceRotationAngle: Float = 0f,
-    val onlineLeaderboard: List<LeaderboardEntry> = emptyList(),
+    val onlineLeaderboard: List<OnlineScoreEntry> = emptyList(),
     val leaderboardStatus: GlobalBoardStatus = GlobalBoardStatus.IDLE,
     val leaderboardErrorMessage: String? = null,
     val updateUIState: AppUpdateState = AppUpdateState(),
     val showUpdateModal: Boolean = false
 )
 
-class RogueTDViewModel(application: Application) : AndroidViewModel(application) {
+class RogueTDViewModel(
+    application: Application,
+    val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(
+        store = LeaderboardStore(application),
+        scheduler = LeaderboardWorkScheduler(application)
+    )
+) : AndroidViewModel(application) {
 
     private val telemetryManager = TelemetryManager(application)
     val appUpdateManager = AppUpdateManager(application, viewModelScope)
@@ -92,6 +102,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     private val _uiState = MutableStateFlow(GameUIState(balanceConfig = telemetryManager.getBalanceConfig()))
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
 
+    private var devTunedThisRun: Boolean = false
     private var gameLoopJob: Job? = null
     private var pendingSpawns: MutableList<EnemySpawnEntry> = mutableListOf()
     private var nextSpawnTimeMs: Long = 0L
@@ -101,8 +112,29 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     init {
         refreshTelemetry()
         startNewRun()
-        fetchOnlineLeaderboard()
         checkForAppUpdates()
+
+        viewModelScope.launch {
+            leaderboardRepository.initialize()
+            leaderboardRepository.fetchLeaderboard(forceRefresh = false)
+        }
+
+        viewModelScope.launch {
+            leaderboardRepository.boardState.collect { boardState ->
+                _uiState.update { prev ->
+                    prev.copy(
+                        onlineLeaderboard = boardState.entries,
+                        leaderboardStatus = boardState.status,
+                        leaderboardErrorMessage = when (boardState.status) {
+                            GlobalBoardStatus.ERROR -> boardState.failureKind?.name ?: "Connection error"
+                            GlobalBoardStatus.OFFLINE_CACHED -> if (boardState.entries.isEmpty()) "Connection failed. Please check network." else null
+                            GlobalBoardStatus.NOT_CONFIGURED -> "Local Only (Global Board Unconfigured)"
+                            else -> null
+                        }
+                    )
+                }
+            }
+        }
 
         viewModelScope.launch {
             appUpdateManager.updateState.collect { updateState ->
@@ -124,16 +156,8 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun fetchOnlineLeaderboard(forceRefresh: Boolean = false) {
-        _uiState.update { it.copy(leaderboardStatus = GlobalBoardStatus.LOADING, leaderboardErrorMessage = null) }
         viewModelScope.launch {
-            val (entries, status) = telemetryManager.leaderboardService.fetchLeaderboard()
-            _uiState.update {
-                it.copy(
-                    onlineLeaderboard = entries,
-                    leaderboardStatus = status,
-                    leaderboardErrorMessage = if (status == GlobalBoardStatus.OFFLINE_CACHED && entries.isEmpty()) "Connection failed. Please check network." else null
-                )
-            }
+            leaderboardRepository.fetchLeaderboard(forceRefresh = forceRefresh)
         }
     }
 
@@ -262,6 +286,9 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateBalanceConfig(newConfig: DevBalanceConfig) {
+        if (newConfig != DevBalanceConfig()) {
+            devTunedThisRun = true
+        }
         telemetryManager.saveBalanceConfig(newConfig)
         _uiState.update { it.copy(balanceConfig = newConfig) }
     }
@@ -277,6 +304,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun startNewRun() {
+        devTunedThisRun = false
         gameLoopJob?.cancel()
 
         val seed = System.currentTimeMillis()
@@ -1237,7 +1265,7 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
 
         val mvp = state.towers.maxByOrNull { it.totalDamage }?.let { it.archetype?.displayName ?: it.type.displayName } ?: "Vulcan Minigun"
         val playerName = telemetryManager.getActivePlayerName()
-        val isDev = state.balanceConfig != DevBalanceConfig()
+        val isDev = devTunedThisRun || state.balanceConfig != DevBalanceConfig()
         val record = RunRecord(
             id = UUID.randomUUID().toString(),
             seed = state.seed,
@@ -1253,20 +1281,18 @@ class RogueTDViewModel(application: Application) : AndroidViewModel(application)
             timestamp = System.currentTimeMillis(),
             isDevTuned = isDev
         )
-        telemetryManager.recordRun(record)
-        telemetryManager.recordTowerSession(state.towers)
-        refreshTelemetry()
 
-        viewModelScope.launch {
-            telemetryManager.leaderboardService.submitScore(
-                playerName = playerName,
-                score = record.score,
-                wavesCleared = waves,
-                scrapEarned = state.totalScrapEarned,
+        viewModelScope.launch(Dispatchers.IO) {
+            telemetryManager.recordRun(record)
+            telemetryManager.recordTowerSession(state.towers)
+            refreshTelemetry()
+
+            leaderboardRepository.enqueueRun(
+                run = record,
+                callsign = playerName,
                 isDevTuned = isDev
             )
-            val (onlineEntries, status) = telemetryManager.leaderboardService.fetchLeaderboard()
-            _uiState.update { it.copy(onlineLeaderboard = onlineEntries, leaderboardStatus = status) }
+            leaderboardRepository.fetchLeaderboard(forceRefresh = true)
         }
     }
 

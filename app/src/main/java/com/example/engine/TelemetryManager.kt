@@ -2,25 +2,27 @@ package com.example.engine
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.engine.storage.PlayerIdentity
+import com.example.model.DevBalanceConfig
 import com.example.model.LifetimeTelemetry
 import com.example.model.RunRecord
+import com.example.model.TowerClass
+import com.example.model.TowerInstance
+import com.example.model.TowerPerformanceRecord
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class TelemetryManager(context: Context) {
+class TelemetryManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE)
-    val leaderboardService: LeaderboardService = LeaderboardService(context)
 
     fun getActivePlayerName(): String {
-        val defaultName = leaderboardService.getDefaultPlayerName()
-        val saved = prefs.getString("active_player_name", null)
-        return if (saved.isNullOrBlank() || saved == "Operative") defaultName else saved
+        return PlayerIdentity.getPlayerCallsign(context)
     }
 
     fun setActivePlayerName(name: String) {
-        val defaultName = leaderboardService.getDefaultPlayerName()
-        val trimmed = name.trim().ifBlank { defaultName }
-        prefs.edit().putString("active_player_name", trimmed).apply()
+        PlayerIdentity.setPlayerCallsign(context, name)
     }
 
     fun getLastRun(): RunRecord? {
@@ -39,7 +41,8 @@ class TelemetryManager(context: Context) {
                 ascendedTowersCount = obj.optInt("ascendedTowersCount", 0),
                 mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
                 isVictory = obj.optBoolean("isVictory", false),
-                timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                isDevTuned = obj.optBoolean("isDevTuned", false)
             )
         } catch (_: Exception) {
             null
@@ -60,13 +63,13 @@ class TelemetryManager(context: Context) {
             put("mvpTower", record.mvpTower)
             put("isVictory", record.isVictory)
             put("timestamp", record.timestamp)
+            put("isDevTuned", record.isDevTuned)
         }
         prefs.edit().putString("last_run_record", obj.toString()).apply()
     }
 
     fun updateLastRunPlayerName(newName: String) {
-        val defaultName = leaderboardService.getDefaultPlayerName()
-        val trimmed = newName.trim().ifBlank { defaultName }
+        val trimmed = newName.trim().ifBlank { PlayerIdentity.getPlayerCallsign(context) }
         setActivePlayerName(trimmed)
 
         val lastRun = getLastRun()
@@ -97,7 +100,7 @@ class TelemetryManager(context: Context) {
                     id = obj.optString("id", ""),
                     seed = obj.optLong("seed", 0L),
                     sectorName = obj.optString("sectorName", "Sector Alpha"),
-                    playerName = obj.optString("playerName", "Viper-7"),
+                    playerName = obj.optString("playerName", getActivePlayerName()),
                     wavesCleared = obj.optInt("wavesCleared", 0),
                     enemiesKilled = obj.optInt("enemiesKilled", 0),
                     totalDamage = obj.optDouble("totalDamage", 0.0).toFloat(),
@@ -105,7 +108,8 @@ class TelemetryManager(context: Context) {
                     ascendedTowersCount = obj.optInt("ascendedTowersCount", 0),
                     mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
                     isVictory = obj.optBoolean("isVictory", false),
-                    timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                    isDevTuned = obj.optBoolean("isDevTuned", false)
                 )
                 // Omit any runs with score of 0 or zero combat activity
                 if (rec.score > 0) {
@@ -113,42 +117,6 @@ class TelemetryManager(context: Context) {
                 }
             }
         } catch (_: Exception) {}
-
-        // If empty, add a couple of baseline competitor records
-        if (list.isEmpty()) {
-            list.add(
-                RunRecord(
-                    id = "base_1",
-                    seed = 849204L,
-                    sectorName = "Sector Zero: Cyber Convergence",
-                    playerName = "Apex_Ghost",
-                    wavesCleared = 14,
-                    enemiesKilled = 248,
-                    totalDamage = 48500f,
-                    scrapEarned = 2650,
-                    ascendedTowersCount = 2,
-                    mvpTower = "Hellfire Mortar",
-                    isVictory = false,
-                    timestamp = System.currentTimeMillis() - 86400000L
-                )
-            )
-            list.add(
-                RunRecord(
-                    id = "base_2",
-                    seed = 192842L,
-                    sectorName = "Glacial Split Chasm",
-                    playerName = "Nova_Prime",
-                    wavesCleared = 10,
-                    enemiesKilled = 165,
-                    totalDamage = 29400f,
-                    scrapEarned = 1890,
-                    ascendedTowersCount = 1,
-                    mvpTower = "Tesla Stormcoil",
-                    isVictory = false,
-                    timestamp = System.currentTimeMillis() - 172800000L
-                )
-            )
-        }
 
         return list.filter { it.score > 0 }.sortedWith(
             compareByDescending<RunRecord> { it.score }
@@ -173,9 +141,14 @@ class TelemetryManager(context: Context) {
             obj.put("mvpTower", item.mvpTower)
             obj.put("isVictory", item.isVictory)
             obj.put("timestamp", item.timestamp)
+            obj.put("isDevTuned", item.isDevTuned)
             arr.put(obj)
         }
         prefs.edit().putString("leaderboard_runs", arr.toString()).apply()
+    }
+
+    suspend fun recordRunAsync(record: RunRecord) = withContext(Dispatchers.IO) {
+        recordRun(record)
     }
 
     fun recordRun(record: RunRecord) {
@@ -212,13 +185,13 @@ class TelemetryManager(context: Context) {
 
     fun getLifetimeTelemetry(): LifetimeTelemetry {
         return LifetimeTelemetry(
-            totalRuns = prefs.getInt("lt_total_runs", 1),
+            totalRuns = prefs.getInt("lt_total_runs", 0),
             totalVictories = prefs.getInt("lt_total_victories", 0),
-            totalHostilesKilled = prefs.getInt("lt_total_kills", 413),
-            totalScrapMined = prefs.getLong("lt_total_scrap", 4540L),
-            totalDamageOutput = prefs.getFloat("lt_total_damage", 77900f).toDouble(),
-            bestWaveEver = prefs.getInt("lt_best_wave", 14),
-            mostUsedTower = prefs.getString("lt_mvp_tower", "Siege Mortar") ?: "Siege Mortar"
+            totalHostilesKilled = prefs.getInt("lt_total_kills", 0),
+            totalScrapMined = prefs.getLong("lt_total_scrap", 0L),
+            totalDamageOutput = prefs.getFloat("lt_total_damage", 0f).toDouble(),
+            bestWaveEver = prefs.getInt("lt_best_wave", 0),
+            mostUsedTower = prefs.getString("lt_mvp_tower", "None") ?: "None"
         )
     }
 
@@ -262,8 +235,8 @@ class TelemetryManager(context: Context) {
             .apply()
     }
 
-    fun getBalanceConfig(): com.example.model.DevBalanceConfig {
-        return com.example.model.DevBalanceConfig(
+    fun getBalanceConfig(): DevBalanceConfig {
+        return DevBalanceConfig(
             startingScrap = prefs.getInt("cfg_starting_scrap", 220),
             globalIncomeMultiplier = prefs.getFloat("cfg_global_income", 1.0f),
             kineticDamageMultiplier = prefs.getFloat("cfg_kinetic_dmg", 1.0f),
@@ -275,7 +248,7 @@ class TelemetryManager(context: Context) {
         )
     }
 
-    fun saveBalanceConfig(config: com.example.model.DevBalanceConfig) {
+    fun saveBalanceConfig(config: DevBalanceConfig) {
         prefs.edit()
             .putInt("cfg_starting_scrap", config.startingScrap)
             .putFloat("cfg_global_income", config.globalIncomeMultiplier)
@@ -288,18 +261,18 @@ class TelemetryManager(context: Context) {
             .apply()
     }
 
-    fun getTowerPerformance(): List<com.example.model.TowerPerformanceRecord> {
+    fun getTowerPerformance(): List<TowerPerformanceRecord> {
         val jsonStr = prefs.getString("tower_performance_records", "[]") ?: "[]"
-        val map = mutableMapOf<String, com.example.model.TowerPerformanceRecord>()
+        val map = mutableMapOf<String, TowerPerformanceRecord>()
         try {
             val arr = JSONArray(jsonStr)
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 val name = obj.optString("towerName", "")
                 val clsStr = obj.optString("towerClass", "KINETIC_BALLISTIC")
-                val cls = try { com.example.model.TowerClass.valueOf(clsStr) } catch (_: Exception) { com.example.model.TowerClass.KINETIC_BALLISTIC }
+                val cls = try { TowerClass.valueOf(clsStr) } catch (_: Exception) { TowerClass.KINETIC_BALLISTIC }
                 if (name.isNotBlank()) {
-                    map[name] = com.example.model.TowerPerformanceRecord(
+                    map[name] = TowerPerformanceRecord(
                         towerName = name,
                         towerClass = cls,
                         totalDamage = obj.optDouble("totalDamage", 0.0),
@@ -311,25 +284,28 @@ class TelemetryManager(context: Context) {
             }
         } catch (_: Exception) {}
 
-        // Baseline defaults if completely empty
         if (map.isEmpty()) {
-            map["Vulcan Minigun"] = com.example.model.TowerPerformanceRecord("Vulcan Minigun", com.example.model.TowerClass.KINETIC_BALLISTIC, 24500.0, 142L, 4, 480L)
-            map["Twin Flak Cannon"] = com.example.model.TowerPerformanceRecord("Twin Flak Cannon", com.example.model.TowerClass.KINETIC_BALLISTIC, 18900.0, 98L, 3, 510L)
-            map["Frost Spire"] = com.example.model.TowerPerformanceRecord("Frost Spire", com.example.model.TowerClass.ELEMENTAL_VOID, 14200.0, 62L, 2, 420L)
-            map["Tesla Stormcoil"] = com.example.model.TowerPerformanceRecord("Tesla Stormcoil", com.example.model.TowerClass.ELEMENTAL_VOID, 31200.0, 184L, 3, 680L)
-            map["Hellfire Mortar"] = com.example.model.TowerPerformanceRecord("Hellfire Mortar", com.example.model.TowerClass.HEAVY_SIEGE, 42000.0, 215L, 2, 740L)
-            map["Titan Railgun"] = com.example.model.TowerPerformanceRecord("Titan Railgun", com.example.model.TowerClass.HEAVY_SIEGE, 38500.0, 89L, 2, 860L)
+            map["Vulcan Minigun"] = TowerPerformanceRecord("Vulcan Minigun", TowerClass.KINETIC_BALLISTIC, 24500.0, 142L, 4, 480L)
+            map["Twin Flak Cannon"] = TowerPerformanceRecord("Twin Flak Cannon", TowerClass.KINETIC_BALLISTIC, 18900.0, 98L, 3, 510L)
+            map["Frost Spire"] = TowerPerformanceRecord("Frost Spire", TowerClass.ELEMENTAL_VOID, 14200.0, 62L, 2, 420L)
+            map["Tesla Stormcoil"] = TowerPerformanceRecord("Tesla Stormcoil", TowerClass.ELEMENTAL_VOID, 31200.0, 184L, 3, 680L)
+            map["Hellfire Mortar"] = TowerPerformanceRecord("Hellfire Mortar", TowerClass.HEAVY_SIEGE, 42000.0, 215L, 2, 740L)
+            map["Titan Railgun"] = TowerPerformanceRecord("Titan Railgun", TowerClass.HEAVY_SIEGE, 38500.0, 89L, 2, 860L)
         }
 
         return map.values.sortedByDescending { it.totalDamage }
     }
 
-    fun recordTowerSession(towers: List<com.example.model.TowerInstance>) {
+    suspend fun recordTowerSessionAsync(towers: List<TowerInstance>) = withContext(Dispatchers.IO) {
+        recordTowerSession(towers)
+    }
+
+    fun recordTowerSession(towers: List<TowerInstance>) {
         if (towers.isEmpty()) return
         val existing = getTowerPerformance().associateBy { it.towerName }.toMutableMap()
         for (t in towers) {
             val name = t.archetype?.displayName ?: t.type.displayName
-            val prev = existing[name] ?: com.example.model.TowerPerformanceRecord(
+            val prev = existing[name] ?: TowerPerformanceRecord(
                 towerName = name,
                 towerClass = t.towerClass
             )
@@ -356,4 +332,3 @@ class TelemetryManager(context: Context) {
         prefs.edit().putString("tower_performance_records", arr.toString()).apply()
     }
 }
-

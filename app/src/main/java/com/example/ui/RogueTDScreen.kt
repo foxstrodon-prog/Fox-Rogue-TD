@@ -1708,44 +1708,154 @@ fun TelemetryLeaderboardDialog(
                             }
                             else -> {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    if (state.leaderboardStatus == GlobalBoardStatus.OFFLINE_CACHED) {
-                                        Surface(
-                                            color = Color(0xFF332005),
-                                            shape = RoundedCornerShape(6.dp),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.5f)),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(bottom = 6.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+                                    when (state.leaderboardStatus) {
+                                        GlobalBoardStatus.ONLINE -> {
+                                            Surface(
+                                                color = Color(0xFF06331E),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D).copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 6.dp)
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.CheckCircle,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF00FF9D),
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = "Global Rankings (Verified)",
+                                                            color = Color(0xFF00FF9D),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = "REFRESH",
+                                                        color = Color(0xFF00F0FF),
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        modifier = Modifier.clickable { onRetryLeaderboard() }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        GlobalBoardStatus.OFFLINE_CACHED -> {
+                                            Surface(
+                                                color = Color(0xFF332005),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 6.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.CloudOff,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFFFFB800),
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = "Cached Rankings (Offline Mode)",
+                                                            color = Color(0xFFFFB800),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = "RETRY",
+                                                        color = Color(0xFF00F0FF),
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        modifier = Modifier.clickable { onRetryLeaderboard() }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        GlobalBoardStatus.NOT_CONFIGURED -> {
+                                            Surface(
+                                                color = Color(0xFF1E293B),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64748B).copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 6.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
                                                     Icon(
-                                                        imageVector = Icons.Filled.CloudOff,
+                                                        imageVector = Icons.Filled.Info,
                                                         contentDescription = null,
-                                                        tint = Color(0xFFFFB800),
+                                                        tint = Color(0xFF94A3B8),
                                                         modifier = Modifier.size(12.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text(
-                                                        text = "Offline Cached Data",
-                                                        color = Color(0xFFFFB800),
+                                                        text = "Local Only (Global Board Unconfigured)",
+                                                        color = Color(0xFF94A3B8),
                                                         fontSize = 9.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
                                                 }
-                                                Text(
-                                                    text = "RETRY",
-                                                    color = Color(0xFF00F0FF),
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    modifier = Modifier.clickable { onRetryLeaderboard() }
-                                                )
                                             }
                                         }
+                                        GlobalBoardStatus.ERROR -> {
+                                            Surface(
+                                                color = Color(0xFF3B0B13),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 6.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Filled.Warning,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFFFF2A55),
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = state.leaderboardErrorMessage ?: "Network Error - Tap Refresh",
+                                                            color = Color(0xFFFF2A55),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = "RETRY",
+                                                        color = Color(0xFF00F0FF),
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        modifier = Modifier.clickable { onRetryLeaderboard() }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        else -> {}
                                     }
 
                                     LazyColumn(
@@ -1759,11 +1869,16 @@ fun TelemetryLeaderboardDialog(
                                                 2 -> "🥉"
                                                 else -> "#${item.rank}"
                                             }
+                                            val isLocalPlayer = item.isLocalPlayer || item.name.equals(state.activePlayerName, ignoreCase = true)
 
                                             Surface(
-                                                color = Color(0xFF162544),
+                                                color = if (isLocalPlayer) Color(0xFF132A44) else Color(0xFF162544),
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = if (index == 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700)) else null,
+                                                border = when {
+                                                    isLocalPlayer -> androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF))
+                                                    index == 0 -> androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700))
+                                                    else -> null
+                                                },
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
@@ -2267,7 +2382,121 @@ fun RunSummaryDialog(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Online Leaderboard Submission Status Badge
+                val isDevTuned = state.lastRunRecord?.isDevTuned == true || state.balanceConfig != DevBalanceConfig()
+                if (isDevTuned) {
+                    Surface(
+                        color = Color(0xFFEAB308).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEAB308)),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = "DEV TUNED • EXCLUDED FROM ONLINE LEADERBOARD",
+                            color = Color(0xFFFDE047),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.5.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                } else {
+                    when (state.leaderboardStatus) {
+                        GlobalBoardStatus.LOADING -> {
+                            Surface(
+                                color = Color(0xFF00F0FF).copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(10.dp),
+                                        strokeWidth = 1.5.dp,
+                                        color = Color(0xFF00F0FF)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "UPLOADING RUN...",
+                                        color = Color(0xFF00F0FF),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 8.5.sp
+                                    )
+                                }
+                            }
+                        }
+                        GlobalBoardStatus.ONLINE -> {
+                            Surface(
+                                color = Color(0xFF00FF9D).copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Text(
+                                    text = "SCORE SUBMITTED TO GLOBAL LEADERBOARD",
+                                    color = Color(0xFF00FF9D),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        GlobalBoardStatus.ERROR -> {
+                            Surface(
+                                color = Color(0xFFFF2A55).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55)),
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .testTag("leaderboard_retry")
+                            ) {
+                                Text(
+                                    text = "UPLOAD FAILED",
+                                    color = Color(0xFFFF2A55),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        GlobalBoardStatus.OFFLINE_CACHED, GlobalBoardStatus.IDLE -> {
+                            Surface(
+                                color = Color(0xFF64748B).copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64748B)),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Text(
+                                    text = "QUEUED FOR UPLOAD (OFFLINE)",
+                                    color = Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        GlobalBoardStatus.NOT_CONFIGURED -> {
+                            Surface(
+                                color = Color(0xFF64748B).copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64748B)),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Text(
+                                    text = "LOCAL ONLY (GLOBAL BOARD UNCONFIGURED)",
+                                    color = Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.5.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // Pilot Callsign Input Section
                 Surface(

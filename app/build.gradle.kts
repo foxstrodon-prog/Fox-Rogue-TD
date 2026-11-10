@@ -26,8 +26,8 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 15
-    versionName = "0.0.0.007"
+    versionCode = 16
+    versionName = "0.0.0.008"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -122,6 +122,7 @@ dependencies {
   // implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.work.runtime.ktx)
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
@@ -149,6 +150,7 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.work.testing)
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   androidTestImplementation(libs.androidx.espresso.core)

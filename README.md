@@ -5,10 +5,11 @@ A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
 ## 📱 Pre-built Android APK & Windows PC Downloads
 
 You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.007 Android APK):** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) (also mirror-saved as [`apk/RogueTD-v0.0.0.007-debug.apk`](apk/RogueTD-v0.0.0.007-debug.apk))
-- **Portable Windows PC Launcher (v0.0.0.007 Widescreen Runner):** [`RogueTD-v0.0.0.007.exe`](RogueTD-v0.0.0.007.exe) (also mirror-saved in [`apk/RogueTD-v0.0.0.007.exe`](apk/RogueTD-v0.0.0.007.exe))
+- **Direct Repository Download (v0.0.0.008 Android APK):** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) (also mirror-saved as [`apk/RogueTD-v0.0.0.008-debug.apk`](apk/RogueTD-v0.0.0.008-debug.apk))
+- **Portable Windows PC Launcher (v0.0.0.008 Widescreen Runner):** [`Fox-Rogue-TD.exe`](Fox-Rogue-TD.exe) (also mirror-saved as [`Fox-Rogue-TD-v0.0.0.008.exe`](Fox-Rogue-TD-v0.0.0.008.exe))
   - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, lock the display to **Widescreen Mode (Landscape)**, and launch the game in one click.
 - **Previous Releases:**
+  - **v0.0.0.007:** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) | [`RogueTD-v0.0.0.007.exe`](RogueTD-v0.0.0.007.exe)
   - **v0.0.0.006:** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk) | [`RogueTD-v0.0.0.006.exe`](RogueTD-v0.0.0.006.exe)
   - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`RogueTD-v0.0.0.005.exe`](RogueTD-v0.0.0.005.exe)
   - **v0.0.0.004:** [`apk/RogueTD-v0.0.0.004-debug.apk`](apk/RogueTD-v0.0.0.004-debug.apk)
@@ -16,7 +17,26 @@ You can find the ready-to-run builds in this repository:
 
 ---
 
-### ✨ What's New in Version 0.0.0.007:
+### ✨ What's New in Version 0.0.0.008:
+
+- **Hardened Online Leaderboard & Resilient Firestore REST Transport**:
+  - Implemented zero-allocation, coroutine-cancellable OkHttp transport (`OkHttpClientProvider` with bounded timeouts: 10s connect, 15s read, 10s write, 20s call) and `Call.awaitResponse()`.
+  - Replaced legacy Dreamlo backend with direct Firestore REST API (`submitScore` via documentId and `fetchTopScores` via structuredQuery).
+  - 100% Firebase Spark tier compliant ($0 budget, strictly avoiding Blaze-required Cloud Functions and Cloud Storage, with queries capped at 50 documents and client-side 30s cache TTL / 3s debounce).
+  - Idempotent score submissions using deterministic `runId` document keys; HTTP 409 treated as idempotent success.
+- **Persistent Device Identity & Atomic Local Queue**:
+  - Full 36-character UUID v4 device identity (`PlayerIdentity`) stored persistently, generating standardized commander callsigns (`Commander-<HEX4>`).
+  - Coroutine-safe `LeaderboardStore` utilizing `androidx.core.util.AtomicFile` for zero-corruption file operations across `cache.json`, `pending_queue.json` (capped at 20 with 7-day TTL), and `submitted_ids.json` (LRU set of 100).
+- **Offline Background Synchronization via WorkManager**:
+  - Created `ScoreSubmissionWorker` with network constraints (`NetworkType.CONNECTED`) and exponential backoff retry criteria.
+  - Automatically retries unsubmitted runs upon reconnecting without blocking the main game loop or draining battery.
+- **UI State Binding & Error Diagnostics**:
+  - `TelemetryLeaderboardDialog` displays distinct visual indicators for `ONLINE` (verified green badge), `OFFLINE_CACHED` (amber offline mode badge with relative timestamp), `NOT_CONFIGURED`, and `ERROR` with manual refresh triggers.
+  - Local player entries are highlighted with a dedicated cyan border and commander badge.
+  - `RunSummaryDialog` features dynamic upload status chips: "Uploading Run...", "Score Submitted to Global Leaderboard", "Queued for Upload (Offline)", and "Dev Tuned • Excluded from Online Leaderboard".
+- **Telemetry Sanitization & Issue Template Fixes**:
+  - Eliminated hardcoded fake telemetry seed entries (`Apex_Ghost`, `Nova_Prime`); fresh installs start with clean telemetry.
+  - Corrected community issue template URLs in `.github/ISSUE_TEMPLATE/config.yml` from `Foxstrodon/Fox-Rogue-TD` to `foxstrodon-prog/Fox-Rogue-TD`.
 
 - **Automated GitHub Release & Asset Upload Pipeline**:
   - Implemented `.github/workflows/release.yml` triggering on tags (`v*`) or manual workflow dispatch. It automatically parses `versionName`, executes automated tests, compiles the release APK, standardizes naming to `game-release-vX.X.X.XXX.apk`, creates formal GitHub Releases, and attaches the binary assets.

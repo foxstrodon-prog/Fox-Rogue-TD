@@ -502,29 +502,29 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 007`() {
-    assertEquals("0.0.0.007", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(15, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 0 008`() {
+    assertEquals("0.0.0.008", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(16, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.008", "0.0.0.007"))
-    assertTrue(updater.isNewerVersion("0.0.0.008", "0.0.0.007"))
-    assertFalse(updater.isNewerVersion("v0.0.0.007", "0.0.0.007"))
-    assertFalse(updater.isNewerVersion("0.0.0.006", "0.0.0.007"))
+    assertTrue(updater.isNewerVersion("v0.0.0.009", "0.0.0.008"))
+    assertTrue(updater.isNewerVersion("0.0.0.009", "0.0.0.008"))
+    assertFalse(updater.isNewerVersion("v0.0.0.008", "0.0.0.008"))
+    assertFalse(updater.isNewerVersion("0.0.0.007", "0.0.0.008"))
   }
 
   @Test
-  fun `verify leaderboard service device uuid and anonymous commander name`() {
+  fun `verify player identity device uuid and anonymous commander name`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
-    val lb = com.example.engine.LeaderboardService(context)
-    val uuid = lb.getOrCreateDeviceUuid()
+    val uuid = com.example.engine.storage.PlayerIdentity.getOrCreateDeviceUuid(context)
     assertNotNull(uuid)
     assertTrue(uuid.isNotBlank())
-    val defaultName = lb.getDefaultPlayerName()
+    assertEquals(36, uuid.length)
+    val defaultName = com.example.engine.storage.PlayerIdentity.getPlayerCallsign(context)
     assertTrue(defaultName.startsWith("Commander-"))
   }
 
@@ -559,14 +559,22 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify leaderboard service private key is not hardcoded and submission fails safely without key`() = kotlinx.coroutines.runBlocking {
-    val context = org.robolectric.RuntimeEnvironment.getApplication()
-    val lb = com.example.engine.LeaderboardService(context)
-    assertNull(lb.getPrivateKey())
-    val submitted = lb.submitScore("TestPlayer", 1000, 5, 200, false)
-    assertFalse(submitted)
-    val cached = lb.getCachedLeaderboard()
-    assertTrue(cached.isEmpty())
+  fun `verify firestore leaderboard api fails safely when unconfigured`() = kotlinx.coroutines.runBlocking {
+    val api = com.example.engine.network.FirestoreLeaderboardApi(projectId = "", apiKey = "")
+    assertFalse(api.isConfigured)
+    val submission = com.example.model.PendingSubmission(
+      runId = "test_run",
+      callsign = "TestPlayer",
+      score = 1000,
+      wavesCleared = 5,
+      scrapEarned = 200,
+      totalDamage = 5000L,
+      timestampMs = System.currentTimeMillis(),
+      clientVersion = "0.0.0.008"
+    )
+    val result = api.submitScore(submission)
+    assertTrue(result is com.example.model.LeaderboardResult.Failure)
+    assertEquals(com.example.model.FailureKind.UNCONFIGURED, (result as com.example.model.LeaderboardResult.Failure).kind)
   }
 
   @Test
@@ -600,40 +608,31 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify dreamlo url decoding for name and metadata`() {
-    val json = """
-      {
-        "dreamlo": {
-          "leaderboard": {
-            "entry": [
-              {
-                "name": "Commander-XYZ%20%5BDEV%5D",
-                "score": "12500",
-                "seconds": "992",
-                "text": "scrap%3D750%7Cdev%3Dtrue%7Cuuid%3DTESTUUID%7Cwaves%3D12",
-                "date": "11/9/2026"
-              }
-            ]
-          }
-        }
-      }
-    """.trimIndent()
+  fun `verify callsign sanitization and store pending submission queue`() = kotlinx.coroutines.runBlocking {
+    val sanitized = com.example.engine.network.FirestoreLeaderboardApi.sanitizeCallsign("Commander-XYZ [DEV]!@#")
+    assertEquals("Commander-XYZ DE", sanitized)
 
     val context = org.robolectric.RuntimeEnvironment.getApplication()
-    val service = com.example.engine.LeaderboardService(context)
-    val method = com.example.engine.LeaderboardService::class.java.getDeclaredMethod("parseDreamloJson", String::class.java)
-    method.isAccessible = true
-    @Suppress("UNCHECKED_CAST")
-    val entries = method.invoke(service, json) as List<com.example.model.LeaderboardEntry>
+    val store = com.example.engine.storage.LeaderboardStore(context)
+    val submission = com.example.model.PendingSubmission(
+      runId = "test_run_123",
+      callsign = sanitized,
+      score = 12500,
+      wavesCleared = 12,
+      scrapEarned = 750,
+      totalDamage = 45000L,
+      timestampMs = System.currentTimeMillis(),
+      clientVersion = "0.0.0.008"
+    )
+    store.enqueuePending(submission)
+    val queue = store.getPendingQueue()
+    assertEquals(1, queue.size)
+    assertEquals("test_run_123", queue[0].runId)
+    assertEquals("Commander-XYZ DE", queue[0].callsign)
 
-    assertEquals(1, entries.size)
-    val entry = entries[0]
-    assertEquals("Commander-XYZ", entry.name)
-    assertEquals(12500, entry.score)
-    assertEquals(12, entry.wavesCleared)
-    assertEquals(750, entry.scrapEarned)
-    assertTrue(entry.isDevTuned)
-    assertEquals("TESTUUID", entry.deviceUuid)
+    store.removePending("test_run_123")
+    val emptyQueue = store.getPendingQueue()
+    assertTrue(emptyQueue.isEmpty())
   }
 
   @Test
@@ -680,23 +679,12 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `leaderboard service empty response returns empty entries list`() {
-    val json = """
-      {
-        "dreamlo": {
-          "leaderboard": null
-        }
-      }
-    """.trimIndent()
-
+  fun `leaderboard store submitted ids dedup prevents duplicate entries`() = kotlinx.coroutines.runBlocking {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
-    val service = com.example.engine.LeaderboardService(context)
-    val method = com.example.engine.LeaderboardService::class.java.getDeclaredMethod("parseDreamloJson", String::class.java)
-    method.isAccessible = true
-    @Suppress("UNCHECKED_CAST")
-    val entries = method.invoke(service, json) as List<com.example.model.LeaderboardEntry>
-
-    assertTrue("Empty leaderboard response must produce empty list", entries.isEmpty())
+    val store = com.example.engine.storage.LeaderboardStore(context)
+    assertFalse(store.isAlreadySubmitted("run_abc"))
+    store.recordSubmittedId("run_abc")
+    assertTrue(store.isAlreadySubmitted("run_abc"))
   }
 
   @Test

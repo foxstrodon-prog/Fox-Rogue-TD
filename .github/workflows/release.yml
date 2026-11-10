@@ -60,9 +60,17 @@ jobs:
           echo "Target Release Tag: ${RELEASE_TAG}"
 
       - name: Run Unit Tests
+        env:
+          LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
+          LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
+          LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION || 'leaderboard' }}
         run: ./gradlew testDebugUnitTest
 
       - name: Assemble Debug APK
+        env:
+          LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
+          LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
+          LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION || 'leaderboard' }}
         run: ./gradlew assembleDebug
 
       - name: Stage Release Binaries

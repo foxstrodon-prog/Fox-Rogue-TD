@@ -10,9 +10,9 @@ We provide security updates and vulnerability patches for the current release an
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.0.0.006+ | :white_check_mark: |
-| 0.0.0.005  | :white_check_mark: |
-| < 0.0.0.005 | :x:                |
+| 0.0.0.008+ | :white_check_mark: |
+| 0.0.0.007  | :white_check_mark: |
+| < 0.0.0.007 | :x:                |
 
 ---
 
