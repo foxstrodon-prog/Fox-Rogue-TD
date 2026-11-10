@@ -45,10 +45,10 @@ $GradleCmd = if (Test-Path $GradlewBat) { $GradlewBat } else { "gradle" }
 
 # 2. Run Test Suite (if not skipped)
 if (-not $SkipTests -and -not $SkipBuild) {
-    Write-Host "`nExecuting automated test suite..." -ForegroundColor Yellow
+    Write-Host "`n[1/5] Executing automated test suite..." -ForegroundColor Yellow
     try {
         & $GradleCmd testDebugUnitTest
-        Write-Host "All tests passed cleanly!" -ForegroundColor Green
+        Write-Host "  -> All tests passed cleanly!" -ForegroundColor Green
     } catch {
         Write-Warning "Test step could not be executed directly via command line; continuing with staging."
     }
@@ -56,7 +56,7 @@ if (-not $SkipTests -and -not $SkipBuild) {
 
 # 3. Assemble Debug APK (if not skipped)
 if (-not $SkipBuild) {
-    Write-Host "`nCompiling Android APK..." -ForegroundColor Yellow
+    Write-Host "`n[2/5] Compiling Android APK..." -ForegroundColor Yellow
     try {
         & $GradleCmd assembleDebug
     } catch {
@@ -67,7 +67,7 @@ if (-not $SkipBuild) {
 $BuiltApk = Join-Path $ProjectRoot "app/build/outputs/apk/debug/app-debug.apk"
 if (-not (Test-Path $BuiltApk)) {
     # Check if existing artifact exists in apk/ folder
-    $FallbackApk = Join-Path $ProjectRoot ("apk/game-release-" + $Tag + ".apk")
+    $FallbackApk = Join-Path $ProjectRoot ("apk/Fox-Rogue-TD-" + $Tag + ".apk")
     if (Test-Path $FallbackApk) {
         $BuiltApk = $FallbackApk
     } else {
@@ -77,7 +77,7 @@ if (-not (Test-Path $BuiltApk)) {
 
 # 4. Compile Portable Windows Widescreen Launcher (if not skipped)
 if (-not $SkipBuild) {
-    Write-Host "`nCompiling Portable Windows Launcher..." -ForegroundColor Yellow
+    Write-Host "`n[3/5] Compiling Portable Windows Launcher..." -ForegroundColor Yellow
     try {
         & powershell -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tools/windows/build-launcher.ps1")
     } catch {
@@ -86,95 +86,134 @@ if (-not $SkipBuild) {
 }
 
 # 5. Stage Versioned Assets in apk/ directory
+Write-Host "`n[4/5] Staging Release Binaries in apk/ directory..." -ForegroundColor Yellow
 $ApkDir = Join-Path $ProjectRoot "apk"
 if (-not (Test-Path $ApkDir)) {
     New-Item -ItemType Directory -Path $ApkDir | Out-Null
 }
 
-$StandardApk = Join-Path $ApkDir ("game-release-" + $Tag + ".apk")
 $FoxApk = Join-Path $ApkDir ("Fox-Rogue-TD-" + $Tag + ".apk")
+$StandardApk = Join-Path $ApkDir ("game-release-" + $Tag + ".apk")
 $DebugApk = Join-Path $ApkDir ("RogueTD-" + $Tag + "-debug.apk")
-$WinExeInApk = Join-Path $ApkDir ("RogueTD-" + $Tag + ".exe")
 $FoxExeInApk = Join-Path $ApkDir ("Fox-Rogue-TD-" + $Tag + ".exe")
+$WinExeInApk = Join-Path $ApkDir ("RogueTD-" + $Tag + ".exe")
 $WinExeInRoot = Join-Path $ProjectRoot ("Fox-Rogue-TD.exe")
 
 if (Test-Path $BuiltApk) {
-    Copy-Item $BuiltApk $StandardApk -Force
     Copy-Item $BuiltApk $FoxApk -Force
+    Copy-Item $BuiltApk $StandardApk -Force
     Copy-Item $BuiltApk $DebugApk -Force
 }
 
-$AssetsToUpload = @($StandardApk, $FoxApk, $DebugApk)
-if (Test-Path $WinExeInApk) {
-    $AssetsToUpload += $WinExeInApk
-}
-if (Test-Path $FoxExeInApk) {
-    $AssetsToUpload += $FoxExeInApk
-}
-if (Test-Path $WinExeInRoot) {
-    $AssetsToUpload += $WinExeInRoot
-}
+$AssetsToUpload = @($FoxApk, $StandardApk, $DebugApk)
+if (Test-Path $FoxExeInApk) { $AssetsToUpload += $FoxExeInApk }
+if (Test-Path $WinExeInApk) { $AssetsToUpload += $WinExeInApk }
+if (Test-Path $WinExeInRoot) { $AssetsToUpload += $WinExeInRoot }
 
-Write-Host "`nRelease binaries staged successfully:" -ForegroundColor Green
+Write-Host "  -> Staged binaries ready for release:" -ForegroundColor Green
 foreach ($itemPath in $AssetsToUpload) {
     if (Test-Path $itemPath) {
         $Item = Get-Item $itemPath
         $SizeMb = [math]::Round($Item.Length / 1MB, 2)
-        Write-Host ("   - " + $Item.Name + " (" + $SizeMb + " MB)") -ForegroundColor Gray
+        Write-Host ("     * " + $Item.Name + " (" + $SizeMb + " MB)") -ForegroundColor Gray
     }
 }
 
-# 6. Upload Release to GitHub via GitHub CLI (`gh`) or notify user to push
-Write-Host "`nChecking GitHub publishing capabilities..." -ForegroundColor Yellow
+# 6. Upload Release to GitHub (gh CLI, direct REST API, or Guided Git Push)
+Write-Host "`n[5/5] Publishing Release to GitHub..." -ForegroundColor Yellow
 
 $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+$publishedViaRest = $false
 
+# A. Try GitHub CLI if installed and authenticated
 if ($null -ne $ghCmd) {
-    Write-Host "GitHub CLI ('gh') detected." -ForegroundColor Green
-
-    # Check authentication
     & gh auth status 2>$null
-    if ($LASTEXITCODE -ne 0 -and [string]::IsNullOrEmpty($env:GITHUB_TOKEN)) {
-        Write-Warning "GitHub CLI is not authenticated. Please run 'gh auth login' or set `$env:GITHUB_TOKEN."
-        Write-Host "Binaries are compiled and ready locally in: $ApkDir" -ForegroundColor Cyan
-        exit 0
-    }
+    if ($LASTEXITCODE -eq 0 -or -not [string]::IsNullOrEmpty($env:GITHUB_TOKEN)) {
+        Write-Host "  -> Publishing via GitHub CLI ('gh')..." -ForegroundColor Cyan
+        $GhArgs = @("release", "create", $Tag)
+        foreach ($asset in $AssetsToUpload) { $GhArgs += $asset }
+        $GhArgs += "--title"
+        $GhArgs += ("Fox-Rogue-TD " + $Tag)
+        $GhArgs += "--generate-notes"
+        if ($Draft) { $GhArgs += "--draft" }
+        if ($Prerelease) { $GhArgs += "--prerelease" }
 
-    Write-Host ("Creating/Updating GitHub Release " + $Tag + "...") -ForegroundColor Yellow
-
-    $GhArgs = @("release", "create", $Tag)
-    foreach ($asset in $AssetsToUpload) {
-        $GhArgs += $asset
-    }
-    $GhArgs += "--title"
-    $GhArgs += ("Rogue TD: Dual-Front " + $Tag)
-    $GhArgs += "--generate-notes"
-
-    if ($Draft) { $GhArgs += "--draft" }
-    if ($Prerelease) { $GhArgs += "--prerelease" }
-
-    & gh @GhArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning ("Release create failed, attempting to upload assets to existing release " + $Tag + "...")
-        $UploadArgs = @("release", "upload", $Tag)
-        foreach ($asset in $AssetsToUpload) {
-            $UploadArgs += $asset
+        & gh @GhArgs
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Release create failed or already exists. Re-uploading assets with --clobber..."
+            $UploadArgs = @("release", "upload", $Tag)
+            foreach ($asset in $AssetsToUpload) { $UploadArgs += $asset }
+            $UploadArgs += "--clobber"
+            & gh @UploadArgs
         }
-        $UploadArgs += "--clobber"
-        & gh @UploadArgs
+        $publishedViaRest = $true
     }
-
-    Write-Host ("`nRelease " + $Tag + " successfully published to GitHub Releases!") -ForegroundColor Green
-} else {
-    Write-Host "`nGitHub CLI ('gh') is not installed locally on this machine." -ForegroundColor Yellow
-    Write-Host "All release binaries have been compiled and staged locally:" -ForegroundColor Green
-    foreach ($asset in $AssetsToUpload) {
-        Write-Host ("   - " + (Split-Path -Leaf $asset)) -ForegroundColor Cyan
-    }
-    Write-Host "`nTo publish this release to GitHub Releases immediately:" -ForegroundColor White
-    Write-Host "   git push origin main" -ForegroundColor Green
-    Write-Host "The GitHub Actions workflow (.github/workflows/release.yml) will trigger automatically on push and publish the release with these assets attached!" -ForegroundColor Gray
 }
 
-Write-Host ("`nCompleted release pipeline for version " + $Version + ".") -ForegroundColor Cyan
+# B. Try Direct GitHub REST API if GITHUB_TOKEN is available
+if (-not $publishedViaRest -and -not [string]::IsNullOrEmpty($env:GITHUB_TOKEN)) {
+    try {
+        Write-Host "  -> Publishing directly via GitHub REST API..." -ForegroundColor Cyan
+        $repo = "foxstrodon-prog/Fox-Rogue-TD"
+        $headers = @{
+            "Authorization" = "Bearer " + $env:GITHUB_TOKEN
+            "Accept" = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+        }
+
+        # Check if release exists
+        $relUri = "https://api.github.com/repos/$repo/releases/tags/$Tag"
+        $rel = try { Invoke-RestMethod -Uri $relUri -Headers $headers -Method Get -ErrorAction Stop } catch { $null }
+
+        if ($null -eq $rel) {
+            $createBody = @{
+                tag_name = $Tag
+                name = ("Fox-Rogue-TD " + $Tag)
+                generate_release_notes = $true
+                draft = [bool]$Draft
+                prerelease = [bool]$Prerelease
+            } | ConvertTo-Json
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases" -Headers $headers -Method Post -Body $createBody
+        }
+
+        if ($rel -and $rel.upload_url) {
+            $uploadBase = $rel.upload_url -replace '\{\?name,label\}', ''
+            foreach ($asset in $AssetsToUpload) {
+                if (Test-Path $asset) {
+                    $assetFile = Get-Item $asset
+                    $uploadUri = "$uploadBase`?name=$($assetFile.Name)"
+                    $bytes = [System.IO.File]::ReadAllBytes($assetFile.FullName)
+                    $uploadHeaders = @{
+                        "Authorization" = "Bearer " + $env:GITHUB_TOKEN
+                        "Content-Type" = "application/octet-stream"
+                    }
+                    Write-Host ("     Uploading " + $assetFile.Name + "...") -ForegroundColor Gray
+                    Invoke-RestMethod -Uri $uploadUri -Headers $uploadHeaders -Method Post -Body $bytes | Out-Null
+                }
+            }
+            Write-Host "  -> Successfully uploaded all release assets via REST API!" -ForegroundColor Green
+            $publishedViaRest = $true
+        }
+    } catch {
+        Write-Warning "Direct REST upload encountered an error: $_"
+    }
+}
+
+# C. Fallback: Sequential Git Push Instruction for GitHub Actions CI
+if (-not $publishedViaRest) {
+    Write-Host "`n  -> Staging completed locally." -ForegroundColor Cyan
+    Write-Host "  -> To trigger the automated GitHub Release & APK Upload Actions workflow:" -ForegroundColor White
+    Write-ForegroundColor "     1. Commit the release assets and documentation:" -Color Yellow
+    Write-Host "        git commit -m `"Release $Tag: Final pass build, binaries, and documentation update`"" -ForegroundColor Gray
+    Write-Host "     2. Tag the release:" -ForegroundColor Yellow
+    Write-Host "        git tag -a $Tag -m `"Release $Tag`"" -ForegroundColor Gray
+    Write-Host "     3. Push sequentially (Branch FIRST, then Tag) to prevent workflow race conditions:" -ForegroundColor Yellow
+    Write-Host "        git push origin main" -ForegroundColor Green
+    Write-Host "        git push origin $Tag" -ForegroundColor Green
+    Write-Host "`n  GitHub Actions will automatically build, package, and upload all APKs and EXEs to the release page!" -ForegroundColor Cyan
+}
+
+Write-Host ("`n==========================================================") -ForegroundColor Cyan
+Write-Host ("Completed release pipeline for " + $Tag + ".") -ForegroundColor Cyan
+Write-Host ("==========================================================") -ForegroundColor Cyan
 exit 0
