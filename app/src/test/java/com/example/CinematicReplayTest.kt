@@ -76,4 +76,14 @@ class CinematicReplayTest {
         assertEquals("v001004_Cinematic5.mp4", CinematicScenario.CIN_05_KINETIC_GATLING.getTargetFilename("v001004"))
         assertEquals("v001004_Cinematic6.mp4", CinematicScenario.CIN_06_EVOLUTION_MONTAGE.getTargetFilename("v001004"))
     }
+
+    @Test
+    fun `Verify all 6 signature scenarios have corresponding playable waves in WaveGenerator`() {
+        for (scenario in CinematicScenario.entries) {
+            val waveData = com.example.engine.WaveGenerator.generateWave(scenario.targetWave)
+            assertEquals("Wave number must match scenario target wave", scenario.targetWave, waveData.waveNumber)
+            assertTrue("Wave ${scenario.targetWave} must spawn enemies", waveData.totalEnemies > 0)
+            assertTrue("Wave ${scenario.targetWave} name must reference signature milestone", waveData.name.contains("Milestone") || waveData.name.contains("Gauntlet"))
+        }
+    }
 }

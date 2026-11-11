@@ -2272,4 +2272,26 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
         addFloatingText(8f, 8f, "🎬 CINEMATIC COMPLETE (30s)", 0xFF00FF9D)
     }
+
+    /**
+     * Jumps directly to a Signature Milestone Wave (Waves 35, 40, 42, 45, 50, 52)
+     * as an interactive, fully playable game session so developers can test,
+     * balance, and experience the real gameplay behind the YouTube Shorts.
+     */
+    fun jumpToSignatureWave(scenario: CinematicScenario) {
+        _uiState.update {
+            it.copy(
+                activeCinematic = null,
+                waveNumber = scenario.targetWave,
+                isWaveActive = false,
+                isGameOver = false,
+                isVictory = false,
+                enemies = emptyList(),
+                projectiles = emptyList(),
+                scrap = maxOf(it.scrap, 2000)
+            )
+        }
+        deployWave()
+        addFloatingText(8f, 6f, "⚔️ DEPLOYING WAVE ${scenario.targetWave}: ${scenario.title}", 0xFFFFD700)
+    }
 }

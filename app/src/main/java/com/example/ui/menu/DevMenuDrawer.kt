@@ -48,6 +48,7 @@ fun DevBalanceSettingsDialog(
     onResetTelemetry: () -> Unit,
     onSpawnSandboxWave: (EnemyType, Int) -> Unit = { _, _ -> },
     onLaunchCinematic: (CinematicScenario) -> Unit = {},
+    onPlaySignatureWave: (CinematicScenario) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0 = ECONOMY, 1 = 39 TOWERS, 2 = ENEMIES, 3 = TELEMETRY & SANDBOX
@@ -559,25 +560,49 @@ fun DevBalanceSettingsDialog(
                                                     fontWeight = FontWeight.SemiBold,
                                                     fontSize = 7.5.sp
                                                 )
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Button(
-                                                    onClick = {
-                                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Cinematic Filename", scenario.getTargetFilename()))
-                                                        android.widget.Toast.makeText(context, "${scenario.getTargetFilename()} copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
-                                                        onLaunchCinematic(scenario)
-                                                        onDismiss()
-                                                    },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFFFFB800),
-                                                        contentColor = Color.Black
-                                                    ),
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    modifier = Modifier.fillMaxWidth().height(28.dp)
+                                                Spacer(modifier = Modifier.height(3.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
-                                                    Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(13.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("LAUNCH CINEMATIC (30s)", fontWeight = FontWeight.Black, fontSize = 9.sp)
+                                                    Button(
+                                                        onClick = {
+                                                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Cinematic Filename", scenario.getTargetFilename()))
+                                                            android.widget.Toast.makeText(context, "${scenario.getTargetFilename()} copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                                                            onLaunchCinematic(scenario)
+                                                            onDismiss()
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = Color(0xFFFFB800),
+                                                            contentColor = Color.Black
+                                                        ),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        modifier = Modifier.weight(1f).height(28.dp),
+                                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("SHOWCASE (30s)", fontWeight = FontWeight.Black, fontSize = 8.5.sp)
+                                                    }
+
+                                                    Button(
+                                                        onClick = {
+                                                            onPlaySignatureWave(scenario)
+                                                            onDismiss()
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = Color(0xFF00FF9D),
+                                                            contentColor = Color.Black
+                                                        ),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        modifier = Modifier.weight(1f).height(28.dp),
+                                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("PLAY WAVE ${scenario.targetWave}", fontWeight = FontWeight.Black, fontSize = 8.5.sp)
+                                                    }
                                                 }
                                             }
                                         }

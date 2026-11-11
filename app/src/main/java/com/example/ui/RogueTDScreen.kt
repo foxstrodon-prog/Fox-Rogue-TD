@@ -386,6 +386,7 @@ fun RogueTDScreen(
                 onResetTelemetry = { viewModel.resetTowerPerformance() },
                 onSpawnSandboxWave = { type, count -> viewModel.spawnSandboxWave(type, count) },
                 onLaunchCinematic = { viewModel.launchCinematic(it) },
+                onPlaySignatureWave = { viewModel.jumpToSignatureWave(it) },
                 activeCreepCount = state.enemies.size,
                 activeBulletCount = state.projectiles.size,
                 activeParticleCount = state.trackParticles.size,

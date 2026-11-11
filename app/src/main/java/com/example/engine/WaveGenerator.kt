@@ -76,11 +76,17 @@ object WaveGenerator {
     }
 
     fun generateWave(waveNumber: Int, enemyCountMultiplier: Float = 1.0f): WaveData {
-        val isBossWave = (waveNumber % 10 == 0) || (waveNumber == 5)
+        val isBossWave = (waveNumber % 10 == 0) || (waveNumber == 5) || (waveNumber == 45) || (waveNumber == 50) || (waveNumber == 52)
         val name = when {
             waveNumber == 5 -> "Sector Vanguard: Dual Elite Scout"
             waveNumber == 10 -> "Sector Apex: Titan Colossus Prime"
             waveNumber == 20 -> "Extinction Event: Dual Overlord Incursion"
+            waveNumber == 35 -> "Signature Milestone: Dual-Front Bullet Hell"
+            waveNumber == 40 -> "Signature Milestone: Booster Warp Incursion"
+            waveNumber == 42 -> "Signature Milestone: Prismatic Void Shatter"
+            waveNumber == 45 -> "Signature Milestone: Kinetic Vulcan Overclock"
+            waveNumber == 50 -> "Apex Milestone: Astral Colossus Annihilation"
+            waveNumber == 52 -> "Ascension Gauntlet: Total Evolution Siege"
             isBossWave -> "Colossus Dual Breach #$waveNumber"
             else -> "Dual Assault Wave #$waveNumber"
         }
@@ -91,6 +97,12 @@ object WaveGenerator {
             waveNumber == 3 -> "Flanking Speedster Vanguard"
             waveNumber == 4 -> "Heavy Armor Dual Outriders"
             waveNumber == 5 -> "Warning: Dual Elite Mini-Boss"
+            waveNumber == 35 -> "Twin-Lane Full-Screen Firestorm (Cinematic 2)"
+            waveNumber == 40 -> "Instant Dual-Front Tactical Swaps (Cinematic 3)"
+            waveNumber == 42 -> "Cryo Freeze & Singularity Collapse (Cinematic 4)"
+            waveNumber == 45 -> "Hyper-Velocity Ballistic Shred (Cinematic 5)"
+            waveNumber == 50 -> "Apex Stellar Star vs Void Colossus (Cinematic 1)"
+            waveNumber == 52 -> "Tier 1 to Apex Final Forms Gauntlet (Cinematic 6)"
             waveNumber % 4 == 0 -> "Heavily Armored Converging Column"
             waveNumber % 3 == 0 -> "Bifurcated High-Speed Blitz"
             waveNumber == 10 -> "CRITICAL THREAT: APEX TITAN & ESCORTS"
@@ -183,6 +195,137 @@ object WaveGenerator {
                 }
                 for (i in 0 until speedsterCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = i % 2, hpScale = baseHpScale))
+                }
+            }
+            35 -> {
+                // Wave 35: Dual-Front Bullet Hell (Cinematic 2) - 80-unit high-speed swarm across twin lanes
+                val swarmCount = (80 * enemyCountMultiplier).toInt().coerceAtLeast(40)
+                for (i in 0 until swarmCount) {
+                    val lane = i % 2
+                    val type = if (i % 3 == 0) EnemyType.SPEEDSTER else EnemyType.DRONE
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = type,
+                            delayMs = if (i == 0) 250L else 200L,
+                            laneIndex = lane,
+                            hpScale = baseHpScale * 0.70f,
+                            speedScale = 1.35f
+                        )
+                    )
+                }
+            }
+            40 -> {
+                // Wave 40: Booster Teleportation Maneuver (Cinematic 3) - 50 armored soldiers demanding cross-lane turret warping
+                val soldierCount = (50 * enemyCountMultiplier).toInt().coerceAtLeast(25)
+                for (i in 0 until soldierCount) {
+                    val lane = i % 2
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = EnemyType.SOLDIER,
+                            delayMs = if (i == 0) 300L else 350L,
+                            laneIndex = lane,
+                            hpScale = baseHpScale * 1.15f,
+                            speedScale = 0.95f
+                        )
+                    )
+                }
+            }
+            42 -> {
+                // Wave 42: Prismatic Void Shatter (Cinematic 4) - 60 cluster units with Bruisers & Soldiers
+                val count = (60 * enemyCountMultiplier).toInt().coerceAtLeast(30)
+                for (i in 0 until count) {
+                    val lane = i % 2
+                    val type = if (i % 5 == 0) EnemyType.BRUISER else EnemyType.SOLDIER
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = type,
+                            delayMs = if (i == 0) 250L else 300L,
+                            laneIndex = lane,
+                            hpScale = baseHpScale * 1.25f,
+                            speedScale = 0.90f
+                        )
+                    )
+                }
+            }
+            45 -> {
+                // Wave 45: Kinetic Vulcan Overclock (Cinematic 5) - Triple Armored Behemoths on Alpha and Beta
+                for (i in 0 until 3) {
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = EnemyType.BRUISER,
+                            delayMs = if (i == 0) 400L else 1400L,
+                            laneIndex = 0,
+                            hpScale = baseHpScale * 2.8f,
+                            isBoss = true
+                        )
+                    )
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = EnemyType.BRUISER,
+                            delayMs = 1200L,
+                            laneIndex = 1,
+                            hpScale = baseHpScale * 2.8f,
+                            isBoss = true
+                        )
+                    )
+                }
+                val escorts = (20 * enemyCountMultiplier).toInt().coerceAtLeast(10)
+                for (i in 0 until escorts) {
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = EnemyType.SPEEDSTER,
+                            delayMs = 450L,
+                            laneIndex = i % 2,
+                            hpScale = baseHpScale * 0.85f
+                        )
+                    )
+                }
+            }
+            50 -> {
+                // Wave 50: Astral Colossus Annihilation (Cinematic 1) - Apex Boss on Alpha with full drone escort
+                spawnList.add(
+                    EnemySpawnEntry(
+                        type = EnemyType.BOSS,
+                        delayMs = 600L,
+                        laneIndex = 0,
+                        hpScale = baseHpScale * 4.2f,
+                        speedScale = 0.5f,
+                        isBoss = true
+                    )
+                )
+                val droneEscort = (30 * enemyCountMultiplier).toInt().coerceAtLeast(15)
+                for (i in 0 until droneEscort) {
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = EnemyType.DRONE,
+                            delayMs = 320L,
+                            laneIndex = if (i % 2 == 0) 0 else 1,
+                            hpScale = baseHpScale * 0.85f,
+                            speedScale = 1.15f
+                        )
+                    )
+                }
+            }
+            52 -> {
+                // Wave 52: Ascension Gauntlet (Cinematic 6) - Total Evolution Siege
+                val totalEnemies = (52 * enemyCountMultiplier).toInt().coerceAtLeast(26)
+                for (i in 0 until totalEnemies) {
+                    val type = when {
+                        i % 12 == 0 -> EnemyType.ASTRAL_COLOSSUS
+                        i % 4 == 0 -> EnemyType.BRUISER
+                        i % 2 == 0 -> EnemyType.SPEEDSTER
+                        else -> EnemyType.SOLDIER
+                    }
+                    spawnList.add(
+                        EnemySpawnEntry(
+                            type = type,
+                            delayMs = 360L,
+                            laneIndex = i % 2,
+                            hpScale = baseHpScale * 1.4f,
+                            speedScale = 1.0f,
+                            isBoss = (i % 12 == 0)
+                        )
+                    )
                 }
             }
             else -> {
