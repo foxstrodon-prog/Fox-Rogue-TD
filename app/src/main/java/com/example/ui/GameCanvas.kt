@@ -494,6 +494,22 @@ fun GameCanvas(
                         drawRoundRect(color = apexAuraColor.copy(alpha = 0.20f * auraPulse), topLeft = hTopLeft, size = Size(hS, hS), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f))
                         drawRoundRect(color = apexAuraColor, topLeft = hTopLeft, size = Size(hS, hS), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
                     }
+                    TowerClass.STELLAR_COSMIC -> {
+                        val sR = cellW * 0.52f * auraPulse
+                        val sInner = sR * 0.48f
+                        val sPath = Path().apply {
+                            for (i in 0 until 10) {
+                                val r = if (i % 2 == 0) sR else sInner
+                                val angle = (i * PI / 5f - PI / 2f).toFloat()
+                                val px = tcx + cos(angle) * r
+                                val py = tcy + sin(angle) * r
+                                if (i == 0) moveTo(px, py) else lineTo(px, py)
+                            }
+                            close()
+                        }
+                        drawPath(path = sPath, color = apexAuraColor.copy(alpha = 0.22f * auraPulse))
+                        drawPath(path = sPath, color = apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+                    }
                 }
             }
 
@@ -617,6 +633,51 @@ fun GameCanvas(
                             drawCircle(color = borderColor, radius = cellW * 0.13f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
                             drawCircle(color = Color.White, radius = cellW * 0.06f, center = Offset(tcx, tcy))
                         }
+
+                        TowerClass.STELLAR_COSMIC -> {
+                            val starR = cellW * 0.40f
+                            val innerR = starR * 0.48f
+                            val starPath = Path().apply {
+                                for (i in 0 until 10) {
+                                    val r = if (i % 2 == 0) starR else innerR
+                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                    val px = tcx + cos(angle) * r
+                                    val py = tcy + sin(angle) * r
+                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                }
+                                close()
+                            }
+                            drawPath(path = starPath, color = Color(0xFF1B1806))
+                            drawPath(path = starPath, color = borderColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+
+                            if (upgradeLevel >= 2) {
+                                val sInnerPath = Path().apply {
+                                    for (i in 0 until 10) {
+                                        val r = if (i % 2 == 0) starR * 0.65f else innerR * 0.65f
+                                        val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                        val px = tcx + cos(angle) * r
+                                        val py = tcy + sin(angle) * r
+                                        if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                    }
+                                    close()
+                                }
+                                drawPath(path = sInnerPath, color = vectorAccentColor, style = Stroke(width = 1.6f, join = StrokeJoin.Round))
+                            }
+
+                            if (upgradeLevel >= 3) {
+                                for (i in 0 until 5) {
+                                    val orbAngle = animFlowTime * 0.005f + (i * 2f * PI / 5f).toFloat()
+                                    val ox = tcx + cos(orbAngle) * cellW * 0.45f
+                                    val oy = tcy + sin(orbAngle) * cellW * 0.45f
+                                    drawCircle(color = archetypeAccentColor, radius = cellW * 0.04f, center = Offset(ox, oy))
+                                }
+                            }
+
+                            val barrelEnd = Offset(tcx + cos(aimRad) * cellW * 0.42f, tcy + sin(aimRad) * cellW * 0.42f)
+                            drawLine(color = if (upgradeLevel == 4) apexAuraColor else Color.White, start = Offset(tcx, tcy), end = barrelEnd, strokeWidth = cellW * 0.05f, cap = StrokeCap.Round)
+                            drawCircle(color = Color(0xFFFFD700), radius = cellW * 0.10f, center = Offset(tcx, tcy))
+                            drawCircle(color = Color.White, radius = cellW * 0.05f, center = Offset(tcx, tcy))
+                        }
                     }
                 }
 
@@ -727,6 +788,33 @@ fun GameCanvas(
                             }
                             drawCircle(color = if (upgradeLevel == 4) apexAuraColor else cadColor, radius = cellW * 0.06f, center = Offset(tcx, tcy))
                         }
+
+                        TowerClass.STELLAR_COSMIC -> {
+                            val starR = cellW * 0.38f
+                            val innerR = starR * 0.45f
+                            val starPath = Path().apply {
+                                for (i in 0 until 10) {
+                                    val r = if (i % 2 == 0) starR else innerR
+                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                    val px = tcx + cos(angle) * r
+                                    val py = tcy + sin(angle) * r
+                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                }
+                                close()
+                            }
+                            drawPath(path = starPath, color = Color(0xFF0A192F))
+                            drawPath(path = starPath, color = cadColor, style = Stroke(width = 1.8f))
+
+                            if (upgradeLevel >= 2) {
+                                drawCircle(color = vectorAccentColor.copy(alpha = 0.5f), radius = cellW * 0.22f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawCircle(color = archetypeAccentColor, radius = cellW * 0.12f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
+                            }
+                            val bLen = cellW * 0.38f
+                            drawLine(color = if (upgradeLevel == 4) apexAuraColor else cadWhite, start = Offset(tcx, tcy), end = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen), strokeWidth = 2.0f)
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else cadColor, radius = cellW * 0.06f, center = Offset(tcx, tcy))
+                        }
                     }
                 }
 
@@ -826,6 +914,33 @@ fun GameCanvas(
                             if (upgradeLevel >= 3) {
                                 drawCircle(color = archetypeAccentColor, radius = cellW * 0.14f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
                             }
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else rivetColor, radius = cellW * 0.08f, center = Offset(tcx, tcy))
+                        }
+
+                        TowerClass.STELLAR_COSMIC -> {
+                            val starR = cellW * 0.40f
+                            val innerR = starR * 0.46f
+                            val starPath = Path().apply {
+                                for (i in 0 until 10) {
+                                    val r = if (i % 2 == 0) starR else innerR
+                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                    val px = tcx + cos(angle) * r
+                                    val py = tcy + sin(angle) * r
+                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                }
+                                close()
+                            }
+                            drawPath(path = starPath, color = steelDark)
+                            drawPath(path = starPath, color = steelPlate, style = Stroke(width = 3.0f, join = StrokeJoin.Round))
+
+                            if (upgradeLevel >= 2) {
+                                drawCircle(color = vectorAccentColor, radius = cellW * 0.18f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawCircle(color = archetypeAccentColor, radius = cellW * 0.14f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
+                            }
+                            val bLen = cellW * 0.40f
+                            drawLine(color = steelPlate, start = Offset(tcx, tcy), end = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
                             drawCircle(color = if (upgradeLevel == 4) apexAuraColor else rivetColor, radius = cellW * 0.08f, center = Offset(tcx, tcy))
                         }
                     }
@@ -930,6 +1045,33 @@ fun GameCanvas(
                             }
                             drawCircle(color = if (upgradeLevel == 4) apexAuraColor else Color.White, radius = cellW * 0.07f, center = Offset(tcx, tcy))
                         }
+
+                        TowerClass.STELLAR_COSMIC -> {
+                            val starR = cellW * 0.40f
+                            val innerR = starR * 0.48f
+                            val starPath = Path().apply {
+                                for (i in 0 until 10) {
+                                    val r = if (i % 2 == 0) starR else innerR
+                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                    val px = tcx + cos(angle) * r
+                                    val py = tcy + sin(angle) * r
+                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                }
+                                close()
+                            }
+                            drawPath(path = starPath, color = voidDark)
+                            drawPath(path = starPath, color = voidRift, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+
+                            if (upgradeLevel >= 2) {
+                                drawCircle(color = vectorAccentColor.copy(alpha = 0.5f), radius = cellW * 0.18f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawCircle(color = archetypeAccentColor, radius = cellW * 0.12f, center = Offset(tcx, tcy), style = Stroke(width = 1.8f))
+                            }
+                            val bLen = cellW * 0.38f
+                            drawLine(color = voidGlow, start = Offset(tcx, tcy), end = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen), strokeWidth = cellW * 0.06f, cap = StrokeCap.Round)
+                            drawCircle(color = if (upgradeLevel == 4) apexAuraColor else Color.White, radius = cellW * 0.07f, center = Offset(tcx, tcy))
+                        }
                     }
                 }
 
@@ -1026,6 +1168,33 @@ fun GameCanvas(
                             }
                             drawRect(color = if (upgradeLevel == 4) apexAuraColor else Color.White, topLeft = Offset(tcx - pUnit * 0.7f, tcy - pUnit * 0.7f), size = Size(pUnit * 1.4f, pUnit * 1.4f))
                         }
+
+                        TowerClass.STELLAR_COSMIC -> {
+                            val starR = cellW * 0.38f
+                            val innerR = starR * 0.45f
+                            val starPath = Path().apply {
+                                for (i in 0 until 10) {
+                                    val r = if (i % 2 == 0) starR else innerR
+                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                    val px = tcx + cos(angle) * r
+                                    val py = tcy + sin(angle) * r
+                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                }
+                                close()
+                            }
+                            drawPath(path = starPath, color = pixelDark)
+                            drawPath(path = starPath, color = pixelYellow, style = Stroke(width = 2.0f))
+
+                            if (upgradeLevel >= 2) {
+                                drawRect(color = vectorAccentColor, topLeft = Offset(tcx - pUnit, tcy - pUnit), size = Size(pUnit * 2f, pUnit * 2f), style = Stroke(width = 1.5f))
+                            }
+                            if (upgradeLevel >= 3) {
+                                drawRect(color = archetypeAccentColor, topLeft = Offset(tcx - pUnit * 1.2f, tcy - pUnit * 1.2f), size = Size(pUnit * 2.4f, pUnit * 2.4f), style = Stroke(width = 1.5f))
+                            }
+                            val bLen = cellW * 0.36f
+                            drawLine(color = pixelYellow, start = Offset(tcx, tcy), end = Offset(tcx + cos(aimRad) * bLen, tcy + sin(aimRad) * bLen), strokeWidth = cellW * 0.08f, cap = StrokeCap.Square)
+                            drawRect(color = if (upgradeLevel == 4) apexAuraColor else Color.White, topLeft = Offset(tcx - pUnit * 0.7f, tcy - pUnit * 0.7f), size = Size(pUnit * 1.4f, pUnit * 1.4f))
+                        }
                     }
                 }
             }
@@ -1055,6 +1224,20 @@ fun GameCanvas(
                 TowerClass.HEAVY_SIEGE -> {
                     val bS = if (upgradeLevel >= 3) 6f else 5f
                     drawRect(color = badgeColor, topLeft = Offset(tcx - bS / 2f, badgeY - bS / 2f), size = Size(bS, bS))
+                }
+                TowerClass.STELLAR_COSMIC -> {
+                    val bR = if (upgradeLevel >= 3) 4.5f else 3.5f
+                    val sPath = Path().apply {
+                        for (i in 0 until 10) {
+                            val r = if (i % 2 == 0) bR else bR * 0.5f
+                            val angle = (i * PI / 5f - PI / 2f).toFloat()
+                            val px = tcx + cos(angle) * r
+                            val py = badgeY + sin(angle) * r
+                            if (i == 0) moveTo(px, py) else lineTo(px, py)
+                        }
+                        close()
+                    }
+                    drawPath(path = sPath, color = badgeColor)
                 }
             }
         }
@@ -1191,6 +1374,31 @@ fun GameCanvas(
                         drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
                     }
                 }
+                EnemyShape.STAR -> {
+                    val starRadius = enemyRadius * 1.30f
+                    val innerRadius = starRadius * 0.48f
+                    val starPath = Path().apply {
+                        for (i in 0 until 10) {
+                            val r = if (i % 2 == 0) starRadius else innerRadius
+                            val angle = (i * PI / 5f - PI / 2f).toFloat() + enemy.headingRad
+                            val px = ecx + cos(angle) * r
+                            val py = ecy + sin(angle) * r
+                            if (i == 0) moveTo(px, py) else lineTo(px, py)
+                        }
+                        close()
+                    }
+
+                    if (enemy.isBoss) {
+                        drawPath(path = starPath, color = Color(0xFF581C87))
+                        drawPath(path = starPath, color = affinityColor, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+                        drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
+                    } else {
+                        drawPath(path = starPath, color = enemyColor)
+                        drawPath(path = starPath, color = affinityColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+                        drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
+                        drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
+                    }
+                }
             }
 
             val hpBarW = cellW * 0.70f * enemy.type.sizeRatio
@@ -1234,7 +1442,7 @@ fun GameCanvas(
         // Tactical Tutorial Pointer: Animated bouncing arrow pointing to a boosted pad near the beginning/center on Wave 1
         if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
             val candidates = level.tiles.filter { it.type == TileType.EMPTY }
-            val targetTile = candidates.maxByOrNull { tile ->
+            val targetTile = candidates.filter { it.buff != TileBuff.NONE }.firstOrNull() ?: candidates.maxByOrNull { tile ->
                 val hasBuffScore = if (tile.buff != TileBuff.NONE) 100f else 0f
                 val spawnerAlpha = level.laneAlpha.first()
                 val spawnerBeta = level.laneBeta.first()

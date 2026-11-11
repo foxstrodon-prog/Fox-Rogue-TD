@@ -139,6 +139,18 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var waveHasStartedSpawning: Boolean = false
     private var updateDismissedForSession: Boolean = false
 
+    // Zero-allocation Uniform Grid Spatial Partitioning (Leo & Dr. Alan)
+    val spatialGrid = com.example.engine.SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 16)
+
+    // Real-Time Telemetry Probes (Tessa)
+    var currentFps: Int = 60
+        private set
+    var frameJitterMs: Float = 0.5f
+        private set
+
+    private val frameTimes = LongArray(30)
+    private var frameCount = 0
+
     init {
         val config = _uiState.value.balanceConfig
         soundManager.setMasterVolumeLevel(config.masterVolume)
@@ -260,6 +272,17 @@ class RogueTDViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(isSettingsOpen = open) }
     }
 
+    fun openTelemetryFromPauseMenu() {
+        refreshTelemetry()
+        fetchOnlineLeaderboard()
+        _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true) }
+    }
+
+    fun openSettingsFromPauseMenu() {
+        refreshTelemetry()
+        _uiState.update { it.copy(isPauseMenuOpen = false, isSettingsOpen = true) }
+    }
+
     fun isInternalDialogActive(): Boolean {
         val s = _uiState.value
         return s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.showEndRunConfirmDialog || s.showUpdateModal
@@ -377,6 +400,40 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun resetTowerPerformance() {
         telemetryManager.resetTowerPerformance()
         _uiState.update { it.copy(towerPerformance = telemetryManager.getTowerPerformance()) }
+    }
+
+    /**
+     * Spawns a custom test formation into the active map lanes (Tessa's Sandbox).
+     */
+    fun spawnSandboxWave(enemyType: EnemyType, count: Int) {
+        val level = _uiState.value.level ?: return
+        val baseBal = _uiState.value.balanceConfig.getEnemyBalance(enemyType)
+        val newEnemies = mutableListOf<EnemyInstance>()
+        for (i in 0 until count) {
+            val laneIndex = i % 2
+            val path = if (laneIndex == 0) level.laneAlpha else level.laneBeta
+            val start = path.first()
+            val newEnemy = EnemyInstance(
+                id = UUID.randomUUID().toString(),
+                type = enemyType,
+                laneIndex = laneIndex,
+                currentPathSegmentIndex = 0,
+                segmentProgress = -(i * 0.35f),
+                maxHp = baseBal.hp,
+                currentHp = baseBal.hp,
+                speed = baseBal.speed,
+                worldX = start.x.toFloat(),
+                worldY = start.y.toFloat(),
+                isBoss = (enemyType == EnemyType.BOSS)
+            )
+            newEnemies.add(newEnemy)
+        }
+        _uiState.update { current ->
+            current.copy(
+                enemies = current.enemies + newEnemies,
+                isWaveActive = true
+            )
+        }
     }
 
     fun toggleSynergyPanel() {
@@ -605,9 +662,27 @@ class RogueTDViewModel @JvmOverloads constructor(
                 val deltaMs = (now - lastTime).coerceAtMost(50L)
                 lastTime = now
 
+                // Telemetry tracking: FPS & Frame-time Jitter (Tessa)
+                val idx = frameCount % 30
+                frameTimes[idx] = deltaMs
+                frameCount++
+                if (frameCount % 15 == 0) {
+                    val count = minOf(frameCount, 30)
+                    var sum = 0L
+                    for (i in 0 until count) sum += frameTimes[i]
+                    val avgDelta = sum.toDouble() / count
+                    currentFps = if (avgDelta > 0) (1000.0 / avgDelta).toInt().coerceIn(1, 120) else 60
+                    var sumSq = 0.0
+                    for (i in 0 until count) {
+                        val diff = frameTimes[i] - avgDelta
+                        sumSq += diff * diff
+                    }
+                    frameJitterMs = Math.sqrt(sumSq / count).toFloat()
+                }
+
                 val speed = _uiState.value.gameSpeed.multiplier
                 val simDeltaSec = (deltaMs / 1000f) * (if (speed > 0f) speed else 1.0f)
-                if (speed > 0f && !_uiState.value.isGameOver) {
+                if (speed > 0f && !_uiState.value.isGameOver && !isInternalDialogActive()) {
                     tickSimulation(simDeltaSec, (deltaMs * speed).toLong(), now)
                 } else {
                     _uiState.update { it.copy(animTimeMs = now) }
@@ -707,6 +782,9 @@ class RogueTDViewModel @JvmOverloads constructor(
             }
         }
 
+        // Rebuild Spatial Hash Grid for O(1) bucket lookups across all towers & projectiles (Leo & Dr. Alan)
+        spatialGrid.rebuild(survivingEnemies)
+
         // Core Damage & Screen Shake
         var newCoreHp = state.coreHp
         var gameOver = state.isGameOver
@@ -805,9 +883,9 @@ class RogueTDViewModel @JvmOverloads constructor(
             val towerX = tower.gridPos.x.toFloat()
             val towerY = tower.gridPos.y.toFloat()
 
-            // Targets in range across BOTH lanes!
+            // Targets in range across BOTH lanes! (Optimized via SpatialHashGrid)
             // Euclidean distance check matching exact indicated circular perimeter: dist <= effectiveRange + enemy.type.hitRadius
-            val inRangeEnemies = survivingEnemies.filter { enemy ->
+            val inRangeEnemies = spatialGrid.queryNearby(towerX, towerY, effectiveRange + 0.6f).filter { enemy ->
                 val dist = hypot(enemy.worldX - tower.gridPos.x, enemy.worldY - tower.gridPos.y)
                 dist <= (effectiveRange + enemy.type.hitRadius)
             }
@@ -835,6 +913,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                     TowerClass.KINETIC_BALLISTIC -> state.kineticSfxSlot
                     TowerClass.ELEMENTAL_VOID -> state.elementalSfxSlot
                     TowerClass.HEAVY_SIEGE -> state.siegeSfxSlot
+                    TowerClass.STELLAR_COSMIC -> 1
                 }
                 soundManager.playTurretFire(tower.towerClass, sfxSlot)
 
@@ -844,6 +923,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                     TowerClass.KINETIC_BALLISTIC -> state.balanceConfig.kineticDamageMultiplier
                     TowerClass.ELEMENTAL_VOID -> state.balanceConfig.elementalDamageMultiplier
                     TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
+                    TowerClass.STELLAR_COSMIC -> 1.15f
                 }
                 val baseDmg = customTConfig.damage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
                 val isCrit = Random.nextFloat() < globalCritRate
@@ -970,6 +1050,26 @@ class RogueTDViewModel @JvmOverloads constructor(
                             }
                         }
                     }
+                    TowerType.STELLAR -> {
+                        newProjectiles.add(
+                            Projectile(
+                                id = UUID.randomUUID().toString(),
+                                startX = towerX,
+                                startY = towerY,
+                                currentX = towerX,
+                                currentY = towerY,
+                                targetEnemyId = target.id,
+                                targetX = target.worldX,
+                                targetY = target.worldY,
+                                speed = 9.0f,
+                                damage = finalDmg,
+                                isCrit = isCrit,
+                                color = 0xFFFFD700,
+                                sourceShape = EnemyShape.STAR,
+                                sourceAffinity = ElementAffinity.YELLOW
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -1045,11 +1145,12 @@ class RogueTDViewModel @JvmOverloads constructor(
             tile?.buff == TileBuff.CONDUIT
         }
         val conduitIncomeBonus = 1.0f + (conduitTilesCount * 0.15f)
+        val padEconomyBonus = 1.0f + (harmonicCount * 0.03f)
 
         for (enemy in survivingEnemies) {
             if (enemy.isDead) {
                 killsGained++
-                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * conduitIncomeBonus * harmonicIncomeMul).roundToInt().coerceAtLeast(1)
+                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
                 scrapGained += bounty
 
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700)
@@ -1383,6 +1484,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 TowerClass.KINETIC_BALLISTIC -> "⚔️"
                 TowerClass.ELEMENTAL_VOID -> "✨"
                 TowerClass.HEAVY_SIEGE -> "💥"
+                TowerClass.STELLAR_COSMIC -> "★"
             }
             GlobalAuraSynergy(
                 auraName = aura.name,
@@ -1496,10 +1598,60 @@ class RogueTDViewModel @JvmOverloads constructor(
                 TowerType.MORTAR -> updated.copy(globalMortarSplashBonus = updated.globalMortarSplashBonus + 0.25f)
                 TowerType.LASER -> updated.copy(globalSolarCritsEnabled = true)
                 TowerType.VOID -> updated.copy(globalVoidShredEnabled = true, scrapBountyBonus = updated.scrapBountyBonus + 0.35f)
+                TowerType.STELLAR -> updated.copy(globalDamageBonus = updated.globalDamageBonus + 0.20f)
             }
         }
 
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "★ APEX ASCENDED! ★", 0xFFFFB800)
+    }
+
+    private var lastBoosterSwapTimeMs: Long = 0L
+
+    fun swapBoosterPads() {
+        val now = System.currentTimeMillis()
+        if (now - lastBoosterSwapTimeMs < 750L) return
+        val level = _uiState.value.level ?: return
+        val currentTowers = _uiState.value.towers.toMutableList()
+        if (currentTowers.isEmpty()) return
+
+        val padPairs = listOf(TileBuff.AMPLIFIER, TileBuff.HIGH_GROUND, TileBuff.CONDUIT)
+        var swappedAny = false
+
+        for (buffType in padPairs) {
+            val pads = level.tiles.filter { it.buff == buffType }
+            if (pads.size == 2) {
+                val pad1 = pads[0].pos
+                val pad2 = pads[1].pos
+                val tower1 = currentTowers.firstOrNull { it.gridPos == pad1 }
+                val tower2 = currentTowers.firstOrNull { it.gridPos == pad2 }
+
+                if (tower1 != null && tower2 != null) {
+                    val idx1 = currentTowers.indexOf(tower1)
+                    val idx2 = currentTowers.indexOf(tower2)
+                    currentTowers[idx1] = tower1.copy(gridPos = pad2)
+                    currentTowers[idx2] = tower2.copy(gridPos = pad1)
+                    swappedAny = true
+                    addFloatingText(pad1.x.toFloat(), pad1.y.toFloat(), "⇄ TELEPORT", 0xFF00F0FF)
+                    addFloatingText(pad2.x.toFloat(), pad2.y.toFloat(), "⇄ TELEPORT", 0xFF00F0FF)
+                } else if (tower1 != null && tower2 == null) {
+                    val idx1 = currentTowers.indexOf(tower1)
+                    currentTowers[idx1] = tower1.copy(gridPos = pad2)
+                    swappedAny = true
+                    addFloatingText(pad2.x.toFloat(), pad2.y.toFloat(), "⇄ TELEPORT", 0xFF00F0FF)
+                } else if (tower1 == null && tower2 != null) {
+                    val idx2 = currentTowers.indexOf(tower2)
+                    currentTowers[idx2] = tower2.copy(gridPos = pad1)
+                    swappedAny = true
+                    addFloatingText(pad1.x.toFloat(), pad1.y.toFloat(), "⇄ TELEPORT", 0xFF00F0FF)
+                }
+            }
+        }
+
+        if (swappedAny) {
+            lastBoosterSwapTimeMs = now
+            soundManager.playPlacement()
+            _uiState.update { it.copy(towers = currentTowers) }
+        }
     }
 
     fun sellSelectedTower() {

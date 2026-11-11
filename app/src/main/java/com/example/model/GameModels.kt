@@ -105,6 +105,14 @@ enum class TowerClass(
         baseCost = 210,
         themeColor = 0xFFFF7A00,
         description = "Unlocked after 2 Tier 3 towers. Specializes in destroying high-armor bruisers and boss colossi."
+    ),
+    STELLAR_COSMIC(
+        classId = "stellar",
+        displayName = "Stellar Star",
+        subtitle = "Cosmic Flare, Singularity & Gravity Warp",
+        baseCost = 180,
+        themeColor = 0xFFFFD700,
+        description = "Unlocked after 3 Tier 3 towers. Manipulates cosmic gravity, supernovas, and event horizons."
     );
 
     val color: Long get() = themeColor
@@ -112,11 +120,13 @@ enum class TowerClass(
         KINETIC_BALLISTIC -> "●"
         ELEMENTAL_VOID -> "▲"
         HEAVY_SIEGE -> "■"
+        STELLAR_COSMIC -> "★"
     }
     val shapeName: String get() = when (this) {
         KINETIC_BALLISTIC -> "Circle"
         ELEMENTAL_VOID -> "Triangle"
         HEAVY_SIEGE -> "Square"
+        STELLAR_COSMIC -> "Star"
     }
 }
 
@@ -596,6 +606,149 @@ enum class TowerArchetype(
         color = 0xFFB45309,
         primaryAura = AuraOption("War Chest Dividend", "+50% Scrap Credits awarded at the completion of each wave", "+50% WAVE CR"),
         secondaryAura = AuraOption("Compound Interest", "Earn +5% bonus Credits based on current bank every wave", "+5% INTEREST")
+    ),
+
+    // ==========================================
+    // CLASS 4: STELLAR STAR (9 Archetypes)
+    // ==========================================
+    // Offensive (3)
+    SUPERNOVA_PULSAR(
+        archetypeId = "supernova_pulsar",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.OFFENSIVE,
+        displayName = "Supernova Pulsar",
+        role = "Cosmic Flare & Radial Shockwaves",
+        baseCost = 210,
+        baseRange = 3.6f,
+        baseDamage = 115f,
+        baseFireRate = 1.6f,
+        color = 0xFFFBBF24,
+        primaryAura = AuraOption("Supernova Flare", "+25% Radiant Splash Damage to all explosive weapons", "+25% RADIANT"),
+        secondaryAura = AuraOption("Cosmic Radiation", "15% chance to blind hostiles, reducing speed by 30%", "BLIND 30%"),
+        isSplash = true,
+        splashRadius = 2.2f
+    ),
+    GRAVITON_LANCE(
+        archetypeId = "graviton_lance",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.OFFENSIVE,
+        displayName = "Graviton Lance",
+        role = "Hyper-Dense Gravity Piercing Beam",
+        baseCost = 230,
+        baseRange = 3.8f,
+        baseDamage = 85f,
+        baseFireRate = 4.2f,
+        color = 0xFFF59E0B,
+        primaryAura = AuraOption("Gravity Well Aura", "Draws surrounding creeps inward towards the beam focal point", "GRAV WELL"),
+        secondaryAura = AuraOption("Singularity Pull", "Reverses enemy movement for 0.8s on impact", "REVERSE 0.8s"),
+        isBeam = true
+    ),
+    CELESTIAL_COMET(
+        archetypeId = "celestial_comet",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.OFFENSIVE,
+        displayName = "Celestial Comet",
+        role = "Lobbed Meteor Detonating Into Star Fragments",
+        baseCost = 260,
+        baseRange = 4.8f,
+        baseDamage = 220f,
+        baseFireRate = 0.65f,
+        color = 0xFFFB923C,
+        primaryAura = AuraOption("Meteor Storm", "+30% Meteor blast radius and leaves a 4s stardust pool", "+30% BLAST"),
+        secondaryAura = AuraOption("Asteroid Impact", "Bosses take +40% impact damage", "+40% BOSS"),
+        isSplash = true,
+        splashRadius = 2.5f
+    ),
+
+    // Defensive (3)
+    EVENT_HORIZON(
+        archetypeId = "event_horizon",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.DEFENSIVE,
+        displayName = "Event Horizon",
+        role = "Space-Time Distortion Field Trapping Creeps",
+        baseCost = 200,
+        baseRange = 2.8f,
+        baseDamage = 55f,
+        baseFireRate = 2.4f,
+        color = 0xFFEAB308,
+        primaryAura = AuraOption("Time Dilation", "All enemies in range have attack speed and movement halved", "50% DILATE"),
+        secondaryAura = AuraOption("Temporal Lock", "Freezes target in time for 1.5s when health drops below 50%", "STASIS 1.5s"),
+        slowPercent = 0.50f
+    ),
+    NEBULA_AEGIS(
+        archetypeId = "nebula_aegis",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.DEFENSIVE,
+        displayName = "Nebula Aegis",
+        role = "Protective Cosmic Barrier Pulsing Defense Waves",
+        baseCost = 220,
+        baseRange = 3.2f,
+        baseDamage = 70f,
+        baseFireRate = 1.8f,
+        color = 0xFFFCD34D,
+        primaryAura = AuraOption("Stellar Shield", "Grants nearby turrets 20% faster weapon charge and heals Core +1 HP every 3 waves", "SHIELD +1HP"),
+        secondaryAura = AuraOption("Solar Flare Repulsor", "Knocks back creeps within 2 tiles when shield pulses", "KNOCKBACK")
+    ),
+    BLACK_HOLE_SENTRY(
+        archetypeId = "black_hole_sentry",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.DEFENSIVE,
+        displayName = "Singularity Bastion",
+        role = "Micro-Black Hole Generator Clustering Enemies",
+        baseCost = 250,
+        baseRange = 3.4f,
+        baseDamage = 95f,
+        baseFireRate = 1.2f,
+        color = 0xFFB45309,
+        primaryAura = AuraOption("Vortex Trap", "Pulls up to 5 enemies together, enabling massive AoE combos", "VORTEX 5x"),
+        secondaryAura = AuraOption("Gravitational Collapse", "Executes normal creeps below 15% health", "EXEC 15%"),
+        isSplash = true,
+        splashRadius = 2.8f
+    ),
+
+    // Support (3)
+    CHRONO_PYLON(
+        archetypeId = "chrono_pylon",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.SUPPORT,
+        displayName = "Chrono Pylon",
+        role = "Accelerates Reload Cycles of Neighboring Towers",
+        baseCost = 190,
+        baseRange = 4.0f,
+        baseDamage = 35f,
+        baseFireRate = 2.0f,
+        color = 0xFFFDE047,
+        primaryAura = AuraOption("Temporal Haste", "+25% Attack speed to all towers within 3 tiles", "+25% HASTE"),
+        secondaryAura = AuraOption("Time Warp", "Increases global game economy scrap ticks by 15%", "+15% SCRAP TICK")
+    ),
+    STARLIGHT_BEACON(
+        archetypeId = "starlight_beacon",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.SUPPORT,
+        displayName = "Starlight Beacon",
+        role = "Celestial Illumination & Critical Amplification",
+        baseCost = 210,
+        baseRange = 4.5f,
+        baseDamage = 45f,
+        baseFireRate = 2.2f,
+        color = 0xFFFEF08A,
+        primaryAura = AuraOption("Prismatic Insight", "All allied turrets gain +25% Critical Hit Chance against illuminated targets", "+25% CRIT"),
+        secondaryAura = AuraOption("Cosmic Radiance", "Reveals and strips cloaked/stealthed creeps instantly", "TRUE SIGHT")
+    ),
+    ASTRAL_HARVESTER(
+        archetypeId = "astral_harvester",
+        towerClass = TowerClass.STELLAR_COSMIC,
+        vector = TowerVector.SUPPORT,
+        displayName = "Astral Harvester",
+        role = "Siphons Ambient Cosmic Energy into Scrap",
+        baseCost = 230,
+        baseRange = 3.2f,
+        baseDamage = 40f,
+        baseFireRate = 1.6f,
+        color = 0xFFCA8A04,
+        primaryAura = AuraOption("Cosmic Harvest", "Creeps killed within aura range drop +40% scrap", "+40% SCRAP"),
+        secondaryAura = AuraOption("Quantum Interest", "Generates +15 Scrap at the end of each wave per occupied booster pad", "+15c/PAD")
     );
 
     val globalBuffName: String get() = primaryAura.name
@@ -610,6 +763,7 @@ fun mapTypeToArchetype(type: TowerType): TowerArchetype {
         TowerType.MORTAR -> TowerArchetype.HELLFIRE_MORTAR
         TowerType.LASER -> TowerArchetype.SOLAR_DEATH_RAY
         TowerType.VOID -> TowerArchetype.GRAVITON_VOID
+        TowerType.STELLAR -> TowerArchetype.SUPERNOVA_PULSAR
     }
 }
 
@@ -633,7 +787,7 @@ enum class TowerType(
         baseCost = 100,
         baseRange = 2.5f,
         baseDamage = 24f,
-        baseFireRate = 3.8f,
+        baseFireRate = 2.4f,
         color = 0xFF00F0FF
     ),
     CRYO(
@@ -642,7 +796,7 @@ enum class TowerType(
         baseCost = 130,
         baseRange = 2.4f,
         baseDamage = 18f,
-        baseFireRate = 5.2f,
+        baseFireRate = 3.2f,
         color = 0xFF38BDF8,
         isBeam = true,
         slowPercent = 0.50f
@@ -688,6 +842,17 @@ enum class TowerType(
         color = 0xFF8B5CF6,
         isSplash = true,
         splashRadius = 2.5f
+    ),
+    STELLAR(
+        displayName = "Stellar Star",
+        role = "Cosmic Flare & Gravitational Warp",
+        baseCost = 180,
+        baseRange = 3.6f,
+        baseDamage = 65f,
+        baseFireRate = 1.8f,
+        color = 0xFFFFD700,
+        isSplash = true,
+        splashRadius = 2.0f
     )
 }
 
@@ -745,6 +910,7 @@ data class TowerInstance(
         TowerClass.KINETIC_BALLISTIC -> EnemyShape.CIRCLE
         TowerClass.ELEMENTAL_VOID -> EnemyShape.TRIANGLE
         TowerClass.HEAVY_SIEGE -> EnemyShape.SQUARE
+        TowerClass.STELLAR_COSMIC -> EnemyShape.STAR
     }
 
     val affinity: ElementAffinity get() = when (archetype?.vector ?: vector) {
@@ -758,7 +924,7 @@ data class TowerInstance(
             else -> when (type) {
                 TowerType.GATLING, TowerType.MORTAR -> ElementAffinity.RED
                 TowerType.CRYO, TowerType.VOID -> ElementAffinity.GREEN
-                TowerType.TESLA, TowerType.LASER -> ElementAffinity.YELLOW
+                TowerType.TESLA, TowerType.LASER, TowerType.STELLAR -> ElementAffinity.YELLOW
             }
         }
     }
@@ -788,6 +954,7 @@ data class TowerInstance(
             TowerClass.KINETIC_BALLISTIC -> balanceConfig.kineticDamageMultiplier
             TowerClass.ELEMENTAL_VOID -> balanceConfig.elementalDamageMultiplier
             TowerClass.HEAVY_SIEGE -> balanceConfig.heavyDamageMultiplier
+            TowerClass.STELLAR_COSMIC -> 1.0f
         }
         return bal.damage * classDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
     }
@@ -856,6 +1023,7 @@ data class TowerInstance(
                 TowerClass.KINETIC_BALLISTIC -> "Basic Turret"
                 TowerClass.ELEMENTAL_VOID -> "Elemental Conduit"
                 TowerClass.HEAVY_SIEGE -> "Heavy Siege Platform"
+                TowerClass.STELLAR_COSMIC -> "Stellar Star Node"
             }
         }
     }
@@ -886,11 +1054,12 @@ enum class EnemyRole(val label: String, val primaryColor: Long, val accentColor:
     SUPPORT("Support", 0xFF10B981, 0xFFFBBF24, "SUP")     // Emerald / amber
 }
 
-/** Geometric archetype of an enemy: Circle = swarm, Triangle = striker, Square = bruiser. */
+/** Geometric archetype of an enemy: Circle = swarm, Triangle = striker, Square = bruiser, Star = stellar. */
 enum class EnemyShape(val label: String, val hitboxScale: Float) {
     CIRCLE("Swarm", 1.00f),
     TRIANGLE("Striker", 0.90f),
-    SQUARE("Bruiser", 1.20f)
+    SQUARE("Bruiser", 1.20f),
+    STAR("Stellar", 1.10f)
 }
 
 /** Aura behaviour projected by SUPPORT-role enemies onto allies in range. */
@@ -915,7 +1084,7 @@ enum class EnemyType(
         baseHp = 45f,
         baseSpeed = 1.60f,
         baseArmor = 0f,
-        scrapValue = 12,
+        scrapValue = 5,
         color = 0xFFFF3B30,
         sizeRatio = 0.55f,
         role = EnemyRole.ATTACK,
@@ -927,7 +1096,7 @@ enum class EnemyType(
         baseHp = 115f,
         baseSpeed = 1.15f,
         baseArmor = 0.10f,
-        scrapValue = 20,
+        scrapValue = 8,
         color = 0xFF22D3EE,
         sizeRatio = 0.75f,
         role = EnemyRole.DEFENSE,
@@ -939,7 +1108,7 @@ enum class EnemyType(
         baseHp = 75f,
         baseSpeed = 2.05f,
         baseArmor = 0.05f,
-        scrapValue = 24,
+        scrapValue = 10,
         color = 0xFFFF8A00,
         sizeRatio = 0.60f,
         role = EnemyRole.ATTACK,
@@ -951,7 +1120,7 @@ enum class EnemyType(
         baseHp = 420f,
         baseSpeed = 0.72f,
         baseArmor = 0.35f,
-        scrapValue = 48,
+        scrapValue = 20,
         color = 0xFF2F6BFF,
         sizeRatio = 0.95f,
         role = EnemyRole.DEFENSE,
@@ -963,7 +1132,7 @@ enum class EnemyType(
         baseHp = 240f,
         baseSpeed = 0.98f,
         baseArmor = 0.20f,
-        scrapValue = 38,
+        scrapValue = 18,
         color = 0xFF10B981,
         sizeRatio = 0.85f,
         role = EnemyRole.SUPPORT,
@@ -977,7 +1146,7 @@ enum class EnemyType(
         baseHp = 2000f,
         baseSpeed = 0.58f,
         baseArmor = 0.30f,
-        scrapValue = 220,
+        scrapValue = 90,
         color = 0xFF2F6BFF,
         sizeRatio = 1.40f,
         role = EnemyRole.DEFENSE,
@@ -989,7 +1158,7 @@ enum class EnemyType(
         baseHp = 150f,
         baseSpeed = 1.05f,
         baseArmor = 0.05f,
-        scrapValue = 34,
+        scrapValue = 15,
         color = 0xFF10B981,
         sizeRatio = 0.70f,
         role = EnemyRole.SUPPORT,
@@ -1003,7 +1172,7 @@ enum class EnemyType(
         baseHp = 130f,
         baseSpeed = 1.20f,
         baseArmor = 0.05f,
-        scrapValue = 36,
+        scrapValue = 15,
         color = 0xFFFBBF24,
         sizeRatio = 0.70f,
         role = EnemyRole.SUPPORT,
@@ -1011,6 +1180,44 @@ enum class EnemyType(
         elementAffinity = ElementAffinity.YELLOW,
         supportKind = SupportKind.HASTE,
         auraRadius = 1.9f
+    ),
+    STELLAR_PROBE(
+        displayName = "Stellar Probe",
+        baseHp = 85f,
+        baseSpeed = 1.45f,
+        baseArmor = 0.15f,
+        scrapValue = 12,
+        color = 0xFFFFD700,
+        sizeRatio = 0.65f,
+        role = EnemyRole.ATTACK,
+        shape = EnemyShape.STAR,
+        elementAffinity = ElementAffinity.YELLOW
+    ),
+    COSMIC_WEAVER(
+        displayName = "Cosmic Weaver",
+        baseHp = 210f,
+        baseSpeed = 1.05f,
+        baseArmor = 0.25f,
+        scrapValue = 20,
+        color = 0xFFF59E0B,
+        sizeRatio = 0.85f,
+        role = EnemyRole.SUPPORT,
+        shape = EnemyShape.STAR,
+        elementAffinity = ElementAffinity.RED,
+        supportKind = SupportKind.HASTE,
+        auraRadius = 1.8f
+    ),
+    ASTRAL_COLOSSUS(
+        displayName = "Astral Colossus",
+        baseHp = 680f,
+        baseSpeed = 0.65f,
+        baseArmor = 0.40f,
+        scrapValue = 50,
+        color = 0xFFA855F7,
+        sizeRatio = 1.05f,
+        role = EnemyRole.DEFENSE,
+        shape = EnemyShape.STAR,
+        elementAffinity = ElementAffinity.GREEN
     );
 
     /** Collision / targeting radius in grid cells (shape-aware, distinct per archetype). */
@@ -1238,12 +1445,14 @@ data class ThemeSkinConfig(
         TowerClass.KINETIC_BALLISTIC -> kineticColor
         TowerClass.ELEMENTAL_VOID -> elementalColor
         TowerClass.HEAVY_SIEGE -> siegeColor
+        TowerClass.STELLAR_COSMIC -> 0xFFFFD700
     }
 
     fun towerStyle(cls: TowerClass): TowerDrawStyle = when (cls) {
         TowerClass.KINETIC_BALLISTIC -> kineticStyle
         TowerClass.ELEMENTAL_VOID -> elementalStyle
         TowerClass.HEAVY_SIEGE -> siegeStyle
+        TowerClass.STELLAR_COSMIC -> kineticStyle
     }
 }
 
@@ -1528,12 +1737,12 @@ data class DevBalanceConfig(
     }
 
     companion object {
-        fun getAll39TowerDescriptors(): List<TowerBalanceDescriptor> {
+        fun getAll52TowerDescriptors(): List<TowerBalanceDescriptor> {
             val list = mutableListOf<TowerBalanceDescriptor>()
-            val baseTypes = listOf(TowerType.GATLING, TowerType.CRYO, TowerType.TESLA)
+            val baseTypes = listOf(TowerType.GATLING, TowerType.CRYO, TowerType.TESLA, TowerType.STELLAR)
 
             for (type in baseTypes) {
-                // L1 Base (3 towers)
+                // L1 Base (4 towers)
                 list.add(
                     TowerBalanceDescriptor(
                         key = type.name,
@@ -1553,7 +1762,7 @@ data class DevBalanceConfig(
                     )
                 )
 
-                // L2 Tier 1 Options (9 towers: 3 per base)
+                // L2 Tier 1 Options (12 towers: 3 per base)
                 val t1Options = com.example.engine.TowerUpgradeManager.getTier1Options(type)
                 for (opt in t1Options) {
                     list.add(
@@ -1572,7 +1781,7 @@ data class DevBalanceConfig(
                     )
                 }
 
-                // L3 Final Forms (27 towers: 9 per base)
+                // L3 Final Forms (36 towers: 9 per base)
                 val finalForms = com.example.engine.TowerUpgradeManager.get9FinalForms(type)
                 for (ff in finalForms) {
                     list.add(
@@ -1593,6 +1802,10 @@ data class DevBalanceConfig(
                 }
             }
             return list
+        }
+
+        fun getAll39TowerDescriptors(): List<TowerBalanceDescriptor> {
+            return getAll52TowerDescriptors().filter { it.family != TowerType.STELLAR }
         }
     }
 

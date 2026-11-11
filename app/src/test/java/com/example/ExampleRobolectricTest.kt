@@ -157,12 +157,12 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `27 archetypes and 54 total auras across 3 classes test`() {
+  fun `36 archetypes and 72 total auras across 4 classes test`() {
     val classes = com.example.model.TowerClass.values()
-    assertEquals(3, classes.size)
+    assertEquals(4, classes.size)
 
     val archetypes = com.example.model.TowerArchetype.values()
-    assertEquals(27, archetypes.size)
+    assertEquals(36, archetypes.size)
 
     // 9 archetypes per class (3 Offensive, 3 Defensive, 3 Support)
     classes.forEach { cls ->
@@ -175,7 +175,7 @@ class ExampleRobolectricTest {
       }
     }
 
-    // Verify 54 total distinct auras (2 per archetype)
+    // Verify 72 total distinct auras (2 per archetype)
     val allAuras = mutableListOf<String>()
     archetypes.forEach { arch ->
       assertNotNull(arch.primaryAura)
@@ -187,8 +187,8 @@ class ExampleRobolectricTest {
       allAuras.add(arch.primaryAura.name)
       allAuras.add(arch.secondaryAura.name)
     }
-    assertEquals(54, allAuras.size)
-    assertEquals(54, allAuras.distinct().size)
+    assertEquals(72, allAuras.size)
+    assertEquals(72, allAuras.distinct().size)
   }
 
   @Test
@@ -502,17 +502,17 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 0 013`() {
-    assertEquals("0.0.0.013", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(21, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 002`() {
+    assertEquals("0.0.1.002", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(23, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
   fun `verify app update manager version comparison`() {
     val context = org.robolectric.RuntimeEnvironment.getApplication()
     val updater = com.example.engine.AppUpdateManager(context)
-    assertTrue(updater.isNewerVersion("v0.0.0.013", "0.0.0.012"))
-    assertTrue(updater.isNewerVersion("0.0.0.013", "0.0.0.012"))
+    assertTrue(updater.isNewerVersion("v0.0.1.001", "0.0.0.013"))
+    assertTrue(updater.isNewerVersion("0.0.1.001", "0.0.0.013"))
     assertFalse(updater.isNewerVersion("v0.0.0.011", "0.0.0.011"))
     assertFalse(updater.isNewerVersion("0.0.0.010", "0.0.0.011"))
   }
@@ -770,7 +770,7 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `tier-1 archetype vector colors and 27 advanced tower distinct colors constraint`() {
+  fun `tier-1 archetype vector colors and 36 advanced tower distinct colors constraint`() {
     val offensiveRed = 0xFFFF2A55
     val defensiveGreen = 0xFF00E676
     val supportYellow = 0xFFFFD700
@@ -781,7 +781,7 @@ class ExampleRobolectricTest {
 
     val reservedColors = setOf(offensiveRed, defensiveGreen, supportYellow)
     val archetypes = com.example.model.TowerArchetype.entries
-    assertEquals("Must have 27 specialization upgrades", 27, archetypes.size)
+    assertEquals("Must have 36 specialization upgrades", 36, archetypes.size)
 
     for (arch in archetypes) {
       assertFalse(

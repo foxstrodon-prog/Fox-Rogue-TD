@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Leaderboard scores submission & read rules
+    match /leaderboard/{scoreId} {
+      // Anyone can read non-dev scores
+      allow read: if true;
+
+      // Players can submit honest scores
+      allow create: if request.resource.data.isDevTuned == false
+                    && request.resource.data.score is int
+                    && request.resource.data.score >= 0
+                    && request.resource.data.wavesCleared is int
+                    && request.resource.data.wavesCleared >= 0
+                    && request.resource.data.scrapEarned is int
+                    && request.resource.data.scrapEarned >= 0
+                    && request.resource.data.callsign is string
+                    && request.resource.data.callsign.size() >= 3
+                    && request.resource.data.callsign.size() <= 20;
+
+      // Immutability: Scores cannot be edited or overwritten
+      allow update, delete: if false;
+    }
+
+    // Default deny all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

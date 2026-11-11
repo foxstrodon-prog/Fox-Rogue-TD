@@ -54,6 +54,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
       .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
+      .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
       .post(requestBodyJson.toString().toRequestBody(mediaType))
       .build()
 
@@ -62,10 +63,11 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         when (response.code) {
           200, 201 -> LeaderboardResult.Success(Unit)
           409 -> LeaderboardResult.Success(Unit) // Idempotent: already exists
-          400, 403 -> LeaderboardResult.Failure(
-            FailureKind.SECURITY_REJECTED,
-            "Submission rejected by security rules (${response.code})"
-          )
+          400, 403 -> {
+            val errBody = response.body?.string().orEmpty()
+            val (kind, msg) = parseFirestoreError(response.code, errBody)
+            LeaderboardResult.Failure(kind, msg)
+          }
           429 -> LeaderboardResult.Failure(
             FailureKind.RATE_LIMITED,
             "Firestore rate limit reached (429)"
@@ -133,6 +135,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
       .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
+      .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
       .post(queryJson.toString().toRequestBody(mediaType))
       .build()
 
@@ -147,10 +150,11 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
             val results = parseQueryResults(responseBody)
             LeaderboardResult.Success(results)
           }
-          400, 403 -> LeaderboardResult.Failure(
-            FailureKind.SECURITY_REJECTED,
-            "Query rejected by server (${response.code})"
-          )
+          400, 403 -> {
+            val errBody = response.body?.string().orEmpty()
+            val (kind, msg) = parseFirestoreError(response.code, errBody)
+            LeaderboardResult.Failure(kind, msg)
+          }
           429 -> LeaderboardResult.Failure(
             FailureKind.RATE_LIMITED,
             "Firestore rate limit reached (429)"
@@ -175,6 +179,43 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
     } catch (e: Exception) {
       LeaderboardResult.Failure(FailureKind.MALFORMED_PAYLOAD, "Failed to parse response: ${e.message}", e)
+    }
+  }
+
+  private fun parseFirestoreError(code: Int, body: String): Pair<FailureKind, String> {
+    if (body.isBlank()) {
+      return FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+    }
+    return try {
+      val json = JSONObject(body)
+      val err = json.optJSONObject("error")
+      val msg = err?.optString("message", "") ?: ""
+      val status = err?.optString("status", "") ?: ""
+      val details = err?.optJSONArray("details")
+      var reason = ""
+      if (details != null) {
+        for (i in 0 until details.length()) {
+          val d = details.optJSONObject(i)
+          val r = d?.optString("reason", "") ?: ""
+          if (r.isNotBlank()) reason = r
+        }
+      }
+      when {
+        reason == "SERVICE_DISABLED" || msg.contains("Cloud Firestore API has not been used", ignoreCase = true) || msg.contains("is disabled", ignoreCase = true) -> {
+          FailureKind.SECURITY_REJECTED to "Cloud Firestore API not enabled in Firebase project ($projectId). Scores cached in offline queue."
+        }
+        msg.contains("API key not valid", ignoreCase = true) || reason == "API_KEY_INVALID" -> {
+          FailureKind.SECURITY_REJECTED to "Firebase API Key invalid or expired ($code). Scores cached in offline queue."
+        }
+        status == "PERMISSION_DENIED" -> {
+          FailureKind.SECURITY_REJECTED to "Firestore Security Rules denied access. Scores cached in offline queue."
+        }
+        else -> {
+          FailureKind.SECURITY_REJECTED to (if (msg.isNotBlank()) msg else "Request rejected ($code)")
+        }
+      }
+    } catch (_: Exception) {
+      FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
     }
   }
 
@@ -220,6 +261,8 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   }
 
   companion object {
+    const val ANDROID_CERT_SHA1 = "174775252333dc2e8159f5ac6de1019661c3e897"
+
     fun sanitizeCallsign(raw: String): String {
       val cleaned = raw.trim().filter { it.isLetterOrDigit() || it == '_' || it == '-' || it == ' ' }
       return when {

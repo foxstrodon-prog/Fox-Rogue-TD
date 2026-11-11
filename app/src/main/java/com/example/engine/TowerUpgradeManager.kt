@@ -2,6 +2,12 @@ package com.example.engine
 
 import com.example.model.*
 
+data class PathUpgrade(
+    val name: String,
+    val description: String,
+    val cost: Int
+)
+
 object TowerUpgradeManager {
 
     fun getTier1Options(type: TowerType): List<Tier1FormDef> {
@@ -36,6 +42,11 @@ object TowerUpgradeManager {
                 Tier1FormDef("A", "Graviton Well", "Intense gravity vortex slowing hostiles by 50% and pulling them inward.", (baseCost * 0.8f).toInt(), 1.1f, 1.0f, 1.1f),
                 Tier1FormDef("B", "Armor Dissolution", "Dark matter pulses permanently strip 50% of armor from all hostiles.", (baseCost * 0.85f).toInt(), 1.5f, 1.0f, 1.0f),
                 Tier1FormDef("C", "Tachyon Resonator", "Rapid pulse frequency firing shockwaves 50% faster.", (baseCost * 0.75f).toInt(), 1.0f, 1.50f, 1.0f)
+            )
+            TowerType.STELLAR -> listOf(
+                Tier1FormDef("A", "Supernova Flare", "Radiant cosmic flares dealing amplified splash (+50% splash, +25% damage).", (baseCost * 0.8f).toInt(), 1.25f, 1.0f, 1.0f),
+                Tier1FormDef("B", "Gravity Well", "Dense gravitational suction slowing hostiles by 45% and drawing them inward.", (baseCost * 0.85f).toInt(), 1.2f, 1.0f, 1.15f),
+                Tier1FormDef("C", "Celestial Resonator", "Harmonic astral frequency accelerating firing cadence (+40% fire rate).", (baseCost * 0.75f).toInt(), 1.0f, 1.40f, 1.30f)
             )
         }
     }
@@ -118,85 +129,85 @@ object TowerUpgradeManager {
                 // Branch B (Voltage Step-Up) -> B.a, B.b, B.c
                 FinalFormDef("B.a", "Gigawatt Deathcoil", "Devastating single-target thunderstrike melting bruisers.", c,
                     "High-Tension Surge", "+25% Base Damage to ALL towers", 2.6f, 1.0f, 1.1f),
-                FinalFormDef("B.b", "Static Overload Core", "Shocked hostiles explode with electricity upon taking damage.", c,
-                    "Static Resonance", "Damaged enemies discharge 20% of damage to nearby hostiles", 2.0f, 1.2f, 1.1f),
-                FinalFormDef("B.c", "Ionization Cannon", "Fires ionized lightning beams that strip armor.", c,
-                    "Ionized Plating", "Strips 40% of armor from any enemy entering the lanes", 2.2f, 1.1f, 1.2f),
+                FinalFormDef("B.b", "EMP Disruptor", "Shock pulses completely disable enemy armor and shields for 3s.", c,
+                    "EMP Shockwave", "Disables all hostile passives and shields", 1.9f, 1.2f, 1.0f, "emp"),
+                FinalFormDef("B.c", "Plasma Discharge Tube", "Fires ball lightning floating down the lane.", c,
+                    "Ball Lightning Trail", "Towers deal +15% damage to targets currently suffering shock", 2.1f, 1.2f, 1.2f),
 
                 // Branch C (Flux Capacitors) -> C.a, C.b, C.c
-                FinalFormDef("C.a", "Ball Lightning Emitter", "Releases rolling plasma orbs traveling down the lanes.", c,
-                    "Rolling Plasma Waves", "Spawns automated plasma spheres down Lane Alpha & Beta every 15s", 1.5f, 1.8f, 1.2f),
-                FinalFormDef("C.b", "Empirical Coil", "High-frequency electromagnetic pulses stunning hostiles.", c,
-                    "Micro-EMP Pulse", "All towers have a 10% chance to stun hostiles for 1.0s on hit", 1.7f, 1.6f, 1.2f),
-                FinalFormDef("C.c", "Lightning Rod Array", "Draws energy from defeated hostiles into free scrap.", c,
-                    "Dynamo Harvesting", "+35% Scrap harvested from electrified enemies", 1.6f, 1.7f, 1.1f)
+                FinalFormDef("C.a", "Static Dynamo", "Generates passive power increasing global projectile velocity.", c,
+                    "Kinetic Acceleration Grid", "+35% Projectile Flight Velocity to all turrets", 1.4f, 1.8f, 1.2f),
+                FinalFormDef("C.b", "Supercharged Relay", "Relays bonus energy to adjacent towers granting +25% fire rate.", c,
+                    "Adjacent Overclock", "Towers immediately adjacent gain +25% Fire Rate", 1.5f, 1.7f, 1.3f),
+                FinalFormDef("C.c", "Lightning Rod Siphon", "Harvests atmospheric energy granting +20 Credits per wave.", c,
+                    "Atmospheric Siphon", "+20 Bonus Credits awarded upon clearing any wave", 1.6f, 1.6f, 1.2f)
             )
 
             TowerType.MORTAR -> listOf(
                 // Branch A (Cluster Payload) -> A.a, A.b, A.c
-                FinalFormDef("A.a", "Cluster Storm Fortress", "Shells split into 5 high-explosive bomblets.", c,
-                    "Orbital Cluster Shrapnel", "All explosive attacks gain +30% blast radius", 1.6f, 1.1f, 1.2f),
-                FinalFormDef("A.b", "Bouncing Betty Matrix", "Lobbed munitions skip along the path before detonating.", c,
-                    "Path Denial Traps", "Leaves explosive minelets along lane intersections", 1.8f, 1.1f, 1.3f),
-                FinalFormDef("A.c", "Carpet Bomber Battery", "Rapid salvo of 3 mortar shells per firing cycle.", c,
-                    "Saturation Bombing", "+20% Attack Speed to all artillery and heavy weapons", 1.7f, 1.4f, 1.1f),
+                FinalFormDef("A.a", "Hellfire Carpet Battery", "Lobs dense carpet salvos blanketing entire lanes.", c,
+                    "Carpet Firestorm", "Explosions trigger 3 mini-bomblets dealing 25% AoE damage", 1.7f, 1.2f, 1.1f),
+                FinalFormDef("A.b", "Shrapnel Flak Mortar", "Shells air-burst into razor shrapnel shredding swarms.", c,
+                    "Flak Dispersion", "+35% Splash Radius to all explosive weapons", 1.5f, 1.4f, 1.2f, "splash"),
+                FinalFormDef("A.c", "Thermite Siege Mortar", "Burns through armor plates with sustained high heat.", c,
+                    "Thermite Melt", "Enemies hit by explosions permanently lose 35% armor", 2.1f, 1.1f, 1.0f),
 
                 // Branch B (Incendiary Shells) -> B.a, B.b, B.c
-                FinalFormDef("B.a", "Thermobaric Cataclysm", "Devastating vacuum blast dealing massive splash damage.", c,
-                    "Cataclysmic Shockwaves", "+30% Damage against Colossus and Boss hostiles", 2.6f, 0.9f, 1.1f),
-                FinalFormDef("B.b", "Hellfire Scorcher", "Covers lanes in permanent inferno magma burning for 8s.", c,
-                    "Inferno Ground Heat", "All hostiles in burning zones move 20% slower", 2.1f, 1.1f, 1.1f),
-                FinalFormDef("B.c", "Phosphorus Shells", "White phosphorus shells melting shields and heavy armor.", c,
-                    "Thermal Dissolution", "Hostiles hit by artillery have armor reduced to 0", 2.3f, 1.0f, 1.2f),
+                FinalFormDef("B.a", "Inferno Calamity Spire", "Ignites persistent ground fire pools dealing continuous burn.", c,
+                    "Persistent Firestorm", "Lava pools deal 40 DPS for 5 seconds", 2.0f, 1.0f, 1.1f),
+                FinalFormDef("B.b", "Volcanic Siege Cannon", "Lobs massive molten rock chunks stunning hostiles.", c,
+                    "Volcanic Impact", "Shells have a 25% chance to stun enemies for 1.5s", 2.3f, 0.9f, 1.1f),
+                FinalFormDef("B.c", "Magma Core Battery", "Armor-melting artillery prioritizing armored bruisers.", c,
+                    "Molten Core Protocol", "+30% Damage against bruisers and boss colossi", 2.5f, 0.9f, 1.0f),
 
-                // Branch C (Rifled Barrel) -> C.a, C.b, C.c
-                FinalFormDef("C.a", "Orbital Kinetic Sunderer", "Global-range artillery able to strike any point on the map.", c,
-                    "Global Ballistic Coverage", "+35% Range to all long-range towers", 2.4f, 1.0f, 2.5f),
-                FinalFormDef("C.b", "Concussion Howitzer", "Impact creates a shockwave stunning all hostiles for 2.0s.", c,
-                    "Concussive Tremors", "Bosses take 50% extra impact damage", 2.1f, 1.1f, 1.5f),
-                FinalFormDef("C.c", "Atomic Shell Battery", "Tactical micro-nuclear detonation annihilating swarms.", c,
-                    "Scrap Melter Yield", "+40% Scrap Credits awarded at the end of each wave", 2.5f, 0.9f, 1.4f)
+                // Branch C (Rifled Siege Tube) -> C.a, C.b, C.c
+                FinalFormDef("C.a", "Titan Rail-Mortar", "Extreme-range artillery striking from across the entire map.", c,
+                    "Global Bombardment", "+40% Range to all long-range weapons", 2.2f, 1.1f, 1.6f),
+                FinalFormDef("C.b", "Smart-Munitions Silo", "GPS-guided artillery shells seeking dense clusters.", c,
+                    "Cluster Targeting Net", "+20% Critical Strike Chance on all explosions", 1.9f, 1.3f, 1.3f),
+                FinalFormDef("C.c", "Atomic Shell Battery", "Tactical micro-warheads leaving glowing fallout zones.", c,
+                    "Atomic Fallout", "Defeated enemies award +40% bonus Credits", 2.4f, 1.0f, 1.2f)
             )
 
             TowerType.LASER -> listOf(
-                // Branch A (Thermal Intensity) -> A.a, A.b, A.c
-                FinalFormDef("A.a", "Solar Meltdown Core", "Continuous death ray ramping damage up to 400% on bosses.", c,
-                    "Thermal Meltdown", "Boss and elite enemies take 2x damage from all towers", 2.5f, 1.2f, 1.1f),
-                FinalFormDef("A.b", "Gamma Ray Incinerator", "High-frequency radioactive beam melting armor immediately.", c,
-                    "Gamma Radiation Field", "Hostiles damaged by lasers take +20% damage from all other towers", 2.4f, 1.1f, 1.1f),
-                FinalFormDef("A.c", "Hyper-Focused Particle Lance", "Piercing lance cutting in a straight line through all creeps.", c,
-                    "Line Penetration Optics", "Lasers pierce through all hostiles without damage drop-off", 2.2f, 1.3f, 1.3f),
+                // Branch A (Thermal Concentration) -> A.a, A.b, A.c
+                FinalFormDef("A.a", "Solar Death Ray Apex", "Ultra-dense sustained photon beam melting everything in path.", c,
+                    "Solar Death Core", "Continuous beam ramp-up deals up to 3x base damage over 3s", 2.4f, 1.2f, 1.1f),
+                FinalFormDef("A.b", "Gamma Ray Slicer", "Pierces through all hostiles in a straight vector.", c,
+                    "Linear Gamma Slicer", "Beams punch through up to 5 hostiles simultaneously", 2.0f, 1.3f, 1.2f),
+                FinalFormDef("A.c", "Photon Overcharger", "Emits periodic blinding laser flashes stunning targets.", c,
+                    "Photon Blindness", "Blinds creeps for 2 seconds, reducing attack speed", 1.8f, 1.5f, 1.0f),
 
                 // Branch B (Refraction Splitter) -> B.a, B.b, B.c
-                FinalFormDef("B.a", "Prism Matrix Multi-Beam", "Fires 3 continuous independent death rays.", c,
-                    "Prismatic Resonance", "All laser and beam weapons gain +30% damage", 1.8f, 1.4f, 1.2f),
-                FinalFormDef("B.b", "Kaleidoscope Projector", "Refracts laser into a fan of burning beams.", c,
-                    "Diffuse Optics Net", "+20% Attack Range for all towers", 1.7f, 1.5f, 1.3f),
-                FinalFormDef("B.c", "Orbital Solar Mirror", "Focuses orbital solar beam from the sky onto the intersection.", c,
-                    "Solar Death Sweep", "Periodically burns the lane intersection for massive damage", 2.0f, 1.3f, 1.5f),
+                FinalFormDef("B.a", "Prismatic Tri-Beam", "Splits into 3 independent high-intensity laser streams.", c,
+                    "Tri-Beam Network", "Laser towers can lock onto 3 distinct targets at once", 1.6f, 1.4f, 1.1f),
+                FinalFormDef("B.b", "Kaleidoscope Prism", "Beams scatter into wide-angle cutting fans.", c,
+                    "Prism Dispersion", "+25% Critical Hit Damage to all energy weapons", 1.8f, 1.3f, 1.2f),
+                FinalFormDef("B.c", "Thermal Lance Battery", "Inflicts severe melting debuff on boss hostiles.", c,
+                    "Colossus Melter", "+40% sustained DPS against boss colossi", 2.2f, 1.1f, 1.1f),
 
                 // Branch C (Solar Resonator) -> C.a, C.b, C.c
-                FinalFormDef("C.a", "Solar Flare Nova", "Pulsing thermal flare blinding and burning all hostiles.", c,
-                    "Blinding Solar Flares", "All towers gain +20% Critical Chance and 2.5x Crit Damage", 1.9f, 1.8f, 1.2f),
-                FinalFormDef("C.b", "Tachyon Flash Emitter", "Fires rapid-fire laser pulses like a light machine gun.", c,
-                    "Tachyon Frequency", "+25% Fire Rate to all energy towers", 1.8f, 2.0f, 1.1f),
-                FinalFormDef("C.c", "Solar Battery Collector", "Harnesses solar energy to mint Credits from every burn tick.", c,
-                    "Solar Power Subsidy", "Generates +50 bonus Credits per wave", 1.7f, 1.6f, 1.2f)
+                FinalFormDef("C.a", "Pulsed Tachyon Beam", "Ultra-fast laser pulsing hitting 10 times per second.", c,
+                    "Tachyon Frequency", "+25% Attack Speed to all beam and laser weapons", 1.5f, 2.0f, 1.2f),
+                FinalFormDef("C.b", "Solar Flare Projector", "Emits periodic radial laser pulses around the turret.", c,
+                    "Coronal Pulse", "Pulses a 360-degree thermal wave dealing 100 damage every 4s", 1.9f, 1.4f, 1.3f),
+                FinalFormDef("C.c", "Solar Battery Collector", "Converts excess thermal energy into power and Credits.", c,
+                    "Solar Energy Subsidy", "Generates +50 Credits at the end of each wave", 1.6f, 1.5f, 1.2f)
             )
 
             TowerType.VOID -> listOf(
                 // Branch A (Graviton Well) -> A.a, A.b, A.c
-                FinalFormDef("A.a", "Black Hole Singularity", "Pulls hostiles backwards along the lanes towards the vortex.", c,
-                    "Event Horizon Reversal", "All hostiles in both lanes take 25% longer to advance", 2.2f, 1.2f, 1.3f),
-                FinalFormDef("A.b", "Dark Matter Siphon", "Gravitational drain that siphons enemy HP into Core shields.", c,
-                    "Core Nanite Reconstruction", "Nexus Core gains a regenerating energy shield absorbing 5 hits", 2.0f, 1.2f, 1.2f),
-                FinalFormDef("A.c", "Vortex Annihilator", "Crushes enemies in the vortex with intense gravity pressure.", c,
-                    "Gravitational Squeeze", "Hostiles in the center take 2.5x damage", 2.5f, 1.1f, 1.1f),
+                FinalFormDef("A.a", "Singularity Vortex Engine", "Pulls hostiles inward toward the center of the vortex.", c,
+                    "Gravitational Singularity", "Pulls all nearby creeps into the center of the blast", 1.8f, 1.3f, 1.3f),
+                FinalFormDef("A.b", "Event Horizon Monolith", "Hostiles crossing the event horizon lose 60% speed.", c,
+                    "Time Dilation Field", "All creeps on the field move 20% slower", 1.6f, 1.4f, 1.2f),
+                FinalFormDef("A.c", "Black Hole Generator", "Collapsing dark matter core triggering spatial implosions.", c,
+                    "Spatial Implosion", "Implosion deals 15% enemy max HP as true damage", 2.2f, 1.1f, 1.1f),
 
                 // Branch B (Armor Dissolution) -> B.a, B.b, B.c
-                FinalFormDef("B.a", "Sub-Space Degenerator", "Permanently dissolves 100% of enemy armor and shields.", c,
-                    "Zero Armor Protocol", "All hostiles across BOTH lanes permanently have 0 Armor", 2.2f, 1.1f, 1.2f),
-                FinalFormDef("B.b", "Entropy Catalyst", "Hostiles caught in the vortex take decaying damage over time.", c,
+                FinalFormDef("B.a", "Zero Armor Protocol", "Permanently strips 100% of armor from all hit targets.", c,
+                    "Zero Armor Protocol", "All enemy armor on the battlefield is permanently reduced to 0", 2.1f, 1.1f, 1.1f),
+                FinalFormDef("B.b", "Dark Matter Decimeter", "Eats away at enemy flesh and hulls with entropic decay.", c,
                     "Entropic Decay", "All enemies lose 2% max HP per second while on the field", 2.0f, 1.2f, 1.1f),
                 FinalFormDef("B.c", "Void Devourer", "Swallows hostiles whole when below 20% health.", c,
                     "Devour Bounty", "Instantly consumed enemies award double Credits", 2.4f, 1.1f, 1.1f),
@@ -208,6 +219,32 @@ object TowerUpgradeManager {
                     "Spatial Warp Aura", "Towers adjacent to this tower gain +40% Fire Rate", 1.8f, 1.6f, 1.2f),
                 FinalFormDef("C.c", "Cosmic Singularity Bank", "Tears open cosmic rifts dropping dense scrap caches.", c,
                     "Void Scrap Yield", "+45% Scrap Credits from all defeated enemies", 1.9f, 1.5f, 1.2f)
+            )
+
+            TowerType.STELLAR -> listOf(
+                // Branch A (Supernova Flare) -> A.a, A.b, A.c
+                FinalFormDef("A.a", "Supernova Pulsar", "Emanates periodic starburst shockwaves disintegrating swarms.", c,
+                    "Supernova Flare Grid", "+25% Radiant Splash Damage to all explosive towers", 1.8f, 1.5f, 1.2f),
+                FinalFormDef("A.b", "Solar Flare Cataclysm", "Channels extreme coronal mass ejections burning targets over 4s.", c,
+                    "Coronal Mass Ejection", "Creeps take 20% burning damage over 4 seconds", 2.2f, 1.2f, 1.1f),
+                FinalFormDef("A.c", "Celestial Comet Cannon", "Lobs dense meteors splitting into 4 star fragments on impact.", c,
+                    "Comet Cluster Salvo", "All splash weapons trigger secondary mini-meteor bursts", 2.0f, 1.1f, 1.4f),
+
+                // Branch B (Gravity Well) -> B.a, B.b, B.c
+                FinalFormDef("B.a", "Event Horizon Spire", "Traps creeps in deep gravity wells, reversing their movement for 1s.", c,
+                    "Event Horizon Singularity", "All hostiles traversing bottlenecks are drawn into focal points", 1.5f, 1.4f, 1.3f),
+                FinalFormDef("B.b", "Singularity Bastion", "Generates micro-black holes executing creeps below 15% HP.", c,
+                    "Singularity Execution", "Normal creeps below 15% health are instantly consumed", 2.1f, 1.2f, 1.2f),
+                FinalFormDef("B.c", "Graviton Lance Battery", "Continuous gravity beam locking heavy bruisers in place.", c,
+                    "Graviton Anchor", "Bosses and bruisers have their movement speed reduced by 30%", 1.9f, 1.6f, 1.3f),
+
+                // Branch C (Celestial Resonator) -> C.a, C.b, C.c
+                FinalFormDef("C.a", "Chrono Pylon Array", "Emits temporal acceleration waves hastening nearby reload cycles.", c,
+                    "Temporal Haste Net", "+25% Attack Speed to all towers within 3 tiles", 1.4f, 2.2f, 1.5f),
+                FinalFormDef("C.b", "Starlight Beacon Array", "Illuminates weak points granting +25% critical strike chance.", c,
+                    "Prismatic Revelation", "+25% Critical Hit Chance across all defense towers", 1.7f, 1.5f, 1.8f),
+                FinalFormDef("C.c", "Astral Harvester Engine", "Converts ambient celestial energy and destroyed creeps into bonus Scrap.", c,
+                    "Cosmic Harvest Yield", "+40% Scrap Credits awarded from all creep kills", 1.6f, 1.4f, 1.4f)
             )
         }
     }
@@ -221,8 +258,6 @@ object TowerUpgradeManager {
         val formDef = getFinalForm(tower.type, code)
         val baseCost = formDef?.cost ?: (tower.type.baseCost * 1.5f).toInt()
 
-        // Dynamic inflation rule: When final forms exist, 2nd upgrade cost for other towers
-        // scales based on currently existing towers, so selling towers stabilizes the economy!
         val finalFormsCount = allTowers.count { it.isFinalForm }
         if (finalFormsCount > 0) {
             val scale = 1.0f + (0.15f * finalFormsCount * (allTowers.size.toFloat() / 5f).coerceIn(0.6f, 1.8f))
@@ -260,8 +295,9 @@ object TowerUpgradeManager {
         val tier3Count = allTowers.count { it.isTier3 }
         return when (towerClass) {
             TowerClass.KINETIC_BALLISTIC -> true
-            TowerClass.ELEMENTAL_VOID -> tier3Count >= 1 // Unlocked after one basic tower turns to level 3!
-            TowerClass.HEAVY_SIEGE -> tier3Count >= 2 // Unlocked after 2 level 3 towers
+            TowerClass.ELEMENTAL_VOID -> tier3Count >= 1
+            TowerClass.HEAVY_SIEGE -> tier3Count >= 2
+            TowerClass.STELLAR_COSMIC -> tier3Count >= 3
         }
     }
 
@@ -282,15 +318,12 @@ object TowerUpgradeManager {
         val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
         val baseCost = (arch.baseCost * 1.5f).toInt()
         val tier3Count = allTowers.count { it.isTier3 }
-        if (tier3Count > 0) {
-            val scale = 1.0f + (0.15f * tier3Count * (allTowers.size.toFloat() / 5f).coerceIn(0.6f, 1.8f))
-            return (baseCost * scale).toInt()
+        return if (tier3Count > 0) {
+            (baseCost * (1.0f + 0.25f * tier3Count)).toInt()
+        } else {
+            baseCost
         }
-        return baseCost
     }
-
-    // Compatibility helpers for legacy/test paths
-    data class PathUpgrade(val name: String, val description: String, val cost: Int)
 
     fun getPathUpgrade(type: TowerType, pathIndex: Int, tier: Int): PathUpgrade {
         val branchKey = when (pathIndex) {
@@ -333,5 +366,5 @@ val TowerType.ascensionGlobalBuff: String
         TowerType.MORTAR -> "+30% Explosive Blast Radius"
         TowerType.LASER -> "+20% Global Critical Strike Rate"
         TowerType.VOID -> "Zero Armor Protocol & +35% Scrap"
+        TowerType.STELLAR -> "+25% Cosmic Gravity Well & +20% Scrap"
     }
-

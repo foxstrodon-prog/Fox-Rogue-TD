@@ -1,181 +1,114 @@
 # Dual Front TD
 
-A dual-lane tactical Tower Defense game built with Kotlin and Jetpack Compose.
+A fast-paced, dual-lane tactical tower defense game built natively for Android with Kotlin and Jetpack Compose. 
 
-## 📱 Pre-built Android APK & Windows PC Downloads
+Created by an indie developer who just loves tower defense games and wanted to build something deep, responsive, and completely honest. 
 
-You can find the ready-to-run builds in this repository:
-- **Direct Repository Download (v0.0.0.013 Android APK):** [`apk/Dual-Front-TD-v0.0.0.013-debug.apk`](apk/Dual-Front-TD-v0.0.0.013-debug.apk) (also mirror-saved as [`apk/game-release-v0.0.0.013.apk`](apk/game-release-v0.0.0.013.apk))
-- **Portable Windows PC Launcher (Single Root Executable):** [`Dual Front TD.exe`](Dual%20Front%20TD.exe)
-  - Double-click to automatically locate ADB, detect or start an emulator/device, install the APK, and launch the game in one click.
-- **Google Play "What's New" Release Notes:** [`GPReadme.md`](GPReadme.md) (formatted for Google Play Store updates with recent patch history)
-- **YouTube Release Description & Timestamps:** [`YT_README.md`](YT_README.md) (formatted for video showcases with timestamps and patch notes)
-- **Archived Previous Releases (inside `apk/` folder):**
-  - **v0.0.0.012:** [`apk/Dual-Front-TD-v0.0.0.012-debug.apk`](apk/Dual-Front-TD-v0.0.0.012-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.012.exe`](apk/Dual-Front-TD-v0.0.0.012.exe)
-  - **v0.0.0.011:** [`apk/Dual-Front-TD-v0.0.0.011-debug.apk`](apk/Dual-Front-TD-v0.0.0.011-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.011.exe`](apk/Dual-Front-TD-v0.0.0.011.exe)
-  - **v0.0.0.010:** [`apk/Dual-Front-TD-v0.0.0.010-debug.apk`](apk/Dual-Front-TD-v0.0.0.010-debug.apk) | [`apk/Dual-Front-TD-v0.0.0.010.exe`](apk/Dual-Front-TD-v0.0.0.010.exe)
-  - **v0.0.0.009:** [`apk/game-release-v0.0.0.009.apk`](apk/game-release-v0.0.0.009.apk) | [`apk/Fox-Rogue-TD-v0.0.0.009.exe`](apk/Fox-Rogue-TD-v0.0.0.009.exe)
-  - **v0.0.0.008:** [`apk/game-release-v0.0.0.008.apk`](apk/game-release-v0.0.0.008.apk) | [`apk/Fox-Rogue-TD-v0.0.0.008.exe`](apk/Fox-Rogue-TD-v0.0.0.008.exe)
-  - **v0.0.0.007:** [`apk/game-release-v0.0.0.007.apk`](apk/game-release-v0.0.0.007.apk) | [`apk/RogueTD-v0.0.0.007.exe`](apk/RogueTD-v0.0.0.007.exe)
-  - **v0.0.0.006:** [`apk/RogueTD-v0.0.0.006-debug.apk`](apk/RogueTD-v0.0.0.006-debug.apk) | [`apk/RogueTD-v0.0.0.006.exe`](apk/RogueTD-v0.0.0.006.exe)
-  - **v0.0.0.005:** [`apk/RogueTD-v0.0.0.005-debug.apk`](apk/RogueTD-v0.0.0.005-debug.apk) | [`apk/RogueTD-v0.0.0.005.exe`](apk/RogueTD-v0.0.0.005.exe)
-- **Automated GitHub Actions:** Every commit and release automatically builds the latest APK under the repository's **Actions** tab as a downloadable artifact.
+- **100% Free:** No ads, no microtransactions, no paywalls, no energy bars.
+- **Hardware Optimized:** Locked 60/120 FPS simulation loop using custom spatial hashing.
+- **Deep Buildcraft:** 4 core towers branching into 52 total evolutions with procedural tier 1–4 visual cues.
+- **Full Historical Preservation:** Every past APK remains archived and downloadable on GitHub.
 
 ---
 
-### ✨ What's New in Version 0.0.0.013:
+## 📱 Downloads (Android APK & Windows PC)
 
-- **Pause Menu Audio Attenuation & Natural Volume Ducking**:
-  - Background music now smoothly lowers in volume (50% / -6dB attenuation) upon opening the Pause Menu instead of cutting out completely.
-  - Music streams seamlessly while navigating menus and returns to full volume instantly upon resuming gameplay.
-- **Direct Sound Menu & Gunfire Audio Testing**:
-  - Restored and repaired audio testing controls: tapping any turret gunfire slot immediately auditions that weapon sound variant.
-  - Music track selection in the sound menu previews and streams directly in the menu without requiring active gameplay.
-  - Added dedicated "▶ PREVIEWING" indicators on selected music tracks.
-- **Extended 45-Second Music Tracks & Tapered Overlaps**:
-  - All 5 background music tracks now feature a full 45-second duration with rich evolving chord progressions, basslines, and arpeggiators.
-  - Implemented 2.0-second raised-cosine tapered overlaps on repeats and transitions for smooth, click-free looping.
-- **Complete Tower Skin Model Replacement & Level 1–4 Visual Upgrade Cues**:
-  - Alternate skins (*Vector Minimal, Blueprint Schematic, Tactical Military, Void Rift, Retro Arcade*) now completely replace the base tower models in `GameCanvas.kt`.
-  - Every skin incorporates distinctive visual upgrade cues across Level 1 (Base Chassis), Level 2 (Vector Stabilizers / Wings), Level 3 (Archetype Twin Barrels / Focus Needles), and Level 4 (Apex Radiant Crown / Corona Halo) that dynamically match each tower's class color, vector button color, archetype color, and apex gold.
-- **15 Distinct Tower Upgrade Audio Profiles**:
-  - Replaced the single generic upgrade sound with 15 specialized upgrade audio soundscapes (3 Tower Classes × 5 Skins).
-  - Kinetic Ballistics, Elemental Void, and Heavy Siege towers each play customized upgrade audio tailored to their active visual skin.
-  - Dedicated upgrade audio audition section embedded in the Pause Menu Audio Studio.
-
-- **Leaderboard Submission Authorization Fix**:
-  - Resolved Google Cloud package-restricted API key rejection (`SECURITY_REJECTED` / HTTP 403 Forbidden) by appending `?key=$apiKey` to REST document URLs and attaching the `X-Android-Package: com.aistudio.roguetd.xtkp` request header.
-  - Hardened `ScoreSubmissionWorker` to retry pending scores up to 5 times rather than dropping un-uploaded player runs on network or authorization errors.
-- **Display Rotation UI Refactoring & Text Layout**:
-  - **Top HUD**: Expanded margin padding (10dp horizontal x 6dp vertical) to prevent text/chip clipping upon rotation; reformatted the currency display to stack the Diamond symbol vertically above the numeric scrap count to conserve horizontal width.
-  - **Bottom Upgrade Menus & Drawers**: Dynamically reorients across portrait and landscape. In landscape orientation, `BuildTowerDrawer` and `BranchingTowerInspector` stack action cards vertically in full-width rows inside the right sidebar with vertical scrolling, ensuring stats, costs, and buttons remain fully legible and clickable.
-- **Settings Menu Consolidation & Dev Menu Cleanup**:
-  - Centralized all audio controls, volume sliders, track selector, gunfire audio testing, skin previews, map themes, and procedural sound profiles into a unified Settings Hub inside the in-game Pause Menu.
-  - Stripped all redundant audio sliders and visual skin pickers from the Dev Balance Console, keeping it strictly dedicated to gameplay balance values and unit telemetry.
-- **Instant Background & Focus Audio Termination**:
-  - Immediately cuts all audio streams the instant the app transitions out of active focus (task view, Home gesture, minimization, screen lock).
-  - Eliminates lingering background music or trailing gunfire/explosion sound effects once focus is lost.
-  - Seamless, glitch-free audio resume when returning to active gameplay.
-- **Extended Music Track Duration & Seamless Looping**:
-  - Eliminated abrupt 5-second track cycling; music per track now targets between 45 seconds and 1 minute 15 seconds (60s default cycle).
-  - Procedural synthesizer tracks loop smoothly and transition cleanly without jarring cuts or clicks.
-- **Dedicated Upgrade Sound Volume Slider**:
-  - Independent volume slider dedicated specifically to tower upgrade sound effects, separating upgrade audio from combat gunfire and master SFX channels.
-  - Exposed directly in the Pause Menu Audio Customization Studio.
-- **Turret Skin Visual Preview Thumbnails**:
-  - Real-time inline sprite thumbnails rendered next to each of the 5 skin slots in the Pause Menu, enabling players to inspect chassis designs and firing flourishes before committing to a selection.
-- **Map & Lane Theme Strict Contrast Audit**:
-  - Enforced strict visual separation across all 5 map themes: Path 1 (Alpha), Path 2 (Beta), and their intersection zones now use distinct, high-contrast tri-color palettes with zero shared or mimicking hues.
-  - Intersection tile glow dynamically synchronizes with the theme's unique junction accent color.
-- **YouTube Release Documentation Artifact (`YT_README.md`)**:
-  - Automated release pipeline deliverable generating YouTube-ready descriptions with chapters/timestamps, patch notes, and GitHub referral links.
-
-- **Complete Sound System Overhaul & Audio Architecture**:
-  - **Music Player Track Switching Fix**: Fixed audio buffer lock-in so selecting tracks in the UI immediately swaps the active playback stream seamlessly.
-  - **Dynamic Combat Ducking**: Implemented dynamic volume ducking on the background music bus during heavy turret firing and explosions to prevent audio clipping.
-  - **Pause Menu Attenuation & Real-Time Slider Linking**: Background music automatically drops to 35% attenuation upon pause; adjusting the volume slider while paused provides immediate real-time auditory feedback.
-  - **Rolling Playlist Support**: 5 background music tracks (*Sector Zero Synth, Dual Front Pulse, Sub-Void Drone, Hyper-Grid Ambient, and Mute*) cycling smoothly.
-  - **Turret Gunfire Audio Restoration & Voice Concurrency Caps**: Restored firing sound triggers across all 3 turret archetypes (Kinetic, Elemental, Siege) with 65ms rate limiting to prevent volume blow-out.
-  - **Turret SFX Variation Testing Slots**: 5 gunfire audio candidate slots per turret type (15 total procedural SFX variants) with live preview test triggers.
-- **Aesthetic Lab & Visual Skin Pipelines**:
-  - **5 Turret Visual Skin Slots**: Default Production mesh plus 4 experimental skins (*Vector Minimal, Cyber Neon, Heavy Industrial, Void Glyph*) with distinct geometric silhouettes and animated firing flourishes.
-  - **5 Map & Lane Environment Theme Slots**: Default Cyber Grid plus 4 procedural biome palettes (*Neon Grid, Solarized Desert, Deep Void, Obsidian Magma*) altering conduit lines, background styling, and boosted tile glows.
-  - **Pause Menu Customization Studio**: Elevated sound and skin selection out of the hidden Dev Menu into an accessible, player-facing Pause Menu subsection.
-  - **Delta-State Balance & Asset Export**: Corrected boolean serialization in diff-only delta JSON export.
-- **Google Play Store Release Documentation**:
-  - Created [`GPReadme.md`](GPReadme.md) formatted specifically for Google Play Store updates ("What's New") showing a rolling window of recent patches with redirection to GitHub for older changelogs.
-- **Release Verification & Governance Hardening**:
-  - Codified the Lead Developer Manual Release Gate, ensuring all release candidate artifacts are tested personally before publishing.
-
-- **Official Rebrand to "Dual Front TD"**:
-  - Rebranded application name to **Dual Front TD** across manifest, strings, and build artifacts (`Dual-Front-TD-v0.0.0.010-debug.apk`).
-- **Complete 39-Tower Dev-Console Coverage**:
-  - Fully dynamic dev menu support for **all 39 towers** (3 Level 1 base towers, 9 Level 2 specializations, and 27 Level 3 final forms).
-  - Includes family and tier filter chips, custom renaming text fields, real-time stat summaries, individual reset buttons, and granular sliders for Base Damage (5–450 DMG), Targeting Range (1.5–7.5 cells), Attack Rate (0.2–8.0/s), and Deployment Cost (40–600 Credits).
-  - "Export Defaults" button generates strict diff-only delta JSON capturing only modified unit settings.
-- **Fixed Canvas Orientation & Dynamic Rotating HUD Overlays**:
-  - Locked `MainActivity` canvas to portrait, ensuring map grid coordinates, hitboxes, and curve bezier paths never shift or distort during physical phone rotation.
-  - Dynamically rotates HUD text chips and action buttons to match device tilt angle (0°, 90°, 180°, 270°) with fluid animation.
-- **Procedural Audio Synthesizer & Skins Studio**:
-  - Procedural PCM audio synthesis engine (`SoundManager.kt`) with zero asset overhead and 100% copyright freedom.
-  - Master, SFX, and Music volume sliders.
-  - 4 selectable procedural sound profiles: *Cyber Synth, Retro 8-Bit Arcade, Heavy Acoustic Impact, and Sci-Fi Laser Grid*, with live interactive test buttons (*Kinetic, Elemental, Siege, Upgrade*).
-  - 4 procedural ambient synthesizer music tracks: *Sector Zero Synth, Dual Front Pulse, Sub-Void Drone, and Mute*.
-  - 7 customizable tower & map themes: *Vector Blueprint, Cyberpunk Neon, Solarized Military, Deep Void, Retro 8-Bit Arcade, Clean Minimalist, and Gold Elite*.
-- **Accurate Live Combat DPS & Telemetry Reset Window**:
-  - Integrated `getEffectiveDamage()`, `getEffectiveFireRate()`, and `getEffectiveDps()` calculation into tower inspection.
-  - Prominent "RESET WINDOW" button on the Telemetry tab in the Dev Console to capture and diagnose tower performance over focused test windows.
-- **Global Economy Tuning Sliders**:
-  - Added macro sliders for overall tower fire rate multiplier (0.2x–3.0x), overall enemy health multiplier (0.5x–3.0x), overall enemy speed multiplier (0.2x–3.0x), starting credits (100–600 C), and enemies per round (0.5x–3.0x).
-- **Decoupled Simulation Clock (3.5x / 5x / 10x Synchronization)**:
-  - Decoupled tower weapon cooldowns from real-world wall clock milliseconds to virtual simulation time (`virtualSimTimeMs`), perfectly synchronizing weapon fire cadences with fast-forward gameplay speeds.
-- **Expanded Map Grid & Smart Spawner Recommendation**:
-  - Expanded map height from 14 to **16 rows** (`DEFAULT_WIDTH = 10`), extending the board upward to the HUD.
-  - Smart Wave 1 placement recommendation prioritizes proximity to spawners, center column alignment, and early lane reach.
-- **Windows .exe Consolidation**:
-  - Root directory contains only the updated standalone [`Dual Front TD.exe`](Dual%20Front%20TD.exe). All past executables archived in `apk/`.
-- **Firebase & Google Services Integration**:
-  - Added `google-services.json` integration, Google Services Gradle plugin 4.5.0, and Firebase BoM 35.1.0 with Analytics and Firestore REST leaderboard transport.
+- **Latest Android APK (`v0.0.1.002`):** [`apk/Dual-Front-TD-v0.0.1.002-debug.apk`](apk/Dual-Front-TD-v0.0.1.002-debug.apk)
+- **One-Click Windows PC Launcher:** [`Dual Front TD.exe`](Dual%20Front%20TD.exe) (single executable in root)
+  - Automatically detects ADB, pairs with your Android device or local emulator, installs the latest build, and launches the game.
+- **Google Play "What's New" Notes:** [`GPReadme.md`](GPReadme.md)
+- **Release Archives:** Download any previous release directly from the GitHub **Releases** tab.
 
 ---
 
-### ✨ What's New in Version 0.0.0.009:
+## 🕹️ What's New in Version 0.0.1.002
 
-- **Reflective Instantiation Safety & Lifecycle Fixes**:
-  - Added `@JvmOverloads` annotations to `RogueTDViewModel`, `ScoreSubmissionWorker`, and `FirestoreLeaderboardApi`.
-  - Resolves runtime crash (`NoSuchMethodException: RogueTDViewModel.<init> [class android.app.Application]`) under Android's default `ViewModelProvider.AndroidViewModelFactory` and WorkManager's `WorkerFactory`.
-- **Widescreen Windows Launcher Resilience**:
-  - Hardened `RogueTDLauncher.cs` device serial parsing to properly handle wireless / mDNS TLS ADB devices containing whitespace or parenthesized index names.
-  - Expanded APK resolution to automatically match any valid project APK pattern.
+### 🌟 52-Tower Evolution Matrix & Stellar Star Class
+- **Class 4: Stellar Cosmic (`STELLAR_COSMIC`):** Unlocked after deploying any three Tier-3 towers. Introduces cosmic beam, flare, and singularity mechanics with a native +15% damage bonus against shielded targets.
+- **Full 4 -> 12 -> 36 Unit Hierarchy:** Expands the evolution tree from 39 to 52 units, introducing 9 new Final Form archetypes (Supernova Pulsar, Graviton Lance, Celestial Comet, Event Horizon, Nebula Aegis, Singularity Bastion, Astral Beacon, Dyson Relay, Quasar Battery).
+- **Star Creep Wave Variants:** Introducing Stellar Probes, Cosmic Weavers, and Astral Colossi with unique 5-pointed geometric rendering and distinct speed curves.
+
+### ⚡ Booster Pad Teleportation & Ergonomics Overhaul
+- **Instant Tactical Swap:** 6 booster pads arranged in 3 color-coded pairs (Green AMPLIFIER, Teal HIGH_GROUND, Orange CONDUIT). Tap the one-handed edge buttons to swap or move turrets between matching pads with a 750ms tactical cooldown.
+- **Harmonic Pad Economy:** Earn +3% bonus scrap bounty per occupied booster pad, rewarding aggressive board utilization.
+- **Floating Bullet-Style HUD:** Redesigned top HUD into a sleek floating capsule with a +25% transparency margin on rotation. Accommodates 6-digit scrap counts and tracks active booster pads (`PADS: X/6`).
+- **Fixed HUD Orientation Glitch:** Removed inverted child rotation bugs so tower labels, stats, and text chips remain readable across landscape and portrait shifts.
+- **Pause Menu State Integrity:** Navigating into Telemetry, Settings, or Dev Menu from the Pause Menu now strictly preserves paused game state.
+
+### 🔊 Audio Polish & Ambient Filtering
+- **Gradual Volume Interpolation:** Volume toggles and pause attenuation now use smooth 600–1000ms gradual fades.
+- **Subtle Ambient Synth:** Applied a steep low-pass filter (<650Hz) to background music tracks, keeping synth tones mellow so sharp high frequencies are reserved for weapon impacts and tactical cues.
+- **Procedural Stellar SFX:** Tailored laser, flare, and beam synthesis for Stellar towers and upgrade milestones.
+- **Sound & Skin Asset Library:** Favorite custom audio and visual setups with Heart/Star markers and export your personalized roster as `exported_skins_sounds_library.json`.
+
+### 🛡️ Platform Hardening & Balance Re-Calibration
+- **Firebase Leaderboard Fix:** Resolved the persistent `SECURITY_REJECTED` (HTTP 403) error by attaching the production SHA-1 certificate fingerprint header (`X-Android-Cert`), parsing granular GCP RPC error codes, and implementing an atomic offline retry queue.
+- **Early-Game Scrap Velocity Nerf:** Rebalanced bounties across waves 1–100 (Drone: 5, Soldier: 8, Speedster: 10, Bruiser: 20, Disruptor: 18, Boss: 90; wave completion: $35 + 6 \times \text{wave}$) to keep early decisions tense and deliberate.
+- **Dev Menu Precision Sliders:** Added direct numeric text input to balance sliders for quick parameter tweaks.
+- **Automated Test Suite:** 66/66 automated domain and Robolectric unit tests passing.
+
+---
+
+## 📜 Prior Patch Highlights
+
+### Version 0.0.1.001
+- **Spatial Hash Grid Collision Engine (`SpatialHashGrid.kt`):** Replaced brute-force projectile checks with a uniform spatial partitioning grid, locking smooth 60/120 FPS performance during massive swarm waves.
+- **Modular UI Refactor:** Separated HUD, upgrade bar, and menus into single-responsibility components.
+- **39-Tower Hierarchy:** Completed initial 3 -> 9 -> 27 branching upgrade progression across Kinetic, Elemental, and Siege families.
+- **Procedural Level 1–4 Visual Upgrade Cues:** Procedural chassis, stabilizer wings, focus barrels, and Apex radiant coronas.
+
+---
+
+## 📜 Prior Patch Highlights
+
+### Version 0.0.0.013
+- **Pause Menu Audio Attenuation:** Music smoothly drops -6dB when paused and resumes instantly when returning to the fight.
+- **Interactive Sound Auditioning:** Preview gunfire sounds and background music tracks directly in the settings menu.
+- **Extended Procedural Music:** 45-second looping synthesizer compositions with smooth tapered transitions.
+- **Leaderboard Resilience:** Resolved API token authentication on score uploads and added offline retry handling.
+
+### Version 0.0.0.012
+- **Screen Rotation & Adaptive Layout:** Locked the underlying canvas coordinates to prevent hitbox drift while dynamically rotating HUD text chips and menus across portrait and landscape.
+- **Focus Loss Audio Termination:** Sound immediately cuts when switching apps or locking the screen, eliminating ghost audio loops.
+
+### Version 0.0.0.010
+- **Official Rebrand to Dual Front TD:** Updated application identity, standalone Windows launcher (`Dual Front TD.exe`), and improved board verticality (16-row layout).
 
 ---
 
 ## 🎮 Core Gameplay Systems
 
-- **Dual-Front Creep Assault**: Enemies spawn along dual conduits (`Lane Alpha` and `Lane Beta`), winding through all 4 map corners, merging across a shared central nexus, and converging on your Core.
-- **Tactical Tower Evolution**: 3 base towers branching into 9 Level 2 specializations and 27 Level 3 advanced forms (39 total units).
-- **Synergy Matrix**: Pair towers of differing elemental and tactical classes to trigger global combat bonuses (Amplifier, High Ground, Conduit matrices).
-- **Deep Telemetry & Scoring**: Detailed per-run breakdown tracking enemies neutralized, total DPS output, MVP defense towers, scrap economy, and worldwide leaderboard standings.
+- **Dual-Front Creep Assault:** Creeps spawn simultaneously along dual conduits (`Lane Alpha` and `Lane Beta`), winding through all 4 corners, merging at a central nexus, and converging on your Core.
+- **Tactical Evolution Tree:** 4 base towers branching into 12 Level 2 specializations and 36 Level 3 advanced forms (52 total units).
+- **Compound Synergy Matrix:** Stacking tower families and classes activates board-wide passive buffs.
+- **Detailed Run Telemetry:** Per-run breakdowns tracking enemies neutralized, total DPS output, MVP defense towers, scrap economy, and worldwide leaderboard standings.
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## 🛠️ Tech Stack
 
-- **Language**: Kotlin 2.2.10
-- **UI Framework**: Jetpack Compose & Material 3
-- **Architecture**: MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
-- **Backend / Services**: Google Services Gradle Plugin 4.5.0, Firebase BoM 35.1.0, Firestore REST, Firebase Analytics
-- **Graphics**: Hardware-accelerated Compose Canvas with `withTransform` translation/rotation matrices
-- **Testing**: Robolectric, JUnit 4, AndroidX Test Runner
+- **Language:** Kotlin 2.2.10
+- **UI Framework:** Jetpack Compose & Material 3
+- **Architecture:** MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
+- **Graphics:** Hardware-accelerated Compose Canvas with custom coordinate transform matrices
+- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (66/66 passing)
+- **Target Platform:** Android (Target SDK 36, Android 16 ready, 16 KB page-size compatible) + Windows Companion Runner
 
 ---
 
 ## 🚀 Building from Source
 
-To build the APK locally using Gradle:
-
 ```bash
 # Build debug APK
 ./gradlew assembleDebug
 
-# Compile portable Windows launcher (.exe)
+# Compile portable Windows companion launcher (.exe)
 ./gradlew buildWindowsLauncher
 
-# Run unit and Robolectric tests
+# Run full automated test suite
 ./gradlew testDebugUnitTest
-
-# Compile APK, Windows runner, and publish release to GitHub
-./gradlew uploadGitHubRelease
 ```
 
-The output artifacts will be generated at:
-```
-app/build/outputs/apk/debug/app-debug.apk
-Dual Front TD.exe
-```
-Versioned distribution files:
-```
-apk/Dual-Front-TD-v0.0.0.012-debug.apk
-apk/Dual Front TD.exe
-apk/Dual-Front-TD-v0.0.0.012.exe
-```
+Build outputs:
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.002-debug.apk`)
+- Windows Companion: `Dual Front TD.exe` (and staged under `apk/Dual-Front-TD-v0.0.1.002.exe`)

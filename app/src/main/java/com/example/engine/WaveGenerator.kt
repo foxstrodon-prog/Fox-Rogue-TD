@@ -36,24 +36,27 @@ object WaveGenerator {
 
     /**
      * Picks the enemy archetype for procedural slot [i] of wave [waveNumber].
-     * Visual grammar: Circle swarm / Triangle striker / Square bruiser; Attack (crimson/orange),
-     * Defense (cobalt/cyan), Support (emerald/amber).
+     * Visual grammar: Circle swarm / Triangle striker / Square bruiser / Star stellar;
+     * Attack (crimson/orange), Defense (cobalt/cyan), Support (emerald/amber).
      */
     private fun pickEnemyType(i: Int, waveNumber: Int): EnemyType {
         val roll = (i * 13 + waveNumber * 7) % 100
         val supportPct = supportShare(waveNumber)
         if (supportPct > 0 && roll >= 100 - supportPct) {
-            return when ((i + waveNumber) % 3) {
+            return when ((i + waveNumber) % 4) {
                 0 -> EnemyType.MEDIC
                 1 -> EnemyType.RALLIER
+                2 -> if (waveNumber >= 12) EnemyType.COSMIC_WEAVER else EnemyType.MEDIC
                 else -> if (waveNumber >= 10) EnemyType.DISRUPTOR else EnemyType.MEDIC
             }
         }
         return when {
-            roll < 28 -> EnemyType.DRONE                                   // Attack / Circle swarm
-            roll < 50 -> EnemyType.SOLDIER                                 // Defense / Circle basic creep
-            roll < 70 -> EnemyType.SPEEDSTER                               // Attack / Triangle striker
-            waveNumber >= 4 -> EnemyType.BRUISER                           // Defense / Square tank
+            roll < 24 -> EnemyType.DRONE
+            roll < 42 -> EnemyType.SOLDIER
+            roll < 60 -> EnemyType.SPEEDSTER
+            roll < 76 && waveNumber >= 6 -> EnemyType.STELLAR_PROBE
+            waveNumber >= 15 && roll >= 88 -> EnemyType.ASTRAL_COLOSSUS
+            waveNumber >= 4 -> EnemyType.BRUISER
             else -> EnemyType.SOLDIER
         }
     }
@@ -67,6 +70,9 @@ object WaveGenerator {
         EnemyType.BOSS -> 2000L
         EnemyType.MEDIC -> 800L
         EnemyType.RALLIER -> 800L
+        EnemyType.STELLAR_PROBE -> 600L
+        EnemyType.COSMIC_WEAVER -> 900L
+        EnemyType.ASTRAL_COLOSSUS -> 1400L
     }
 
     fun generateWave(waveNumber: Int, enemyCountMultiplier: Float = 1.0f): WaveData {
@@ -138,15 +144,15 @@ object WaveGenerator {
                 // Wave 5: Mini-Boss on Alpha, Fast Disruptors on Beta
                 spawnList.add(
                     EnemySpawnEntry(
-                        EnemyType.BRUISER,
+                        EnemyType.BOSS,
                         delayMs = 800L,
                         laneIndex = 0,
-                        hpScale = baseHpScale * 2.8f,
+                        hpScale = baseHpScale * 1.5f,
                         isBoss = true
                     )
                 )
-                val speedsterCount = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
-                for (i in 0 until speedsterCount) {
+                val count = (8 * enemyCountMultiplier).toInt().coerceAtLeast(3)
+                for (i in 0 until count) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 650L, laneIndex = 1, hpScale = baseHpScale))
                 }
                 spawnList.add(
@@ -183,8 +189,6 @@ object WaveGenerator {
                 // Procedural mixed waves attacking both lanes
                 val baseCount = 16 + waveNumber * 3
                 val enemyCount = (baseCount * enemyCountMultiplier).toInt().coerceAtLeast(6)
-                val canHaveBruisers = waveNumber >= 4
-                val canHaveDisruptors = waveNumber >= 6
                 val canHaveBoss = isBossWave
 
                 if (canHaveBoss) {
@@ -227,7 +231,8 @@ object WaveGenerator {
             }
         }
 
-        val bonusScrap = 90 + waveNumber * 20 + if (isBossWave) 150 else 0
+        // Calibrated early-game scrap bonus: reduces hyper-inflation
+        val bonusScrap = 35 + waveNumber * 6 + if (isBossWave) 50 else 0
 
         return WaveData(
             waveNumber = waveNumber,
