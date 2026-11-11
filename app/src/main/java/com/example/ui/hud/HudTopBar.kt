@@ -44,8 +44,15 @@ fun MinimalTopHud(
 ) {
     var showSynergyDropdown by remember { mutableStateOf(false) }
 
+    // Shortest-path counter-rotation: at 270 deg (phone tilted right), rotate +90 deg instead of -270 deg
+    val counterAngle = when (((state.deviceRotationAngle % 360f + 360f) % 360f).toInt()) {
+        90 -> -90f
+        180 -> 180f
+        270 -> 90f
+        else -> 0f
+    }
     val animatedRotation by animateFloatAsState(
-        targetValue = -state.deviceRotationAngle,
+        targetValue = counterAngle,
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "hud_counter_rotation"
     )

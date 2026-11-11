@@ -200,9 +200,10 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
     }
 
-    fun updateDeviceRotation(angle: Float) {
-        if (_uiState.value.deviceRotationAngle != angle) {
-            _uiState.update { it.copy(deviceRotationAngle = angle) }
+    fun updateDeviceRotation(targetAngle: Float) {
+        val normalized = (targetAngle % 360f + 360f) % 360f
+        if (_uiState.value.deviceRotationAngle != normalized) {
+            _uiState.update { it.copy(deviceRotationAngle = normalized) }
         }
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.TowerUpgradeManager
@@ -39,16 +40,21 @@ import java.util.Locale
 
 /**
  * Floating Squircle Action Button (Track 2).
- * 56dp x 56dp squircle (CornerSize 16dp) with glowing neon border, procedural glyph,
- * and high-contrast minimal cost badge ("180c"). Zero multi-paragraph text blocks.
+ * Scaled squircle (CornerSize 14-16dp) with glowing neon border, procedural glyph,
+ * tower/option name, minimal cost badge ("180c"), and 2 concise bullet points.
  */
 @Composable
 fun SquircleActionButton(
+    name: String = "",
     iconText: String,
     badgeText: String,
     themeColor: Color,
     canAfford: Boolean,
     isUnlocked: Boolean,
+    bullet1: String? = null,
+    bullet2: String? = null,
+    itemWidth: Dp = 66.dp,
+    itemHeight: Dp = 72.dp,
     rotationAngle: Float = 0f,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -58,18 +64,23 @@ fun SquircleActionButton(
 
     Box(
         modifier = modifier
-            .size(56.dp)
+            .size(width = itemWidth, height = itemHeight)
             .graphicsLayer {
                 rotationZ = rotationAngle
                 scaleX = scale.value
                 scaleY = scale.value
             }
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (canAfford && isUnlocked) Color(0xFF131F37).copy(alpha = 0.92f) else Color(0xFF0C1322).copy(alpha = 0.85f))
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                if (canAfford && isUnlocked) Color(0xFF0F172A).copy(alpha = 0.92f)
+                else Color(0xFF090D16).copy(alpha = 0.88f)
+            )
             .border(
-                2.dp,
-                if (!isUnlocked) Color(0xFF334155) else if (canAfford) themeColor else themeColor.copy(alpha = 0.35f),
-                RoundedCornerShape(16.dp)
+                1.5.dp,
+                if (!isUnlocked) Color(0xFF334155).copy(alpha = 0.6f)
+                else if (canAfford) themeColor
+                else themeColor.copy(alpha = 0.35f),
+                RoundedCornerShape(14.dp)
             )
             .clickable(enabled = canAfford && isUnlocked) {
                 coroutineScope.launch {
@@ -78,27 +89,71 @@ fun SquircleActionButton(
                 }
                 onClick()
             }
-            .padding(2.dp),
+            .padding(horizontal = 4.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxSize()
         ) {
+            // Header Row: Icon/Glyph on Left, Cost Badge on Right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = iconText,
+                    color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) themeColor else themeColor.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = if (!isUnlocked) "LOCK" else badgeText,
+                    color = if (!isUnlocked) Color(0xFFFF2A55) else if (canAfford) Color(0xFFFFD700) else Color(0xFF94A3B8),
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1
+                )
+            }
+
+            // Tower / Option Name
             Text(
-                text = iconText,
-                color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) themeColor else themeColor.copy(alpha = 0.5f),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black
-            )
-            Spacer(modifier = Modifier.height(1.dp))
-            Text(
-                text = if (!isUnlocked) "LOCK" else badgeText,
-                color = if (!isUnlocked) Color(0xFFFF2A55) else if (canAfford) Color(0xFFFFD700) else Color(0xFF94A3B8),
-                fontSize = 8.5.sp,
+                text = name,
+                color = if (!isUnlocked) Color(0xFF64748B) else Color.White,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Black,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+
+            // 2 Short, Sweet Bullet Points
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(0.5.dp)
+            ) {
+                if (bullet1 != null) {
+                    Text(
+                        text = "• $bullet1",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 6.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 7.5.sp
+                    )
+                }
+                if (bullet2 != null) {
+                    Text(
+                        text = "• $bullet2",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 6.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 7.5.sp
+                    )
+                }
+            }
         }
     }
 }
@@ -123,216 +178,248 @@ fun FloatingSquircleUpgradeBar(
     val isActionActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.type == TileType.EMPTY)
     if (!isActionActive) return
 
+    // Shortest-path counter-rotation: at 270 deg (phone tilted right), rotate +90 deg instead of -270 deg
+    val counterAngle = when (((state.deviceRotationAngle % 360f + 360f) % 360f).toInt()) {
+        90 -> -90f
+        180 -> 180f
+        270 -> 90f
+        else -> 0f
+    }
     val animatedRotation by animateFloatAsState(
-        targetValue = -state.deviceRotationAngle,
+        targetValue = counterAngle,
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "squircle_counter_rotation"
     )
 
-    Surface(
-        color = Color(0xFF070B14).copy(alpha = 0.70f),
-        shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.8f)),
+    // Floating free without an obstructive background menu card sheet
+    Row(
         modifier = modifier
             .padding(bottom = 32.dp)
-            .wrapContentSize(Alignment.BottomCenter)
+            .wrapContentSize(Alignment.BottomCenter),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            when {
-                // Empty Tile selected: 4 Squircle Build Action Buttons (Kinetic, Elemental, Siege, Stellar)
-                state.selectedTile != null && state.selectedTile.type == TileType.EMPTY -> {
-                    val tile = state.selectedTile
-                    val classes = TowerUpgradeManager.getTowerClasses()
+        when {
+            // 1. PLACED TOWER SELECTED (Evaluated FIRST so upgrade buttons always appear on placed towers)
+            state.selectedTower != null -> {
+                val tower = state.selectedTower
+                val sellValue = tower.getSellValue()
 
-                    classes.forEach { towerClass ->
-                        val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)
-                        val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).toInt()
+                when (tower.tier) {
+                    0 -> {
+                        // 3 Vectors: Offense, Defense, Support
+                        val vectors = TowerUpgradeManager.getTier1Vectors()
+                        val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
                         val canAfford = state.scrap >= cost
+                        val itemWidth = 80.dp
+                        val itemHeight = 74.dp
 
-                        SquircleActionButton(
-                            iconText = towerClass.shapeSymbol,
-                            badgeText = "${cost}c",
-                            themeColor = Color(towerClass.color),
-                            canAfford = canAfford,
-                            isUnlocked = isUnlocked,
-                            rotationAngle = animatedRotation,
-                            onClick = {
-                                onBuildTowerClass(tile, towerClass)
-                                if (towerClass == TowerClass.KINETIC_BALLISTIC) {
-                                    onBuildTower(tile, TowerType.GATLING)
-                                } else if (towerClass == TowerClass.STELLAR_COSMIC) {
-                                    onBuildTower(tile, TowerType.STELLAR)
-                                }
-                            },
-                            modifier = Modifier.testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
-                        )
+                        vectors.forEach { vec ->
+                            val icon = when (vec) {
+                                TowerVector.OFFENSIVE -> "⚔"
+                                TowerVector.DEFENSIVE -> "🛡"
+                                TowerVector.SUPPORT -> "⚡"
+                            }
+                            val (b1, b2) = when (vec) {
+                                TowerVector.OFFENSIVE -> "+35% Damage" to "High Fire Rate"
+                                TowerVector.DEFENSIVE -> "+40% Range" to "Slow & Fortify"
+                                TowerVector.SUPPORT -> "Aura Synergies" to "+Scrap Bounty"
+                            }
+                            SquircleActionButton(
+                                name = vec.name.take(7),
+                                iconText = icon,
+                                badgeText = "${cost}c",
+                                themeColor = Color(vec.color),
+                                canAfford = canAfford,
+                                isUnlocked = true,
+                                bullet1 = b1,
+                                bullet2 = b2,
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                rotationAngle = animatedRotation,
+                                onClick = { onUpgradeToVector(tower, vec) },
+                                modifier = Modifier.testTag("upgrade_vector_${vec.idName}")
+                            )
+                        }
                     }
 
-                    // Close Button
-                    IconButton(
-                        onClick = onDeselect,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .graphicsLayer { rotationZ = animatedRotation }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF161F30).copy(alpha = 0.8f))
-                    ) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    1 -> {
+                        // 3 Archetypes for this class & vector
+                        val vec = tower.vector ?: TowerVector.OFFENSIVE
+                        val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
+                        val itemWidth = 80.dp
+                        val itemHeight = 74.dp
+
+                        archetypes.forEach { arch ->
+                            val cost = TowerUpgradeManager.getTier2Cost(arch)
+                            val canAfford = state.scrap >= cost
+                            val b1 = when {
+                                arch.isBeam -> "Continuous Beam"
+                                arch.isSplash -> "AoE Splash Burst"
+                                arch.chains > 0 -> "Chain Arc Shock"
+                                arch.slowPercent > 0 -> "Slows Movement"
+                                arch.armorShredPercent > 0 -> "Armor Shredding"
+                                else -> arch.role.take(14)
+                            }
+                            val b2 = arch.primaryAura.shortBadge
+
+                            SquircleActionButton(
+                                name = arch.displayName.take(10),
+                                iconText = arch.displayName.take(2).uppercase(),
+                                badgeText = "${cost}c",
+                                themeColor = Color(arch.color),
+                                canAfford = canAfford,
+                                isUnlocked = true,
+                                bullet1 = b1,
+                                bullet2 = b2,
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                rotationAngle = animatedRotation,
+                                onClick = { onUpgradeToArchetype(tower, arch) },
+                                modifier = Modifier.testTag("upgrade_archetype_${arch.archetypeId}")
+                            )
+                        }
+                    }
+
+                    2 -> {
+                        // 3 Tier 3 Global Auras / Ascensions
+                        val cost = 280
+                        val canAfford = state.scrap >= cost
+                        val itemWidth = 80.dp
+                        val itemHeight = 74.dp
+
+                        listOf("APEX ALPHA", "APEX BETA", "APEX GAMMA").forEachIndexed { idx, title ->
+                            val (b1, b2) = when (idx) {
+                                0 -> "Global Aura Buff" to "+50% Apex DMG"
+                                1 -> "Corona Shockwave" to "+50% Apex DMG"
+                                else -> "Overcharge Surge" to "+50% Apex DMG"
+                            }
+                            SquircleActionButton(
+                                name = title,
+                                iconText = "★",
+                                badgeText = "${cost}c",
+                                themeColor = Color(0xFFFFD700),
+                                canAfford = canAfford,
+                                isUnlocked = true,
+                                bullet1 = b1,
+                                bullet2 = b2,
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                rotationAngle = animatedRotation,
+                                onClick = { onUpgradeToTier3Global(tower, idx) },
+                                modifier = Modifier.testTag("upgrade_tier3_$idx")
+                            )
+                        }
+                    }
+
+                    else -> {
+                        // Tier 3 Maxed Squircle
+                        Box(
+                            modifier = Modifier
+                                .size(width = 72.dp, height = 74.dp)
+                                .graphicsLayer { rotationZ = animatedRotation }
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                                .border(1.5.dp, Color(0xFFFFD700), RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("★", color = Color(0xFFFFD700), fontSize = 16.sp, fontWeight = FontWeight.Black)
+                                Text("APEX MAX", color = Color(0xFFFFD700), fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                Text("• Fully Ascended", color = Color(0xFF94A3B8), fontSize = 6.5.sp)
+                            }
+                        }
                     }
                 }
 
-                // Placed Tower selected: 3 Tier Upgrade Squircles + Priority + Sell
-                state.selectedTower != null -> {
-                    val tower = state.selectedTower
-                    val sellValue = tower.getSellValue()
-
-                    when (tower.tier) {
-                        0 -> {
-                            // 3 Vectors (Offensive, Defensive, Support)
-                            val vectors = TowerUpgradeManager.getTier1Vectors()
-                            val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
-                            val canAfford = state.scrap >= cost
-
-                            vectors.forEach { vec ->
-                                val icon = when (vec) {
-                                    TowerVector.OFFENSIVE -> "⚔"
-                                    TowerVector.DEFENSIVE -> "🛡"
-                                    TowerVector.SUPPORT -> "⚡"
-                                }
-                                SquircleActionButton(
-                                    iconText = icon,
-                                    badgeText = "${cost}c",
-                                    themeColor = Color(vec.color),
-                                    canAfford = canAfford,
-                                    isUnlocked = true,
-                                    rotationAngle = animatedRotation,
-                                    onClick = { onUpgradeToVector(tower, vec) },
-                                    modifier = Modifier.testTag("upgrade_vector_${vec.idName}")
-                                )
+                // Priority toggle button
+                val prio = tower.targetPriority
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 74.dp)
+                        .graphicsLayer { rotationZ = animatedRotation }
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                        .border(1.5.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            val nextPrio = when (prio) {
+                                TargetPriority.FIRST -> TargetPriority.CLOSEST
+                                TargetPriority.CLOSEST -> TargetPriority.STRONGEST
+                                TargetPriority.STRONGEST -> TargetPriority.WEAKEST
+                                TargetPriority.WEAKEST -> TargetPriority.FIRST
                             }
+                            onChangePriority(nextPrio)
                         }
+                        .padding(horizontal = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text("🎯", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
 
-                        1 -> {
-                            // 3 Archetypes for this class & vector
-                            val vec = tower.vector ?: TowerVector.OFFENSIVE
-                            val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
+                // Sell button
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 74.dp)
+                        .graphicsLayer { rotationZ = animatedRotation }
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                        .border(1.5.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                        .clickable { onSellTower() }
+                        .padding(horizontal = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text("🗑", fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
 
-                            archetypes.forEach { arch ->
-                                val cost = TowerUpgradeManager.getTier2Cost(arch)
-                                val canAfford = state.scrap >= cost
-                                SquircleActionButton(
-                                    iconText = arch.displayName.take(3).uppercase(),
-                                    badgeText = "${cost}c",
-                                    themeColor = Color(arch.color),
-                                    canAfford = canAfford,
-                                    isUnlocked = true,
-                                    rotationAngle = animatedRotation,
-                                    onClick = { onUpgradeToArchetype(tower, arch) },
-                                    modifier = Modifier.testTag("upgrade_archetype_${arch.archetypeId}")
-                                )
-                            }
-                        }
+            // 2. EMPTY TILE SELECTED (Shows 4 Class Build Action Squircles)
+            state.selectedTile != null && state.selectedTile.type == TileType.EMPTY -> {
+                val tile = state.selectedTile
+                val classes = TowerUpgradeManager.getTowerClasses()
+                val itemWidth = 66.dp
+                val itemHeight = 72.dp
 
-                        2 -> {
-                            // 3 Tier 3 Global Auras / Ascensions
-                            val cost = 280
-                            val canAfford = state.scrap >= cost
-
-                            listOf("AURA 1", "AURA 2", "AURA 3").forEachIndexed { idx, _ ->
-                                SquircleActionButton(
-                                    iconText = "🌟",
-                                    badgeText = "${cost}c",
-                                    themeColor = Color(0xFFFFB800),
-                                    canAfford = canAfford,
-                                    isUnlocked = true,
-                                    rotationAngle = animatedRotation,
-                                    onClick = { onUpgradeToTier3Global(tower, idx) },
-                                    modifier = Modifier.testTag("upgrade_tier3_$idx")
-                                )
-                            }
-                        }
-
-                        else -> {
-                            // Tier 3 Maxed
-                            Box(
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .graphicsLayer { rotationZ = animatedRotation }
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color(0xFFFFB800).copy(alpha = 0.2f))
-                                    .border(2.dp, Color(0xFFFFB800), RoundedCornerShape(16.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("★", color = Color(0xFFFFD700), fontSize = 18.sp, fontWeight = FontWeight.Black)
-                                    Text("MAX", color = Color(0xFFFFD700), fontSize = 8.5.sp, fontWeight = FontWeight.Black)
-                                }
-                            }
-                        }
+                classes.forEach { towerClass ->
+                    val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)
+                    val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).toInt()
+                    val canAfford = state.scrap >= cost
+                    val (b1, b2) = when (towerClass) {
+                        TowerClass.KINETIC_BALLISTIC -> "Ballistic Fire" to "Single-Target"
+                        TowerClass.ELEMENTAL_VOID -> "Cryo / Plasma" to "Area AoE Slow"
+                        TowerClass.HEAVY_SIEGE -> "Siege Blasts" to "Armor Shred"
+                        TowerClass.STELLAR_COSMIC -> "Cosmic Rays" to "Barrier Bypass"
                     }
 
-                    // Priority toggle button
-                    val prio = tower.targetPriority
-                    Box(
-                        modifier = Modifier
-                            .height(56.dp)
-                            .widthIn(min = 44.dp)
-                            .graphicsLayer { rotationZ = animatedRotation }
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF131F37).copy(alpha = 0.9f))
-                            .border(1.5.dp, Color(0xFF00F0FF), RoundedCornerShape(16.dp))
-                            .clickable {
-                                val nextPrio = when (prio) {
-                                    TargetPriority.FIRST -> TargetPriority.CLOSEST
-                                    TargetPriority.CLOSEST -> TargetPriority.STRONGEST
-                                    TargetPriority.STRONGEST -> TargetPriority.WEAKEST
-                                    TargetPriority.WEAKEST -> TargetPriority.FIRST
-                                }
-                                onChangePriority(nextPrio)
+                    SquircleActionButton(
+                        name = towerClass.displayName.take(8),
+                        iconText = towerClass.shapeSymbol,
+                        badgeText = "${cost}c",
+                        themeColor = Color(towerClass.color),
+                        canAfford = canAfford,
+                        isUnlocked = isUnlocked,
+                        bullet1 = b1,
+                        bullet2 = b2,
+                        itemWidth = itemWidth,
+                        itemHeight = itemHeight,
+                        rotationAngle = animatedRotation,
+                        onClick = {
+                            onBuildTowerClass(tile, towerClass)
+                            if (towerClass == TowerClass.KINETIC_BALLISTIC) {
+                                onBuildTower(tile, TowerType.GATLING)
+                            } else if (towerClass == TowerClass.STELLAR_COSMIC) {
+                                onBuildTower(tile, TowerType.STELLAR)
                             }
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🎯", fontSize = 14.sp)
-                            Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    // Sell button
-                    Box(
-                        modifier = Modifier
-                            .height(56.dp)
-                            .widthIn(min = 44.dp)
-                            .graphicsLayer { rotationZ = animatedRotation }
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF131F37).copy(alpha = 0.9f))
-                            .border(1.5.dp, Color(0xFFFF2A55), RoundedCornerShape(16.dp))
-                            .clickable { onSellTower() }
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🗑", fontSize = 13.sp)
-                            Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 8.sp, fontWeight = FontWeight.Black)
-                        }
-                    }
-
-                    // Close Button
-                    IconButton(
-                        onClick = onDeselect,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .graphicsLayer { rotationZ = animatedRotation }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF161F30).copy(alpha = 0.8f))
-                    ) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
-                    }
+                        },
+                        modifier = Modifier.testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
+                    )
                 }
             }
         }
