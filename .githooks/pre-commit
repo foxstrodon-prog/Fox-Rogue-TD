@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Pre-Commit Guard - Dual Front TD
+# Prevents committing stale binary versions, mismatched versions, and secret files
+# ==============================================================================
+set -e
+
+# 1. Block secret file commits
+DISALLOWED_PATTERNS=("google-services.json" "signing.properties" "local.properties" "*.keystore" "*.jks")
+for pattern in "${DISALLOWED_PATTERNS[@]}"; do
+    if git diff --cached --name-only | grep -E "$pattern" > /dev/null 2>&1; then
+        echo "❌ [Pre-Commit Error] Attempting to commit sensitive/ignored file matching: $pattern"
+        exit 1
+    fi
+done
+
+# 2. Check version alignment between app/build.gradle.kts and staged artifacts
+if [ -f "app/build.gradle.kts" ]; then
+    VERSION=$(grep -E 'versionName\s*=\s*' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+
+    # Check if any stale versioned APKs or EXEs are staged
+    STAGED_STALE_BINARIES=$(git diff --cached --name-only | grep -E '^apk/Dual-Front-TD-v' | grep -v "v${VERSION}" || true)
+    if [ -n "$STAGED_STALE_BINARIES" ]; then
+        echo "❌ [Pre-Commit Error] Staged binary does not match current version v${VERSION}:"
+        echo "$STAGED_STALE_BINARIES"
+        echo "Please re-run ./gradlew buildWindowsLauncher or update your staged binaries."
+        exit 1
+    fi
+fi
+
+echo "✅ [Pre-Commit] Version control checks passed cleanly."
+exit 0
