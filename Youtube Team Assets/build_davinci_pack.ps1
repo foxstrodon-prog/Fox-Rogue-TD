@@ -1,22 +1,24 @@
 # ==============================================================================
 # Dual Front TD - DaVinci Resolve Studio Procedural Video Pack Generator
-# Generates high-res game element sprites, FCPXML timeline, and Fusion composition
+# Generates 4K game element sprites, FCPXML timeline, and Fusion composition
+# Stored inside 'Youtube Team Assets' for direct DaVinci Studio execution
 # ==============================================================================
 [CmdletBinding()]
 param()
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
-$AssetDir = Join-Path $ScriptDir "assets"
+$AssetDir = Join-Path $ScriptDir "Assets"
+$TimelineDir = Join-Path $ScriptDir "Timelines"
 
-if (-not (Test-Path $AssetDir)) {
-    New-Item -ItemType Directory -Path $AssetDir -Force | Out-Null
-}
+if (-not (Test-Path $AssetDir)) { New-Item -ItemType Directory -Path $AssetDir -Force | Out-Null }
+if (-not (Test-Path $TimelineDir)) { New-Item -ItemType Directory -Path $TimelineDir -Force | Out-Null }
 
 Add-Type -AssemblyName System.Drawing
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "Dual Front TD: DaVinci Resolve Video Pack Generator" -ForegroundColor Cyan
+Write-Host "Destination: Youtube Team Assets" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # ------------------------------------------------------------------------------
@@ -24,7 +26,6 @@ Write-Host "==========================================================" -Foregro
 # ------------------------------------------------------------------------------
 Write-Host "`n[1/3] Generating 4K-ready game element sprites..." -ForegroundColor Yellow
 
-# Helper: Draw Anti-aliased graphics
 function New-Canvas([int]$w, [int]$h) {
     $bmp = New-Object System.Drawing.Bitmap $w, $h
     $gfx = [System.Drawing.Graphics]::FromImage($bmp)
@@ -39,24 +40,22 @@ $c = New-Canvas 1080 1920
 $bgBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 7, 11, 20))
 $c.Graphics.FillRectangle($bgBrush, 0, 0, 1080, 1920)
 
-# Subtle tactical grid
 $gridPen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(40, 0, 240, 255)), 1
 for ($x = 0; $x -le 1080; $x += 60) { $c.Graphics.DrawLine($gridPen, $x, 0, $x, 1920) }
 for ($y = 0; $y -le 1920; $y += 60) { $c.Graphics.DrawLine($gridPen, 0, $y, 1080, $y) }
 
-# Converging dual circuit lanes (Left Lane & Right Lane)
 $laneBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(45, 14, 165, 233))
 $laneBorderPen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(180, 0, 229, 255)), 3
 
-# Left Lane (x: 180 to 420)
+# Left Lane
 $c.Graphics.FillRectangle($laneBrush, 180, 0, 240, 1500)
 $c.Graphics.DrawRectangle($laneBorderPen, 180, 0, 240, 1500)
 
-# Right Lane (x: 660 to 900)
+# Right Lane
 $c.Graphics.FillRectangle($laneBrush, 660, 0, 240, 1500)
 $c.Graphics.DrawRectangle($laneBorderPen, 660, 0, 240, 1500)
 
-# Base Command Core at bottom (y: 1500 to 1800)
+# Base Command Core
 $coreBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(60, 0, 229, 255))
 $c.Graphics.FillEllipse($coreBrush, 340, 1450, 400, 300)
 $corePen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 0, 240, 255)), 4
@@ -108,7 +107,6 @@ $c.Graphics.FillEllipse($goldHaloBrush, 10, 10, 220, 220)
 $goldPen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 255, 215, 0)), 4
 $c.Graphics.DrawEllipse($goldPen, 30, 30, 180, 180)
 $c.Graphics.DrawEllipse($goldPen, 60, 60, 120, 120)
-# 8-point gold radiant star
 $starBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 255, 255, 255))
 $c.Graphics.FillEllipse($starBrush, 95, 95, 50, 50)
 $c.Graphics.DrawLine($goldPen, 120, 15, 120, 225)
@@ -144,7 +142,7 @@ $squircleBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::F
 $c.Graphics.FillRectangle($squircleBrush, 10, 10, 220, 240)
 $squircleBorder = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 255, 215, 0)), 4
 $c.Graphics.DrawRectangle($squircleBorder, 10, 10, 220, 240)
-# Text
+
 $titleFont = [System.Drawing.Font]::new("Arial", [float]14, [System.Drawing.FontStyle]::Bold)
 $subFont = [System.Drawing.Font]::new("Arial", [float]9, [System.Drawing.FontStyle]::Regular)
 $whiteBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
@@ -166,7 +164,7 @@ Write-Host "  -> Generated 8 game element sprites in: $AssetDir" -ForegroundColo
 # ------------------------------------------------------------------------------
 Write-Host "`n[2/3] Generating DaVinci Resolve FCPXML 1.8 Timeline (1080x1920 @ 60fps)..." -ForegroundColor Yellow
 
-$FcpxmlFile = Join-Path $ScriptDir "DualFrontTD_ViralShort_22s.fcpxml"
+$FcpxmlFile = Join-Path $TimelineDir "DualFrontTD_ViralShort_22s.fcpxml"
 
 $BgPath = [System.Uri](Join-Path $AssetDir "bg_grid.png").AbsoluteUri
 $PadCyanPath = [System.Uri](Join-Path $AssetDir "booster_pad_cyan.png").AbsoluteUri
@@ -227,7 +225,7 @@ Write-Host "  -> Successfully written: $FcpxmlFile" -ForegroundColor Green
 # ------------------------------------------------------------------------------
 Write-Host "`n[3/3] Generating DaVinci Resolve Fusion Composition (.comp)..." -ForegroundColor Yellow
 
-$CompFile = Join-Path $ScriptDir "DualFrontTD_TacticalDopamine.comp"
+$CompFile = Join-Path $TimelineDir "DualFrontTD_TacticalDopamine.comp"
 
 $CompContent = @"
 Composition {
@@ -309,7 +307,7 @@ Set-Content -Path $CompFile -Value $CompContent -Encoding UTF8
 Write-Host "  -> Successfully written: $CompFile" -ForegroundColor Green
 
 Write-Host "`n==========================================================" -ForegroundColor Cyan
-Write-Host "DaVinci Resolve Video Pack generated successfully!" -ForegroundColor Green
+Write-Host "DaVinci Resolve Video Pack generated in Youtube Team Assets!" -ForegroundColor Green
 Write-Host "  1. Timeline: $FcpxmlFile" -ForegroundColor White
 Write-Host "  2. Fusion Comp: $CompFile" -ForegroundColor White
 Write-Host "  3. Assets: $AssetDir" -ForegroundColor White
