@@ -15,10 +15,10 @@ namespace RogueTDLauncher
 
         static int Main(string[] args)
         {
-            Console.Title = "Dual Front TD - Windows Launcher";
+            Console.Title = "Dual Front TD - ADB Companion Runner";
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("=================================================");
-            Console.WriteLine("         DUAL FRONT TD - PC LAUNCHER             ");
+            Console.WriteLine("       DUAL FRONT TD - ADB COMPANION RUNNER      ");
             Console.WriteLine("=================================================");
             Console.ResetColor();
 
@@ -127,6 +127,16 @@ namespace RogueTDLauncher
 
         static string FindApk(string baseDir)
         {
+            // If running directly inside the apk/ directory
+            try
+            {
+                var localApks = Directory.GetFiles(baseDir, "*.apk")
+                                         .OrderByDescending(f => File.GetLastWriteTime(f))
+                                         .ToList();
+                if (localApks.Count > 0) return localApks[0];
+            }
+            catch {}
+
             string apkDir = Path.Combine(baseDir, "apk");
             if (!Directory.Exists(apkDir))
             {

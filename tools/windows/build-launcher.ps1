@@ -1,5 +1,6 @@
 # ==============================================================================
-# Dual Front TD - Portable Windows Launcher Build Script
+# Dual Front TD - Portable ADB Launcher Build Script
+# Compiles Dual-Front-TD-ADB.exe into the apk/ directory
 # ==============================================================================
 [CmdletBinding()]
 param()
@@ -27,38 +28,23 @@ if (-not $CscPath) {
 }
 
 $SourceFile = Join-Path $ProjectRoot "tools\windows\RogueTDLauncher.cs"
-$OutExe = Join-Path $ProjectRoot "Dual Front TD.exe"
 $ApkDir = Join-Path $ProjectRoot "apk"
+$OutExe = Join-Path $ApkDir "Dual-Front-TD-ADB.exe"
 
 if (-not (Test-Path $ApkDir)) {
     New-Item -ItemType Directory -Path $ApkDir | Out-Null
 }
 
-Write-Host "Compiling Windows Launcher: $OutExe" -ForegroundColor Cyan
+# Purge any root executable and old versioned executables from ecosystem
+Remove-Item (Join-Path $ProjectRoot "Dual Front TD.exe") -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path $ApkDir -Filter "*.exe" | Where-Object { $_.Name -ne "Dual-Front-TD-ADB.exe" } | Remove-Item -Force -ErrorAction SilentlyContinue
+
+Write-Host "Compiling ADB Runner: $OutExe" -ForegroundColor Cyan
 & $CscPath /out:"$OutExe" /target:exe /platform:anycpu "$SourceFile"
 
 if ($LASTEXITCODE -eq 0 -and (Test-Path $OutExe)) {
-    Write-Host "Successfully compiled Dual Front TD.exe in root!" -ForegroundColor Green
-
-    # Extract version from app/build.gradle.kts
-    $GradleFile = Join-Path $ProjectRoot "app\build.gradle.kts"
-    $Version = "0.0.1.004"
-    if (Test-Path $GradleFile) {
-        $Content = Get-Content $GradleFile -Raw
-        if ($Content -match 'versionName\s*=\s*"([^"]+)"') {
-            $Version = $Matches[1].Trim()
-        }
-    }
-    $VersionedExeName = "Dual-Front-TD-v$Version.exe"
-    $VersionedExePath = Join-Path $ApkDir $VersionedExeName
-
-    # Purge any outdated versioned EXEs from apk/ folder
-    Get-ChildItem -Path $ApkDir -Filter "Dual-Front-TD-v*.exe" | Where-Object { $_.Name -ne $VersionedExeName } | Remove-Item -Force
-
-    # Stage the versioned executable into apk/
-    Copy-Item $OutExe $VersionedExePath -Force
-    Write-Host "Successfully staged Windows launcher at: $VersionedExePath" -ForegroundColor Green
+    Write-Host "Successfully compiled Dual-Front-TD-ADB.exe in apk/ directory!" -ForegroundColor Green
 } else {
-    Write-Error "Failed to compile Dual Front TD.exe"
+    Write-Error "Failed to compile Dual-Front-TD-ADB.exe"
     exit 1
 }

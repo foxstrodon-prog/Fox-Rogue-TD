@@ -80,39 +80,31 @@ if (-not (Test-Path $BuiltApk)) {
     }
 }
 
-# 4. Compile Portable Windows Launcher (if not skipped)
+# 4. Compile Portable Windows ADB Launcher (Local Companion)
 if (-not $SkipBuild) {
-    Write-Host "`n[3/5] Compiling Portable Windows Launcher..." -ForegroundColor Yellow
+    Write-Host "`n[3/5] Compiling Portable Windows ADB Launcher..." -ForegroundColor Yellow
     try {
-        & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /out:"Dual Front TD.exe" /target:exe /platform:anycpu tools\windows\RogueTDLauncher.cs
-        Copy-Item "Dual Front TD.exe" -Destination (Join-Path $ProjectRoot ("apk/Dual-Front-TD-" + $Tag + ".exe")) -Force
+        & powershell -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot "tools/windows/build-launcher.ps1")
     } catch {
         Write-Warning ("Windows launcher build skipped: " + $_)
     }
 }
 
-# 5. Stage Versioned Assets in apk/ directory
-Write-Host "`n[4/5] Staging Release Binaries in apk/ directory..." -ForegroundColor Yellow
+# 5. Stage Release APK in apk/ directory
+Write-Host "`n[4/5] Staging Release APK in apk/ directory..." -ForegroundColor Yellow
 $ApkDir = Join-Path $ProjectRoot "apk"
 if (-not (Test-Path $ApkDir)) {
     New-Item -ItemType Directory -Path $ApkDir | Out-Null
 }
 
 $DualApk = Join-Path $ApkDir ("Dual-Front-TD-" + $Tag + "-debug.apk")
-$StandardApk = Join-Path $ApkDir ("game-release-" + $Tag + ".apk")
-$DebugApk = Join-Path $ApkDir ("RogueTD-" + $Tag + "-debug.apk")
-$WinExeInApk = Join-Path $ApkDir ("Dual-Front-TD-" + $Tag + ".exe")
-$WinExeInRoot = Join-Path $ProjectRoot ("Dual Front TD.exe")
 
 if (Test-Path $BuiltApk) {
     Copy-Item $BuiltApk $DualApk -Force
-    Copy-Item $BuiltApk $StandardApk -Force
-    Copy-Item $BuiltApk $DebugApk -Force
 }
 
-$AssetsToUpload = @($DualApk, $StandardApk, $DebugApk)
-if (Test-Path $WinExeInApk) { $AssetsToUpload += $WinExeInApk }
-if (Test-Path $WinExeInRoot) { $AssetsToUpload += $WinExeInRoot }
+# Strictly upload ONLY the official Android APK to the release page
+$AssetsToUpload = @($DualApk)
 
 Write-Host "  -> Staged binaries ready for release:" -ForegroundColor Green
 foreach ($itemPath in $AssetsToUpload) {

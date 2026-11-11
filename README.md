@@ -7,15 +7,16 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **100% Free:** No ads, no microtransactions, no paywalls, no energy bars.
 - **Hardware Optimized:** Locked 60/120 FPS simulation loop using custom spatial hashing.
 - **Deep Buildcraft:** 4 core towers branching into 52 total evolutions with procedural tier 1–4 visual cues.
-- **Full Historical Preservation:** Every past APK remains archived and downloadable on GitHub.
+- **Full Historical Preservation:** Every past APK remains archived and downloadable on GitHub Releases.
 
 ---
 
-## 📱 Downloads (Android APK & Windows PC)
+## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.004`):** [`apk/Dual-Front-TD-v0.0.1.004-debug.apk`](apk/Dual-Front-TD-v0.0.1.004-debug.apk)
-- **One-Click Windows PC Launcher:** [`Dual Front TD.exe`](Dual%20Front%20TD.exe) (single executable in root)
-  - Automatically detects ADB, pairs with your Android device or local emulator, installs the latest build, and launches the game.
+- **Latest Android APK (`v0.0.1.005`):** [`apk/Dual-Front-TD-v0.0.1.005-debug.apk`](apk/Dual-Front-TD-v0.0.1.005-debug.apk)
+- **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
+  - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
+- **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
 - **Google Play "What's New" Notes:** [`GPReadme.md`](GPReadme.md)
 - **Release Archives:** Download any previous release directly from the GitHub **Releases** tab.
 
@@ -105,5 +106,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.004-debug.apk`)
-- Windows Companion: `Dual Front TD.exe` (and staged under `apk/Dual-Front-TD-v0.0.1.004.exe`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.005-debug.apk`)
+- Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)

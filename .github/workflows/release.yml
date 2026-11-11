@@ -87,25 +87,10 @@ jobs:
           TAG="${{ steps.version_step.outputs.tag }}"
           mkdir -p dist
 
-          # 1. Primary named asset: Dual-Front-TD-vX.X.X.XXX-debug.apk
+          # Strictly stage ONLY the official Android APK for release distribution
           cp app/build/outputs/apk/debug/app-debug.apk "dist/Dual-Front-TD-${TAG}-debug.apk"
 
-          # 2. Compatibility alias: game-release-vX.X.X.XXX.apk
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/game-release-${TAG}.apk"
-
-          # 3. Legacy alias: RogueTD-vX.X.X.XXX-debug.apk
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/RogueTD-${TAG}-debug.apk"
-
-          # 4. Include Windows executable runners if present
-          if [ -f "Dual Front TD.exe" ]; then
-            cp "Dual Front TD.exe" "dist/Dual Front TD.exe"
-            cp "Dual Front TD.exe" "dist/Dual-Front-TD-${TAG}.exe"
-          fi
-          if [ -f "apk/Dual-Front-TD-${TAG}.exe" ]; then
-            cp "apk/Dual-Front-TD-${TAG}.exe" "dist/Dual-Front-TD-${TAG}.exe"
-          fi
-
-          echo "Staged release distribution assets:"
+          echo "Staged release distribution assets (APK only):"
           ls -lh dist
 
       - name: Upload Build Artifacts to Workflow Run

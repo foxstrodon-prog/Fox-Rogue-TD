@@ -14,16 +14,30 @@ for pattern in "${DISALLOWED_PATTERNS[@]}"; do
     fi
 done
 
-# 2. Check version alignment between app/build.gradle.kts and staged artifacts
+# 2. Block any .exe in the project root (must reside only in apk/ as Dual-Front-TD-ADB.exe)
+if git diff --cached --name-only --diff-filter=ACM | grep -E '^[^\/]+\.exe$' > /dev/null 2>&1; then
+    echo "❌ [Pre-Commit Error] Executable files cannot be committed in the project root directory."
+    echo "The ADB runner must reside exclusively at apk/Dual-Front-TD-ADB.exe."
+    exit 1
+fi
+
+# 3. Block versioned .exe files in apk/ (only unversioned Dual-Front-TD-ADB.exe is permitted)
+if git diff --cached --name-only --diff-filter=ACM | grep -E '^apk/.*v[0-9].*\.exe$' > /dev/null 2>&1; then
+    echo "❌ [Pre-Commit Error] Versioned .exe files are forbidden in apk/."
+    echo "The ADB runner is a general shell and must remain named apk/Dual-Front-TD-ADB.exe."
+    exit 1
+fi
+
+# 4. Check version alignment between app/build.gradle.kts and staged APK in apk/
 if [ -f "app/build.gradle.kts" ]; then
     VERSION=$(grep -E 'versionName\s*=\s*' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
 
-    # Check if any stale versioned APKs or EXEs are staged
-    STAGED_STALE_BINARIES=$(git diff --cached --name-only | grep -E '^apk/Dual-Front-TD-v' | grep -v "v${VERSION}" || true)
-    if [ -n "$STAGED_STALE_BINARIES" ]; then
-        echo "❌ [Pre-Commit Error] Staged binary does not match current version v${VERSION}:"
-        echo "$STAGED_STALE_BINARIES"
-        echo "Please re-run ./gradlew buildWindowsLauncher or update your staged binaries."
+    # Check if any stale versioned APKs are staged
+    STAGED_STALE_APKS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^apk/Dual-Front-TD-v.*\.apk$' | grep -v "v${VERSION}" || true)
+    if [ -n "$STAGED_STALE_APKS" ]; then
+        echo "❌ [Pre-Commit Error] Staged APK does not match current version v${VERSION}:"
+        echo "$STAGED_STALE_APKS"
+        echo "Please re-run ./gradlew assembleDebug and stage apk/Dual-Front-TD-v${VERSION}-debug.apk."
         exit 1
     fi
 fi

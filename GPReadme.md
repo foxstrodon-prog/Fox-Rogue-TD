@@ -48,7 +48,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Immediate Audio Cut:** Sound cuts instantly when minimizing the app or locking your screen—no lingering background audio.
 
 #### Version 0.0.0.010
-- **Official Dual Front TD Launch:** Updated app branding and added the one-click Windows companion launcher (`Dual Front TD.exe`).
+- **Official Dual Front TD Launch:** Updated app branding and added the local ADB companion runner (`apk/Dual-Front-TD-ADB.exe`).
 - **Live Combat DPS:** Real-time damage-per-second readouts on inspected towers with an in-depth telemetry reset window.
 
 ---
