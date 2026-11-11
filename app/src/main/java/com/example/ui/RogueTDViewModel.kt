@@ -710,17 +710,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 stopCinematic()
                 return
             }
-            if (cin.scenario == CinematicScenario.CIN_03_BOOSTER_WARP && nextFrame % 120 == 0) {
-                swapBoosterPads()
-            } else if (cin.scenario == CinematicScenario.CIN_06_EVOLUTION_MONTAGE) {
-                if (nextFrame == 240) {
-                    evolveCinematicTowers(1)
-                } else if (nextFrame == 600) {
-                    evolveCinematicTowers(2)
-                } else if (nextFrame == 1080) {
-                    evolveCinematicTowers(3)
-                }
-            }
+            handleCinematicHumanGestures(cin, nextFrame, state)
             _uiState.update { it.copy(activeCinematic = cin.copy(currentFrame = nextFrame)) }
         }
 
@@ -2119,6 +2109,155 @@ class RogueTDViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(towers = currentTowers) }
         soundManager.play(com.example.audio.SoundFx.UPGRADE)
         addFloatingText(8f, 5f, "★ EVOLUTION TIER $tier UNLOCKED ★", 0xFFFFB800)
+    }
+
+    private fun handleCinematicHumanGestures(cin: ActiveCinematicState, frame: Int, state: GameUIState) {
+        val towers = state.towers
+        when (cin.scenario) {
+            CinematicScenario.CIN_01_BOSS_MELT -> {
+                when (frame) {
+                    120 -> {
+                        towers.firstOrNull()?.let { t ->
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 TOWER FOCUS", 0xFF00F0FF)
+                        }
+                    }
+                    480 -> {
+                        towers.firstOrNull()?.let { t ->
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "🎯 PRIORITY: BOSS", 0xFFFFB800)
+                        }
+                    }
+                    900 -> {
+                        _uiState.update { it.copy(overchargeRemainingMs = 6000L) }
+                        addFloatingText(8f, 6f, "⚡ OVERCHARGE ACTIVATED ⚡", 0xFFFFD700)
+                        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+                    }
+                    1380 -> {
+                        addFloatingText(8f, 6f, "★ APEX CORONA DETONATION ★", 0xFFFFD700)
+                    }
+                    1560 -> {
+                        _uiState.update { it.copy(selectedTower = null) }
+                        addFloatingText(8f, 5f, "🏆 BOSS ELIMINATED", 0xFF00FF9D)
+                    }
+                }
+            }
+            CinematicScenario.CIN_02_BULLET_HELL -> {
+                when (frame) {
+                    150 -> {
+                        val t = towers.getOrNull(1) ?: towers.firstOrNull()
+                        t?.let {
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 FLAK FOCUS", 0xFF00F0FF)
+                        }
+                    }
+                    600 -> {
+                        towers.firstOrNull()?.let { t ->
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 GATLING OVERCLOCK", 0xFFFFB800)
+                        }
+                    }
+                    1050 -> {
+                        addFloatingText(8f, 6f, "💥 10,000 PROJECTILE BLITZ", 0xFF00FF9D)
+                    }
+                    1260 -> {
+                        _uiState.update { it.copy(selectedTower = null) }
+                    }
+                }
+            }
+            CinematicScenario.CIN_03_BOOSTER_WARP -> {
+                if (frame == 60) {
+                    towers.firstOrNull()?.let { t ->
+                        _uiState.update { it.copy(selectedTower = t) }
+                        addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 SELECT PAD 1", 0xFF00E5FF)
+                    }
+                }
+                if (frame % 120 == 0) {
+                    swapBoosterPads()
+                    val targetTower = _uiState.value.towers.firstOrNull()
+                    targetTower?.let { t ->
+                        _uiState.update { it.copy(selectedTower = t) }
+                    }
+                }
+                if (frame == 900) {
+                    addFloatingText(8f, 7f, "⚡ HARMONIC WARP CONDUIT", 0xFFFFD700)
+                }
+            }
+            CinematicScenario.CIN_04_ELEMENTAL_CASCADE -> {
+                when (frame) {
+                    180 -> {
+                        towers.firstOrNull()?.let { t ->
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 CRYO LOCK", 0xFF00E5FF)
+                        }
+                    }
+                    600 -> {
+                        val t = towers.getOrNull(1) ?: towers.firstOrNull()
+                        t?.let {
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 VOID SINGULARITY", 0xFFA855F7)
+                        }
+                    }
+                    1200 -> {
+                        addFloatingText(8f, 6f, "❄️ CASCADE SHATTER ❄️", 0xFF00FF9D)
+                    }
+                    1380 -> {
+                        _uiState.update { it.copy(selectedTower = null) }
+                    }
+                }
+            }
+            CinematicScenario.CIN_05_KINETIC_GATLING -> {
+                when (frame) {
+                    120 -> {
+                        towers.firstOrNull()?.let { t ->
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 MINIGUN LOCK", 0xFFFFD700)
+                        }
+                    }
+                    480 -> {
+                        towers.firstOrNull()?.let { t ->
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "⚡ 45 RPS MAX SPIN", 0xFFFF2A55)
+                        }
+                    }
+                    960 -> {
+                        addFloatingText(8f, 6f, "💥 ARMOR SHRED MELT", 0xFFFFB800)
+                    }
+                    1320 -> {
+                        _uiState.update { it.copy(selectedTower = null) }
+                    }
+                }
+            }
+            CinematicScenario.CIN_06_EVOLUTION_MONTAGE -> {
+                when (frame) {
+                    60 -> {
+                        towers.firstOrNull()?.let { t ->
+                            _uiState.update { it.copy(selectedTower = t) }
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 SELECT TURRET", 0xFF00F0FF)
+                        }
+                    }
+                    240 -> {
+                        towers.firstOrNull()?.let { t ->
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 UPGRADE -> TIER 2", 0xFFFFB800)
+                        }
+                        evolveCinematicTowers(1)
+                    }
+                    600 -> {
+                        towers.firstOrNull()?.let { t ->
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 UPGRADE -> TIER 3", 0xFFFFB800)
+                        }
+                        evolveCinematicTowers(2)
+                    }
+                    1080 -> {
+                        towers.firstOrNull()?.let { t ->
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 ASCEND -> APEX", 0xFFFFD700)
+                        }
+                        evolveCinematicTowers(3)
+                    }
+                    1470 -> {
+                        addFloatingText(8f, 6f, "★ 52-TOWER APEX UNLOCKED ★", 0xFFFFD700)
+                    }
+                }
+            }
+        }
     }
 
     fun stopCinematic() {
