@@ -98,7 +98,8 @@ data class GameUIState(
     val siegeSfxSlot: Int = 1,
     val turretSkinSlot: Int = 1,
     val mapThemeSlot: Int = 1,
-    val towerVisualSkin: String = "Vector Blueprint"
+    val towerVisualSkin: String = "Vector Blueprint",
+    val activeCinematic: ActiveCinematicState? = null
 )
 
 class RogueTDViewModel @JvmOverloads constructor(
@@ -700,6 +701,28 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.updateTick(nowMs, deltaMs)
         val state = _uiState.value
         val level = state.level ?: return
+
+        // Deterministic Scripted Cinematic Controller (Track 4)
+        if (state.activeCinematic != null) {
+            val cin = state.activeCinematic
+            val nextFrame = cin.currentFrame + 1
+            if (nextFrame >= cin.totalFrames) {
+                stopCinematic()
+                return
+            }
+            if (cin.scenario == CinematicScenario.CIN_03_BOOSTER_WARP && nextFrame % 120 == 0) {
+                swapBoosterPads()
+            } else if (cin.scenario == CinematicScenario.CIN_06_EVOLUTION_MONTAGE) {
+                if (nextFrame == 240) {
+                    evolveCinematicTowers(1)
+                } else if (nextFrame == 600) {
+                    evolveCinematicTowers(2)
+                } else if (nextFrame == 1080) {
+                    evolveCinematicTowers(3)
+                }
+            }
+            _uiState.update { it.copy(activeCinematic = cin.copy(currentFrame = nextFrame)) }
+        }
 
         val newOvercharge = maxOf(0L, state.overchargeRemainingMs - deltaMs)
         val currentEnemies = state.enemies.toMutableList()
@@ -1746,5 +1769,367 @@ class RogueTDViewModel @JvmOverloads constructor(
             isCrit = isCrit
         )
         _uiState.update { it.copy(floatingTexts = it.floatingTexts + ft) }
+    }
+
+    // === IN-APP 30-SECOND SCRIPTED CINEMATIC ENGINE (TRACK 4) ===
+    fun launchCinematic(scenario: CinematicScenario) {
+        val level = _uiState.value.level ?: return
+        val emptyTiles = level.tiles.filter { it.type == TileType.EMPTY }
+        if (emptyTiles.size < 4) return
+
+        val towers = mutableListOf<TowerInstance>()
+        val enemies = mutableListOf<EnemyInstance>()
+        val waveNum = scenario.targetWave
+
+        when (scenario) {
+            CinematicScenario.CIN_01_BOSS_MELT -> {
+                val boosterTiles = level.tiles.filter { it.buff != TileBuff.NONE }.take(4)
+                val targetTiles = if (boosterTiles.size >= 4) boosterTiles else emptyTiles.take(4)
+                towers.add(
+                    TowerInstance(
+                        id = "cin_stellar_1",
+                        gridPos = targetTiles[0].pos,
+                        towerClass = TowerClass.STELLAR_COSMIC,
+                        tier = 3,
+                        archetype = TowerArchetype.SUPERNOVA_PULSAR,
+                        branchTier1 = "A",
+                        finalFormCode = "A.a"
+                    )
+                )
+                towers.add(
+                    TowerInstance(
+                        id = "cin_stellar_2",
+                        gridPos = targetTiles[1].pos,
+                        towerClass = TowerClass.STELLAR_COSMIC,
+                        tier = 3,
+                        archetype = TowerArchetype.GRAVITON_LANCE,
+                        branchTier1 = "A",
+                        finalFormCode = "A.b"
+                    )
+                )
+                towers.add(
+                    TowerInstance(
+                        id = "cin_gatling_1",
+                        gridPos = targetTiles[2].pos,
+                        towerClass = TowerClass.KINETIC_BALLISTIC,
+                        tier = 3,
+                        archetype = TowerArchetype.VULCAN_GATLING,
+                        branchTier1 = "A",
+                        finalFormCode = "A.a"
+                    )
+                )
+                towers.add(
+                    TowerInstance(
+                        id = "cin_gatling_2",
+                        gridPos = targetTiles[3].pos,
+                        towerClass = TowerClass.KINETIC_BALLISTIC,
+                        tier = 3,
+                        archetype = TowerArchetype.FLAK_CANNON,
+                        branchTier1 = "A",
+                        finalFormCode = "A.c"
+                    )
+                )
+
+                val startAlpha = level.laneAlpha.first()
+                enemies.add(
+                    EnemyInstance(
+                        id = "cin_boss_1",
+                        type = EnemyType.BOSS,
+                        laneIndex = 0,
+                        currentPathSegmentIndex = 0,
+                        segmentProgress = 0f,
+                        maxHp = 25000f,
+                        currentHp = 25000f,
+                        speed = 0.45f,
+                        worldX = startAlpha.x.toFloat(),
+                        worldY = startAlpha.y.toFloat(),
+                        isBoss = true
+                    )
+                )
+
+                val startBeta = level.laneBeta.first()
+                for (i in 1..25) {
+                    enemies.add(
+                        EnemyInstance(
+                            id = "cin_drone_$i",
+                            type = EnemyType.DRONE,
+                            laneIndex = if (i % 2 == 0) 0 else 1,
+                            currentPathSegmentIndex = 0,
+                            segmentProgress = -(i * 0.25f),
+                            maxHp = 450f,
+                            currentHp = 450f,
+                            speed = 1.2f,
+                            worldX = if (i % 2 == 0) startAlpha.x.toFloat() else startBeta.x.toFloat(),
+                            worldY = if (i % 2 == 0) startAlpha.y.toFloat() else startBeta.y.toFloat(),
+                            isBoss = false
+                        )
+                    )
+                }
+            }
+
+            CinematicScenario.CIN_02_BULLET_HELL -> {
+                val tilesToUse = emptyTiles.take(8)
+                tilesToUse.forEachIndexed { idx, tile ->
+                    towers.add(
+                        TowerInstance(
+                            id = "cin_gatling_$idx",
+                            gridPos = tile.pos,
+                            towerClass = TowerClass.KINETIC_BALLISTIC,
+                            tier = 2,
+                            archetype = if (idx % 2 == 0) TowerArchetype.VULCAN_GATLING else TowerArchetype.FLAK_CANNON,
+                            branchTier1 = "A"
+                        )
+                    )
+                }
+
+                val startAlpha = level.laneAlpha.first()
+                val startBeta = level.laneBeta.first()
+                for (i in 0..79) {
+                    val lane = i % 2
+                    val start = if (lane == 0) startAlpha else startBeta
+                    enemies.add(
+                        EnemyInstance(
+                            id = "cin_swarm_$i",
+                            type = if (i % 3 == 0) EnemyType.SPEEDSTER else EnemyType.DRONE,
+                            laneIndex = lane,
+                            currentPathSegmentIndex = 0,
+                            segmentProgress = -(i * 0.18f),
+                            maxHp = 280f,
+                            currentHp = 280f,
+                            speed = 1.6f,
+                            worldX = start.x.toFloat(),
+                            worldY = start.y.toFloat(),
+                            isBoss = false
+                        )
+                    )
+                }
+            }
+
+            CinematicScenario.CIN_03_BOOSTER_WARP -> {
+                val padTiles = level.tiles.filter { it.buff != TileBuff.NONE }.take(6)
+                val archetypes = listOf(
+                    TowerArchetype.SUPERNOVA_PULSAR,
+                    TowerArchetype.VULCAN_GATLING,
+                    TowerArchetype.FROST_SPIRE,
+                    TowerArchetype.HELLFIRE_MORTAR,
+                    TowerArchetype.TESLA_STORMCOIL,
+                    TowerArchetype.PLASMA_PULSAR
+                )
+                padTiles.forEachIndexed { idx, tile ->
+                    towers.add(
+                        TowerInstance(
+                            id = "cin_warp_$idx",
+                            gridPos = tile.pos,
+                            towerClass = when (idx % 4) {
+                                0 -> TowerClass.STELLAR_COSMIC
+                                1 -> TowerClass.KINETIC_BALLISTIC
+                                2 -> TowerClass.ELEMENTAL_VOID
+                                else -> TowerClass.HEAVY_SIEGE
+                            },
+                            tier = 2,
+                            archetype = archetypes.getOrElse(idx) { TowerArchetype.SUPERNOVA_PULSAR },
+                            branchTier1 = "A"
+                        )
+                    )
+                }
+
+                val startAlpha = level.laneAlpha.first()
+                val startBeta = level.laneBeta.first()
+                for (i in 0..50) {
+                    val lane = i % 2
+                    val start = if (lane == 0) startAlpha else startBeta
+                    enemies.add(
+                        EnemyInstance(
+                            id = "cin_warp_creep_$i",
+                            type = EnemyType.SOLDIER,
+                            laneIndex = lane,
+                            currentPathSegmentIndex = 0,
+                            segmentProgress = -(i * 0.22f),
+                            maxHp = 600f,
+                            currentHp = 600f,
+                            speed = 0.9f,
+                            worldX = start.x.toFloat(),
+                            worldY = start.y.toFloat(),
+                            isBoss = false
+                        )
+                    )
+                }
+            }
+
+            CinematicScenario.CIN_04_ELEMENTAL_CASCADE -> {
+                val tilesToUse = emptyTiles.take(6)
+                tilesToUse.forEachIndexed { idx, tile ->
+                    towers.add(
+                        TowerInstance(
+                            id = "cin_elem_$idx",
+                            gridPos = tile.pos,
+                            towerClass = TowerClass.ELEMENTAL_VOID,
+                            tier = 3,
+                            archetype = if (idx % 2 == 0) TowerArchetype.FROST_SPIRE else TowerArchetype.GRAVITON_VOID,
+                            branchTier1 = if (idx % 2 == 0) "A" else "B",
+                            finalFormCode = if (idx % 2 == 0) "A.a" else "B.a"
+                        )
+                    )
+                }
+
+                val startAlpha = level.laneAlpha.first()
+                val startBeta = level.laneBeta.first()
+                for (i in 0..60) {
+                    val lane = i % 2
+                    val start = if (lane == 0) startAlpha else startBeta
+                    enemies.add(
+                        EnemyInstance(
+                            id = "cin_elem_creep_$i",
+                            type = if (i % 5 == 0) EnemyType.BRUISER else EnemyType.SOLDIER,
+                            laneIndex = lane,
+                            currentPathSegmentIndex = 0,
+                            segmentProgress = -(i * 0.20f),
+                            maxHp = 950f,
+                            currentHp = 950f,
+                            speed = 0.85f,
+                            worldX = start.x.toFloat(),
+                            worldY = start.y.toFloat(),
+                            isBoss = false
+                        )
+                    )
+                }
+            }
+
+            CinematicScenario.CIN_05_KINETIC_GATLING -> {
+                val tilesToUse = emptyTiles.take(4)
+                tilesToUse.forEachIndexed { idx, tile ->
+                    towers.add(
+                        TowerInstance(
+                            id = "cin_gatling_apex_$idx",
+                            gridPos = tile.pos,
+                            towerClass = TowerClass.KINETIC_BALLISTIC,
+                            tier = 3,
+                            archetype = TowerArchetype.VULCAN_GATLING,
+                            branchTier1 = "A",
+                            finalFormCode = "A.a"
+                        )
+                    )
+                }
+
+                val startAlpha = level.laneAlpha.first()
+                for (i in 0..2) {
+                    enemies.add(
+                        EnemyInstance(
+                            id = "cin_behemoth_$i",
+                            type = EnemyType.BRUISER,
+                            laneIndex = 0,
+                            currentPathSegmentIndex = 0,
+                            segmentProgress = -(i * 0.8f),
+                            maxHp = 6000f,
+                            currentHp = 6000f,
+                            speed = 0.6f,
+                            worldX = startAlpha.x.toFloat(),
+                            worldY = startAlpha.y.toFloat(),
+                            isBoss = true
+                        )
+                    )
+                }
+            }
+
+            CinematicScenario.CIN_06_EVOLUTION_MONTAGE -> {
+                val tilesToUse = emptyTiles.take(4)
+                val classes = listOf(
+                    TowerClass.KINETIC_BALLISTIC,
+                    TowerClass.ELEMENTAL_VOID,
+                    TowerClass.HEAVY_SIEGE,
+                    TowerClass.STELLAR_COSMIC
+                )
+                tilesToUse.forEachIndexed { idx, tile ->
+                    towers.add(
+                        TowerInstance(
+                            id = "cin_evo_$idx",
+                            gridPos = tile.pos,
+                            towerClass = classes[idx],
+                            tier = 0
+                        )
+                    )
+                }
+
+                val startAlpha = level.laneAlpha.first()
+                val startBeta = level.laneBeta.first()
+                for (i in 0..40) {
+                    val lane = i % 2
+                    val start = if (lane == 0) startAlpha else startBeta
+                    enemies.add(
+                        EnemyInstance(
+                            id = "cin_evo_creep_$i",
+                            type = EnemyType.SOLDIER,
+                            laneIndex = lane,
+                            currentPathSegmentIndex = 0,
+                            segmentProgress = -(i * 0.25f),
+                            maxHp = 500f,
+                            currentHp = 500f,
+                            speed = 0.9f,
+                            worldX = start.x.toFloat(),
+                            worldY = start.y.toFloat(),
+                            isBoss = false
+                        )
+                    )
+                }
+            }
+        }
+
+        pendingSpawns.clear()
+        _uiState.update {
+            it.copy(
+                waveNumber = waveNum,
+                towers = towers,
+                enemies = enemies,
+                projectiles = emptyList(),
+                explosions = emptyList(),
+                floatingTexts = emptyList(),
+                isWaveActive = true,
+                gameSpeed = GameSpeed.NORMAL,
+                activeCinematic = ActiveCinematicState(scenario = scenario, currentFrame = 0, totalFrames = 1800),
+                isSettingsOpen = false
+            )
+        }
+        addFloatingText(8f, 4f, "🎬 START: ${scenario.title} (30s)", 0xFFFFD700)
+    }
+
+    private fun evolveCinematicTowers(tier: Int) {
+        val currentTowers = _uiState.value.towers.map { tower ->
+            when (tier) {
+                1 -> tower.copy(
+                    tier = 1,
+                    vector = TowerVector.OFFENSIVE,
+                    branchTier1 = "A"
+                )
+                2 -> tower.copy(
+                    tier = 2,
+                    archetype = when (tower.towerClass) {
+                        TowerClass.KINETIC_BALLISTIC -> TowerArchetype.VULCAN_GATLING
+                        TowerClass.ELEMENTAL_VOID -> TowerArchetype.FROST_SPIRE
+                        TowerClass.HEAVY_SIEGE -> TowerArchetype.HELLFIRE_MORTAR
+                        TowerClass.STELLAR_COSMIC -> TowerArchetype.SUPERNOVA_PULSAR
+                    }
+                )
+                3 -> tower.copy(
+                    tier = 3,
+                    finalFormCode = "A.a"
+                )
+                else -> tower
+            }
+        }
+        _uiState.update { it.copy(towers = currentTowers) }
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+        addFloatingText(8f, 5f, "★ EVOLUTION TIER $tier UNLOCKED ★", 0xFFFFB800)
+    }
+
+    fun stopCinematic() {
+        _uiState.update {
+            it.copy(
+                activeCinematic = null,
+                isWaveActive = false,
+                enemies = emptyList(),
+                projectiles = emptyList()
+            )
+        }
+        addFloatingText(8f, 8f, "🎬 CINEMATIC COMPLETE (30s)", 0xFF00FF9D)
     }
 }

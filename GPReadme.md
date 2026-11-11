@@ -4,32 +4,34 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.002
+### 🚀 What's New in Version 0.0.1.003
 
-🌟 **Stellar Star Class & 52-Tower Matrix**
-- Unlock Class 4: Stellar Star by constructing 3 Tier-3 defense towers. Features 9 brand-new archetypes including Supernova Pulsar, Singularity Bastion, and Graviton Lance.
-- Cosmic damage pierces all creep barriers with an innate +15% damage bonus.
-- Encounter new Star creep variants: Stellar Probes, Cosmic Weavers, and Astral Colossi.
+🔄 **True Screen Orientation & Smooth Counter-Rotation**
+- The tactical playfield stays fixed so you never lose your tap accuracy or hitboxes.
+- All HUD overlays—the top bullet bar, floating squircle upgrade buttons, and floating damage numbers—counter-rotate smoothly when turning your device between portrait and landscape.
 
-⚡ **Booster Pad Teleportation & Ergonomics**
-- Added 6 color-paired booster pads (Green, Teal, Orange) on the battlefield.
-- Tap the edge buttons to instantly teleport turrets across matching pads on the fly with a 750ms tactical cooldown.
-- Earn +3% scrap bounty per occupied booster pad.
-- Sleek floating bullet HUD with +25% transparency margin on rotation and fixed text orientation.
-- Pause integrity fixed: opening telemetry or settings no longer unpauses the wave.
+🔲 **Floating Squircle Upgrade Buttons**
+- Replaced the old bulky bottom drawer with floating 56dp squircle buttons positioned comfortably above the navigation bar.
+- Clean neon archetype outlines with minimal cost badges make rapid one-handed building effortless.
 
-🔊 **Audio Polish & Low-Pass Synth Filtering**
-- Applied smooth 600–1000ms gradual fades when pausing or toggling audio.
-- Low-pass filtered ambient background music (<650Hz) to keep background tracks calm and mellow, reserving higher frequencies for punchy combat sound effects.
-- New sound and skin asset favorites library with JSON export.
+🎬 **6 In-App Cinematics & YouTube Studio Timelines**
+- Access the new **DEV MENU > CINEMA (6)** tab to run 6 scripted, 30.00-second battle scenarios at locked 60 FPS.
+- Perfect for capturing cinematic clips or watching high-intensity boss melts, bullet-hell swarm clears, and warp teleports.
+- Matching DaVinci Resolve Studio timelines ready for zero-cut YouTube Shorts production.
 
-🛡️ **Platform Stability & Re-Balanced Economy**
-- Fixed Firebase `SECURITY_REJECTED` (HTTP 403) on leaderboard score submissions with proper SHA-1 certificate verification and an offline retry queue.
-- Re-balanced early wave scrap velocity (waves 1–100) and reduced starting fire rates to reward deliberate tactical planning.
+🛡️ **Platform Stability & Leaderboard Hardening**
+- Production SHA-1 certificate verification ensures your high scores submit seamlessly to the worldwide leaderboard.
+- Added offline queuing with automatic exponential retry so no victory goes unrecorded.
 
 ---
 
 ### 📦 Recent Patch History
+
+#### Version 0.0.1.002
+- **Stellar Star Class & 52-Tower Matrix:** Added Class 4 with 9 cosmic evolutions piercing barriers with innate +15% damage bonus.
+- **Booster Pad Teleportation:** 6 color-paired booster pads with instant tactical swaps, 750ms cooldown, and +3% scrap bounty per occupied pad.
+- **Audio Polish & Low-Pass Filtering:** Smooth 600–1000ms gradual fades and mellow ambient synthesizer filtering (<650Hz).
+- **Rebalanced Economy:** Tuned early-game scrap bounties across waves 1–100.
 
 #### Version 0.0.1.001
 - **Spatial Hash Collision Grid:** Locked 60/120 FPS performance during heavy swarm waves.
@@ -46,7 +48,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 #### Version 0.0.0.012
 - **Rotation Support:** Device rotation smoothly adjusts HUD text chips and menus while locking the underlying map coordinates to eliminate hitbox drift.
 - **Immediate Audio Cut:** Sound cuts instantly when minimizing the app or locking your screen—no lingering background audio.
-- **Landscape Drawer Optimization:** Full-width scrolling action cards ensure all upgrade stats remain readable in landscape orientation.
 
 #### Version 0.0.0.010
 - **Official Dual Front TD Launch:** Updated app branding and added the one-click Windows companion launcher (`Dual Front TD.exe`).

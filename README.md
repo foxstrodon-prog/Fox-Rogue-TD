@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Windows PC)
 
-- **Latest Android APK (`v0.0.1.002`):** [`apk/Dual-Front-TD-v0.0.1.002-debug.apk`](apk/Dual-Front-TD-v0.0.1.002-debug.apk)
+- **Latest Android APK (`v0.0.1.003`):** [`apk/Dual-Front-TD-v0.0.1.003-debug.apk`](apk/Dual-Front-TD-v0.0.1.003-debug.apk)
 - **One-Click Windows PC Launcher:** [`Dual Front TD.exe`](Dual%20Front%20TD.exe) (single executable in root)
   - Automatically detects ADB, pairs with your Android device or local emulator, installs the latest build, and launches the game.
 - **Google Play "What's New" Notes:** [`GPReadme.md`](GPReadme.md)
@@ -21,45 +21,47 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.002
+## 🕹️ What's New in Version 0.0.1.003
 
-### 🌟 52-Tower Evolution Matrix & Stellar Star Class
-- **Class 4: Stellar Cosmic (`STELLAR_COSMIC`):** Unlocked after deploying any three Tier-3 towers. Introduces cosmic beam, flare, and singularity mechanics with a native +15% damage bonus against shielded targets.
-- **Full 4 -> 12 -> 36 Unit Hierarchy:** Expands the evolution tree from 39 to 52 units, introducing 9 new Final Form archetypes (Supernova Pulsar, Graviton Lance, Celestial Comet, Event Horizon, Nebula Aegis, Singularity Bastion, Astral Beacon, Dyson Relay, Quasar Battery).
-- **Star Creep Wave Variants:** Introducing Stellar Probes, Cosmic Weavers, and Astral Colossi with unique 5-pointed geometric rendering and distinct speed curves.
+### 🔄 True Screen Orientation & HUD Counter-Rotation
+- **Coordinate Decoupling:** Canvas coordinates remain fixed to eliminate touch hitbox drift, while all overlay HUD elements counter-rotate smoothly (`Modifier.rotate(-angle)` / `graphicsLayer { rotationZ }`) when you rotate your phone (0°, 90°, 180°, 270°).
+- **Readable in Any Grip:** Top bullet HUD, floating squircle action bar, and floating combat damage numbers adapt smoothly without obstructing tactical playfield lanes.
 
-### ⚡ Booster Pad Teleportation & Ergonomics Overhaul
-- **Instant Tactical Swap:** 6 booster pads arranged in 3 color-coded pairs (Green AMPLIFIER, Teal HIGH_GROUND, Orange CONDUIT). Tap the one-handed edge buttons to swap or move turrets between matching pads with a 750ms tactical cooldown.
-- **Harmonic Pad Economy:** Earn +3% bonus scrap bounty per occupied booster pad, rewarding aggressive board utilization.
-- **Floating Bullet-Style HUD:** Redesigned top HUD into a sleek floating capsule with a +25% transparency margin on rotation. Accommodates 6-digit scrap counts and tracks active booster pads (`PADS: X/6`).
-- **Fixed HUD Orientation Glitch:** Removed inverted child rotation bugs so tower labels, stats, and text chips remain readable across landscape and portrait shifts.
-- **Pause Menu State Integrity:** Navigating into Telemetry, Settings, or Dev Menu from the Pause Menu now strictly preserves paused game state.
+### 🔲 Floating Squircle Upgrade Action Bar
+- **Tactical Ergonomics:** Completely eliminated the heavy bottom sheet drawer in favor of sleek 56dp x 56dp floating squircle buttons floating 32dp above the device gesture bar.
+- **Neon Archetype Accents:** Procedural archetype glyphs with glowing neon borders (Amber Kinetic, Violet Elemental, Crimson Siege, Gold Stellar) and minimal cost badges (e.g. `80c`, `140c`, `180c`, `210c`).
+- **Clean One-Handed Play:** Instant responsiveness with spring-scale tap animations and zero text clutter obscuring the map.
 
-### 🔊 Audio Polish & Ambient Filtering
-- **Gradual Volume Interpolation:** Volume toggles and pause attenuation now use smooth 600–1000ms gradual fades.
-- **Subtle Ambient Synth:** Applied a steep low-pass filter (<650Hz) to background music tracks, keeping synth tones mellow so sharp high frequencies are reserved for weapon impacts and tactical cues.
-- **Procedural Stellar SFX:** Tailored laser, flare, and beam synthesis for Stellar towers and upgrade milestones.
-- **Sound & Skin Asset Library:** Favorite custom audio and visual setups with Heart/Star markers and export your personalized roster as `exported_skins_sounds_library.json`.
+### 🎬 6 In-App 30.00-Second Cinematics & DaVinci Resolve Timelines
+- **Deterministic Replay Engine:** Added 6 scripted, frame-accurate (1,800 frames @ 60 FPS) in-app cinematic scenarios directly accessible from the **DEV MENU > CINEMA (6)** tab:
+  1. **Cin 01: Boss Melt:** Wave 20 Obsidian Titan shredded by 4 Apex Overclocked Turrets *(Thumbnail @ 23.40s)*.
+  2. **Cin 02: Bullet Hell Swarm:** 120+ Swarm creeps eradicated by Flak cannons and Singularity pulses *(Thumbnail @ 18.20s)*.
+  3. **Cin 03: Booster Warp Showcase:** Turret instantly teleports across Teal Conduit booster pads with automated tactical swaps *(Thumbnail @ 15.30s)*.
+  4. **Cin 04: Elemental Cascade:** Frost Nova slow chains into Void Rift singularity detonations *(Thumbnail @ 21.10s)*.
+  5. **Cin 05: Kinetic Gatling Overclock:** Dual ballistic streams spinning up into hyper-velocity fire *(Thumbnail @ 16.50s)*.
+  6. **Cin 06: Evolution Montage:** Rapid morph progression from Tier 1 Base through Tier 4 Apex Corona *(Thumbnail @ 25.00s)*.
+- **DaVinci Resolve Studio Timelines:** 6 matching CMX 3600 EDL timelines in `Youtube Team Assets/Timelines/` ready for zero-cut drop-in delivery, paired with high-CTR packaging suites in `Youtube Team Assets/Thumbnails/`.
 
-### 🛡️ Platform Hardening & Balance Re-Calibration
-- **Firebase Leaderboard Fix:** Resolved the persistent `SECURITY_REJECTED` (HTTP 403) error by attaching the production SHA-1 certificate fingerprint header (`X-Android-Cert`), parsing granular GCP RPC error codes, and implementing an atomic offline retry queue.
-- **Early-Game Scrap Velocity Nerf:** Rebalanced bounties across waves 1–100 (Drone: 5, Soldier: 8, Speedster: 10, Bruiser: 20, Disruptor: 18, Boss: 90; wave completion: $35 + 6 \times \text{wave}$) to keep early decisions tense and deliberate.
-- **Dev Menu Precision Sliders:** Added direct numeric text input to balance sliders for quick parameter tweaks.
-- **Automated Test Suite:** 66/66 automated domain and Robolectric unit tests passing.
+### 🛡️ Platform Hardening & Leaderboard Roundtrip
+- **Firebase Authentication & REST Security:** Production SHA-1 certificate fingerprint header (`X-Android-Cert: 174775252333dc2e8159f5ac6de1019661c3e897`) and package verification (`com.aistudio.roguetd.xtkp`).
+- **Offline Atomic Queue:** Automatic retry queue with exponential backoff and granular GCP RPC error diagnostics.
+- **Automated Test Suite:** 76/76 automated domain and Robolectric unit tests passing (100% pass rate).
 
 ---
 
 ## 📜 Prior Patch Highlights
+
+### Version 0.0.1.002
+- **52-Tower Evolution Matrix:** Introduced Class 4: Stellar Cosmic (`STELLAR_COSMIC`) with 9 final form archetypes (Supernova Pulsar, Singularity Bastion, Graviton Lance) and cosmic beam piercing.
+- **Booster Pad Teleportation:** 6 color-paired booster pads with instant tactical swaps, 750ms cooldown, and +3% scrap bounty per occupied pad.
+- **Audio Polish & Low-Pass Filtering:** Smooth 600–1000ms gradual fades and mellow ambient synthesizer filtering (<650Hz).
+- **Rebalanced Economy:** Tuned early-game scrap bounties across waves 1–100.
 
 ### Version 0.0.1.001
 - **Spatial Hash Grid Collision Engine (`SpatialHashGrid.kt`):** Replaced brute-force projectile checks with a uniform spatial partitioning grid, locking smooth 60/120 FPS performance during massive swarm waves.
 - **Modular UI Refactor:** Separated HUD, upgrade bar, and menus into single-responsibility components.
 - **39-Tower Hierarchy:** Completed initial 3 -> 9 -> 27 branching upgrade progression across Kinetic, Elemental, and Siege families.
 - **Procedural Level 1–4 Visual Upgrade Cues:** Procedural chassis, stabilizer wings, focus barrels, and Apex radiant coronas.
-
----
-
-## 📜 Prior Patch Highlights
 
 ### Version 0.0.0.013
 - **Pause Menu Audio Attenuation:** Music smoothly drops -6dB when paused and resumes instantly when returning to the fight.
@@ -91,7 +93,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **UI Framework:** Jetpack Compose & Material 3
 - **Architecture:** MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
 - **Graphics:** Hardware-accelerated Compose Canvas with custom coordinate transform matrices
-- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (66/66 passing)
+- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (76/76 passing)
 - **Target Platform:** Android (Target SDK 36, Android 16 ready, 16 KB page-size compatible) + Windows Companion Runner
 
 ---
@@ -110,5 +112,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.002-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.003-debug.apk`)
 - Windows Companion: `Dual Front TD.exe` (and staged under `apk/Dual-Front-TD-v0.0.1.002.exe`)

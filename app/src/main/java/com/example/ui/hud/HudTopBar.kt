@@ -1,5 +1,8 @@
 package com.example.ui.hud
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +32,7 @@ import com.example.ui.GameUIState
  * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD.
  * Features an orientation-resilient capsule container, 25% higher transparency margins,
  * 6-digit scrap credit headroom, and an integrated booster pad tracker (PADS: 0/6).
+ * Counter-rotates internal icons and text when the device turns to landscape (Track 1).
  */
 @Composable
 fun MinimalTopHud(
@@ -38,6 +43,13 @@ fun MinimalTopHud(
     modifier: Modifier = Modifier
 ) {
     var showSynergyDropdown by remember { mutableStateOf(false) }
+
+    val animatedRotation by animateFloatAsState(
+        targetValue = -state.deviceRotationAngle,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "hud_counter_rotation"
+    )
+    val counterRotateModifier = Modifier.graphicsLayer { rotationZ = animatedRotation }
 
     Surface(
         color = Color(0xFF070B14).copy(alpha = 0.50f), // +25% transparency margin over previous 0.65f
@@ -56,6 +68,7 @@ fun MinimalTopHud(
             ) {
                 // Wave badge
                 Row(
+                    modifier = counterRotateModifier,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -76,7 +89,8 @@ fun MinimalTopHud(
                 // Core HP (Stacked Heart Icon + Count)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(6.dp)
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = counterRotateModifier
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -102,7 +116,8 @@ fun MinimalTopHud(
                 // Credits (Formatted for 5-6 digits with high visibility)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(6.dp)
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = counterRotateModifier
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
@@ -127,7 +142,7 @@ fun MinimalTopHud(
 
                 // Consolidated Synergies Indicator with Dropdown
                 val activeSynergiesCount = state.activeGlobalSynergies.size
-                Box {
+                Box(modifier = counterRotateModifier) {
                     Surface(
                         color = if (activeSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
                         shape = RoundedCornerShape(5.dp),
@@ -217,7 +232,7 @@ fun MinimalTopHud(
                     color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(5.dp),
                     border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
-                    modifier = Modifier
+                    modifier = counterRotateModifier
                         .clip(RoundedCornerShape(5.dp))
                         .clickable { onToggleAutoWave() }
                         .padding(1.dp)
@@ -243,7 +258,7 @@ fun MinimalTopHud(
                     ),
                     contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp),
                     shape = RoundedCornerShape(5.dp),
-                    modifier = Modifier
+                    modifier = counterRotateModifier
                         .height(26.dp)
                         .testTag("deploy_wave_button")
                 ) {
@@ -263,7 +278,7 @@ fun MinimalTopHud(
                 // Gear Cog Button (Opens Pause Menu & Settings)
                 IconButton(
                     onClick = onOpenPauseMenu,
-                    modifier = Modifier
+                    modifier = counterRotateModifier
                         .size(26.dp)
                         .clip(RoundedCornerShape(5.dp))
                         .background(Color(0xFF161F30).copy(alpha = 0.70f))
@@ -281,7 +296,7 @@ fun MinimalTopHud(
             // Bullet Capsule Sub-strip: Booster Pad Status & Harmonic Grid
             Spacer(modifier = Modifier.height(2.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = counterRotateModifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {

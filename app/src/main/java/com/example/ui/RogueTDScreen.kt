@@ -81,7 +81,11 @@ fun RogueTDScreen(
             )
 
             // Floating Combat Text Overlay
-            FloatingTextOverlay(texts = state.floatingTexts, level = state.level)
+            FloatingTextOverlay(
+                texts = state.floatingTexts,
+                level = state.level,
+                rotationAngle = state.deviceRotationAngle
+            )
         }
 
         // === MINIMAL FLOATING TOP TACTICAL HUD (Adaptive edge docking & rotation safe margins) ===
@@ -120,7 +124,7 @@ fun RogueTDScreen(
             )
         }
 
-        // === MINIMAL FLOATING BOTTOM COMMAND DOCK / SIDEBAR (Adaptive rotation transition) ===
+        // === FLOATING SQUIRCLE UPGRADE ACTION BAR (TRACK 2) ===
         MinimalBottomDock(
             state = state,
             onDeployWave = { viewModel.deployWave() },
@@ -137,18 +141,9 @@ fun RogueTDScreen(
             onSellTower = { viewModel.sellSelectedTower() },
             onChangePriority = { viewModel.changeSelectedTowerPriority(it) },
             onDeselect = { viewModel.selectTile(null) },
-            modifier = if (isLandscape) {
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(340.dp)
-                    .fillMaxHeight()
-                    .padding(top = 8.dp, bottom = 8.dp, end = 8.dp)
-            } else {
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 6.dp)
-            }
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp)
         )
 
         // === ROUND 1 TACTICAL HINT (Floating non-blocking banner at top) ===
@@ -328,6 +323,47 @@ fun RogueTDScreen(
             )
         }
 
+        // === IN-APP 30S SCRIPTED CINEMATIC RECORDING BANNER (TRACK 4) ===
+        if (state.activeCinematic != null) {
+            val cin = state.activeCinematic!!
+            Surface(
+                color = Color(0xFF0F172A).copy(alpha = 0.90f),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFFB800)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 48.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF2A55))
+                    )
+                    Text(
+                        text = "REC: ${cin.scenario.title} [${cin.currentFrame / 60}s / 30s]",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 11.sp
+                    )
+                    Button(
+                        onClick = { viewModel.stopCinematic() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF2A55)),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.height(22.dp)
+                    ) {
+                        Text("STOP", fontSize = 8.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    }
+                }
+            }
+        }
+
         // === DEV BALANCE & SETTINGS MODAL (Dedicated strictly to gameplay balance values and telemetry) ===
         if (state.isSettingsOpen) {
             DevBalanceSettingsDialog(
@@ -337,6 +373,7 @@ fun RogueTDScreen(
                 onResetDefaults = { viewModel.resetBalanceConfigToDefaults() },
                 onResetTelemetry = { viewModel.resetTowerPerformance() },
                 onSpawnSandboxWave = { type, count -> viewModel.spawnSandboxWave(type, count) },
+                onLaunchCinematic = { viewModel.launchCinematic(it) },
                 activeCreepCount = state.enemies.size,
                 activeBulletCount = state.projectiles.size,
                 activeParticleCount = state.trackParticles.size,
@@ -991,7 +1028,7 @@ fun TelemetryCard(label: String, value: String, icon: androidx.compose.ui.graphi
 }
 
 @Composable
-fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?) {
+fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?, rotationAngle: Float = 0f) {
     if (level == null || texts.isEmpty()) return
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -1031,7 +1068,8 @@ fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?) {
                     text = ft.text,
                     color = Color(ft.color).copy(alpha = alpha),
                     fontSize = if (ft.isCrit) 14.sp else 11.sp,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.rotate(-rotationAngle)
                 )
             }
         }

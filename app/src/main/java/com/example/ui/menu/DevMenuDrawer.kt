@@ -47,6 +47,7 @@ fun DevBalanceSettingsDialog(
     onResetDefaults: () -> Unit,
     onResetTelemetry: () -> Unit,
     onSpawnSandboxWave: (EnemyType, Int) -> Unit = { _, _ -> },
+    onLaunchCinematic: (CinematicScenario) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0 = ECONOMY, 1 = 39 TOWERS, 2 = ENEMIES, 3 = TELEMETRY & SANDBOX
@@ -151,6 +152,11 @@ fun DevBalanceSettingsDialog(
                             selected = selectedTab == 3,
                             onClick = { selectedTab = 3 },
                             text = { Text("PROBES", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
+                        )
+                        Tab(
+                            selected = selectedTab == 4,
+                            onClick = { selectedTab = 4 },
+                            text = { Text("CINEMA (6)", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
                         )
                     }
 
@@ -479,6 +485,90 @@ fun DevBalanceSettingsDialog(
                                                     Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text("SPAWN TEST FORMATION", fontWeight = FontWeight.Black, fontSize = 9.5.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            4 -> {
+                                // Tab 4: 30-Second Scripted Cinematic Showcase (6 Scenarios)
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    item {
+                                        Text(
+                                            text = "IN-APP 30S SCRIPTED CINEMATICS (DUAL-TRACK PIPELINE)",
+                                            color = Color(0xFFFFB800),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp
+                                        )
+                                        Text(
+                                            text = "Deterministic, 1,800-frame (30.00s @ 60 FPS) scripted battle scenarios matching DaVinci Resolve Studio timelines. Tap any scenario to launch and record with zero manual cutting.",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 8.5.sp
+                                        )
+                                    }
+
+                                    items(CinematicScenario.entries) { scenario ->
+                                        Surface(
+                                            color = Color(0xFF131F37),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.5f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(10.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = scenario.title,
+                                                        color = Color(0xFFFFD700),
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 11.sp
+                                                    )
+                                                    Text(
+                                                        text = "THUMB: ${scenario.thumbnailTimestampSec}s",
+                                                        color = Color(0xFF00FF9D),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 8.5.sp
+                                                    )
+                                                }
+                                                Text(
+                                                    text = scenario.subtitle,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 9.sp
+                                                )
+                                                Text(
+                                                    text = scenario.description,
+                                                    color = Color(0xFFCBD5E1),
+                                                    fontSize = 8.sp,
+                                                    lineHeight = 10.5.sp
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Button(
+                                                    onClick = {
+                                                        onLaunchCinematic(scenario)
+                                                        onDismiss()
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFFFFB800),
+                                                        contentColor = Color.Black
+                                                    ),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(28.dp)
+                                                ) {
+                                                    Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(13.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("LAUNCH CINEMATIC (30s)", fontWeight = FontWeight.Black, fontSize = 9.sp)
                                                 }
                                             }
                                         }

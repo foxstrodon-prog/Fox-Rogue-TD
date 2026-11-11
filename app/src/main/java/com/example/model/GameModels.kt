@@ -3,6 +3,75 @@ package com.example.model
 import androidx.compose.ui.graphics.Color
 import java.util.UUID
 
+enum class CinematicScenario(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val thumbnailTimestampSec: Float,
+    val targetWave: Int
+) {
+    CIN_01_BOSS_MELT(
+        id = "cin_01",
+        title = "Astral Colossus Melt",
+        subtitle = "Wave 50 Apex Stellar Star vs Cosmic Boss",
+        description = "Level 4 Apex Corona Stellar Star on Booster Pad melts 25,000 HP boss in 1.8 seconds at 120 FPS.",
+        thumbnailTimestampSec = 23.40f,
+        targetWave = 50
+    ),
+    CIN_02_BULLET_HELL(
+        id = "cin_02",
+        title = "10K Projectile Swarm",
+        subtitle = "Dual-Front Saturation Bullet Hell",
+        description = "8 Gatling and Multi-Shot turrets at max fire rate clearing 200 swarm drones simultaneously.",
+        thumbnailTimestampSec = 18.20f,
+        targetWave = 35
+    ),
+    CIN_03_BOOSTER_WARP(
+        id = "cin_03",
+        title = "Booster Warp Dance",
+        subtitle = "Continuous 6-Pad Tactical Teleportation",
+        description = "High-speed tactical turret swapping across all 3 color pairs with zero targeting loss.",
+        thumbnailTimestampSec = 15.30f,
+        targetWave = 40
+    ),
+    CIN_04_ELEMENTAL_CASCADE(
+        id = "cin_04",
+        title = "Prismatic Cascade",
+        subtitle = "Triple Elemental Freeze & Shatter",
+        description = "Cryo freezing aura combined with Void shred and plasma chain arcs disintegrating 150 creeps.",
+        thumbnailTimestampSec = 21.10f,
+        targetWave = 42
+    ),
+    CIN_05_KINETIC_GATLING(
+        id = "cin_05",
+        title = "Gatling Apex Saturation",
+        subtitle = "Hyper-Velocity Ballistic Behemoth Shred",
+        description = "Overclocked Kinetic Vulcan Gatling turret unleashing 45 rounds per second with muzzle flares.",
+        thumbnailTimestampSec = 16.50f,
+        targetWave = 45
+    ),
+    CIN_06_EVOLUTION_MONTAGE(
+        id = "cin_06",
+        title = "52-Unit Tech Showcase",
+        subtitle = "Time-Lapse 4-Archetype Evolution",
+        description = "Rapid evolution sequence showcasing Kinetic, Elemental, Siege, and Stellar Star final forms.",
+        thumbnailTimestampSec = 25.00f,
+        targetWave = 52
+    )
+}
+
+data class ActiveCinematicState(
+    val scenario: CinematicScenario,
+    val currentFrame: Int = 0,
+    val totalFrames: Int = 1800 // Exactly 30.00 seconds at 60 FPS
+) {
+    val progress: Float get() = (currentFrame.toFloat() / totalFrames).coerceIn(0f, 1f)
+    val elapsedSeconds: Float get() = currentFrame / 60f
+    val remainingSeconds: Float get() = maxOf(0f, (totalFrames - currentFrame) / 60f)
+    val isComplete: Boolean get() = currentFrame >= totalFrames
+}
+
 enum class GameSpeed(val multiplier: Float, val label: String) {
     PAUSED(0f, "PAUSE"),
     NORMAL(1f, "1X"),
