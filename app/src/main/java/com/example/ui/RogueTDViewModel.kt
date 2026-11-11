@@ -2157,7 +2157,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                         }
                     }
                     1050 -> {
-                        addFloatingText(8f, 6f, "💥 10,000 PROJECTILE BLITZ", 0xFF00FF9D)
+                        addFloatingText(8f, 6f, "💥 FULL-SCREEN SATURATION", 0xFF00FF9D)
                     }
                     1260 -> {
                         _uiState.update { it.copy(selectedTower = null) }
@@ -2215,7 +2215,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                     }
                     480 -> {
                         towers.firstOrNull()?.let { t ->
-                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "⚡ 45 RPS MAX SPIN", 0xFFFF2A55)
+                            addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "⚡ OVERCLOCK MAX SPIN", 0xFFFF2A55)
                         }
                     }
                     960 -> {
@@ -2253,7 +2253,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                         evolveCinematicTowers(3)
                     }
                     1470 -> {
-                        addFloatingText(8f, 6f, "★ 52-TOWER APEX UNLOCKED ★", 0xFFFFD700)
+                        addFloatingText(8f, 6f, "★ APEX TRANSCENDENCE ★", 0xFFFFD700)
                     }
                 }
             }

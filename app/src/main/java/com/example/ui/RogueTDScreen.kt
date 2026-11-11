@@ -323,9 +323,21 @@ fun RogueTDScreen(
             )
         }
 
-        // === IN-APP 30S SCRIPTED CINEMATIC RECORDING BANNER (TRACK 4) ===
+        // === IN-APP 30S SCRIPTED CINEMATIC SHOWCASE BANNER & INPUT LOCK ===
         if (state.activeCinematic != null) {
             val cin = state.activeCinematic!!
+
+            // Full-screen touch blocker so accidental touches cannot disrupt the cinematic
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = { /* Non-interactable: prevent player touches during cinematic */ }
+                    )
+            )
+
             Surface(
                 color = Color(0xFF0F172A).copy(alpha = 0.90f),
                 shape = RoundedCornerShape(12.dp),
@@ -343,10 +355,10 @@ fun RogueTDScreen(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFF2A55))
+                            .background(Color(0xFFFFB800))
                     )
                     Text(
-                        text = "REC: ${cin.scenario.title} [${cin.currentFrame / 60}s / 30s]",
+                        text = "SHOWCASE: ${cin.scenario.title} [${cin.currentFrame / 60}s / 30s] • ${cin.scenario.getTargetFilename()}",
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 11.sp

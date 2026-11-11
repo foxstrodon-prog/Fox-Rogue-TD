@@ -29,6 +29,11 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **Idempotent Release Pipeline & Concurrency Guards:** Added workflow concurrency groups (`group: release-${{ github.ref_name }}`) and resilient release upload logic, eliminating parallel release creation collisions when pushing branches and tags simultaneously.
 - **Runner Pin Stability:** Pinned build runner environment to `ubuntu-24.04` LTS to ensure deterministic builds and avoid automated OS image shift warnings.
 
+### 🎬 In-Game Feature Showcase Polish & Touch Lock
+- **Automated Feature Demonstrations:** In-game cinematics now execute real-time gameplay demonstrations (targeting reticles, booster pad teleportation maneuvers, and squircle upgrade bar inspections).
+- **Playback Input Protection:** Complete screen touch locking during cinematic playback ensures zero accidental interruptions.
+- **Direct Clipboard Integration:** Launching any showcase copies its standard clip reference (`v001004_CinematicX.mp4`) to the device clipboard.
+
 ---
 
 ## 📜 Prior Patch Highlights
@@ -36,8 +41,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ### Version 0.0.1.003
 - **True Screen Orientation & HUD Counter-Rotation:** Coordinate decoupling keeps tactical game canvas fixed, while top Bullet HUD (`HudTopBar.kt`), floating squircle action bar (`TowerUpgradeBar.kt`), and combat damage numbers smoothly counter-rotate (`Modifier.rotate(-angle)` / `graphicsLayer`) so all text and metrics stay readable in 0°, 90°, 180°, and 270°.
 - **Floating Squircle Upgrade Action Bar:** Replaced heavy bottom drawer sheet with sleek 56dp x 56dp squircle buttons floating 32dp above gesture bar. Features glowing neon borders, minimal cost badges (e.g. `80c`, `140c`, `180c`, `210c`), spring scale tap feedback, and zero multi-paragraph clutter.
-- **6 In-App 30.00-Second Scripted Cinematics:** Built-in deterministic simulation engine running at locked 60 FPS (1,800 frames per scenario) accessible via the DEV menu CINEMA tab.
-- **DaVinci Resolve Studio Timelines & Viral Packaging:** 6 matching CMX 3600 EDL timelines in `Youtube Team Assets/Timelines/` ready for zero-cut drop-in delivery, paired with high-CTR packaging suites in `Youtube Team Assets/Thumbnails/`.
+- **6 In-Game Feature Cinematics:** Built-in deterministic simulation engine running at locked 60 FPS (1,800 frames per scenario) accessible via the DEV menu showcasing peak combat and tactical mechanics.
 - **Firebase Leaderboard Roundtrip Hardened:** Validated REST submission with SHA-1 cert fingerprint `174775252333dc2e8159f5ac6de1019661c3e897`, RPC diagnostics, and offline retry queue.
 
 ### Version 0.0.1.002

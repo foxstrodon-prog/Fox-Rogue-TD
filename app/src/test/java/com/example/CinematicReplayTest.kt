@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * Quinn (Lead QA & Test Architect)
  * Domain Test Suite for In-App 30-Second Scripted Cinematic Engine (Track 4).
- * Verifies deterministic 1,800-frame termination, scenario IDs, thumbnail timestamps, and progress.
+ * Verifies deterministic 1,800-frame termination, scenario IDs, highlight timestamps, target filenames, and progress.
  */
 class CinematicReplayTest {
 
@@ -58,12 +58,22 @@ class CinematicReplayTest {
     }
 
     @Test
-    fun `Specific thumbnail timestamps match viral pacing specifications`() {
+    fun `Specific highlight timestamps match cinematic showcase specifications`() {
         assertEquals(23.40f, CinematicScenario.CIN_01_BOSS_MELT.thumbnailTimestampSec, 0.01f)
         assertEquals(18.20f, CinematicScenario.CIN_02_BULLET_HELL.thumbnailTimestampSec, 0.01f)
         assertEquals(15.30f, CinematicScenario.CIN_03_BOOSTER_WARP.thumbnailTimestampSec, 0.01f)
         assertEquals(21.10f, CinematicScenario.CIN_04_ELEMENTAL_CASCADE.thumbnailTimestampSec, 0.01f)
         assertEquals(16.50f, CinematicScenario.CIN_05_KINETIC_GATLING.thumbnailTimestampSec, 0.01f)
         assertEquals(25.00f, CinematicScenario.CIN_06_EVOLUTION_MONTAGE.thumbnailTimestampSec, 0.01f)
+    }
+
+    @Test
+    fun `Target filenames follow version and cinematic number pattern`() {
+        assertEquals("v001004_Cinematic1.mp4", CinematicScenario.CIN_01_BOSS_MELT.getTargetFilename("v001004"))
+        assertEquals("v001004_Cinematic2.mp4", CinematicScenario.CIN_02_BULLET_HELL.getTargetFilename("v001004"))
+        assertEquals("v001004_Cinematic3.mp4", CinematicScenario.CIN_03_BOOSTER_WARP.getTargetFilename("v001004"))
+        assertEquals("v001004_Cinematic4.mp4", CinematicScenario.CIN_04_ELEMENTAL_CASCADE.getTargetFilename("v001004"))
+        assertEquals("v001004_Cinematic5.mp4", CinematicScenario.CIN_05_KINETIC_GATLING.getTargetFilename("v001004"))
+        assertEquals("v001004_Cinematic6.mp4", CinematicScenario.CIN_06_EVOLUTION_MONTAGE.getTargetFilename("v001004"))
     }
 }

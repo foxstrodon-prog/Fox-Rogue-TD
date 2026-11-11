@@ -11,6 +11,10 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - Added build runner pinning to `ubuntu-24.04` LTS to ensure deterministic builds.
 - Implemented workflow concurrency groups and idempotent release uploading to eliminate duplicate release collisions.
 
+🎬 **In-Game Feature Showcase Mode Polish**
+- In-game feature cinematics now feature automated gameplay demonstrations (targeting reticles, booster pad swaps, and squircle upgrade inspections).
+- Added full screen touch locking during showcase playback to guarantee smooth, uninterruptible presentations.
+
 ---
 
 ### 📦 Recent Patch History
@@ -18,7 +22,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 #### Version 0.0.1.003
 - **True Screen Orientation & Smooth Counter-Rotation:** Canvas coordinates remain fixed while top bullet HUD, floating squircle buttons, and combat damage numbers counter-rotate cleanly across portrait and landscape.
 - **Floating Squircle Upgrade Buttons:** 56dp squircle buttons floating 32dp above the device gesture bar with vibrant neon accents and minimal cost badges.
-- **6 In-App Cinematics & YouTube Studio Timelines:** 30.00-second battle scenarios at locked 60 FPS in Dev Menu paired with zero-cut DaVinci Resolve Studio timelines.
+- **6 In-Game Feature Cinematics:** Deterministic 30.00-second showcase scenarios at locked 60 FPS in Dev Menu highlighting peak combat and tactical mechanics.
 - **Leaderboard Security Roundtrip:** Validated REST submissions with production certificate fingerprinting and atomic offline retries.
 
 #### Version 0.0.1.002

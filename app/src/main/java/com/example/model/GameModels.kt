@@ -13,52 +13,64 @@ enum class CinematicScenario(
 ) {
     CIN_01_BOSS_MELT(
         id = "cin_01",
-        title = "Astral Colossus Melt",
-        subtitle = "Wave 50 Apex Stellar Star vs Cosmic Boss",
-        description = "Level 4 Apex Corona Stellar Star on Booster Pad melts 25,000 HP boss in 1.8 seconds at 120 FPS.",
+        title = "Astral Colossus Annihilation",
+        subtitle = "Apex Stellar Star vs Void Colossus",
+        description = "Level 4 Radiant Apex Corona channels focused cosmic beam energy through a booster pad, vaporizing the armored void colossus.",
         thumbnailTimestampSec = 23.40f,
         targetWave = 50
     ),
     CIN_02_BULLET_HELL(
         id = "cin_02",
-        title = "10K Projectile Swarm",
-        subtitle = "Dual-Front Saturation Bullet Hell",
-        description = "8 Gatling and Multi-Shot turrets at max fire rate clearing 200 swarm drones simultaneously.",
+        title = "Dual-Front Swarm Saturation",
+        subtitle = "Twin-Lane Full-Screen Firestorm",
+        description = "Coordinated flak barriers and rapid-fire vulcan cannons saturating twin lanes against advancing swarms.",
         thumbnailTimestampSec = 18.20f,
         targetWave = 35
     ),
     CIN_03_BOOSTER_WARP(
         id = "cin_03",
-        title = "Booster Warp Dance",
-        subtitle = "Continuous 6-Pad Tactical Teleportation",
-        description = "High-speed tactical turret swapping across all 3 color pairs with zero targeting loss.",
+        title = "Booster Teleportation Maneuver",
+        subtitle = "Instant Dual-Front Tactical Swaps",
+        description = "High-speed tactical turret teleportation across linked booster pads, instantly shifting heavy firepower between lanes.",
         thumbnailTimestampSec = 15.30f,
         targetWave = 40
     ),
     CIN_04_ELEMENTAL_CASCADE(
         id = "cin_04",
-        title = "Prismatic Cascade",
-        subtitle = "Triple Elemental Freeze & Shatter",
-        description = "Cryo freezing aura combined with Void shred and plasma chain arcs disintegrating 150 creeps.",
+        title = "Prismatic Void Shatter",
+        subtitle = "Cryo Freeze & Singularity Collapse",
+        description = "Sub-zero frost nova freezing the advance while a gravitational void singularity collapses the cluster in a prismatic chain explosion.",
         thumbnailTimestampSec = 21.10f,
         targetWave = 42
     ),
     CIN_05_KINETIC_GATLING(
         id = "cin_05",
-        title = "Gatling Apex Saturation",
-        subtitle = "Hyper-Velocity Ballistic Behemoth Shred",
-        description = "Overclocked Kinetic Vulcan Gatling turret unleashing 45 rounds per second with muzzle flares.",
+        title = "Kinetic Vulcan Overclock",
+        subtitle = "Hyper-Velocity Ballistic Shred",
+        description = "Heavy Gatling barrel spooling to maximum velocity, blasting armored behemoths with sustained tracer fire and muzzle bloom.",
         thumbnailTimestampSec = 16.50f,
         targetWave = 45
     ),
     CIN_06_EVOLUTION_MONTAGE(
         id = "cin_06",
-        title = "52-Unit Tech Showcase",
-        subtitle = "Time-Lapse 4-Archetype Evolution",
-        description = "Rapid evolution sequence showcasing Kinetic, Elemental, Siege, and Stellar Star final forms.",
+        title = "Ascension Showcase",
+        subtitle = "Tier 1 to Apex Final Forms",
+        description = "Time-lapse transformation from basic starter turrets up through specialized evolution branches into radiant Apex forms.",
         thumbnailTimestampSec = 25.00f,
         targetWave = 52
-    )
+    );
+
+    val cinematicNumber: Int
+        get() = when (this) {
+            CIN_01_BOSS_MELT -> 1
+            CIN_02_BULLET_HELL -> 2
+            CIN_03_BOOSTER_WARP -> 3
+            CIN_04_ELEMENTAL_CASCADE -> 4
+            CIN_05_KINETIC_GATLING -> 5
+            CIN_06_EVOLUTION_MONTAGE -> 6
+        }
+
+    fun getTargetFilename(version: String = "v001004"): String = "${version}_Cinematic${cinematicNumber}.mp4"
 }
 
 data class ActiveCinematicState(

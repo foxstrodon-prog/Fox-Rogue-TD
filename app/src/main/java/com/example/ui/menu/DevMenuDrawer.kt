@@ -500,13 +500,13 @@ fun DevBalanceSettingsDialog(
                                 ) {
                                     item {
                                         Text(
-                                            text = "IN-APP 30S SCRIPTED CINEMATICS (DUAL-TRACK PIPELINE)",
+                                            text = "IN-GAME FEATURE CINEMATICS (SHOWCASE MODE)",
                                             color = Color(0xFFFFB800),
                                             fontWeight = FontWeight.Black,
                                             fontSize = 10.sp
                                         )
                                         Text(
-                                            text = "Deterministic, 1,800-frame (30.00s @ 60 FPS) scripted battle scenarios matching DaVinci Resolve Studio timelines. Tap any scenario to launch and record with zero manual cutting.",
+                                            text = "Deterministic, 1,800-frame (30.00s @ 60 FPS) scripted showcase scenarios highlighting core mechanics. Screen controls are locked during playback for pristine presentation.",
                                             color = Color(0xFF94A3B8),
                                             fontSize = 8.5.sp
                                         )
@@ -535,7 +535,7 @@ fun DevBalanceSettingsDialog(
                                                         fontSize = 11.sp
                                                     )
                                                     Text(
-                                                        text = "THUMB: ${scenario.thumbnailTimestampSec}s",
+                                                        text = "PEAK: ${scenario.thumbnailTimestampSec}s",
                                                         color = Color(0xFF00FF9D),
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 8.5.sp
@@ -553,9 +553,18 @@ fun DevBalanceSettingsDialog(
                                                     fontSize = 8.sp,
                                                     lineHeight = 10.5.sp
                                                 )
+                                                Text(
+                                                    text = "Target Clip: ${scenario.getTargetFilename()}",
+                                                    color = Color(0xFF38BDF8),
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 7.5.sp
+                                                )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Button(
                                                     onClick = {
+                                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Cinematic Filename", scenario.getTargetFilename()))
+                                                        android.widget.Toast.makeText(context, "${scenario.getTargetFilename()} copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
                                                         onLaunchCinematic(scenario)
                                                         onDismiss()
                                                     },
