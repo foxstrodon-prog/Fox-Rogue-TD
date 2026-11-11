@@ -39,7 +39,25 @@ Write-Host "Compiling Windows Launcher: $OutExe" -ForegroundColor Cyan
 
 if ($LASTEXITCODE -eq 0 -and (Test-Path $OutExe)) {
     Write-Host "Successfully compiled Dual Front TD.exe in root!" -ForegroundColor Green
-    Copy-Item $OutExe (Join-Path $ApkDir "Dual Front TD.exe") -Force
+
+    # Extract version from app/build.gradle.kts
+    $GradleFile = Join-Path $ProjectRoot "app\build.gradle.kts"
+    $Version = "0.0.1.004"
+    if (Test-Path $GradleFile) {
+        $Content = Get-Content $GradleFile -Raw
+        if ($Content -match 'versionName\s*=\s*"([^"]+)"') {
+            $Version = $Matches[1].Trim()
+        }
+    }
+    $VersionedExeName = "Dual-Front-TD-v$Version.exe"
+    $VersionedExePath = Join-Path $ApkDir $VersionedExeName
+
+    # Purge any outdated versioned EXEs from apk/ folder
+    Get-ChildItem -Path $ApkDir -Filter "Dual-Front-TD-v*.exe" | Where-Object { $_.Name -ne $VersionedExeName } | Remove-Item -Force
+
+    # Stage the versioned executable into apk/
+    Copy-Item $OutExe $VersionedExePath -Force
+    Write-Host "Successfully staged Windows launcher at: $VersionedExePath" -ForegroundColor Green
 } else {
     Write-Error "Failed to compile Dual Front TD.exe"
     exit 1

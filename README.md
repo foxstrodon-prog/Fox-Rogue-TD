@@ -106,4 +106,4 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 Build outputs:
 - Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.004-debug.apk`)
-- Windows Companion: `Dual Front TD.exe` (and staged under `apk/Dual-Front-TD-v0.0.1.002.exe`)
+- Windows Companion: `Dual Front TD.exe` (and staged under `apk/Dual-Front-TD-v0.0.1.004.exe`)
