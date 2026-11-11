@@ -4,28 +4,22 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.003
+### 🚀 What's New in Version 0.0.1.004
 
-🔄 **True Screen Orientation & Smooth Counter-Rotation**
-- The tactical playfield stays fixed so you never lose your tap accuracy or hitboxes.
-- All HUD overlays—the top bullet bar, floating squircle upgrade buttons, and floating damage numbers—counter-rotate smoothly when turning your device between portrait and landscape.
-
-🔲 **Floating Squircle Upgrade Buttons**
-- Replaced the old bulky bottom drawer with floating 56dp squircle buttons positioned comfortably above the navigation bar.
-- Clean neon archetype outlines with minimal cost badges make rapid one-handed building effortless.
-
-🎬 **6 In-App Cinematics & YouTube Studio Timelines**
-- Access the new **DEV MENU > CINEMA (6)** tab to run 6 scripted, 30.00-second battle scenarios at locked 60 FPS.
-- Perfect for capturing cinematic clips or watching high-intensity boss melts, bullet-hell swarm clears, and warp teleports.
-- Matching DaVinci Resolve Studio timelines ready for zero-cut YouTube Shorts production.
-
-🛡️ **Platform Stability & Leaderboard Hardening**
-- Production SHA-1 certificate verification ensures your high scores submit seamlessly to the worldwide leaderboard.
-- Added offline queuing with automatic exponential retry so no victory goes unrecorded.
+⚙️ **Build System Hardening & Modernized CI Pipeline**
+- Upgraded the automated build and release pipeline to native Node 24 actions (`actions/setup-java@v5` and `gradle/actions/setup-gradle@v4`).
+- Added build runner pinning to `ubuntu-24.04` LTS to ensure deterministic builds.
+- Implemented workflow concurrency groups and idempotent release uploading to eliminate duplicate release collisions.
 
 ---
 
 ### 📦 Recent Patch History
+
+#### Version 0.0.1.003
+- **True Screen Orientation & Smooth Counter-Rotation:** Canvas coordinates remain fixed while top bullet HUD, floating squircle buttons, and combat damage numbers counter-rotate cleanly across portrait and landscape.
+- **Floating Squircle Upgrade Buttons:** 56dp squircle buttons floating 32dp above the device gesture bar with vibrant neon accents and minimal cost badges.
+- **6 In-App Cinematics & YouTube Studio Timelines:** 30.00-second battle scenarios at locked 60 FPS in Dev Menu paired with zero-cut DaVinci Resolve Studio timelines.
+- **Leaderboard Security Roundtrip:** Validated REST submissions with production certificate fingerprinting and atomic offline retries.
 
 #### Version 0.0.1.002
 - **Stellar Star Class & 52-Tower Matrix:** Added Class 4 with 9 cosmic evolutions piercing barriers with innate +15% damage bonus.

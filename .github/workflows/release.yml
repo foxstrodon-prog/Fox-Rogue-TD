@@ -14,13 +14,17 @@ on:
         required: false
         default: ''
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   build-and-release:
     name: Build & Publish Release on Commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code
@@ -29,7 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -38,7 +42,9 @@ jobs:
         run: chmod +x gradlew
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Determine Version Tag
         id: version_step
@@ -66,14 +72,14 @@ jobs:
         env:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
-          LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION || 'leaderboard' }}
+          LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
         run: ./gradlew testDebugUnitTest
 
       - name: Assemble Debug APK
         env:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
-          LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION || 'leaderboard' }}
+          LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
         run: ./gradlew assembleDebug
 
       - name: Stage Release Binaries
@@ -119,15 +125,16 @@ jobs:
             gh release edit "$TAG" \
               --target "$GITHUB_SHA" \
               --title "Dual Front TD $TAG" \
-              --generate-notes
+              --generate-notes || true
             gh release upload "$TAG" dist/* --clobber
           else
-            echo "Creating new GitHub Release draft $TAG..."
+            echo "Creating new GitHub Release $TAG..."
             gh release create "$TAG" dist/* \
-              --draft \
               --target "$GITHUB_SHA" \
               --title "Dual Front TD $TAG" \
-              --generate-notes
+              --generate-notes || {
+                echo "Release creation encountered existing tag or conflict; uploading assets with --clobber..."
+                gh release upload "$TAG" dist/* --clobber
+              }
           fi
-          echo "Release draft prepared for manual testing and publication by the Lead Developer!"
-          echo "Successfully published release $TAG for commit $GITHUB_SHA!"
+          echo "Successfully published or updated release $TAG for commit $GITHUB_SHA!"

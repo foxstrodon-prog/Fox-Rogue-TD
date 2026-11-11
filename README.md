@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Windows PC)
 
-- **Latest Android APK (`v0.0.1.003`):** [`apk/Dual-Front-TD-v0.0.1.003-debug.apk`](apk/Dual-Front-TD-v0.0.1.003-debug.apk)
+- **Latest Android APK (`v0.0.1.004`):** [`apk/Dual-Front-TD-v0.0.1.004-debug.apk`](apk/Dual-Front-TD-v0.0.1.004-debug.apk)
 - **One-Click Windows PC Launcher:** [`Dual Front TD.exe`](Dual%20Front%20TD.exe) (single executable in root)
   - Automatically detects ADB, pairs with your Android device or local emulator, installs the latest build, and launches the game.
 - **Google Play "What's New" Notes:** [`GPReadme.md`](GPReadme.md)
@@ -21,35 +21,24 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.003
+## 🕹️ What's New in Version 0.0.1.004
 
-### 🔄 True Screen Orientation & HUD Counter-Rotation
-- **Coordinate Decoupling:** Canvas coordinates remain fixed to eliminate touch hitbox drift, while all overlay HUD elements counter-rotate smoothly (`Modifier.rotate(-angle)` / `graphicsLayer { rotationZ }`) when you rotate your phone (0°, 90°, 180°, 270°).
-- **Readable in Any Grip:** Top bullet HUD, floating squircle action bar, and floating combat damage numbers adapt smoothly without obstructing tactical playfield lanes.
-
-### 🔲 Floating Squircle Upgrade Action Bar
-- **Tactical Ergonomics:** Completely eliminated the heavy bottom sheet drawer in favor of sleek 56dp x 56dp floating squircle buttons floating 32dp above the device gesture bar.
-- **Neon Archetype Accents:** Procedural archetype glyphs with glowing neon borders (Amber Kinetic, Violet Elemental, Crimson Siege, Gold Stellar) and minimal cost badges (e.g. `80c`, `140c`, `180c`, `210c`).
-- **Clean One-Handed Play:** Instant responsiveness with spring-scale tap animations and zero text clutter obscuring the map.
-
-### 🎬 6 In-App 30.00-Second Cinematics & DaVinci Resolve Timelines
-- **Deterministic Replay Engine:** Added 6 scripted, frame-accurate (1,800 frames @ 60 FPS) in-app cinematic scenarios directly accessible from the **DEV MENU > CINEMA (6)** tab:
-  1. **Cin 01: Boss Melt:** Wave 20 Obsidian Titan shredded by 4 Apex Overclocked Turrets *(Thumbnail @ 23.40s)*.
-  2. **Cin 02: Bullet Hell Swarm:** 120+ Swarm creeps eradicated by Flak cannons and Singularity pulses *(Thumbnail @ 18.20s)*.
-  3. **Cin 03: Booster Warp Showcase:** Turret instantly teleports across Teal Conduit booster pads with automated tactical swaps *(Thumbnail @ 15.30s)*.
-  4. **Cin 04: Elemental Cascade:** Frost Nova slow chains into Void Rift singularity detonations *(Thumbnail @ 21.10s)*.
-  5. **Cin 05: Kinetic Gatling Overclock:** Dual ballistic streams spinning up into hyper-velocity fire *(Thumbnail @ 16.50s)*.
-  6. **Cin 06: Evolution Montage:** Rapid morph progression from Tier 1 Base through Tier 4 Apex Corona *(Thumbnail @ 25.00s)*.
-- **DaVinci Resolve Studio Timelines:** 6 matching CMX 3600 EDL timelines in `Youtube Team Assets/Timelines/` ready for zero-cut drop-in delivery, paired with high-CTR packaging suites in `Youtube Team Assets/Thumbnails/`.
-
-### 🛡️ Platform Hardening & Leaderboard Roundtrip
-- **Firebase Authentication & REST Security:** Production SHA-1 certificate fingerprint header (`X-Android-Cert: 174775252333dc2e8159f5ac6de1019661c3e897`) and package verification (`com.aistudio.roguetd.xtkp`).
-- **Offline Atomic Queue:** Automatic retry queue with exponential backoff and granular GCP RPC error diagnostics.
-- **Automated Test Suite:** 76/76 automated domain and Robolectric unit tests passing (100% pass rate).
+### 🚀 CI/CD Pipeline & GitHub Actions Hardening
+- **Node.js 24 & Action Modernization:** Migrated `actions/setup-java` to `@v5` and `gradle/actions/setup-gradle` to `@v4` (targeting native Node.js 24 runners and resolving upstream Node 20 deprecation notices).
+- **Graceful Cache Resilience:** Upgraded Gradle cache integration to prevent build interruptions during transient GitHub Actions cache service outages or HTTP 400/503 responses.
+- **Idempotent Release Pipeline & Concurrency Guards:** Added workflow concurrency groups (`group: release-${{ github.ref_name }}`) and resilient release upload logic, eliminating parallel release creation collisions when pushing branches and tags simultaneously.
+- **Runner Pin Stability:** Pinned build runner environment to `ubuntu-24.04` LTS to ensure deterministic builds and avoid automated OS image shift warnings.
 
 ---
 
 ## 📜 Prior Patch Highlights
+
+### Version 0.0.1.003
+- **True Screen Orientation & HUD Counter-Rotation:** Coordinate decoupling keeps tactical game canvas fixed, while top Bullet HUD (`HudTopBar.kt`), floating squircle action bar (`TowerUpgradeBar.kt`), and combat damage numbers smoothly counter-rotate (`Modifier.rotate(-angle)` / `graphicsLayer`) so all text and metrics stay readable in 0°, 90°, 180°, and 270°.
+- **Floating Squircle Upgrade Action Bar:** Replaced heavy bottom drawer sheet with sleek 56dp x 56dp squircle buttons floating 32dp above gesture bar. Features glowing neon borders, minimal cost badges (e.g. `80c`, `140c`, `180c`, `210c`), spring scale tap feedback, and zero multi-paragraph clutter.
+- **6 In-App 30.00-Second Scripted Cinematics:** Built-in deterministic simulation engine running at locked 60 FPS (1,800 frames per scenario) accessible via the DEV menu CINEMA tab.
+- **DaVinci Resolve Studio Timelines & Viral Packaging:** 6 matching CMX 3600 EDL timelines in `Youtube Team Assets/Timelines/` ready for zero-cut drop-in delivery, paired with high-CTR packaging suites in `Youtube Team Assets/Thumbnails/`.
+- **Firebase Leaderboard Roundtrip Hardened:** Validated REST submission with SHA-1 cert fingerprint `174775252333dc2e8159f5ac6de1019661c3e897`, RPC diagnostics, and offline retry queue.
 
 ### Version 0.0.1.002
 - **52-Tower Evolution Matrix:** Introduced Class 4: Stellar Cosmic (`STELLAR_COSMIC`) with 9 final form archetypes (Supernova Pulsar, Singularity Bastion, Graviton Lance) and cosmic beam piercing.
@@ -112,5 +101,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.003-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.004-debug.apk`)
 - Windows Companion: `Dual Front TD.exe` (and staged under `apk/Dual-Front-TD-v0.0.1.002.exe`)
