@@ -1,0 +1,73 @@
+﻿Composition {
+	CurrentTime = 0,
+	RenderRange = { 0, 1320 },
+	GlobalRange = { 0, 1320 },
+	CurrentFormat = "1080x1920",
+	Tools = {
+		BackgroundSpace = Background {
+			Inputs = {
+				Width = Input { Value = 1080, },
+				Height = Input { Value = 1920, },
+				["Gamut.SLogVersion"] = Input { Value = 2, },
+				TopLeftRed = Input { Value = 0.027, },
+				TopLeftGreen = Input { Value = 0.043, },
+				TopLeftBlue = Input { Value = 0.078, },
+				TopLeftAlpha = Input { Value = 1, },
+			},
+		},
+		ShockwaveRing = EllipseMask {
+			Inputs = {
+				Width = Input {
+					SourceOp = "ShockwaveScaleSpline",
+					Source = "Value",
+				},
+				Height = Input {
+					SourceOp = "ShockwaveScaleSpline",
+					Source = "Value",
+				},
+				BorderWidth = Input { Value = 0.02, },
+				Solid = Input { Value = 0, },
+			},
+		},
+		ShockwaveScaleSpline = BezierSpline {
+			SplineColor = { Red = 255, Green = 215, Blue = 0 },
+			KeyFrames = {
+				[840] = { 0.02, RH = { 870, 0.4 } },
+				[960] = { 0.95, LH = { 900, 0.8 } }
+			}
+		},
+		GoldShockwaveColor = Background {
+			Inputs = {
+				TopLeftRed = Input { Value = 1.0, },
+				TopLeftGreen = Input { Value = 0.84, },
+				TopLeftBlue = Input { Value = 0.0, },
+				EffectMask = Input {
+					SourceOp = "ShockwaveRing",
+					Source = "Mask",
+				}
+			},
+		},
+		MergeShockwave = Merge {
+			Inputs = {
+				Background = Input {
+					SourceOp = "BackgroundSpace",
+					Source = "Output",
+				},
+				Foreground = Input {
+					SourceOp = "GoldShockwaveColor",
+					Source = "Output",
+				},
+				PerformDepthMerge = Input { Value = 0, },
+			},
+		},
+		MediaOut1 = MediaOut {
+			Inputs = {
+				Index = Input { Value = "0", },
+				Input = Input {
+					SourceOp = "MergeShockwave",
+					Source = "Output",
+				},
+			},
+		}
+	}
+}
