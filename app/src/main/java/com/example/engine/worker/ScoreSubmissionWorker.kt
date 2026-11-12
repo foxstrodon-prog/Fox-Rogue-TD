@@ -26,16 +26,23 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
     if (pendingList.isEmpty()) return@withContext Result.success()
 
     authRepo.ensureAuthenticated()
-    val idToken = authRepo.getIdToken()
+    var idToken = authRepo.getIdToken()
     val effectiveUserId = authRepo.currentUserId.orEmpty()
 
+    if (idToken.isNullOrBlank() || effectiveUserId.isBlank()) {
+      return@withContext Result.retry()
+    }
+
     for (item in pendingList) {
-      val itemWithUser = if (item.userId.isBlank() && effectiveUserId.isNotBlank()) {
-        item.copy(userId = effectiveUserId)
-      } else {
-        item
+      val itemWithUser = item.copy(userId = effectiveUserId)
+      var result = api.submitScore(itemWithUser, idToken = idToken)
+      if (result is LeaderboardResult.Failure && result.kind == FailureKind.SECURITY_REJECTED) {
+        val refreshed = authRepo.getIdToken(forceRefresh = true)
+        if (!refreshed.isNullOrBlank() && refreshed != idToken) {
+          idToken = refreshed
+          result = api.submitScore(itemWithUser, idToken = idToken)
+        }
       }
-      val result = api.submitScore(itemWithUser, idToken = idToken)
       when (result) {
         is LeaderboardResult.Success -> {
           store.removePending(item.runId)

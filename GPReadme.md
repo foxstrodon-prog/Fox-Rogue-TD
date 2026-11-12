@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.009
+### 🚀 What's New in Version 0.0.1.010
+
+🛡️ **Leaderboard Engine Resilience & Self-Healing Query Engine**
+- **Zero-Failure Index Fallback:** Integrated resilient fallback querying that serves global leaderboards instantaneously even while cloud composite indexes are provisioning, preventing connection dropouts and server errors.
+- **Synchronized Auth-to-Score Binding:** Fixed identity payload mapping in background score submission workers to ensure anonymous player cryptographic tokens cleanly pass security rules.
+- **Offline Zero-Loss Queue:** Unsubmitted run logs are safely held in local storage and automatically flushed as soon as network and cloud services are active.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.009
 
 👤 **Native Anonymous Authentication & Secure Identity**
 - **Zero-Friction Identity:** Added native Firebase Anonymous Authentication for secure, persistent player identification without passwords, emails, or personal data collection.

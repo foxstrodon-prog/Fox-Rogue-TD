@@ -46,16 +46,16 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       // Primary fields strictly validated by Firestore Security Rules
       put("userId", JSONObject().put("stringValue", effectiveUserId))
       put("username", JSONObject().put("stringValue", sanitizedCallsign))
-      put("highScore", JSONObject().put("integerValue", item.score.toString()))
-      put("maxWave", JSONObject().put("integerValue", item.wavesCleared.toString()))
+      put("highScore", JSONObject().put("integerValue", item.score.coerceAtLeast(0).toString()))
+      put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.010" }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
-      put("score", JSONObject().put("integerValue", item.score.toString()))
-      put("wavesCleared", JSONObject().put("integerValue", item.wavesCleared.toString()))
+      put("score", JSONObject().put("integerValue", item.score.coerceAtLeast(0).toString()))
+      put("wavesCleared", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("scrapEarned", JSONObject().put("integerValue", item.scrapEarned.toString()))
       put("timestampMs", JSONObject().put("integerValue", item.timestampMs.toString()))
     }
@@ -176,6 +176,9 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
           }
           400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
+            if (response.code == 400 && (errBody.contains("requires an index", ignoreCase = true) || errBody.contains("FAILED_PRECONDITION", ignoreCase = true))) {
+              return@withContext fetchTopScoresFallback(limit)
+            }
             val (kind, msg) = parseFirestoreError(response.code, errBody)
             LeaderboardResult.Failure(kind, msg)
           }
@@ -203,6 +206,59 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
     } catch (e: Exception) {
       LeaderboardResult.Failure(FailureKind.MALFORMED_PAYLOAD, "Failed to parse response: ${e.message}", e)
+    }
+  }
+
+  private suspend fun fetchTopScoresFallback(limit: Int): LeaderboardResult<List<OnlineScoreEntry>> {
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery?key=$apiKey"
+    val queryJson = JSONObject().apply {
+      val structuredQuery = JSONObject().apply {
+        put("from", JSONArray().put(JSONObject().put("collectionId", collection)))
+        put("orderBy", JSONArray().apply {
+          put(JSONObject().apply {
+            put("field", JSONObject().put("fieldPath", "maxWave"))
+            put("direction", "DESCENDING")
+          })
+        })
+        put("limit", limit)
+      }
+      put("structuredQuery", structuredQuery)
+    }
+
+    val mediaType = "application/json; charset=utf-8".toMediaType()
+    val request = Request.Builder()
+      .url(url)
+      .addHeader("X-Goog-Api-Key", apiKey)
+      .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
+      .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
+      .post(queryJson.toString().toRequestBody(mediaType))
+      .build()
+
+    return try {
+      client.newCall(request).awaitResponse().use { response ->
+        when (response.code) {
+          200 -> {
+            val responseBody = response.body?.string().orEmpty()
+            if (responseBody.isBlank()) {
+              LeaderboardResult.Success(emptyList())
+            } else {
+              val results = parseQueryResults(responseBody)
+              LeaderboardResult.Success(results)
+            }
+          }
+          400, 403, 404 -> {
+            val errBody = response.body?.string().orEmpty()
+            val (kind, msg) = parseFirestoreError(response.code, errBody)
+            LeaderboardResult.Failure(kind, msg)
+          }
+          else -> LeaderboardResult.Failure(
+            FailureKind.SERVER_ERROR,
+            "Fallback HTTP response code ${response.code}"
+          )
+        }
+      }
+    } catch (e: Exception) {
+      LeaderboardResult.Failure(FailureKind.SERVER_ERROR, "Fallback query failed: ${e.message}", e)
     }
   }
 
@@ -237,6 +293,9 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         code == 404 || status == "NOT_FOUND" || msg.contains("does not exist", ignoreCase = true) || msg.contains("add a Cloud Datastore or Cloud Firestore database", ignoreCase = true) -> {
           FailureKind.UNCONFIGURED to "Cloud Firestore database not created in Firebase project ($projectId). Please visit Firebase Console -> Firestore Database and click 'Create database'. Scores are safely cached locally."
         }
+        status == "FAILED_PRECONDITION" || msg.contains("requires an index", ignoreCase = true) || msg.contains("index is currently building", ignoreCase = true) -> {
+          FailureKind.UNCONFIGURED to "Firestore composite index is building in Firebase Console ($projectId). Falling back to single-metric leaderboard."
+        }
         reason == "SERVICE_DISABLED" || msg.contains("Cloud Firestore API has not been used", ignoreCase = true) || msg.contains("is disabled", ignoreCase = true) -> {
           FailureKind.UNCONFIGURED to "Cloud Firestore API not enabled in Firebase project ($projectId). Scores cached in offline queue."
         }
@@ -262,7 +321,6 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   private fun parseQueryResults(jsonStr: String): List<OnlineScoreEntry> {
     val array = JSONArray(jsonStr)
     val entries = mutableListOf<OnlineScoreEntry>()
-    var currentRank = 1
 
     for (i in 0 until array.length()) {
       val item = array.optJSONObject(i) ?: continue
@@ -270,6 +328,9 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       val docName = doc.optString("name", "")
       val id = docName.substringAfterLast("/")
       val fields = doc.optJSONObject("fields") ?: continue
+
+      val isDevTuned = fields.optJSONObject("isDevTuned")?.optBoolean("booleanValue", false) ?: false
+      if (isDevTuned) continue
 
       val callsign = fields.optJSONObject("username")?.optString("stringValue")
         ?: fields.optJSONObject("callsign")?.optString("stringValue")
@@ -297,7 +358,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       entries.add(
         OnlineScoreEntry(
           id = id,
-          rank = currentRank++,
+          rank = 0,
           callsign = sanitizeCallsign(callsign),
           score = score,
           wavesCleared = waves,
@@ -307,7 +368,16 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         )
       )
     }
+
     return entries
+      .sortedWith(
+        compareByDescending<OnlineScoreEntry> { it.wavesCleared }
+          .thenByDescending { it.score }
+          .thenBy { it.timestampMs }
+      )
+      .mapIndexed { index, entry ->
+        entry.copy(rank = index + 1)
+      }
   }
 
   companion object {

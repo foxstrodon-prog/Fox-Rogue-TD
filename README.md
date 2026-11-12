@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.009`):** [`apk/Dual-Front-TD-v0.0.1.009-debug.apk`](apk/Dual-Front-TD-v0.0.1.009-debug.apk)
+- **Latest Android APK (`v0.0.1.010`):** [`apk/Dual-Front-TD-v0.0.1.010-debug.apk`](apk/Dual-Front-TD-v0.0.1.010-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,14 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.009
+## 🕹️ What's New in Version 0.0.1.010
 
-### 👤 Native Anonymous Authentication & Zero-Friction Identity
+### 🛡️ Leaderboard Engine Resilience & Self-Healing Fallback
+- **Zero-Failure Index Fallback:** If cloud composite index building is in progress, the leaderboard client seamlessly falls back to single-metric streaming with client-side dual-sort, guaranteeing 100% scoreboard uptime without server errors.
+- **Auth-Score Synchronizer:** Strictly binds score submissions to authenticated Firebase Anonymous identity tokens (`request.auth.uid`), eliminating 403 authorization rejects.
+- **Offline Zero-Loss Queue:** Hardened WorkManager background worker to preserve all pending run submissions during network transitions and server setup.
+
+### 👤 Native Anonymous Authentication & Zero-Friction Identity (v0.0.1.009)
 - **Silent Player Identity:** Integrated native Firebase Anonymous Authentication for seamless player identity. Every commander receives a persistent, secure cryptographic identity without sign-up forms, passwords, or personal data collection.
 - **Score Authorship Protection:** Security rules strictly verify that leaderboard submissions match the authenticated user identity while keeping scores tamper-proof and immutable.
 
