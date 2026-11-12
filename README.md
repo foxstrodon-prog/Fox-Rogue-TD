@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.013`):** [`apk/Dual-Front-TD-v0.0.1.013-debug.apk`](apk/Dual-Front-TD-v0.0.1.013-debug.apk)
+- **Latest Android APK (`v0.0.1.014`):** [`apk/Dual-Front-TD-v0.0.1.014-debug.apk`](apk/Dual-Front-TD-v0.0.1.014-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,19 +22,25 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.013
+## 🕹️ What's New in Version 0.0.1.014
 
-### 🏆 Operational Global Leaderboard & Dev-Tuning Separation
-- **Dev-Tuning Disqualification Resolution:** Completely disentangled audio volumes, mute toggles, music track selections, turret skins, and visual themes from dev-tuning detection via `isGameplayModified()`. Legitimate player runs are never disqualified from global rankings by player preferences or cosmetic customizations.
-- **Cold-Start Network Resiliency:** Opening the telemetry modal or in-game pause leaderboard directly bypasses query throttles (`forceRefresh = true`) and auto-retries initial network socket handshakes during cold boot.
-- **Verified Uplink Empty-State UX:** Cleanly differentiated between connected empty scoreboards (`GLOBAL UPLINK VERIFIED • CONNECTED`) and actual network drops, providing an instant `"Refresh Rankings"` affordance.
-- **Google Identity Toolkit REST Fallback:** Hardened `AuthRepository` with an automated REST fallback for Anonymous Authentication, ensuring valid JWT tokens on all Android devices and emulators.
+### 🎯 Tactical HUD Evolution, 52-Tower Unique Matrix & Ergonomics
+- **Standardized Rotated Bullet HUD:** All rotated indicators (Wave, HP, Scrap, Synergies, Teleportation Pads, Auto-Wave, and Begin) standardized to a sleek, uniform `28.dp x 38.dp` layout, providing generous vertical headroom that eliminates text clipping in landscape orientation.
+- **Streamlined Launch & Rotation Parity:** Streamlined Begin button with a single play arrow and vertical icon/label stacking under rotation; decoupled the Settings gear from rotation; added automatic system rotation lock (`ACCELEROMETER_ROTATION`) compliance with an on-tilt suggestion trigger.
+- **Full-Width Edge-Anchored Landscape Dropdowns:** Overhauled Synergies and Teleportation Pads menus in landscape to use full-width unconstrained dialogs (`usePlatformDefaultWidth = false`) anchored directly adjacent to the Top HUD on the active edge, providing 320–360dp width so all mechanics and 6/6 Harmonic Grid details display clearly without clipping.
+- **100% Unique 52-Tower Palette & Squircles:** Every single tower across all 4 classes, 12 Tier 1 vectors, and 36 Tier 2 archetypes now has a completely unique, non-overlapping hex color. Upgraded squircles feature centered title/subtitle typography matching the tower's unique hex.
+- **In-Place Target Priority & Sell Ergonomics:** Restored muscle-memory ergonomics by pinning Target Priority and Sell together on the right flank adjacent to upgrade squircles, counter-rotating in place without jumping across the screen.
+- **Deselect-on-Reselect Toggle:** Tapping an already selected tower or tile immediately dismisses the bottom upgrade dock without requiring players to tap a neutral track tile.
 
 ---
 
 ## 🕹️ Previous Releases
 
-### Version 0.0.1.012
+### Version 0.0.1.013
+- **Dev-Tuning Disqualification Resolution:** Completely disentangled audio volumes, mute toggles, music track selections, turret skins, and visual themes from dev-tuning detection via `isGameplayModified()`. Legitimate player runs are never disqualified from global rankings by player preferences or cosmetic customizations.
+- **Cold-Start Network Resiliency:** Opening the telemetry modal or in-game pause leaderboard directly bypasses query throttles (`forceRefresh = true`) and auto-retries initial network socket handshakes during cold boot.
+- **Verified Uplink Empty-State UX:** Cleanly differentiated between connected empty scoreboards (`GLOBAL UPLINK VERIFIED • CONNECTED`) and actual network drops, providing an instant `"Refresh Rankings"` affordance.
+- **Google Identity Toolkit REST Fallback:** Hardened `AuthRepository` with an automated REST fallback for Anonymous Authentication, ensuring valid JWT tokens on all Android devices and emulators.
 - **Canonical Collection Normalization & Fail-Safe Fallback:** All client requests are automatically sanitized and normalized to canonical `/leaderboards`, with seamless cross-path failover to `/leaderboard` to ensure 100% submission and query reliability.
 - **Dual-Path Security Rules Alignment:** Cloud security rules strictly authorize and validate both `/leaderboards/{runId}` and `/leaderboard/{scoreId}` with identical field schemas, eliminating HTTP 403 `PERMISSION_DENIED` errors.
 - **Structured Logcat Telemetry:** Integrated verbose, structured diagnostic logging across `[FirestoreLeaderboardApi]`, `[LeaderboardRepository]`, and `[ScoreSubmissionWorker]` for full real-time device observability.

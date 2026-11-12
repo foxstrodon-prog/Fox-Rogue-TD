@@ -25,17 +25,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.ui.GameUIState
 
 /**
  * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD.
  * Features an orientation-resilient capsule container, 25% higher transparency margins,
- * 6-digit scrap credit headroom, and an integrated booster pad tracker (PADS: 0/6).
+ * 6-digit scrap credit headroom, and an integrated teleportation pad tracker (PADS: 0/6).
  * Counter-rotates internal icons and text when the device turns to landscape (Track 1).
  */
 @Composable
@@ -91,24 +93,48 @@ fun MinimalTopHud(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Wave badge
-                Row(
-                    modifier = counterRotateModifier,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
-                        color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 11.sp
-                    )
+                // Wave badge (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
+                if (isRotated) {
+                    Column(
+                        modifier = counterRotateModifier
+                            .size(width = 28.dp, height = 38.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
+                            color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 8.5.sp,
+                            maxLines = 1
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = counterRotateModifier,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
+                            color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
                 // Core HP (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
@@ -116,10 +142,11 @@ fun MinimalTopHud(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
+                        .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
                 ) {
                     if (isRotated) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -129,11 +156,12 @@ fun MinimalTopHud(
                                 tint = Color(0xFFFF2A55),
                                 modifier = Modifier.size(9.dp)
                             )
+                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = "${state.coreHp}",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp,
+                                fontSize = 8.5.sp,
                                 maxLines = 1
                             )
                         }
@@ -165,10 +193,11 @@ fun MinimalTopHud(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
+                        .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
                 ) {
                     if (isRotated) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -178,11 +207,12 @@ fun MinimalTopHud(
                                 tint = Color(0xFFFFD700),
                                 modifier = Modifier.size(9.dp)
                             )
+                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = "${state.scrap}",
                                 color = Color(0xFFFFD700),
                                 fontWeight = FontWeight.Black,
-                                fontSize = 9.sp,
+                                fontSize = 8.sp,
                                 maxLines = 1
                             )
                         }
@@ -209,7 +239,7 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Consolidated Synergies Indicator with Dropdown
+                // Consolidated Synergies Indicator with Dropdown (Dynamic: Row in portrait, Column in landscape)
                 val activeSynergiesCount = state.activeGlobalSynergies.size
                 Box(modifier = counterRotateModifier) {
                     Surface(
@@ -217,86 +247,188 @@ fun MinimalTopHud(
                         shape = RoundedCornerShape(5.dp),
                         border = if (activeSynergiesCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)) else null,
                         modifier = Modifier
+                            .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
                             .clip(RoundedCornerShape(5.dp))
                             .clickable { showSynergyDropdown = !showSynergyDropdown }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = "🌟", fontSize = 9.sp)
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = "($activeSynergiesCount)",
-                                color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 9.sp
-                            )
+                        if (isRotated) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(text = "🌟", fontSize = 8.5.sp)
+                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(
+                                    text = "($activeSynergiesCount)",
+                                    color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 8.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "🌟", fontSize = 9.sp)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "($activeSynergiesCount)",
+                                    color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 9.sp,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
 
-                    DropdownMenu(
-                        expanded = showSynergyDropdown,
-                        onDismissRequest = { showSynergyDropdown = false },
-                        modifier = Modifier
-                            .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                            .border(1.dp, Color(0xFFFFB800), RoundedCornerShape(6.dp))
-                            .widthIn(max = 240.dp)
-                    ) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = "ACTIVE SYNERGIES ($activeSynergiesCount)",
-                                    color = Color(0xFFFFB800),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 11.sp
-                                )
-                            },
-                            onClick = { },
-                            enabled = false
-                        )
-                        if (state.activeGlobalSynergies.isEmpty()) {
+                    if (!isRotated) {
+                        DropdownMenu(
+                            expanded = showSynergyDropdown,
+                            onDismissRequest = { showSynergyDropdown = false },
+                            modifier = Modifier
+                                .background(Color(0xFF0F172A).copy(alpha = 0.95f))
+                                .border(1.dp, Color(0xFFFFB800), RoundedCornerShape(6.dp))
+                                .widthIn(max = 240.dp)
+                        ) {
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
-                                        color = Color(0xFF94A3B8),
-                                        fontSize = 9.sp
+                                        text = "ACTIVE SYNERGIES ($activeSynergiesCount)",
+                                        color = Color(0xFFFFB800),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.sp
                                     )
                                 },
-                                onClick = { showSynergyDropdown = false }
+                                onClick = { },
+                                enabled = false
                             )
-                        } else {
-                            state.activeGlobalSynergies.forEach { syn ->
+                            if (state.activeGlobalSynergies.isEmpty()) {
                                 DropdownMenuItem(
                                     text = {
-                                        Column {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(text = syn.iconEmoji, fontSize = 11.sp)
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = "${syn.auraName} (${syn.sourceCount}x)",
-                                                    color = Color(syn.color),
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 10.sp
-                                                )
-                                            }
-                                            Text(
-                                                text = syn.effectDescription,
-                                                color = Color(0xFFCBD5E1),
-                                                fontSize = 8.5.sp,
-                                                lineHeight = 11.sp
-                                            )
-                                        }
+                                        Text(
+                                            text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 9.sp
+                                        )
                                     },
                                     onClick = { showSynergyDropdown = false }
                                 )
+                            } else {
+                                state.activeGlobalSynergies.forEach { syn ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(text = syn.iconEmoji, fontSize = 11.sp)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "${syn.auraName} (${syn.sourceCount}x)",
+                                                        color = Color(syn.color),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                                Text(
+                                                    text = syn.effectDescription,
+                                                    color = Color(0xFFCBD5E1),
+                                                    fontSize = 8.5.sp,
+                                                    lineHeight = 11.sp
+                                                )
+                                            }
+                                        },
+                                        onClick = { showSynergyDropdown = false }
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                // Booster Pads Dropdown Capsule (Replaces wide sub-strip text with interactive details)
+                if (isRotated && showSynergyDropdown) {
+                    Dialog(
+                        onDismissRequest = { showSynergyDropdown = false },
+                        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { showSynergyDropdown = false },
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            Surface(
+                                color = Color(0xFF0F172A).copy(alpha = 0.98f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFFB800)),
+                                modifier = Modifier
+                                    .padding(top = 52.dp)
+                                    .graphicsLayer { rotationZ = animatedRotation }
+                                    .widthIn(min = 320.dp, max = 360.dp)
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null,
+                                        enabled = true
+                                    ) {}
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        text = "ACTIVE SYNERGIES ($activeSynergiesCount)",
+                                        color = Color(0xFFFFB800),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.padding(bottom = 6.dp)
+                                    )
+                                    if (state.activeGlobalSynergies.isEmpty()) {
+                                        Text(
+                                            text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 9.5.sp,
+                                            lineHeight = 13.sp
+                                        )
+                                    } else {
+                                        state.activeGlobalSynergies.forEach { syn ->
+                                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(text = syn.iconEmoji, fontSize = 12.sp)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "${syn.auraName} (${syn.sourceCount}x)",
+                                                        color = Color(syn.color),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.5.sp
+                                                    )
+                                                }
+                                                Text(
+                                                    text = syn.effectDescription,
+                                                    color = Color(0xFFCBD5E1),
+                                                    fontSize = 9.sp,
+                                                    lineHeight = 12.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Button(
+                                        onClick = { showSynergyDropdown = false },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text("CLOSE", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Teleportation Pads Dropdown Capsule (Dynamic: Row in portrait, Column in landscape)
                 val padsCount = state.harmonicPadsCount
                 val isHarmonicActive = state.harmonicGridActive
                 Box(modifier = counterRotateModifier) {
@@ -309,47 +441,131 @@ fun MinimalTopHud(
                         else if (padsCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
                         else null,
                         modifier = Modifier
+                            .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
                             .clip(RoundedCornerShape(5.dp))
                             .clickable { showPadsDropdown = !showPadsDropdown }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = "⚡", fontSize = 9.sp)
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = "($padsCount/6)",
-                                color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 9.sp
-                            )
+                        if (isRotated) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(text = "⚡", fontSize = 8.5.sp)
+                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(
+                                    text = "($padsCount/6)",
+                                    color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 7.5.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "⚡", fontSize = 9.sp)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "($padsCount/6)",
+                                    color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 9.sp,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
 
-                    DropdownMenu(
-                        expanded = showPadsDropdown,
+                    if (!isRotated) {
+                        DropdownMenu(
+                            expanded = showPadsDropdown,
+                            onDismissRequest = { showPadsDropdown = false },
+                            modifier = Modifier
+                                .background(Color(0xFF0F172A).copy(alpha = 0.95f))
+                                .border(1.dp, if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF), RoundedCornerShape(6.dp))
+                                .widthIn(max = 250.dp)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (isHarmonicActive) "⚡ HARMONIC GRID ACTIVE (6/6)" else "⚡ TELEPORTATION PADS ($padsCount/6)",
+                                        color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.sp
+                                    )
+                                },
+                                onClick = { },
+                                enabled = false
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = "• Scrap Boost: +${padsCount * 3}% (+3% per active teleportation pad)",
+                                            color = Color(0xFF00E5FF),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.5.sp
+                                        )
+                                        Text(
+                                            text = "• 6/6 Harmonic Grid: +20% Tower Damage & +25% Bonus Scrap across all lanes",
+                                            color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF94A3B8),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.5.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "Tactical Mechanics:\nPads recharge when towers fire. Use Dual-Thumb buttons to teleport pads across Front Alpha & Omega lanes.",
+                                            color = Color(0xFFCBD5E1),
+                                            fontSize = 8.5.sp,
+                                            lineHeight = 11.sp
+                                        )
+                                    }
+                                },
+                                onClick = { showPadsDropdown = false }
+                            )
+                        }
+                    }
+                }
+
+                if (isRotated && showPadsDropdown) {
+                    Dialog(
                         onDismissRequest = { showPadsDropdown = false },
-                        modifier = Modifier
-                            .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                            .border(1.dp, if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF), RoundedCornerShape(6.dp))
-                            .widthIn(max = 250.dp)
+                        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = if (isHarmonicActive) "⚡ HARMONIC GRID ACTIVE (6/6)" else "⚡ BOOSTER PADS ($padsCount/6)",
-                                    color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 11.sp
-                                )
-                            },
-                            onClick = { },
-                            enabled = false
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) { showPadsDropdown = false },
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            Surface(
+                                color = Color(0xFF0F172A).copy(alpha = 0.98f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF)),
+                                modifier = Modifier
+                                    .padding(top = 52.dp)
+                                    .graphicsLayer { rotationZ = animatedRotation }
+                                    .widthIn(min = 320.dp, max = 360.dp)
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null,
+                                        enabled = true
+                                    ) {}
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = if (isHarmonicActive) "⚡ HARMONIC GRID ACTIVE (6/6)" else "⚡ TELEPORTATION PADS ($padsCount/6)",
+                                        color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
                                     Text(
                                         text = "• Scrap Boost: +${padsCount * 3}% (+3% per active pad)",
                                         color = Color(0xFF00E5FF),
@@ -364,15 +580,23 @@ fun MinimalTopHud(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "Tactical Mechanics:\nPads recharge when towers fire. Use Dual-Thumb gestures or Dev Menu to relocate pads across Front Alpha & Omega lanes.",
+                                        text = "Tactical Mechanics:\nPads recharge when towers fire. Use Dual-Thumb buttons to teleport pads across Front Alpha & Omega lanes.",
                                         color = Color(0xFFCBD5E1),
-                                        fontSize = 8.5.sp,
-                                        lineHeight = 11.sp
+                                        fontSize = 9.sp,
+                                        lineHeight = 12.sp
                                     )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Button(
+                                        onClick = { showPadsDropdown = false },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text("CLOSE", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
-                            },
-                            onClick = { showPadsDropdown = false }
-                        )
+                            }
+                        }
                     }
                 }
 
@@ -386,12 +610,13 @@ fun MinimalTopHud(
                         if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF334155)
                     ),
                     modifier = counterRotateModifier
+                        .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onToggleAutoWave() }
                 ) {
                     if (isRotated) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -401,6 +626,7 @@ fun MinimalTopHud(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 7.sp
                             )
+                            Spacer(modifier = Modifier.height(1.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -410,7 +636,7 @@ fun MinimalTopHud(
                                         .clip(CircleShape)
                                         .background(if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF64748B))
                                 )
-                                Spacer(modifier = Modifier.width(2.dp))
+                                Spacer(modifier = Modifier.width(1.5.dp))
                                 Text(
                                     text = if (autoWaveActive) "ON" else "OFF",
                                     color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
@@ -441,7 +667,7 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Launch Wave Button with energetic pulse & arrow accent
+                // Launch Wave Button with energetic pulse & single arrow accent (Dynamic: Row in portrait, Column in landscape)
                 val isWaveReady = !state.isWaveActive
                 val launchContainerColor = if (isWaveReady) {
                     Color(0xFF00F0FF).copy(alpha = pulseGlow)
@@ -459,29 +685,54 @@ fun MinimalTopHud(
                         disabledContentColor = Color(0xFF64748B)
                     ),
                     border = if (isWaveReady) androidx.compose.foundation.BorderStroke(1.2.dp, Color.White.copy(alpha = pulseGlow)) else null,
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 1.dp),
+                    contentPadding = PaddingValues(horizontal = if (isRotated) 2.dp else 6.dp, vertical = 1.dp),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
-                        .height(26.dp)
+                        .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+                        .then(if (isRotated) Modifier.width(28.dp).height(38.dp) else Modifier.height(26.dp))
                         .testTag("deploy_wave_button")
                 ) {
-                    Icon(
-                        imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = if (state.isWaveActive) "${state.enemies.size} FOES" else "▶ LAUNCH",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 8.5.sp
-                    )
+                    if (isRotated) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Text(
+                                text = if (state.isWaveActive) "${state.enemies.size} FOES" else "BEGIN",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 7.5.sp,
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = if (state.isWaveActive) "${state.enemies.size} FOES" else "BEGIN",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 8.5.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
 
-                // Gear Cog Button (Clean borderless floating icon, no grey box)
+                // Gear Cog Button (Clean borderless floating icon, stationary circular control)
                 IconButton(
                     onClick = onOpenPauseMenu,
-                    modifier = counterRotateModifier
+                    modifier = Modifier
                         .size(26.dp)
                         .testTag("pause_menu_button")
                 ) {

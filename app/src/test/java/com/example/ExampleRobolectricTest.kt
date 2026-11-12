@@ -502,9 +502,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 013`() {
-    assertEquals("0.0.1.013", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(34, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 014`() {
+    assertEquals("0.0.1.014", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(35, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -569,6 +569,36 @@ class ExampleRobolectricTest {
     assertEquals(90f, vm.uiState.value.deviceRotationAngle)
     vm.updateDeviceRotation(270f)
     assertEquals(270f, vm.uiState.value.deviceRotationAngle)
+    vm.updateDeviceRotation(360f)
+    assertEquals(0f, vm.uiState.value.deviceRotationAngle)
+    vm.updateDeviceRotation(-90f)
+    assertEquals(270f, vm.uiState.value.deviceRotationAngle)
+  }
+
+  @Test
+  fun `verify hardware tilt angle with rotation lock and manual confirm`() {
+    val app = org.robolectric.RuntimeEnvironment.getApplication()
+    val vm = com.example.ui.RogueTDViewModel(app)
+    assertEquals(0f, vm.uiState.value.deviceRotationAngle)
+    assertEquals(0f, vm.uiState.value.hardwareTiltAngle)
+    assertFalse(vm.uiState.value.isSystemAutoRotateLocked)
+
+    // When rotation lock is active and device tilts 90 deg:
+    vm.updateHardwareTiltAngle(90f)
+    assertEquals(90f, vm.uiState.value.hardwareTiltAngle)
+    assertEquals(0f, vm.uiState.value.deviceRotationAngle) // HUD did not auto-rotate
+    assertTrue(vm.uiState.value.isSystemAutoRotateLocked)
+
+    // Manual rotation confirmation syncs HUD angle
+    vm.confirmManualRotation()
+    assertEquals(90f, vm.uiState.value.deviceRotationAngle)
+    assertEquals(90f, vm.uiState.value.hardwareTiltAngle)
+
+    // When auto-rotate is toggled back on, updateDeviceRotation clears rotation lock
+    vm.updateDeviceRotation(180f)
+    assertEquals(180f, vm.uiState.value.deviceRotationAngle)
+    assertEquals(180f, vm.uiState.value.hardwareTiltAngle)
+    assertFalse(vm.uiState.value.isSystemAutoRotateLocked)
   }
 
   @Test

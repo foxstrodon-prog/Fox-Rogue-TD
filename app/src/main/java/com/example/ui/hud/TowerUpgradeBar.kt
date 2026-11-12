@@ -252,23 +252,16 @@ fun SquircleActionButton(
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxSize()
         ) {
-            // Header Row: Tower Class Silhouette / Glyph on Left, 🪙 Cost / LOCK on Right
+            // Header Row: Tower Class Silhouette on Left (if present), 🪙 Cost / LOCK on Right
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = if (iconComposable != null) Arrangement.SpaceBetween else Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (iconComposable != null) {
                     Box(modifier = Modifier.size(15.dp), contentAlignment = Alignment.Center) {
                         iconComposable()
                     }
-                } else {
-                    Text(
-                        text = iconText,
-                        color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) themeColor else themeColor.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black
-                    )
                 }
 
                 // Price / Lock Badge
@@ -302,26 +295,32 @@ fun SquircleActionButton(
                 }
             }
 
-            // 2-Line Stacked Name Labels with Unique Color Accent
+            // 2-Line Centered Name Labels with Unique Color Accent (Tight Cohesive Spacing, Zero Vertical Gap)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
                 Text(
                     text = resolvedTitle,
-                    color = if (!isUnlocked) Color(0xFF64748B) else (titleColor ?: Color.White),
-                    fontSize = 8.sp,
+                    color = if (!isUnlocked) Color(0xFF64748B) else (titleColor ?: if (canAfford) themeColor else themeColor.copy(alpha = 0.65f)),
+                    fontSize = 8.5.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
+                    lineHeight = 10.sp,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (resolvedSubtitle != null) {
+                if (!resolvedSubtitle.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(1.dp))
                     Text(
                         text = resolvedSubtitle,
-                        color = if (!isUnlocked) Color(0xFF475569) else if (canAfford) themeColor else themeColor.copy(alpha = 0.6f),
-                        fontSize = 7.2.sp,
+                        color = if (!isUnlocked) Color(0xFF475569) else if (canAfford) themeColor else themeColor.copy(alpha = 0.65f),
+                        fontSize = 7.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        lineHeight = 9.sp,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -403,10 +402,12 @@ fun FloatingSquircleUpgradeBar(
             state.selectedTower != null -> {
                 val tower = state.selectedTower
                 val sellValue = tower.getSellValue()
+                val prio = tower.targetPriority
+                val isRotated = counterAngle != 0f
 
                 when (tower.tier) {
                     0 -> {
-                        // 3 Vectors: Offense, Defense, Support (Compound Name & Unified Class Color)
+                        // 3 Vectors: Offense, Defense, Support (Unique 52-Tower Vector Hexes & Pre-0.0.1.002 Bullets)
                         val vectors = TowerUpgradeManager.getTier1Vectors()
                         val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
                         val canAfford = state.scrap >= cost
@@ -419,31 +420,24 @@ fun FloatingSquircleUpgradeBar(
                             TowerClass.HEAVY_SIEGE -> "Siege"
                             TowerClass.STELLAR_COSMIC -> "Stellar"
                         }
-                        val classThemeColor = Color(tower.towerClass.themeColor)
 
                         vectors.forEach { vec ->
-                            val icon = when (vec) {
-                                TowerVector.OFFENSIVE -> "⚔"
-                                TowerVector.DEFENSIVE -> "🛡"
-                                TowerVector.SUPPORT -> "⚡"
-                            }
                             val vecSuffix = when (vec) {
                                 TowerVector.OFFENSIVE -> "Offense"
                                 TowerVector.DEFENSIVE -> "Defense"
                                 TowerVector.SUPPORT -> "Support"
                             }
+                            val vecColor = Color(getTier1VectorColor(tower.towerClass, vec))
                             val (b1, b2) = when (vec) {
-                                TowerVector.OFFENSIVE -> "+35% Damage" to "High Fire Rate"
-                                TowerVector.DEFENSIVE -> "+40% Range" to "Slow & Fortify"
-                                TowerVector.SUPPORT -> "Aura Synergies" to "+Scrap Bounty"
+                                TowerVector.OFFENSIVE -> "+45% DMG" to "+15% CRIT"
+                                TowerVector.DEFENSIVE -> "+35% RNG" to "+20% Slow"
+                                TowerVector.SUPPORT -> "+40% SPD" to "+25% Scrap"
                             }
                             SquircleActionButton(
                                 title = classPrefix,
                                 subtitle = vecSuffix,
-                                titleColor = classThemeColor,
-                                iconText = icon,
                                 cost = cost,
-                                themeColor = classThemeColor,
+                                themeColor = vecColor,
                                 canAfford = canAfford,
                                 isUnlocked = true,
                                 bullet1 = b1,
@@ -458,7 +452,7 @@ fun FloatingSquircleUpgradeBar(
                     }
 
                     1 -> {
-                        // 3 Archetypes for this class & vector (2-line stacked: Primary Name + Specialization)
+                        // 3 Archetypes for this class & vector (2 lines <= 9 chars, Pre-0.0.1.002 evocative bullets & unique hexes)
                         val vec = tower.vector ?: TowerVector.OFFENSIVE
                         val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
                         val itemWidth = 84.dp
@@ -467,24 +461,89 @@ fun FloatingSquircleUpgradeBar(
                         archetypes.forEach { arch ->
                             val cost = TowerUpgradeManager.getTier2Cost(arch)
                             val canAfford = state.scrap >= cost
-                            val b1 = when {
-                                arch.isBeam -> "Continuous Beam"
-                                arch.isSplash -> "AoE Splash Burst"
-                                arch.chains > 0 -> "Chain Arc Shock"
-                                arch.slowPercent > 0 -> "Slows Movement"
-                                arch.armorShredPercent > 0 -> "Armor Shredding"
-                                else -> arch.role.take(14)
+
+                            val (archTitle, archSub) = when (arch) {
+                                TowerArchetype.VULCAN_GATLING -> "Vulcan" to "Gatling"
+                                TowerArchetype.FLAK_CANNON -> "Twin Flak" to "Cannon"
+                                TowerArchetype.SNIPER_SENTRY -> "Sniper" to "Sentry"
+                                TowerArchetype.BARRICADE_TURRET -> "Barricade" to "Turret"
+                                TowerArchetype.MINE_DISPENSER -> "Mine" to "Dispenser"
+                                TowerArchetype.RIOT_DISRUPTOR -> "Riot" to "Disruptor"
+                                TowerArchetype.RADAR_SENTRY -> "Radar" to "Sentry"
+                                TowerArchetype.AMMO_SUPPLY_DEPOT -> "Ammo" to "Depot"
+                                TowerArchetype.SALVAGE_CRUSHER -> "Salvage" to "Crusher"
+                                TowerArchetype.SOLAR_DEATH_RAY -> "Solar" to "Death Ray"
+                                TowerArchetype.INFERNO_CANNON -> "Inferno" to "Emitter"
+                                TowerArchetype.PLASMA_PULSAR -> "Plasma" to "Pulsar"
+                                TowerArchetype.FROST_SPIRE -> "Frost" to "Spire"
+                                TowerArchetype.TESLA_STORMCOIL -> "Tesla" to "Stormcoil"
+                                TowerArchetype.GRAVITON_VOID -> "Graviton" to "Void"
+                                TowerArchetype.DYNAMO_CONDUIT -> "Dynamo" to "Conduit"
+                                TowerArchetype.QUANTUM_BEACON -> "Quantum" to "Beacon"
+                                TowerArchetype.DARK_MATTER_FORGE -> "Dark" to "Matter"
+                                TowerArchetype.HELLFIRE_MORTAR -> "Hellfire" to "Mortar"
+                                TowerArchetype.TITAN_RAILGUN -> "Titan" to "Railgun"
+                                TowerArchetype.ORBITAL_STRIKE_RELAY -> "Orbital" to "Relay"
+                                TowerArchetype.EARTHQUAKE_STAMPER -> "Seismic" to "Slammer"
+                                TowerArchetype.CRYO_FORTRESS -> "Cryo" to "Fortress"
+                                TowerArchetype.SHOCKWAVE_BASTION -> "Shockwave" to "Bastion"
+                                TowerArchetype.NANITE_FORGE -> "Nanite" to "Forge"
+                                TowerArchetype.SIEGE_COMMAND_POST -> "Command" to "Post"
+                                TowerArchetype.WAR_CHEST_VAULT -> "War Chest" to "Vault"
+                                TowerArchetype.SUPERNOVA_PULSAR -> "Supernova" to "Pulsar"
+                                TowerArchetype.GRAVITON_LANCE -> "Graviton" to "Lance"
+                                TowerArchetype.CELESTIAL_COMET -> "Celestial" to "Comet"
+                                TowerArchetype.EVENT_HORIZON -> "Event" to "Horizon"
+                                TowerArchetype.NEBULA_AEGIS -> "Nebula" to "Aegis"
+                                TowerArchetype.BLACK_HOLE_SENTRY -> "Singular." to "Bastion"
+                                TowerArchetype.CHRONO_PYLON -> "Chrono" to "Pylon"
+                                TowerArchetype.STARLIGHT_BEACON -> "Starlight" to "Beacon"
+                                TowerArchetype.ASTRAL_HARVESTER -> "Astral" to "Harvest"
+                            }
+
+                            val b1 = when (arch) {
+                                TowerArchetype.VULCAN_GATLING -> "Rotary DPS"
+                                TowerArchetype.FLAK_CANNON -> "Shrapnel AoE"
+                                TowerArchetype.SNIPER_SENTRY -> "Penetrator"
+                                TowerArchetype.BARRICADE_TURRET -> "Suppression"
+                                TowerArchetype.MINE_DISPENSER -> "Lane Mines"
+                                TowerArchetype.RIOT_DISRUPTOR -> "Acoustic Wave"
+                                TowerArchetype.RADAR_SENTRY -> "Target Link"
+                                TowerArchetype.AMMO_SUPPLY_DEPOT -> "Munitions"
+                                TowerArchetype.SALVAGE_CRUSHER -> "Scrap Siphon"
+                                TowerArchetype.SOLAR_DEATH_RAY -> "Thermal Beam"
+                                TowerArchetype.INFERNO_CANNON -> "Burn DoT"
+                                TowerArchetype.PLASMA_PULSAR -> "Ion Cascade"
+                                TowerArchetype.FROST_SPIRE -> "Cryo Stasis"
+                                TowerArchetype.TESLA_STORMCOIL -> "Lightning Web"
+                                TowerArchetype.GRAVITON_VOID -> "Vortex Pull"
+                                TowerArchetype.DYNAMO_CONDUIT -> "Flux Battery"
+                                TowerArchetype.QUANTUM_BEACON -> "Phase Warp"
+                                TowerArchetype.DARK_MATTER_FORGE -> "Armor Melter"
+                                TowerArchetype.HELLFIRE_MORTAR -> "Artillery AoE"
+                                TowerArchetype.TITAN_RAILGUN -> "Uranium Slug"
+                                TowerArchetype.ORBITAL_STRIKE_RELAY -> "Kinetic Bomb"
+                                TowerArchetype.EARTHQUAKE_STAMPER -> "Tremor Stun"
+                                TowerArchetype.CRYO_FORTRESS -> "Glacier Wall"
+                                TowerArchetype.SHOCKWAVE_BASTION -> "EMP Bastion"
+                                TowerArchetype.NANITE_FORGE -> "Nanite Shred"
+                                TowerArchetype.SIEGE_COMMAND_POST -> "Overcharge"
+                                TowerArchetype.WAR_CHEST_VAULT -> "Yield Smelter"
+                                TowerArchetype.SUPERNOVA_PULSAR -> "Cosmic Flare"
+                                TowerArchetype.GRAVITON_LANCE -> "Gravity Well"
+                                TowerArchetype.CELESTIAL_COMET -> "Meteor Storm"
+                                TowerArchetype.EVENT_HORIZON -> "Time Warp"
+                                TowerArchetype.NEBULA_AEGIS -> "Cosmic Shield"
+                                TowerArchetype.BLACK_HOLE_SENTRY -> "Micro Void"
+                                TowerArchetype.CHRONO_PYLON -> "Time Haste"
+                                TowerArchetype.STARLIGHT_BEACON -> "True Sight"
+                                TowerArchetype.ASTRAL_HARVESTER -> "Cosmic Siphon"
                             }
                             val b2 = arch.primaryAura.shortBadge
-
-                            val nameParts = arch.displayName.split(" ", limit = 2)
-                            val archTitle = nameParts.firstOrNull() ?: arch.displayName
-                            val archSub = nameParts.getOrNull(1) ?: "Turret"
 
                             SquircleActionButton(
                                 title = archTitle,
                                 subtitle = archSub,
-                                iconText = arch.displayName.take(2).uppercase(),
                                 cost = cost,
                                 themeColor = Color(arch.color),
                                 canAfford = canAfford,
@@ -516,7 +575,6 @@ fun FloatingSquircleUpgradeBar(
                             SquircleActionButton(
                                 title = "Apex",
                                 subtitle = subTitle,
-                                iconText = "★",
                                 cost = cost,
                                 themeColor = Color(0xFFFFD700),
                                 canAfford = canAfford,
@@ -552,106 +610,66 @@ fun FloatingSquircleUpgradeBar(
                     }
                 }
 
-                // Priority toggle and Sell buttons (Stacked in Column in portrait, Side-by-side in Row when rotated)
-                val prio = tower.targetPriority
-                val isRotated = counterAngle != 0f
-
-                if (isRotated) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Priority button
-                        Box(
-                            modifier = Modifier
-                                .size(width = 44.dp, height = 74.dp)
-                                .graphicsLayer { rotationZ = animatedRotation }
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                                .border(1.5.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                                .clickable {
-                                    val nextPrio = when (prio) {
-                                        TargetPriority.FIRST -> TargetPriority.CLOSEST
-                                        TargetPriority.CLOSEST -> TargetPriority.STRONGEST
-                                        TargetPriority.STRONGEST -> TargetPriority.WEAKEST
-                                        TargetPriority.WEAKEST -> TargetPriority.FIRST
-                                    }
-                                    onChangePriority(nextPrio)
+                // Target Priority (Top) and Sell (Bottom) buttons stacked together on the right flank (Rotates in place)
+                Column(
+                    modifier = Modifier.height(76.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Priority button (Top half)
+                    Box(
+                        modifier = Modifier
+                            .size(if (isRotated) 38.dp else 44.dp, 36.dp)
+                            .graphicsLayer { rotationZ = animatedRotation }
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                            .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                            .clickable {
+                                val nextPrio = when (prio) {
+                                    TargetPriority.FIRST -> TargetPriority.CLOSEST
+                                    TargetPriority.CLOSEST -> TargetPriority.STRONGEST
+                                    TargetPriority.STRONGEST -> TargetPriority.WEAKEST
+                                    TargetPriority.WEAKEST -> TargetPriority.FIRST
                                 }
-                                .padding(horizontal = 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text("🎯", fontSize = 14.sp)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                                onChangePriority(nextPrio)
                             }
-                        }
-
-                        // Sell button
-                        Box(
-                            modifier = Modifier
-                                .size(width = 44.dp, height = 74.dp)
-                                .graphicsLayer { rotationZ = animatedRotation }
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                                .border(1.5.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                                .clickable { onSellTower() }
-                                .padding(horizontal = 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text("🗑", fontSize = 13.sp)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.height(76.dp),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(horizontal = 2.dp)
+                            .testTag("target_priority_button"),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Priority button (Top half)
-                        Box(
-                            modifier = Modifier
-                                .size(width = 44.dp, height = 36.dp)
-                                .graphicsLayer { rotationZ = animatedRotation }
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                                .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
-                                .clickable {
-                                    val nextPrio = when (prio) {
-                                        TargetPriority.FIRST -> TargetPriority.CLOSEST
-                                        TargetPriority.CLOSEST -> TargetPriority.STRONGEST
-                                        TargetPriority.STRONGEST -> TargetPriority.WEAKEST
-                                        TargetPriority.WEAKEST -> TargetPriority.FIRST
-                                    }
-                                    onChangePriority(nextPrio)
-                                }
-                                .padding(horizontal = 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        if (isRotated) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Text("🎯", fontSize = 10.sp)
+                                Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 6.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("🎯", fontSize = 10.sp)
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+                    }
 
-                        // Sell button (Bottom half)
-                        Box(
-                            modifier = Modifier
-                                .size(width = 44.dp, height = 36.dp)
-                                .graphicsLayer { rotationZ = animatedRotation }
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                                .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
-                                .clickable { onSellTower() }
-                                .padding(horizontal = 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    // Sell button (Bottom half)
+                    Box(
+                        modifier = Modifier
+                            .size(if (isRotated) 38.dp else 44.dp, 36.dp)
+                            .graphicsLayer { rotationZ = animatedRotation }
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                            .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                            .clickable { onSellTower() }
+                            .padding(horizontal = 2.dp)
+                            .testTag("sell_tower_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isRotated) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Text("🗑", fontSize = 10.sp)
+                                Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 6.5.sp, fontWeight = FontWeight.Black)
+                            }
+                        } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("🗑", fontSize = 9.sp)
                                 Spacer(modifier = Modifier.width(2.dp))

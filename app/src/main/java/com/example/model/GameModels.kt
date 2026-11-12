@@ -242,6 +242,35 @@ enum class TowerVector(
     }
 }
 
+/**
+ * Returns a distinct unique theme color for each of the 12 Tier 1 vector specializations
+ * ensuring zero color collisions across all 52 towers in Fox-Rogue-TD.
+ */
+fun getTier1VectorColor(towerClass: TowerClass, vector: TowerVector): Long {
+    return when (towerClass) {
+        TowerClass.KINETIC_BALLISTIC -> when (vector) {
+            TowerVector.OFFENSIVE -> 0xFF38BDF8 // Sky Blue
+            TowerVector.DEFENSIVE -> 0xFF2DD4BF // Turquoise
+            TowerVector.SUPPORT -> 0xFF67E8F9   // Light Aqua
+        }
+        TowerClass.ELEMENTAL_VOID -> when (vector) {
+            TowerVector.OFFENSIVE -> 0xFFD946EF // Neon Magenta
+            TowerVector.DEFENSIVE -> 0xFF8B5CF6 // Bright Violet
+            TowerVector.SUPPORT -> 0xFFC084FC   // Light Orchid
+        }
+        TowerClass.HEAVY_SIEGE -> when (vector) {
+            TowerVector.OFFENSIVE -> 0xFFEF4444 // Vivid Red
+            TowerVector.DEFENSIVE -> 0xFFEA580C // Rust Orange
+            TowerVector.SUPPORT -> 0xFFF97316   // Amber Orange
+        }
+        TowerClass.STELLAR_COSMIC -> when (vector) {
+            TowerVector.OFFENSIVE -> 0xFFFBBF24 // Sun Gold
+            TowerVector.DEFENSIVE -> 0xFFEAB308 // Deep Yellow
+            TowerVector.SUPPORT -> 0xFFFACC15   // Bright Lemon
+        }
+    }
+}
+
 data class AuraOption(
     val name: String,
     val description: String,
@@ -282,7 +311,7 @@ enum class TowerArchetype(
         baseRange = 2.6f,
         baseDamage = 26f,
         baseFireRate = 4.4f,
-        color = 0xFF00F0FF,
+        color = 0xFF06B6D4,
         primaryAura = AuraOption("Global Speed Aura", "+18% Attack Speed to all towers", "+18% SPD"),
         secondaryAura = AuraOption("Kinetic Windup Aura", "Towers gain ramping +25% attack speed during continuous firing", "RAMP SPD")
     ),
@@ -310,7 +339,7 @@ enum class TowerArchetype(
         baseRange = 4.6f,
         baseDamage = 130f,
         baseFireRate = 0.9f,
-        color = 0xFFE0E7FF,
+        color = 0xFF818CF8,
         primaryAura = AuraOption("Execution Aura", "+25% Damage against enemies below 40% health", "+25% EXEC"),
         secondaryAura = AuraOption("Headhunter Aura", "Critical hits award +4 bonus Credits", "+4 CRIT CR")
     ),
@@ -326,7 +355,7 @@ enum class TowerArchetype(
         baseRange = 2.4f,
         baseDamage = 32f,
         baseFireRate = 2.8f,
-        color = 0xFF38BDF8,
+        color = 0xFF0284C7,
         primaryAura = AuraOption("Suppression Aura", "Hostiles entering weapon range are pushed back 0.5 tiles", "KNOCKBACK"),
         secondaryAura = AuraOption("Fortified Plating", "Nexus Core gains +5 Max HP and absorbs 2 free breaches", "+5 CORE HP")
     ),
@@ -354,7 +383,7 @@ enum class TowerArchetype(
         baseRange = 2.3f,
         baseDamage = 45f,
         baseFireRate = 2.0f,
-        color = 0xFF0284C7,
+        color = 0xFF059669,
         primaryAura = AuraOption("Concussive Aura", "All towers have a 12% chance to stun targets for 1.2s", "STUN 12%"),
         secondaryAura = AuraOption("Sonic Buffer", "Hostiles in both lanes lose 15% movement speed permanently", "-15% MOVE")
     ),
@@ -370,7 +399,7 @@ enum class TowerArchetype(
         baseRange = 4.2f,
         baseDamage = 35f,
         baseFireRate = 2.2f,
-        color = 0xFF06B6D4,
+        color = 0xFF10B981,
         primaryAura = AuraOption("Global Targeting Aura", "+25% Range to all defense towers", "+25% RNG"),
         secondaryAura = AuraOption("Spotter Uplink", "Reveals enemy weak points, granting +20% Critical Strike Chance", "+20% CRIT")
     ),
@@ -398,7 +427,7 @@ enum class TowerArchetype(
         baseRange = 2.6f,
         baseDamage = 40f,
         baseFireRate = 2.0f,
-        color = 0xFFC084FC,
+        color = 0xFFE879F9,
         primaryAura = AuraOption("Scrap Bounty Aura", "+35% Scrap Credits awarded from all creep kills", "+35% SCRAP"),
         secondaryAura = AuraOption("Material Recycling", "Defeated boss/elite creeps drop +100 bonus Credits", "+100 BOSS CR")
     ),
@@ -432,7 +461,7 @@ enum class TowerArchetype(
         baseRange = 2.8f,
         baseDamage = 60f,
         baseFireRate = 3.6f,
-        color = 0xFFFF6600,
+        color = 0xFFFF4500,
         primaryAura = AuraOption("Ignition Aura", "Damaged creeps suffer 15% damage/sec burning for 4 seconds", "BURN DoT"),
         secondaryAura = AuraOption("Thermal Conflagration", "Burning enemies explode on death for 50 AoE fire damage", "FIRE EXPLODE")
     ),
@@ -446,7 +475,7 @@ enum class TowerArchetype(
         baseRange = 3.0f,
         baseDamage = 95f,
         baseFireRate = 1.6f,
-        color = 0xFFD946EF,
+        color = 0xFFC026D3,
         primaryAura = AuraOption("Plasma Cascade", "Periodically fires automated plasma waves down both lanes", "PLASMA WAVE"),
         secondaryAura = AuraOption("Ion Overload", "+30% Damage to all beam and plasma towers", "+30% PLASMA")
     ),
@@ -462,7 +491,7 @@ enum class TowerArchetype(
         baseRange = 2.6f,
         baseDamage = 26f,
         baseFireRate = 5.0f,
-        color = 0xFF38BDF8,
+        color = 0xFF7DD3FC,
         primaryAura = AuraOption("Permafrost Aura", "All hostiles in both lanes are permanently slowed by 18%", "-18% SLOW"),
         secondaryAura = AuraOption("Cryo Vulnerability", "Frozen hostiles take +30% amplified damage from all weapons", "+30% CRYO DMG"),
         isBeam = true,
@@ -493,7 +522,7 @@ enum class TowerArchetype(
         baseRange = 2.7f,
         baseDamage = 110f,
         baseFireRate = 1.2f,
-        color = 0xFF8B5CF6,
+        color = 0xFF6366F1,
         primaryAura = AuraOption("Event Horizon Aura", "Vortex pulls creeps backward along lanes towards center", "GRAV PULL"),
         secondaryAura = AuraOption("Stasis Dilation", "Enemies in both lanes take 25% longer to advance", "STASIS 25%"),
         isSplash = true,
@@ -525,7 +554,7 @@ enum class TowerArchetype(
         baseRange = 3.5f,
         baseDamage = 30f,
         baseFireRate = 2.4f,
-        color = 0xFF6366F1,
+        color = 0xFF4F46E5,
         primaryAura = AuraOption("Phase Warp Aura", "Towers can fire across walls and obstacles without range penalty", "PHASE SHOOT"),
         secondaryAura = AuraOption("Tachyon Frequency", "+20% Fire rate to all elemental and void towers", "+20% ELEM SPD")
     ),
@@ -539,7 +568,7 @@ enum class TowerArchetype(
         baseRange = 2.8f,
         baseDamage = 50f,
         baseFireRate = 2.2f,
-        color = 0xFF4C1D95,
+        color = 0xFF581C87,
         primaryAura = AuraOption("Zero Armor Protocol", "Permanently dissolves 40% armor from all enemy units", "-40% ARMOR"),
         secondaryAura = AuraOption("Entropic Shield", "Nexus Core projects a dark matter shield absorbing 4 hits", "4 HIT SHIELD"),
         armorShredPercent = 0.40f
@@ -559,7 +588,7 @@ enum class TowerArchetype(
         baseRange = 4.4f,
         baseDamage = 145f,
         baseFireRate = 0.75f,
-        color = 0xFFFF7A00,
+        color = 0xFFDC2626,
         primaryAura = AuraOption("Global Blast Aura", "+30% Splash Radius & +25% Explosive Damage to all AoE", "+30% BLAST"),
         secondaryAura = AuraOption("Carpet Salvo Aura", "Mortars fire a secondary cluster of 3 bomblets on impact", "CLUSTER 3x"),
         isSplash = true,
@@ -589,7 +618,7 @@ enum class TowerArchetype(
         baseRange = 5.0f,
         baseDamage = 210f,
         baseFireRate = 0.6f,
-        color = 0xFF818CF8,
+        color = 0xFF4338CA,
         primaryAura = AuraOption("Orbital Sweep Aura", "Periodically drops kinetic orbital strikes on lane bottlenecks", "ORBITAL BOMB"),
         secondaryAura = AuraOption("Global Range Net", "+35% Attack range to all long-range weapons", "+35% RNG")
     ),
@@ -621,7 +650,7 @@ enum class TowerArchetype(
         baseRange = 3.8f,
         baseDamage = 95f,
         baseFireRate = 1.1f,
-        color = 0xFF0284C7,
+        color = 0xFF0369A1,
         primaryAura = AuraOption("Glacial Wall Aura", "Lobbed ice boulders create frozen hazard patches lasting 6s", "FROST WALL"),
         secondaryAura = AuraOption("Blizzard Gale", "Slows all creeps across the entire map by 20%", "20% MAP SLOW"),
         isSplash = true,
@@ -637,7 +666,7 @@ enum class TowerArchetype(
         baseRange = 2.5f,
         baseDamage = 135f,
         baseFireRate = 1.1f,
-        color = 0xFF475569,
+        color = 0xFF334155,
         primaryAura = AuraOption("EMP Bastion Aura", "Stuns bosses and armored creeps for 2.0s every 12 seconds", "EMP 2s"),
         secondaryAura = AuraOption("Heavy Armor Sunder", "Permanently strips 50% armor from all hit targets", "-50% ARMOR"),
         isSplash = true,
@@ -703,7 +732,7 @@ enum class TowerArchetype(
         baseRange = 3.6f,
         baseDamage = 115f,
         baseFireRate = 1.6f,
-        color = 0xFFFBBF24,
+        color = 0xFFFB923C,
         primaryAura = AuraOption("Supernova Flare", "+25% Radiant Splash Damage to all explosive weapons", "+25% RADIANT"),
         secondaryAura = AuraOption("Cosmic Radiation", "15% chance to blind hostiles, reducing speed by 30%", "BLIND 30%"),
         isSplash = true,
@@ -719,7 +748,7 @@ enum class TowerArchetype(
         baseRange = 3.8f,
         baseDamage = 85f,
         baseFireRate = 4.2f,
-        color = 0xFFF59E0B,
+        color = 0xFFD97706,
         primaryAura = AuraOption("Gravity Well Aura", "Draws surrounding creeps inward towards the beam focal point", "GRAV WELL"),
         secondaryAura = AuraOption("Singularity Pull", "Reverses enemy movement for 0.8s on impact", "REVERSE 0.8s"),
         isBeam = true
@@ -734,7 +763,7 @@ enum class TowerArchetype(
         baseRange = 4.8f,
         baseDamage = 220f,
         baseFireRate = 0.65f,
-        color = 0xFFFB923C,
+        color = 0xFFF43F5E,
         primaryAura = AuraOption("Meteor Storm", "+30% Meteor blast radius and leaves a 4s stardust pool", "+30% BLAST"),
         secondaryAura = AuraOption("Asteroid Impact", "Bosses take +40% impact damage", "+40% BOSS"),
         isSplash = true,
@@ -752,7 +781,7 @@ enum class TowerArchetype(
         baseRange = 2.8f,
         baseDamage = 55f,
         baseFireRate = 2.4f,
-        color = 0xFFEAB308,
+        color = 0xFFCA8A04,
         primaryAura = AuraOption("Time Dilation", "All enemies in range have attack speed and movement halved", "50% DILATE"),
         secondaryAura = AuraOption("Temporal Lock", "Freezes target in time for 1.5s when health drops below 50%", "STASIS 1.5s"),
         slowPercent = 0.50f
@@ -781,7 +810,7 @@ enum class TowerArchetype(
         baseRange = 3.4f,
         baseDamage = 95f,
         baseFireRate = 1.2f,
-        color = 0xFFB45309,
+        color = 0xFF92400E,
         primaryAura = AuraOption("Vortex Trap", "Pulls up to 5 enemies together, enabling massive AoE combos", "VORTEX 5x"),
         secondaryAura = AuraOption("Gravitational Collapse", "Executes normal creeps below 15% health", "EXEC 15%"),
         isSplash = true,
@@ -827,7 +856,7 @@ enum class TowerArchetype(
         baseRange = 3.2f,
         baseDamage = 40f,
         baseFireRate = 1.6f,
-        color = 0xFFCA8A04,
+        color = 0xFFE11D48,
         primaryAura = AuraOption("Cosmic Harvest", "Creeps killed within aura range drop +40% scrap", "+40% SCRAP"),
         secondaryAura = AuraOption("Quantum Interest", "Generates +15 Scrap at the end of each wave per occupied booster pad", "+15c/PAD")
     );

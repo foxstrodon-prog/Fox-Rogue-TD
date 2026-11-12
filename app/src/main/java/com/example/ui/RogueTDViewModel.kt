@@ -82,6 +82,8 @@ data class GameUIState(
     val playerLifetimeTelemetry: LifetimeTelemetry = LifetimeTelemetry(),
     val animTimeMs: Long = 0L,
     val deviceRotationAngle: Float = 0f,
+    val hardwareTiltAngle: Float = 0f,
+    val isSystemAutoRotateLocked: Boolean = false,
     val onlineLeaderboard: List<OnlineScoreEntry> = emptyList(),
     val leaderboardStatus: GlobalBoardStatus = GlobalBoardStatus.IDLE,
     val leaderboardPendingCount: Int = 0,
@@ -220,9 +222,32 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun updateDeviceRotation(targetAngle: Float) {
         val normalized = (targetAngle % 360f + 360f) % 360f
-        if (_uiState.value.deviceRotationAngle != normalized) {
-            _uiState.update { it.copy(deviceRotationAngle = normalized) }
+        if (_uiState.value.deviceRotationAngle != normalized || _uiState.value.hardwareTiltAngle != normalized || _uiState.value.isSystemAutoRotateLocked) {
+            _uiState.update {
+                it.copy(
+                    deviceRotationAngle = normalized,
+                    hardwareTiltAngle = normalized,
+                    isSystemAutoRotateLocked = false
+                )
+            }
         }
+    }
+
+    fun updateHardwareTiltAngle(targetAngle: Float) {
+        val normalized = (targetAngle % 360f + 360f) % 360f
+        if (_uiState.value.hardwareTiltAngle != normalized || !_uiState.value.isSystemAutoRotateLocked) {
+            _uiState.update {
+                it.copy(
+                    hardwareTiltAngle = normalized,
+                    isSystemAutoRotateLocked = true
+                )
+            }
+        }
+    }
+
+    fun confirmManualRotation() {
+        val target = _uiState.value.hardwareTiltAngle
+        _uiState.update { it.copy(deviceRotationAngle = target) }
     }
 
     fun fetchOnlineLeaderboard(forceRefresh: Boolean = false) {
@@ -1369,6 +1394,16 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun selectTile(tile: MapTile?) {
         if (!_uiState.value.hasClickedFirstTile && tile != null) {
             telemetryManager.logTutorialComplete()
+        }
+        // Reselecting currently active tile or tower toggles the selection off (dismisses upgrade/build dock)
+        if (tile != null && tile.pos == _uiState.value.selectedTile?.pos) {
+            _uiState.update {
+                it.copy(
+                    selectedTile = null,
+                    selectedTower = null
+                )
+            }
+            return
         }
         val tower = _uiState.value.towers.firstOrNull { it.gridPos == tile?.pos }
         _uiState.update {

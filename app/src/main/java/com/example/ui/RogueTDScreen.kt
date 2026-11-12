@@ -178,7 +178,7 @@ fun RogueTDScreen(
             }
         }
 
-        // === ROUND 1 LAUNCH POINTER CALLOUT (Points directly to Launch button once defenses are built) ===
+        // === ROUND 1 LAUNCH POINTER CALLOUT (Points directly to Begin button once defenses are built) ===
         if (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty()) {
             Surface(
                 color = Color(0xFF0F172A).copy(alpha = 0.92f),
@@ -194,7 +194,7 @@ fun RogueTDScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "▲ DEFENSES READY — TAP [▶ LAUNCH] TO START",
+                        text = "▲ DEFENSES READY — TAP [▶ BEGIN] TO START",
                         color = Color(0xFF00F0FF),
                         fontWeight = FontWeight.Black,
                         fontSize = 9.5.sp
@@ -229,7 +229,7 @@ fun RogueTDScreen(
             }
         }
 
-        // === DUAL ONE-HANDED BOOSTER PAD SWAP BUTTONS ===
+        // === DUAL ONE-HANDED TELEPORTATION PAD SWAP BUTTONS ===
         val swapButtonColor = Color(0xFF00E5FF).copy(alpha = 0.28f)
         val swapBorderColor = Color(0xFF00F0FF).copy(alpha = 0.65f)
 
@@ -248,7 +248,7 @@ fun RogueTDScreen(
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Filled.SwapHoriz,
-                    contentDescription = "Swap Booster Pads Left",
+                    contentDescription = "Swap Teleportation Pads Left",
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
@@ -270,10 +270,35 @@ fun RogueTDScreen(
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Filled.SwapHoriz,
-                    contentDescription = "Swap Booster Pads Right",
+                    contentDescription = "Swap Teleportation Pads Right",
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
+            }
+        }
+
+        // === MANUAL ROTATION SUGGESTION BUTTON (When System Rotation Lock is active and device is tilted) ===
+        if (state.isSystemAutoRotateLocked && state.hardwareTiltAngle != state.deviceRotationAngle) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 28.dp)
+                    .size(44.dp)
+                    .clickable { viewModel.confirmManualRotation() }
+                    .testTag("manual_rotate_button"),
+                shape = CircleShape,
+                color = Color(0xFF0F172A).copy(alpha = 0.90f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00F0FF)),
+                shadowElevation = 6.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.ScreenRotation,
+                        contentDescription = "Rotate Screen to Match Device Tilt",
+                        tint = Color(0xFF00F0FF),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
 

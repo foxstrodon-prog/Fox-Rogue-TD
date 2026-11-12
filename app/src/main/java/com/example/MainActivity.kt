@@ -69,7 +69,22 @@ class MainActivity : ComponentActivity() {
         val rawAngle = computeOrientationBucket(orientation, lastOrientBucket)
         lastOrientBucket = rawAngle
         val relativeAngle = (rawAngle - displayAngle + 360f) % 360f
-        viewModel.updateDeviceRotation(relativeAngle)
+
+        val isAutoRotateOn = try {
+          android.provider.Settings.System.getInt(
+            contentResolver,
+            android.provider.Settings.System.ACCELEROMETER_ROTATION,
+            1
+          ) == 1
+        } catch (_: Exception) {
+          true
+        }
+
+        if (!isAutoRotateOn) {
+          viewModel.updateHardwareTiltAngle(relativeAngle)
+        } else {
+          viewModel.updateDeviceRotation(relativeAngle)
+        }
       }
     }
     setContent {
