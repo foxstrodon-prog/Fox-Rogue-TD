@@ -934,8 +934,21 @@ class RogueTDViewModel @JvmOverloads constructor(
             val t1Def = if (tower.branchTier1 != null) TowerUpgradeManager.getTier1Options(tower.type).firstOrNull { it.branchKey == tower.branchTier1 } else null
             val ffDef = if (tower.finalFormCode != null) TowerUpgradeManager.getFinalForm(tower.type, tower.finalFormCode!!) else null
 
-            val towerDmgMul = ffDef?.damageMultiplier ?: t1Def?.damageMultiplier ?: 1.0f
-            val towerSpdMul = ffDef?.fireRateMultiplier ?: t1Def?.fireRateMultiplier ?: 1.0f
+            val legacyDmgMul = ffDef?.damageMultiplier ?: t1Def?.damageMultiplier ?: 1.0f
+            val legacySpdMul = ffDef?.fireRateMultiplier ?: t1Def?.fireRateMultiplier ?: 1.0f
+
+            val tierSpdMultiplier = maxOf(legacySpdMul, when (tower.tier) {
+                3 -> 1.70f // +70% attack speed at Apex
+                2 -> 1.40f // +40% attack speed at Archetype
+                1 -> 1.20f // +20% attack speed at Vector
+                else -> 1.0f
+            })
+            val tierDmgMultiplier = maxOf(legacyDmgMul, when (tower.tier) {
+                3 -> 1.60f // +60% damage at Apex
+                2 -> 1.35f // +35% damage at Archetype
+                1 -> 1.15f // +15% damage at Vector
+                else -> 1.0f
+            })
 
             val isVectorSynergy = (tower.vector != null && tower.vector == tileBuff.vectorCategory)
             val synergyDmgBonus = if (isVectorSynergy) 0.15f else 0.0f
@@ -950,7 +963,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
             val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
-            val fireRate = customTConfig.fireRate * state.balanceConfig.globalTowerFireRateMultiplier * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
+            val fireRate = customTConfig.fireRate * state.balanceConfig.globalTowerFireRateMultiplier * tierSpdMultiplier * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
             val calculatedCooldown = if (fireRate > 0f) (1000f / fireRate).toLong() else 1000L
             val cooldownMs = maxOf(50L, calculatedCooldown)
 
@@ -999,7 +1012,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                     TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
                     TowerClass.STELLAR_COSMIC -> 1.15f
                 }
-                val baseDmg = customTConfig.damage * towerDmgMul * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
+                val baseDmg = customTConfig.damage * tierDmgMultiplier * classDmgMul * (1.0f + tileDmgBonus + synergyDmgBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
                 val isCrit = Random.nextFloat() < globalCritRate
                 val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
@@ -1015,7 +1028,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                                 targetEnemyId = target.id,
                                 targetX = target.worldX,
                                 targetY = target.worldY,
-                                speed = 16f,
+                                speed = 8.5f,
                                 damage = finalDmg,
                                 color = tower.type.color,
                                 isCrit = isCrit,
@@ -1036,7 +1049,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                                     targetEnemyId = target.id,
                                     targetX = target.worldX,
                                     targetY = target.worldY,
-                                    speed = 16f,
+                                    speed = 8.5f,
                                     damage = finalDmg * 0.75f,
                                     color = 0xFFFFFFFF,
                                     isCrit = isCrit,
@@ -1092,7 +1105,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                                 targetEnemyId = null,
                                 targetX = target.worldX,
                                 targetY = target.worldY,
-                                speed = 6.2f,
+                                speed = 4.2f,
                                 damage = finalDmg,
                                 color = tower.type.color,
                                 isSplash = true,
@@ -1136,7 +1149,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                                 targetEnemyId = target.id,
                                 targetX = target.worldX,
                                 targetY = target.worldY,
-                                speed = 9.0f,
+                                speed = 6.0f,
                                 damage = finalDmg,
                                 isCrit = isCrit,
                                 color = 0xFFFFD700,
@@ -1649,13 +1662,35 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun getSingularityAnchorTower(): TowerInstance? {
         val state = _uiState.value
+        val selected = state.selectedTower
+        if (selected != null && (selected.tier >= 2 || selected.finalFormCode != null)) {
+            // Player-chosen tactical agency over Conduit monument placement
+            return selected
+        }
         val capstone = state.towers.firstOrNull { it.isCapstone }
         if (capstone != null) return capstone
         return state.towers.minByOrNull { it.id }
     }
 
     fun requestSingularityCollapse() {
-        if (!canInitiateSingularity()) return
+        val state = _uiState.value
+        if (!canInitiateSingularity()) {
+            val level = state.level
+            val buildableTiles = level?.tiles?.filter { it.isBuildable } ?: emptyList()
+            val readyCount = state.towers.count { it.tier >= 2 || it.finalFormCode != null }
+            val total = buildableTiles.size
+            soundManager.play(com.example.audio.SoundFx.INVALID)
+            val anchor = state.selectedTower ?: state.towers.firstOrNull()
+            if (anchor != null) {
+                addFloatingText(
+                    anchor.gridPos.x.toFloat(),
+                    anchor.gridPos.y.toFloat(),
+                    "Grid Incomplete! Fill all tiles ($readyCount/$total) to Tier 2+!",
+                    0xFFFF3B30
+                )
+            }
+            return
+        }
         _uiState.update { it.copy(isSingularityWarningOpen = true) }
     }
 
@@ -1672,6 +1707,14 @@ class RogueTDViewModel @JvmOverloads constructor(
 
         val anchor = getSingularityAnchorTower() ?: return
         val sacrificed = state.towers.filter { it.id != anchor.id }
+
+        // Strictly ONE Synergy Conduit rule: If a prior Conduit exists among sacrificed towers,
+        // absorb all of its historic banked vaults and generation into the newly chosen anchor
+        val previousCapstone = sacrificed.firstOrNull { it.isCapstone }
+        if (previousCapstone != null) {
+            anchor.synergyVault.addAll(previousCapstone.synergyVault)
+            anchor.generation = maxOf(anchor.generation, previousCapstone.generation)
+        }
 
         // Calculate 20% scrap refund bounty
         val totalInvested = sacrificed.sumOf { it.getInvestedScrapValue() }
@@ -1725,7 +1768,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         addFloatingText(
             anchor.gridPos.x.toFloat(),
             anchor.gridPos.y.toFloat() - 0.7f,
-            "★ GEN ${anchor.generation} CAPSTONE VAULT ONLINE ★",
+            "★ GEN ${anchor.generation} CONDUIT ONLINE ★",
             0xFF00F0FF
         )
     }

@@ -167,4 +167,61 @@ class SynergySingularityEscalationTest {
         assertEquals(1.00f, GameDifficulty.MEDIUM.hpScaleMultiplier, 0.001f)
         assertEquals(1.25f, GameDifficulty.HARD.hpScaleMultiplier, 0.001f)
     }
+
+    @Test
+    fun `Synergy Singularity absorbs previous Capstone Conduit into newly chosen anchor`() {
+        val oldConduit = TowerInstance(
+            id = "t_old",
+            type = TowerType.GATLING,
+            gridPos = GridPos(0, 0),
+            tier = 3,
+            isCapstone = true,
+            generation = 1
+        ).apply {
+            synergyVault.add(
+                BankedSynergyVault(
+                    generation = 1,
+                    synergies = listOf(
+                        GlobalAuraSynergy("Rotary", "Desc", 1, "⚔️", 0xFFFFD700)
+                    )
+                )
+            )
+        }
+
+        val newAnchor = TowerInstance(
+            id = "t_new",
+            type = TowerType.TESLA,
+            gridPos = GridPos(3, 3),
+            tier = 3,
+            isCapstone = false,
+            generation = 0
+        )
+
+        val sacrificed = listOf(oldConduit)
+
+        val previousCapstone = sacrificed.firstOrNull { it.isCapstone }
+        assertNotNull(previousCapstone)
+        if (previousCapstone != null) {
+            newAnchor.synergyVault.addAll(previousCapstone.synergyVault)
+            newAnchor.generation = maxOf(newAnchor.generation, previousCapstone.generation)
+        }
+
+        val currentSynergies = listOf(
+            GlobalAuraSynergy("Stormcoil", "Desc", 1, "⚡", 0xFF00F0FF)
+        )
+        newAnchor.synergyVault.add(
+            BankedSynergyVault(
+                generation = newAnchor.generation + 1,
+                synergies = currentSynergies
+            )
+        )
+        newAnchor.isCapstone = true
+        newAnchor.generation += 1
+
+        assertEquals(2, newAnchor.generation)
+        assertTrue(newAnchor.isCapstone)
+        assertEquals(2, newAnchor.synergyVault.size)
+        assertEquals("Rotary", newAnchor.synergyVault[0].synergies[0].auraName)
+        assertEquals("Stormcoil", newAnchor.synergyVault[1].synergies[0].auraName)
+    }
 }

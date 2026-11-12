@@ -412,7 +412,6 @@ fun FloatingSquircleUpgradeBar(
                 val isBoardFull = buildableTiles.isNotEmpty() && state.towers.size >= buildableTiles.size
                 val areAllTowersMaxed = state.towers.isNotEmpty() && state.towers.all { it.tier >= 2 || it.finalFormCode != null }
                 val isSingularityGateReady = isBoardFull && areAllTowersMaxed
-                val isAnchor = tower.isCapstone || (state.towers.none { it.isCapstone } && tower.id == state.towers.minByOrNull { it.id }?.id)
 
                 when (tower.tier) {
                     0 -> {
@@ -570,7 +569,7 @@ fun FloatingSquircleUpgradeBar(
 
                     2 -> {
                         // 3 Tier 3 Global Auras / Ascensions (2-line stacked: Apex + Sub-class)
-                        val cost = 280
+                        val cost = TowerUpgradeManager.getTier3GlobalCost(tower, state.towers)
                         val canAfford = state.scrap >= cost
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
@@ -598,15 +597,16 @@ fun FloatingSquircleUpgradeBar(
                             )
                         }
 
-                        if (isAnchor && isSingularityGateReady) {
+                        // 4th Squircle: Interactive Synergy Conduit / Singularity Dock
+                        if (isSingularityGateReady) {
                             SquircleActionButton(
-                                title = "SINGULAR.",
-                                subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CAPSTONE",
+                                title = "★ FORGE ★",
+                                subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CONDUIT",
                                 cost = 0,
                                 themeColor = Color(0xFFFFD700),
                                 canAfford = true,
                                 isUnlocked = true,
-                                bullet1 = "Bank Auras",
+                                bullet1 = "Bank Synergies",
                                 bullet2 = "+20% Scrap",
                                 itemWidth = itemWidth,
                                 itemHeight = itemHeight,
@@ -614,31 +614,36 @@ fun FloatingSquircleUpgradeBar(
                                 onClick = onRequestSingularity,
                                 modifier = Modifier.testTag("singularity_capstone_button")
                             )
+                        } else {
+                            val readyCount = state.towers.count { it.tier >= 2 || it.finalFormCode != null }
+                            SquircleActionButton(
+                                title = "CONDUIT",
+                                subtitle = "PROGRESS",
+                                cost = 0,
+                                themeColor = Color(0xFF38BDF8),
+                                canAfford = true,
+                                isUnlocked = true,
+                                bullet1 = "$readyCount/${buildableTiles.size} Ready",
+                                bullet2 = "Tap for Info",
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                rotationAngle = animatedRotation,
+                                onClick = onRequestSingularity,
+                                modifier = Modifier.testTag("singularity_conduit_teaser_button")
+                            )
                         }
                     }
 
                     else -> {
-                        if (isAnchor && isSingularityGateReady) {
-                            SquircleActionButton(
-                                title = "SINGULAR.",
-                                subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CAPSTONE",
-                                cost = 0,
-                                themeColor = Color(0xFFFFD700),
-                                canAfford = true,
-                                isUnlocked = true,
-                                bullet1 = "Bank Synergies",
-                                bullet2 = "+20% Scrap",
-                                itemWidth = 84.dp,
-                                itemHeight = 76.dp,
-                                rotationAngle = animatedRotation,
-                                onClick = onRequestSingularity,
-                                modifier = Modifier.testTag("singularity_capstone_button")
-                            )
-                        } else if (tower.isCapstone) {
-                            // Capstone Monument Squircle
+                        val readyCount = state.towers.count { it.tier >= 2 || it.finalFormCode != null }
+                        val itemWidth = 84.dp
+                        val itemHeight = 76.dp
+
+                        // 1. Status Squircle: Capstone Monument or Apex Ascended
+                        if (tower.isCapstone) {
                             Box(
                                 modifier = Modifier
-                                    .size(width = 84.dp, height = 76.dp)
+                                    .size(width = itemWidth, height = itemHeight)
                                     .graphicsLayer { rotationZ = animatedRotation }
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF0F172A).copy(alpha = 0.95f))
@@ -646,19 +651,16 @@ fun FloatingSquircleUpgradeBar(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("★ CAPSTONE ★", color = Color(0xFFFFD700), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                    Text("★ CONDUIT ★", color = Color(0xFFFFD700), fontSize = 10.sp, fontWeight = FontWeight.Black)
                                     Text("GEN ${tower.generation}", color = Color(0xFF00F0FF), fontSize = 9.sp, fontWeight = FontWeight.Black)
                                     Text("${tower.synergyVault.sumOf { it.synergies.size }} Banked", color = Color(0xFF94A3B8), fontSize = 7.sp)
-                                    if (!isSingularityGateReady) {
-                                        Text("${state.towers.size}/${buildableTiles.size} Full", color = Color(0xFFFF9100), fontSize = 6.5.sp)
-                                    }
+                                    Text("${state.towers.size}/${buildableTiles.size} Full", color = Color(0xFFFF9100), fontSize = 6.5.sp)
                                 }
                             }
                         } else {
-                            // Tier 3 Maxed Squircle
                             Box(
                                 modifier = Modifier
-                                    .size(width = 72.dp, height = 74.dp)
+                                    .size(width = itemWidth, height = itemHeight)
                                     .graphicsLayer { rotationZ = animatedRotation }
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color(0xFF0F172A).copy(alpha = 0.92f))
@@ -667,14 +669,46 @@ fun FloatingSquircleUpgradeBar(
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("★", color = Color(0xFFFFD700), fontSize = 16.sp, fontWeight = FontWeight.Black)
-                                    Text("Apex Max", color = Color(0xFFFFD700), fontSize = 8.sp, fontWeight = FontWeight.Black)
-                                    if (isAnchor && !isSingularityGateReady) {
-                                        Text("${state.towers.size}/${buildableTiles.size} Built", color = Color(0xFF38BDF8), fontSize = 6.5.sp)
-                                    } else {
-                                        Text("• Fully Ascended", color = Color(0xFF94A3B8), fontSize = 6.5.sp)
-                                    }
+                                    Text("Apex Max", color = Color(0xFFFFD700), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                    Text(tower.finalFormCode ?: "Ascended", color = Color(0xFF38BDF8), fontSize = 7.sp)
+                                    Text("• Fully Ascended", color = Color(0xFF94A3B8), fontSize = 6.5.sp)
                                 }
                             }
+                        }
+
+                        // 2. Interactive Synergy Conduit / Singularity Dock
+                        if (isSingularityGateReady) {
+                            SquircleActionButton(
+                                title = "★ FORGE ★",
+                                subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CONDUIT",
+                                cost = 0,
+                                themeColor = Color(0xFFFFD700),
+                                canAfford = true,
+                                isUnlocked = true,
+                                bullet1 = "Bank Synergies",
+                                bullet2 = "+20% Scrap",
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                rotationAngle = animatedRotation,
+                                onClick = onRequestSingularity,
+                                modifier = Modifier.testTag("singularity_capstone_button")
+                            )
+                        } else {
+                            SquircleActionButton(
+                                title = "CONDUIT",
+                                subtitle = "PROGRESS",
+                                cost = 0,
+                                themeColor = Color(0xFF38BDF8),
+                                canAfford = true,
+                                isUnlocked = true,
+                                bullet1 = "$readyCount/${buildableTiles.size} Ready",
+                                bullet2 = "Tap for Info",
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                rotationAngle = animatedRotation,
+                                onClick = onRequestSingularity,
+                                modifier = Modifier.testTag("singularity_conduit_teaser_button")
+                            )
                         }
                     }
                 }
@@ -860,7 +894,9 @@ fun SingularityWarningDialog(
     onDismiss: () -> Unit
 ) {
     if (!state.isSingularityWarningOpen) return
-    val anchor = state.towers.firstOrNull { it.isCapstone } ?: state.towers.minByOrNull { it.id }
+    val anchor = state.selectedTower?.takeIf { it.tier >= 2 || it.finalFormCode != null }
+        ?: state.towers.firstOrNull { it.isCapstone }
+        ?: state.towers.minByOrNull { it.id }
     val sacrificedCount = state.towers.count { it.id != anchor?.id }
     val totalInvested = state.towers.filter { it.id != anchor?.id }.sumOf { it.getInvestedScrapValue() }
     val scrapBounty = maxOf(250, (totalInvested * 0.20f).toInt())

@@ -712,12 +712,127 @@ FUNCTION GameCanvas.Canvas.DrawScope.onDraw():
 
 ---
 
+## STAGE 6: POST-AUDIT ROLLOUT VERIFICATION (v0.0.1.016 FORENSIC REVIEW)
+
+Following the initial Red-Team Forensic Audit, an autonomous rollout was executed for **Dual Front TD v0.0.1.016**. This stage provides an unvarnished verification audit of what was successfully applied versus what was left unaddressed or compromised.
+
+### 1. Verification of Applied Audit Fixes (VERIFIED SUCCESSFUL)
+- **ET-01 (Primitive ID Sequence Generator):** Verified in `RogueTDViewModel.kt`. Replaced high-frequency `UUID.randomUUID().toString()` allocations in projectile generation, laser beam creation, and enemy spawning with a zero-allocation atomic sequence generator (`nextEntityId++`).
+- **ET-02 (Spatial Collision Pre-Indexing & Squared Distance Math):** Verified in `RogueTDViewModel.kt`. Pre-indexed surviving enemies into an `enemyMap` in projectile updates, replacing $O(P \cdot E)$ double scans with $O(1)$ lookups. Replaced Euclidean `Math.hypot` calls in splash radius checks with squared distance comparisons (`(dx * dx + dy * dy) <= r * r`).
+- **ET-03 (Zero Graphic Allocations in Compose DrawScope):** Verified in `GameCanvas.kt`. Replaced all per-frame `Path()` heap allocations in `Canvas` across Tower Skins (1 through 5), Level 4 Apex Halos, Tier Form Badges, Enemy Vector Geometry, and Tutorial Arrow chevrons with static remembered singletons (`scratchPath1`, `scratchPath2`, `lanePathA`, `lanePathB`, `mergedPath`) utilizing `.reset()`.
+- **ET-04 (Asymptotic Infinite Wave Clamp):** Verified in `WaveGenerator.kt`. Clamped post-wave-50 exponential scaling with `minOf(post50, 300.0)` and `minOf(1.0e12f, rawHp)`, permanently eliminating `Float.POSITIVE_INFINITY` and `NaN` crashes while preserving the difficulty curve for waves 1–150+.
+- **ET-05 (Cinematic Script Decoupling - Partial):** Verified in `CinematicController.kt`. Successfully extracted 551 lines of marketing cinematics, automated human gestures, and demo scenario scripts from `RogueTDViewModel.kt`.
+- **ET-07 (Reactive Dirty-Flag Synergy Caching):** Verified in `RogueTDViewModel.kt`. Integrated `isSynergyCacheDirty` and `cachedSynergies`, recalculating global synergy sets only upon structural board changes (building, upgrading, selling, or singularity collapse) rather than every 16ms frame.
+- **ET-08 (Inverted Speed & Cryo Slow Floor Clamp):** Verified in `RogueTDViewModel.kt`. Clamped enemy slow factor calculation with `maxOf(0.15f, 1.0f - state.globalFrostSlowBonus)`, preventing reverse movement.
+- **PU-01 through PU-06 (Governance Law):** Verified in root `AGENTS.md`. Enacted the 750-Line Modularity Law, zero-allocation loop mandates, and two-stage QA gates as binding Executive Studio Law.
+
+---
+
+### 2. Forensic Defect Ledger: Unaddressed & Deferred Technical Debt
+Despite the significant progress in v0.0.1.016, the following architectural and performance violations remain **UNADDRESSED** in the production codebase:
+
+| Defect ID | Severity | File / Component | Metric / Violation | Root Cause / Technical Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **U-01** | **CRITICAL** | `RogueTDViewModel.kt` | **2,012 Lines** (Cap: 750) | Decoupling stopped at `CinematicController.kt`. Core simulation loop (`tickSimulation`, 450+ lines), wave spawning logic, combat audio coordination, and upgrade handling remain combined in the ViewModel. |
+| **U-02** | **CRITICAL** | `GameModels.kt` | **2,159 Lines** (Cap: 750) | ET-06 was skipped. Domain entities, balance math formulas, UI color palettes, and marketing models remain entangled in a single 2,159-line file. |
+| **U-03** | **HIGH** | `TowerUpgradeBar.kt` | **1,750 Lines** (Cap: 750) | Combines upgrade squircles, tactical warning modals, priority menus, scrap calculations, and build docks. |
+| **U-04** | **HIGH** | `GameCanvas.kt` | **1,602 Lines** (Cap: 750) | Combines board grid rendering, path textures, 5 full tower skins, particle effects, projectile rendering, enemy rendering, and combat text. |
+| **U-05** | **HIGH** | `RogueTDViewModel.kt#tickSimulation` | **`_uiState.copy()` Churn** | `_uiState.update { it.copy(...) }` still executes every 16ms/8ms frame, creating shallow copies of large immutable lists (`enemies`, `projectiles`, `explosions`, `floatingTexts`, `trackParticles`), causing high GC pressure. |
+| **U-06** | **MEDIUM** | `RogueTDViewModel.kt#tickSimulation` | **Per-Tick Array Allocations** | `ArrayList(state.enemies.size)`, `updatedParticles = ArrayList(...)`, and `survivingEnemies = ArrayList()` are instantiated every frame instead of utilizing double-buffered reusable scratch arrays. |
+
+---
+
+## STAGE 7: ENGINEERING ROLLOUT PLAN — GAMEPLAY & BALANCE OVERHAUL (TARGET: v0.0.1.017)
+
+Based on direct Creator playtesting and gameplay telemetry, five critical gameplay, visual, and architectural deficiencies have been identified. The following engineering tasks constitute the definitive implementation plan for **v0.0.1.017**.
+
+---
+
+### Task B-01: Global Fire Rate Rebalance & Level 1–3 Progression Salience
+* **Affected Files:** `GameModels.kt` (`TowerType`, `TowerArchetype`), `RogueTDViewModel.kt`
+* **Deficiency:** Baseline fire rates are excessively fast (Gatling 2.4–4.4 shots/sec, Laser 4.2 shots/sec, Cryo 3.2 shots/sec). Weapons fire like water hoses immediately upon placement, making Level 1–3 towers feel trivial, visually chaotic, and lacking punchy progression.
+* **Refactor Plan:**
+  1. Reduce base fire rates by ~40–50% across starter `TowerType` and early Tier 1 vectors:
+     - `GATLING`: 2.4 $\to$ 1.2 attacks/sec.
+     - `CRYO`: 3.2 $\to$ 1.6 attacks/sec.
+     - `TESLA`: 1.4 $\to$ 0.7 attacks/sec.
+     - `MORTAR`: 0.70 $\to$ 0.4 attacks/sec.
+     - `LASER`: 4.2 $\to$ 1.8 attacks/sec.
+     - `STELLAR`: 1.8 $\to$ 0.9 attacks/sec.
+     - `VOID`: 1.1 $\to$ 0.6 attacks/sec.
+  2. Proportionally scale base damage per shot upwards (+80% to +110%) to preserve baseline DPS while giving each shot heavy, rhythmic recoil and distinct audible impact.
+  3. Re-tune Tier 2 and Tier 3 upgrade speed multipliers (e.g. +35% to +60% cyclic rate per tier), ensuring that upgrading a tower produces a dramatic, visceral surge in rate of fire.
+
+---
+
+### Task B-02: Projectile Travel Time Integration & Ballistic Speed Tuning
+* **Affected Files:** `RogueTDViewModel.kt` (lines ~1000–1200)
+* **Deficiency:** Projectile speed is set to an excessive `16.0f` on a 10-unit grid, causing bullets to traverse their entire firing range in ~0.15s (9 frames), creating the visual illusion of instant hitscan lasers rather than physical munitions.
+* **Refactor Plan:**
+  1. Reduce ballistic projectile velocities to physical flight speeds:
+     - `GATLING` kinetic bullets: `16.0f` $\to$ `8.5f`.
+     - `MORTAR` lobbed shells: `6.2f` $\to$ `4.2f`.
+     - `STELLAR` cosmic bolts: `9.0f` $\to$ `6.0f`.
+  2. Incorporate projectile travel time into turret firing pacing so that towers rhythmically time their salvos rather than hose-spraying targets already doomed by in-flight munitions.
+  3. Ensure mortar arc height and shadow tracking scale dynamically with physical flight duration.
+
+---
+
+### Task B-03: Tier 3 Apex Squircle Cost Synchronization
+* **Affected Files:** `TowerUpgradeBar.kt` (line 573)
+* **Deficiency:** In `TowerUpgradeBar.kt` (line 573), the upgrade cost for Tier 3 Apex squircles is hardcoded as `val cost = 280`. However, `RogueTDViewModel.upgradeTowerToTier3Global()` computes dynamic cost via `TowerUpgradeManager.getTier3GlobalCost(tower, state.towers)` (which scales based on archetype base cost and active Tier 3 count). This causes a UI desynchronization bug where the squircle displays `280c` while the treasury deducts the true calculated cost, causing false unaffordable lockouts or unexpected deductions.
+* **Refactor Plan:**
+  1. Replace `val cost = 280` in `TowerUpgradeBar.kt` with:
+     ```kotlin
+     val cost = TowerUpgradeManager.getTier3GlobalCost(tower, state.towers)
+     ```
+  2. Ensure both the landscape and portrait upgrade bars display the dynamic, real-time cost matching ViewModel deductions.
+
+---
+
+### Task B-04: Map Grid Expansion (+2 Rows) & Strategic Lane Lengthening
+* **Affected Files:** `MapGenerator.kt`, `GameCanvas.kt`
+* **Deficiency:** The current 10x18 grid leaves unused vertical space in widescreen landscape, and short enemy paths prevent players from accumulating sufficient scrap to fill the board on Hard mode.
+* **Refactor Plan:**
+  1. Expand grid dimensions in `MapGenerator.kt`:
+     ```kotlin
+     const val DEFAULT_WIDTH = 10
+     const val DEFAULT_HEIGHT = 20 // Added 2 rows (18 -> 20)
+     ```
+     This expands total map tiles from 180 to 200, creating 14–18 buildable pads.
+  2. Increase `minLaneLength` and `maxLaneLength` in `MapGenerator.generate()` from `(12, 26)` to `(16, 32)`, incorporating wider sweeping corner legs touching outer edges before converging at the nexus spine.
+  3. Verify that `GameCanvas.kt` board aspect ratio and cell sizing automatically adapt to 10x20 without UI distortion or clipping.
+
+---
+
+### Task B-05: Player-Chosen Synergy Conduit & Permanent Teaser Squircle
+* **Affected Files:** `TowerUpgradeBar.kt`, `RogueTDViewModel.kt`, `GameModels.kt`
+* **Deficiency:** The 4th squircle on maxed Tier 3 towers currently looks like a clickable button (`Box(...)`) but is non-interactive. Furthermore, the Singularity Capstone was previously locked to an arbitrarily chosen oldest tower, stripping the player of tactical placement agency.
+* **Refactor Plan:**
+  1. **Permanent Teaser / Progress Squircle:** On any maxed (Tier 3) tower, transform the 4th squircle slot into an active **Synergy Conduit / Singularity dock**:
+     - *When Board Is Incomplete (< 100% full/maxed):* Display as a tactical teaser:
+       - Header: `"CONDUIT"`
+       - Subtitle: `"PROGRESS"`
+       - Badge: `"${state.towers.size}/${buildableTiles.size} Full"`
+       - Tapping it triggers an informational HUD toast / floating text: `"Grid Incomplete! Fill all tiles to Tier 2+ to forge Synergy Conduit here!"`
+     - *When Board Is Complete (100% full with Tier 2/3 towers):* The Conduit squircle illuminates with an animated gold pulse and alert border:
+       - Header: `"★ FORGE ★"`
+       - Subtitle: `"CONDUIT"`
+       - Action: Tapping this squircle initiates the Singularity Collapse *into this specific tower*!
+  2. **Tactical Tower Selection Agency:** The player chooses *which* tower becomes the monument. The selected tower:
+     - Retains its Tier 3 Archetype form and weapon capabilities.
+     - Becomes crowned as `isCapstone = true` (Synergy Conduit).
+     - Increments generation: `generation += 1`.
+     - Sucks in and absorbs all active global synergies into its `SynergyVault`.
+     - Grants the 20% scrap refund bounty from all sacrificed towers.
+  3. **Strictly ONE Synergy Conduit Rule:** If an existing Synergy Conduit from a previous generation is already on the board and the player collapses the grid onto a new tower, the old conduit (including all its historic banked vaults) is absorbed into the new conduit. Exactly **ONE** Synergy Conduit exists on the board at any given time.
+
+---
+
 ## CONCLUSION
 
-The Red-Team Adversarial Audit across Stages 1 through 5 is complete. 
+Dual Front TD v0.0.1.016 established vital baseline CS invariants (zero Path allocations, asymptotic math ceilings, dirty-flag synergy caching). 
 
-The findings are unambiguous: Dual Front TD has built a world-class game concept on top of a fragile, memory-thrashing foundation disguised by visual polish and marketing automation.
+Executing **Stage 7 (Tasks B-01 through B-05)** in v0.0.1.017 resolves all core balance complaints, restores tactical player agency over the Singularity board-merge loop, expands the tactical grid, and fixes squircle cost desynchronization.
 
-By executing the **8 Engineering Tasks (ET-01 through ET-08)** and enacting the **6 Governance Patches (PU-01 through PU-06)**, the Human Creator will establish an unshakeable, modular, commercial-grade Computer Science architecture capable of running locked at 120 FPS into infinite waves.
-
-*Full dossier compiled and permanently recorded in `RED_TEAM_AUDIT_REPORT.md`.*
+*Full dossier updated and permanently recorded in `RED_TEAM_AUDIT_REPORT.md`.*

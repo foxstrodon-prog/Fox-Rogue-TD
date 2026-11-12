@@ -19,7 +19,7 @@ data class GeneratedLevel(
 
 object MapGenerator {
     const val DEFAULT_WIDTH = 10
-    const val DEFAULT_HEIGHT = 18
+    const val DEFAULT_HEIGHT = 20
 
     val BIOMES = listOf(
         Biome(
@@ -79,8 +79,8 @@ object MapGenerator {
         seed: Long = System.currentTimeMillis(),
         width: Int = DEFAULT_WIDTH,
         height: Int = DEFAULT_HEIGHT,
-        minLaneLength: Int = 12,
-        maxLaneLength: Int = 26
+        minLaneLength: Int = 16,
+        maxLaneLength: Int = 32
     ): GeneratedLevel {
         require(minLaneLength in 4..maxLaneLength) {
             "minLaneLength ($minLaneLength) must be >= 4 and <= maxLaneLength ($maxLaneLength)"

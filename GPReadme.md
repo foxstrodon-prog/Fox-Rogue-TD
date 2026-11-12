@@ -4,7 +4,24 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.016
+### 🚀 What's New in Version 0.0.1.017
+
+🎯 **Combat Rebalance, Synergy Conduit Agency & Map Expansion**
+- **Combat Cadence & Level 1–3 Progression Salience:** Rebalanced baseline starter weapon fire rates by ~40–50% (Gatling 1.2/s, Cryo 1.6/s, Tesla 0.7/s, Mortar 0.40/s, Laser 1.8/s, Void 0.6/s, Stellar 0.9/s) and scaled per-shot base damage up (+80% to +130%) so early-game towers deliver punchy, measured strikes rather than hose-like sprays. Scaled upgrade progression through Tier 1 (+20% SPD, +15% DMG), Tier 2 (+40% SPD, +35% DMG), and Tier 3 (+70% SPD, +60% DMG) so evolutions feel truly transformative.
+- **Physical Ballistics & Projectile Travel Time:** Tuned ballistic velocities (Gatling 8.5, Mortar 4.2, Stellar 6.0) so munitions travel across the grid with realistic flight physics and artillery arcs, allowing players to track ordnance flight time.
+- **Player-Chosen Synergy Conduit & Permanent Teaser Squircle:**
+  - On Tier 3 maxed towers, the 4th upgrade slot now houses an interactive Conduit dock.
+  - When the grid is incomplete, it acts as a progress teaser showing ready counts (`X/Y Ready`), with tapping triggering floating HUD guidance.
+  - When the grid is 100% full with Tier 2/3 towers, it illuminates in electric gold (`[★ FORGE ★ CONDUIT]`), allowing players to choose *which specific tower* collapses the board into the Synergy Conduit monument.
+  - **Strictly ONE Synergy Conduit Invariant:** Sacrificing an older Conduit into a newly chosen tower absorbs all past banked vaults and generation ranks, keeping exactly one monument on the battlefield.
+- **Tier 3 Squircle Dynamic Cost Synchronization:** Fixed cost desynchronization where the upgrade UI displayed a flat 280 scrap while the engine charged dynamic multi-upgrade costs.
+- **Expanded Map Grid & Tactical Lanes:** Expanded default map height from 18 to 20 (+2 rows, 200 tiles, 14–18 buildable pads) and widened procedural lane paths (`minLaneLength = 16, maxLaneLength = 32`) with corner legs touching outer edges before converging at the nexus spine.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.016
 
 ⚡ **Red-Team CS Optimization & Zero-Allocation Engine Rollout**
 - **Zero-Allocation Compose Rendering Engine:** Refactored `GameCanvas.kt` rendering pipeline with singleton path reuse (`scratchPath1`, `scratchPath2`, `lanePathA`, `lanePathB`, `mergedPath`), eliminating all per-frame `Path()` heap allocations across tower skins, badges, enemy vectors, and tactical pointers.

@@ -911,8 +911,8 @@ enum class TowerType(
         role = "Rapid Kinetic Rotary Cannons",
         baseCost = 100,
         baseRange = 2.5f,
-        baseDamage = 24f,
-        baseFireRate = 2.4f,
+        baseDamage = 48f,
+        baseFireRate = 1.2f,
         color = 0xFF00F0FF
     ),
     CRYO(
@@ -920,8 +920,8 @@ enum class TowerType(
         role = "Sub-Zero Freezing Laser Spire",
         baseCost = 130,
         baseRange = 2.4f,
-        baseDamage = 18f,
-        baseFireRate = 3.2f,
+        baseDamage = 36f,
+        baseFireRate = 1.6f,
         color = 0xFF38BDF8,
         isBeam = true,
         slowPercent = 0.50f
@@ -931,8 +931,8 @@ enum class TowerType(
         role = "Chaining High-Voltage Lightning Web",
         baseCost = 160,
         baseRange = 2.2f,
-        baseDamage = 50f,
-        baseFireRate = 1.4f,
+        baseDamage = 100f,
+        baseFireRate = 0.7f,
         color = 0xFFB026FF,
         chains = 3
     ),
@@ -941,8 +941,8 @@ enum class TowerType(
         role = "Heavy Incendiary Ballistic Artillery",
         baseCost = 200,
         baseRange = 4.2f,
-        baseDamage = 120f,
-        baseFireRate = 0.70f,
+        baseDamage = 210f,
+        baseFireRate = 0.40f,
         color = 0xFFFF7A00,
         isSplash = true,
         splashRadius = 1.8f
@@ -952,8 +952,8 @@ enum class TowerType(
         role = "High-Intensity Thermal Piercing Beam",
         baseCost = 240,
         baseRange = 3.0f,
-        baseDamage = 75f,
-        baseFireRate = 4.2f,
+        baseDamage = 175f,
+        baseFireRate = 1.8f,
         color = 0xFFFF0055,
         isBeam = true
     ),
@@ -962,8 +962,8 @@ enum class TowerType(
         role = "Graviton Vortex & Armor Shredder",
         baseCost = 280,
         baseRange = 2.5f,
-        baseDamage = 95f,
-        baseFireRate = 1.1f,
+        baseDamage = 175f,
+        baseFireRate = 0.6f,
         color = 0xFF8B5CF6,
         isSplash = true,
         splashRadius = 2.5f
@@ -973,8 +973,8 @@ enum class TowerType(
         role = "Cosmic Flare & Gravitational Warp",
         baseCost = 180,
         baseRange = 3.6f,
-        baseDamage = 65f,
-        baseFireRate = 1.8f,
+        baseDamage = 130f,
+        baseFireRate = 0.9f,
         color = 0xFFFFD700,
         isSplash = true,
         splashRadius = 2.0f
@@ -1782,8 +1782,8 @@ data class DevBalanceConfig(
     val heavyDamageMultiplier: Float = 1.0f,
     val waveBonusMultiplier: Float = 1.0f,     // 0.2x to 2.5x end of wave bonus
     val buildCostMultiplier: Float = 1.0f,     // 0.5x to 2.0x tower build costs
-    val minLaneLength: Int = 12,              // 8 to 25 slider
-    val maxLaneLength: Int = 26,              // 15 to 40 slider
+    val minLaneLength: Int = 16,              // 8 to 35 slider
+    val maxLaneLength: Int = 32,              // 15 to 50 slider
     val enemiesPerRoundMultiplier: Float = 1.0f, // 0.5x to 3.0x enemies per round
     val masterVolume: Float = 0.7f,
     val musicVolume: Float = 0.45f,
