@@ -232,7 +232,7 @@ class LeaderboardCoreTest {
       scrapEarned = 260,
       totalDamage = 18000L,
       timestampMs = 1234567L,
-      clientVersion = "0.0.1.010",
+      clientVersion = "0.0.1.011",
       userId = "firebase_anon_uid_999"
     )
     store.enqueuePending(item)

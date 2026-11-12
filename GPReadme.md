@@ -4,7 +4,19 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.010
+### 🚀 What's New in Version 0.0.1.011
+
+🏆 **Production Composite Leaderboard Architecture & Secure Credentialing**
+- **Production Index Alignment:** Live cloud composite indexing enabled for sorting by maximum wave reached (`maxWave` DESC), high score tie-breaking (`highScore` DESC), and timestamp ordering.
+- **Dynamic Secure Key Resolution:** Enhanced build security with dynamic client credential resolution, completely decoupling API keys from git-tracked source files.
+- **High Availability Query Engine:** Resilient dual-tier querying provides instant, flicker-free score streaming across both local offline caches and cloud rankings.
+- **Zero-Loss Identity & Offline Queue:** Cryptographically signed submissions paired with background WorkManager queues ensure no completed runs are ever lost.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.010
 
 🛡️ **Leaderboard Engine Resilience & Self-Healing Query Engine**
 - **Zero-Failure Index Fallback:** Integrated resilient fallback querying that serves global leaderboards instantaneously even while cloud composite indexes are provisioning, preventing connection dropouts and server errors.

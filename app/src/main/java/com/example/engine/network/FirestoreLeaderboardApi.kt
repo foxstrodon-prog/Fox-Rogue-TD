@@ -50,7 +50,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.010" }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.011" }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
