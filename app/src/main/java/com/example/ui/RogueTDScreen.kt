@@ -178,6 +178,31 @@ fun RogueTDScreen(
             }
         }
 
+        // === ROUND 1 LAUNCH POINTER CALLOUT (Points directly to Launch button once defenses are built) ===
+        if (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty()) {
+            Surface(
+                color = Color(0xFF0F172A).copy(alpha = 0.92f),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00F0FF)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 46.dp)
+                    .clickable { viewModel.deployWave() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "▲ DEFENSES READY — TAP [▶ LAUNCH] TO START",
+                        color = Color(0xFF00F0FF),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 9.5.sp
+                    )
+                }
+            }
+        }
+
         // === EXCESS CASH REMINDER BANNER ===
         if (state.scrap >= 350 && state.hasClickedFirstTile && state.selectedTower == null && state.selectedTile == null) {
             Surface(

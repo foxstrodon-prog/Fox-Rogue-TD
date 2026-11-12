@@ -1,7 +1,11 @@
 package com.example.ui.hud
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,6 +47,18 @@ fun MinimalTopHud(
     modifier: Modifier = Modifier
 ) {
     var showSynergyDropdown by remember { mutableStateOf(false) }
+
+    // Energetic tactical pulse for wave launch readiness
+    val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
+    val pulseGlow by infiniteTransition.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "launch_pulse"
+    )
 
     // Shortest-path counter-rotation: at 270 deg (phone tilted right), rotate +90 deg instead of -270 deg
     val counterAngle = when (((state.deviceRotationAngle % 360f + 360f) % 360f).toInt()) {
@@ -234,37 +250,59 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Auto Wave Toggle
+                // Auto Wave Toggle (Tactile switch styling with explicit ON / OFF state)
+                val autoWaveActive = state.autoCallNextWave
                 Surface(
-                    color = if (state.autoCallNextWave) Color(0xFF00FF9D).copy(alpha = 0.2f) else Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(5.dp),
-                    border = if (state.autoCallNextWave) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)) else null,
+                    color = if (autoWaveActive) Color(0xFF003822).copy(alpha = 0.90f) else Color(0xFF161F30).copy(alpha = 0.75f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.2.dp,
+                        if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF334155)
+                    ),
                     modifier = counterRotateModifier
-                        .clip(RoundedCornerShape(5.dp))
+                        .clip(RoundedCornerShape(6.dp))
                         .clickable { onToggleAutoWave() }
-                        .padding(1.dp)
                 ) {
-                    Text(
-                        text = "AUTO",
-                        color = if (state.autoCallNextWave) Color(0xFF00FF9D) else Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 8.5.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF64748B))
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (autoWaveActive) "AUTO: ON" else "AUTO: OFF",
+                            color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 8.sp
+                        )
+                    }
                 }
 
-                // Launch Wave Button
+                // Launch Wave Button with energetic pulse & arrow accent
+                val isWaveReady = !state.isWaveActive
+                val launchContainerColor = if (isWaveReady) {
+                    Color(0xFF00F0FF).copy(alpha = pulseGlow)
+                } else {
+                    Color(0xFF1E293B).copy(alpha = 0.7f)
+                }
+
                 Button(
                     onClick = onDeployWave,
-                    enabled = !state.isWaveActive,
+                    enabled = isWaveReady,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00F0FF),
+                        containerColor = launchContainerColor,
                         disabledContainerColor = Color(0xFF1E293B).copy(alpha = 0.7f),
                         contentColor = Color.Black,
                         disabledContentColor = Color(0xFF64748B)
                     ),
-                    contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp),
-                    shape = RoundedCornerShape(5.dp),
+                    border = if (isWaveReady) androidx.compose.foundation.BorderStroke(1.2.dp, Color.White.copy(alpha = pulseGlow)) else null,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 1.dp),
+                    shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
                         .height(26.dp)
                         .testTag("deploy_wave_button")
@@ -276,9 +314,9 @@ fun MinimalTopHud(
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(
-                        text = if (state.isWaveActive) "${state.enemies.size} FOES" else "LAUNCH",
+                        text = if (state.isWaveActive) "${state.enemies.size} FOES" else "▶ LAUNCH",
                         fontWeight = FontWeight.Black,
-                        fontSize = 9.sp
+                        fontSize = 8.5.sp
                     )
                 }
 
