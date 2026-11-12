@@ -4,7 +4,19 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.011
+### 🚀 What's New in Version 0.0.1.012
+
+🏆 **Canonical Leaderboards, Dual-Path Security & Observability**
+- **Canonical Routing & Cross-Path Failover:** Automatic path normalization guarantees that all player runs submit and query through canonical `/leaderboards` with automated cross-path failover to `/leaderboard`.
+- **Dual-Path Security Alignment:** Firestore security rules seamlessly authorize both `/leaderboards/{runId}` and `/leaderboard/{scoreId}` with unified verification logic, preventing permission rejections.
+- **Structured Device Telemetry:** Added end-to-end Logcat instrumentation for network requests, repository states, and WorkManager background syncing.
+- **Resilient UI State Feedback:** Round-end status displays informative "QUEUED FOR UPLOAD (OFFLINE)" indicators whenever scores are held locally in safe storage.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.011
 
 🏆 **Production Composite Leaderboard Architecture & Secure Credentialing**
 - **Production Index Alignment:** Live cloud composite indexing enabled for sorting by maximum wave reached (`maxWave` DESC), high score tie-breaking (`highScore` DESC), and timestamp ordering.

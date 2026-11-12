@@ -1,12 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Leaderboard scores submission & read rules (Composite Leaderboard)
-    match /leaderboards/{docId} {
-      // Anyone can read non-dev scores
+    // Canonical path (Plural)
+    match /leaderboards/{runId} {
       allow read: if true;
-
-      // Authenticated users can submit honest scores with matching userId
       allow create: if request.auth != null
                     && request.auth.uid == request.resource.data.userId
                     && request.resource.data.isDevTuned == false
@@ -14,25 +11,34 @@ service cloud.firestore {
                     && request.resource.data.highScore >= 0
                     && request.resource.data.highScore <= 10000000
                     && request.resource.data.maxWave is int
-                    && request.resource.data.maxWave >= 0
+                    && request.resource.data.maxWave >= 1
                     && request.resource.data.maxWave <= 1000
                     && request.resource.data.username is string
                     && request.resource.data.username.size() >= 3
-                    && request.resource.data.username.size() <= 16
+                    && request.resource.data.username.size() <= 20
                     && request.resource.data.keys().hasAll(['userId', 'username', 'highScore', 'maxWave', 'timestamp', 'isDevTuned', 'clientVersion']);
-
-      // Immutability: Scores cannot be edited or overwritten
       allow update, delete: if false;
     }
 
-    // Backwards compatibility with legacy /leaderboard path
+    // Legacy path (Singular) - Identical validation to prevent 403s on legacy builds
     match /leaderboard/{scoreId} {
       allow read: if true;
-      allow create: if request.resource.data.isDevTuned == false;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId
+                    && request.resource.data.isDevTuned == false
+                    && request.resource.data.highScore is int
+                    && request.resource.data.highScore >= 0
+                    && request.resource.data.highScore <= 10000000
+                    && request.resource.data.maxWave is int
+                    && request.resource.data.maxWave >= 1
+                    && request.resource.data.maxWave <= 1000
+                    && request.resource.data.username is string
+                    && request.resource.data.username.size() >= 3
+                    && request.resource.data.username.size() <= 20
+                    && request.resource.data.keys().hasAll(['userId', 'username', 'highScore', 'maxWave', 'timestamp', 'isDevTuned', 'clientVersion']);
       allow update, delete: if false;
     }
 
-    // Default deny all other paths
     match /{document=**} {
       allow read, write: if false;
     }

@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.011`):** [`apk/Dual-Front-TD-v0.0.1.011-debug.apk`](apk/Dual-Front-TD-v0.0.1.011-debug.apk)
+- **Latest Android APK (`v0.0.1.012`):** [`apk/Dual-Front-TD-v0.0.1.012-debug.apk`](apk/Dual-Front-TD-v0.0.1.012-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,19 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.011
+## 🕹️ What's New in Version 0.0.1.012
 
-### 🏆 Production Composite Leaderboards & Secure Key Architecture
+### 🏆 Canonical Leaderboards, Dual-Path Security & Observability
+- **Canonical Collection Normalization & Fail-Safe Fallback:** All client requests are automatically sanitized and normalized to canonical `/leaderboards`, with seamless cross-path failover to `/leaderboard` to ensure 100% submission and query reliability.
+- **Dual-Path Security Rules Alignment:** Cloud security rules strictly authorize and validate both `/leaderboards/{runId}` and `/leaderboard/{scoreId}` with identical field schemas, eliminating HTTP 403 `PERMISSION_DENIED` errors.
+- **Structured Logcat Telemetry:** Integrated verbose, structured diagnostic logging across `[FirestoreLeaderboardApi]`, `[LeaderboardRepository]`, and `[ScoreSubmissionWorker]` for full real-time device observability.
+- **Graceful UI State Protection:** Round-end score submission cleanly displays `QUEUED FOR UPLOAD (OFFLINE)` whenever scores are safely staged in the local queue, preventing false alarm failure banners.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.011
 - **Production Index Alignment:** Fully aligned Firestore composite indexing sorting primarily by highest wave reached (`maxWave` DESC), with tie-breaking by high score (`highScore` DESC) and submission timestamp.
 - **Dynamic Secure Key Resolution:** Build configuration dynamically resolves Firebase credentials via environment variables, local configuration, or `google-services.json`, keeping repositories completely clean of hardcoded keys.
 - **Resilient Fallback Query Engine:** Self-healing query pipeline with client-side dual-sort ensures scoreboard availability across all network conditions and provisioning states.

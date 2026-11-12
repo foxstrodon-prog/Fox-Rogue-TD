@@ -1,6 +1,7 @@
 package com.example.engine.repository
 
 import android.os.SystemClock
+import android.util.Log
 import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.storage.LeaderboardStore
@@ -43,6 +44,7 @@ class LeaderboardRepository @JvmOverloads constructor(
     } else {
       GlobalBoardStatus.IDLE
     }
+    Log.d(TAG, "[LeaderboardRepository] Initialized: status=$initialStatus, cachedEntries=${cached.size}, pendingCount=${pending.size}")
     _boardState.update {
       it.copy(
         entries = cached,
@@ -56,6 +58,7 @@ class LeaderboardRepository @JvmOverloads constructor(
     if (!api.isConfigured) {
       val cached = store.getCachedLeaderboard()
       val pending = store.getPendingQueue()
+      Log.w(TAG, "[LeaderboardRepository] fetchLeaderboard: Unconfigured API. Setting status=NOT_CONFIGURED, pendingCount=${pending.size}")
       _boardState.update {
         it.copy(
           entries = cached,
@@ -68,9 +71,11 @@ class LeaderboardRepository @JvmOverloads constructor(
 
     val now = SystemClock.elapsedRealtime()
     if (!forceRefresh && (now - lastFetchElapsedRealtime < 30_000L)) {
+      Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Throttled (within 30s interval)")
       return@withContext
     }
     if (forceRefresh && (now - lastFetchElapsedRealtime < 3_000L)) {
+      Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Throttled (within 3s force-refresh interval)")
       return@withContext
     }
 
@@ -80,6 +85,7 @@ class LeaderboardRepository @JvmOverloads constructor(
         return@withContext
       }
 
+      Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Initiating fetch. Transitioning status=LOADING if empty")
       _boardState.update {
         it.copy(
           isRefreshing = true,
@@ -101,6 +107,7 @@ class LeaderboardRepository @JvmOverloads constructor(
           }
           store.saveCachedLeaderboard(processed)
           val pendingCount = store.getPendingQueue().size
+          Log.i(TAG, "[LeaderboardRepository] fetchLeaderboard: SUCCESS. Transitioning status=ONLINE. Fetched ${processed.size} entries. Pending count: $pendingCount")
           _boardState.update {
             it.copy(
               entries = processed,
@@ -122,6 +129,7 @@ class LeaderboardRepository @JvmOverloads constructor(
           } else {
             GlobalBoardStatus.ERROR
           }
+          Log.w(TAG, "[LeaderboardRepository] fetchLeaderboard: FAILURE (kind=${result.kind}). Transitioning status=$status. Pending count: $pendingCount. Message: ${result.message}")
           _boardState.update {
             it.copy(
               entries = if (cached.isNotEmpty()) cached else it.entries,
@@ -143,10 +151,12 @@ class LeaderboardRepository @JvmOverloads constructor(
     userId: String? = null
   ) = withContext(Dispatchers.IO) {
     if (isDevTuned || run.isDevTuned) {
+      Log.d(TAG, "[LeaderboardRepository] enqueueRun: Skipping dev tuned run ${run.id}")
       return@withContext
     }
 
     if (store.isAlreadySubmitted(run.id)) {
+      Log.d(TAG, "[LeaderboardRepository] enqueueRun: Skipping already submitted run ${run.id}")
       return@withContext
     }
 
@@ -166,12 +176,18 @@ class LeaderboardRepository @JvmOverloads constructor(
 
     store.enqueuePending(submission)
     val pendingCount = store.getPendingQueue().size
+    Log.d(TAG, "[LeaderboardRepository] enqueueRun: Enqueued runId=${run.id}, score=${run.score}, waves=${run.wavesCleared}. Pending count: $pendingCount")
     _boardState.update { it.copy(pendingCount = pendingCount) }
 
     scheduler.triggerImmediateSync()
   }
 
   fun retryPendingSubmissions() {
+    Log.d(TAG, "[LeaderboardRepository] retryPendingSubmissions: Triggering immediate WorkManager sync")
     scheduler.triggerImmediateSync()
+  }
+
+  companion object {
+    private const val TAG = "LeaderboardRepository"
   }
 }

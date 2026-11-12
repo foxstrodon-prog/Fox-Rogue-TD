@@ -84,6 +84,7 @@ data class GameUIState(
     val deviceRotationAngle: Float = 0f,
     val onlineLeaderboard: List<OnlineScoreEntry> = emptyList(),
     val leaderboardStatus: GlobalBoardStatus = GlobalBoardStatus.IDLE,
+    val leaderboardPendingCount: Int = 0,
     val leaderboardErrorMessage: String? = null,
     val updateUIState: AppUpdateState = AppUpdateState(),
     val showUpdateModal: Boolean = false,
@@ -186,8 +187,15 @@ class RogueTDViewModel @JvmOverloads constructor(
                     prev.copy(
                         onlineLeaderboard = boardState.entries,
                         leaderboardStatus = boardState.status,
+                        leaderboardPendingCount = boardState.pendingCount,
                         leaderboardErrorMessage = when (boardState.status) {
-                            GlobalBoardStatus.ERROR -> boardState.failureKind?.name ?: "Connection error"
+                            GlobalBoardStatus.ERROR -> {
+                                if (boardState.pendingCount > 0) {
+                                    "Offline Queue: ${boardState.pendingCount} score(s) pending sync"
+                                } else {
+                                    boardState.failureKind?.name ?: "Connection error"
+                                }
+                            }
                             GlobalBoardStatus.OFFLINE_CACHED -> if (boardState.entries.isEmpty()) "Connection failed. Scores cached locally." else null
                             GlobalBoardStatus.NOT_CONFIGURED -> "Database Pending: Enable (default) Firestore in Firebase Console"
                             else -> null

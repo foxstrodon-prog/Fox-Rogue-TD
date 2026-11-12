@@ -63,6 +63,15 @@ class LeaderboardCoreTest {
   }
 
   @Test
+  fun `FirestoreLeaderboardApi normalizeCollection routes correctly`() {
+    assertEquals("leaderboards", FirestoreLeaderboardApi.normalizeCollection("leaderboard"))
+    assertEquals("leaderboards", FirestoreLeaderboardApi.normalizeCollection("leaderboards"))
+    assertEquals("leaderboards", FirestoreLeaderboardApi.normalizeCollection("  LEADERBOARD  "))
+    assertEquals("leaderboards", FirestoreLeaderboardApi.normalizeCollection(""))
+    assertEquals("custom_board", FirestoreLeaderboardApi.normalizeCollection("custom_board"))
+  }
+
+  @Test
   fun `FirestoreLeaderboardApi returns UNCONFIGURED when keys are blank`() = runBlocking {
     val unconfiguredApi = FirestoreLeaderboardApi(
       projectId = "",
@@ -232,7 +241,7 @@ class LeaderboardCoreTest {
       scrapEarned = 260,
       totalDamage = 18000L,
       timestampMs = 1234567L,
-      clientVersion = "0.0.1.011",
+      clientVersion = "0.0.1.012",
       userId = "firebase_anon_uid_999"
     )
     store.enqueuePending(item)

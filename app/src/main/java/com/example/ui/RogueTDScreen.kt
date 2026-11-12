@@ -1510,17 +1510,18 @@ fun RunSummaryDialog(
                             }
                         }
                         GlobalBoardStatus.ERROR -> {
+                            val hasPending = state.leaderboardPendingCount > 0
                             Surface(
-                                color = Color(0xFFFF2A55).copy(alpha = 0.15f),
+                                color = if (hasPending) Color(0xFF64748B).copy(alpha = 0.2f) else Color(0xFFFF2A55).copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (hasPending) Color(0xFF64748B) else Color(0xFFFF2A55)),
                                 modifier = Modifier
                                     .padding(bottom = 8.dp)
                                     .testTag("leaderboard_retry")
                             ) {
                                 Text(
-                                    text = "UPLOAD FAILED",
-                                    color = Color(0xFFFF2A55),
+                                    text = if (hasPending) "QUEUED FOR UPLOAD (OFFLINE)" else "UPLOAD FAILED",
+                                    color = if (hasPending) Color(0xFF94A3B8) else Color(0xFFFF2A55),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 8.5.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)

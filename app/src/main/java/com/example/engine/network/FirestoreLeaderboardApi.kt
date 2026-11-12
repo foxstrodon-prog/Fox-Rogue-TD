@@ -1,5 +1,6 @@
 package com.example.engine.network
 
+import android.util.Log
 import com.example.model.FailureKind
 import com.example.model.LeaderboardResult
 import com.example.model.OnlineScoreEntry
@@ -21,8 +22,12 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
   private val projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
   private val apiKey: String = com.example.BuildConfig.LEADERBOARD_API_KEY,
-  private val collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION
+  collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION
 ) {
+  val canonicalCollection: String = normalizeCollection(collection)
+  val alternateCollection: String = if (canonicalCollection == "leaderboards") "leaderboard" else "leaderboards"
+  val collection: String get() = canonicalCollection
+
   val isConfigured: Boolean
     get() = projectId.isNotBlank() && apiKey.isNotBlank()
 
@@ -31,13 +36,12 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     idToken: String? = null
   ): LeaderboardResult<Unit> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot submit score: projectId or apiKey is unconfigured")
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
         "Leaderboard project ID or API key is not configured"
       )
     }
-
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=${item.runId}&key=$apiKey"
 
     val sanitizedCallsign = sanitizeCallsign(item.callsign)
     val effectiveUserId = item.userId.ifBlank { "anonymous" }
@@ -50,7 +54,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.011" }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.012" }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
@@ -63,7 +67,36 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("fields", fieldsObj)
     }
 
+    // Primary attempt on canonicalCollection
+    var result = executeSubmitScore(canonicalCollection, item.runId, requestBodyJson, idToken)
+
+    // Cross-path failover to alternateCollection if 403 or 404 on canonical
+    if (result is LeaderboardResult.Failure &&
+        (result.kind == FailureKind.SECURITY_REJECTED || result.kind == FailureKind.UNCONFIGURED) &&
+        canonicalCollection != alternateCollection) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] Primary submit on '$canonicalCollection' failed with ${result.kind}. Attempting cross-path failover to '$alternateCollection'")
+      val fallbackResult = executeSubmitScore(alternateCollection, item.runId, requestBodyJson, idToken)
+      if (fallbackResult is LeaderboardResult.Success) {
+        Log.i(TAG, "[FirestoreLeaderboardApi] Cross-path failover to '$alternateCollection' succeeded for runId=${item.runId}")
+        result = fallbackResult
+      }
+    }
+
+    result
+  }
+
+  private suspend fun executeSubmitScore(
+    targetCollection: String,
+    runId: String,
+    requestBodyJson: JSONObject,
+    idToken: String?
+  ): LeaderboardResult<Unit> {
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId&key=$apiKey"
+    val payloadString = requestBodyJson.toString()
     val mediaType = "application/json; charset=utf-8".toMediaType()
+
+    Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing submitScore -> URL: $url | collection: $targetCollection | runId: $runId | payloadSize: ${payloadString.toByteArray().size} bytes | hasAuthToken: ${!idToken.isNullOrBlank()}")
+
     val requestBuilder = Request.Builder()
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
@@ -75,190 +108,226 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     }
 
     val request = requestBuilder
-      .post(requestBodyJson.toString().toRequestBody(mediaType))
+      .post(payloadString.toRequestBody(mediaType))
       .build()
 
-    try {
+    return try {
       client.newCall(request).awaitResponse().use { response ->
-        when (response.code) {
-          200, 201 -> LeaderboardResult.Success(Unit)
-          409 -> LeaderboardResult.Success(Unit) // Idempotent: already exists
+        val code = response.code
+        Log.d(TAG, "[FirestoreLeaderboardApi] submitScore HTTP response code: $code for collection: $targetCollection, runId: $runId")
+        when (code) {
+          200, 201 -> {
+            Log.i(TAG, "[FirestoreLeaderboardApi] submitScore SUCCESS ($code) on collection: $targetCollection for runId: $runId")
+            LeaderboardResult.Success(Unit)
+          }
+          409 -> {
+            Log.i(TAG, "[FirestoreLeaderboardApi] submitScore idempotent 409 (already exists) on collection: $targetCollection for runId: $runId")
+            LeaderboardResult.Success(Unit)
+          }
           400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
-            val (kind, msg) = parseFirestoreError(response.code, errBody)
+            Log.e(TAG, "[FirestoreLeaderboardApi] submitScore HTTP $code error body on collection: $targetCollection: $errBody")
+            val (kind, msg) = parseFirestoreError(code, errBody)
             LeaderboardResult.Failure(kind, msg)
           }
-          429 -> LeaderboardResult.Failure(
-            FailureKind.RATE_LIMITED,
-            "Firestore rate limit reached (429)"
-          )
-          in 500..599 -> LeaderboardResult.Failure(
-            FailureKind.SERVER_ERROR,
-            "Firestore server error (${response.code})"
-          )
-          else -> LeaderboardResult.Failure(
-            FailureKind.SERVER_ERROR,
-            "Unexpected HTTP response code ${response.code}"
-          )
+          429 -> {
+            Log.w(TAG, "[FirestoreLeaderboardApi] submitScore HTTP 429 Rate Limited on collection: $targetCollection")
+            LeaderboardResult.Failure(
+              FailureKind.RATE_LIMITED,
+              "Firestore rate limit reached (429)"
+            )
+          }
+          in 500..599 -> {
+            val errBody = response.body?.string().orEmpty()
+            Log.e(TAG, "[FirestoreLeaderboardApi] submitScore server error HTTP $code on collection: $targetCollection: $errBody")
+            LeaderboardResult.Failure(
+              FailureKind.SERVER_ERROR,
+              "Firestore server error ($code)"
+            )
+          }
+          else -> {
+            LeaderboardResult.Failure(
+              FailureKind.SERVER_ERROR,
+              "Unexpected HTTP response code $code"
+            )
+          }
         }
       }
     } catch (e: CancellationException) {
       throw e
     } catch (e: SocketTimeoutException) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] submitScore TIMEOUT on collection: $targetCollection: ${e.message}")
       LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e)
     } catch (e: UnknownHostException) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] submitScore NETWORK_UNAVAILABLE (DNS) on collection: $targetCollection: ${e.message}")
       LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e)
     } catch (e: IOException) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] submitScore I/O exception on collection: $targetCollection: ${e.message}")
       LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
     } catch (e: Exception) {
+      Log.e(TAG, "[FirestoreLeaderboardApi] submitScore unexpected exception on collection: $targetCollection: ${e.message}", e)
       LeaderboardResult.Failure(FailureKind.SERVER_ERROR, "Unexpected error: ${e.message}", e)
     }
   }
 
   suspend fun fetchTopScores(limit: Int = 50): LeaderboardResult<List<OnlineScoreEntry>> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot fetch scores: projectId or apiKey is unconfigured")
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
         "Leaderboard project ID or API key is not configured"
       )
     }
 
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery?key=$apiKey"
+    var result = executeRunQuery(canonicalCollection, limit, singleMetricOnly = false)
 
-    val queryJson = JSONObject().apply {
-      val structuredQuery = JSONObject().apply {
-        put("from", JSONArray().put(JSONObject().put("collectionId", collection)))
-        put("where", JSONObject().apply {
-          put("fieldFilter", JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "isDevTuned"))
-            put("op", "EQUAL")
-            put("value", JSONObject().put("booleanValue", false))
-          })
-        })
-        put("orderBy", JSONArray().apply {
-          put(JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "maxWave"))
-            put("direction", "DESCENDING")
-          })
-          put(JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "highScore"))
-            put("direction", "DESCENDING")
-          })
-          put(JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "timestamp"))
-            put("direction", "ASCENDING")
-          })
-        })
-        put("limit", limit)
-      }
-      put("structuredQuery", structuredQuery)
+    // Fallback within canonicalCollection if index is building or requires an index
+    if (result is LeaderboardResult.Failure && result.kind == FailureKind.UNCONFIGURED &&
+        result.message.contains("index", ignoreCase = true)) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] Composite query requires index on '$canonicalCollection', falling back to single-metric query")
+      result = executeRunQuery(canonicalCollection, limit, singleMetricOnly = true)
     }
 
-    val mediaType = "application/json; charset=utf-8".toMediaType()
-    val request = Request.Builder()
-      .url(url)
-      .addHeader("X-Goog-Api-Key", apiKey)
-      .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
-      .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
-      .post(queryJson.toString().toRequestBody(mediaType))
-      .build()
-
-    try {
-      client.newCall(request).awaitResponse().use { response ->
-        when (response.code) {
-          200 -> {
-            val responseBody = response.body?.string().orEmpty()
-            if (responseBody.isBlank()) {
-              return@withContext LeaderboardResult.Success(emptyList())
-            }
-            val results = parseQueryResults(responseBody)
-            LeaderboardResult.Success(results)
-          }
-          400, 403, 404 -> {
-            val errBody = response.body?.string().orEmpty()
-            if (response.code == 400 && (errBody.contains("requires an index", ignoreCase = true) || errBody.contains("FAILED_PRECONDITION", ignoreCase = true))) {
-              return@withContext fetchTopScoresFallback(limit)
-            }
-            val (kind, msg) = parseFirestoreError(response.code, errBody)
-            LeaderboardResult.Failure(kind, msg)
-          }
-          429 -> LeaderboardResult.Failure(
-            FailureKind.RATE_LIMITED,
-            "Firestore rate limit reached (429)"
-          )
-          in 500..599 -> LeaderboardResult.Failure(
-            FailureKind.SERVER_ERROR,
-            "Firestore server error (${response.code})"
-          )
-          else -> LeaderboardResult.Failure(
-            FailureKind.SERVER_ERROR,
-            "Unexpected HTTP response code ${response.code}"
-          )
-        }
+    // Cross-path failover to alternateCollection if 403 or 404 on canonical
+    if (result is LeaderboardResult.Failure &&
+        (result.kind == FailureKind.SECURITY_REJECTED || result.kind == FailureKind.UNCONFIGURED) &&
+        canonicalCollection != alternateCollection) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] Fetch on canonical collection '$canonicalCollection' failed with ${result.kind}. Attempting cross-path failover to '$alternateCollection'")
+      val altResult = executeRunQuery(alternateCollection, limit, singleMetricOnly = false)
+      val finalAltResult = if (altResult is LeaderboardResult.Failure && altResult.kind == FailureKind.UNCONFIGURED &&
+          altResult.message.contains("index", ignoreCase = true)) {
+        Log.w(TAG, "[FirestoreLeaderboardApi] Composite query requires index on alternate '$alternateCollection', falling back to single-metric query")
+        executeRunQuery(alternateCollection, limit, singleMetricOnly = true)
+      } else {
+        altResult
       }
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: SocketTimeoutException) {
-      LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e)
-    } catch (e: UnknownHostException) {
-      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e)
-    } catch (e: IOException) {
-      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
-    } catch (e: Exception) {
-      LeaderboardResult.Failure(FailureKind.MALFORMED_PAYLOAD, "Failed to parse response: ${e.message}", e)
+
+      if (finalAltResult is LeaderboardResult.Success) {
+        Log.i(TAG, "[FirestoreLeaderboardApi] Cross-path failover fetch on '$alternateCollection' succeeded with ${finalAltResult.data.size} entries")
+        result = finalAltResult
+      }
     }
+
+    result
   }
 
-  private suspend fun fetchTopScoresFallback(limit: Int): LeaderboardResult<List<OnlineScoreEntry>> {
+  private suspend fun executeRunQuery(
+    targetCollection: String,
+    limit: Int,
+    singleMetricOnly: Boolean
+  ): LeaderboardResult<List<OnlineScoreEntry>> {
     val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery?key=$apiKey"
+
     val queryJson = JSONObject().apply {
       val structuredQuery = JSONObject().apply {
-        put("from", JSONArray().put(JSONObject().put("collectionId", collection)))
-        put("orderBy", JSONArray().apply {
-          put(JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "maxWave"))
-            put("direction", "DESCENDING")
+        put("from", JSONArray().put(JSONObject().put("collectionId", targetCollection)))
+        if (!singleMetricOnly) {
+          put("where", JSONObject().apply {
+            put("fieldFilter", JSONObject().apply {
+              put("field", JSONObject().put("fieldPath", "isDevTuned"))
+              put("op", "EQUAL")
+              put("value", JSONObject().put("booleanValue", false))
+            })
           })
-        })
+          put("orderBy", JSONArray().apply {
+            put(JSONObject().apply {
+              put("field", JSONObject().put("fieldPath", "maxWave"))
+              put("direction", "DESCENDING")
+            })
+            put(JSONObject().apply {
+              put("field", JSONObject().put("fieldPath", "highScore"))
+              put("direction", "DESCENDING")
+            })
+            put(JSONObject().apply {
+              put("field", JSONObject().put("fieldPath", "timestamp"))
+              put("direction", "ASCENDING")
+            })
+          })
+        } else {
+          put("orderBy", JSONArray().apply {
+            put(JSONObject().apply {
+              put("field", JSONObject().put("fieldPath", "maxWave"))
+              put("direction", "DESCENDING")
+            })
+          })
+        }
         put("limit", limit)
       }
       put("structuredQuery", structuredQuery)
     }
 
+    val payloadString = queryJson.toString()
     val mediaType = "application/json; charset=utf-8".toMediaType()
+
+    Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing runQuery -> URL: $url | collection: $targetCollection | singleMetric: $singleMetricOnly | limit: $limit | payloadSize: ${payloadString.toByteArray().size} bytes")
+
     val request = Request.Builder()
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
       .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
       .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
-      .post(queryJson.toString().toRequestBody(mediaType))
+      .post(payloadString.toRequestBody(mediaType))
       .build()
 
     return try {
       client.newCall(request).awaitResponse().use { response ->
-        when (response.code) {
+        val code = response.code
+        Log.d(TAG, "[FirestoreLeaderboardApi] runQuery HTTP response code: $code for collection: $targetCollection")
+        when (code) {
           200 -> {
             val responseBody = response.body?.string().orEmpty()
+            Log.d(TAG, "[FirestoreLeaderboardApi] runQuery 200 OK: responseBodyLength=${responseBody.length} bytes for collection: $targetCollection")
             if (responseBody.isBlank()) {
               LeaderboardResult.Success(emptyList())
             } else {
               val results = parseQueryResults(responseBody)
+              Log.i(TAG, "[FirestoreLeaderboardApi] Parsed ${results.size} entries from collection: $targetCollection")
               LeaderboardResult.Success(results)
             }
           }
           400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
-            val (kind, msg) = parseFirestoreError(response.code, errBody)
+            Log.e(TAG, "[FirestoreLeaderboardApi] runQuery HTTP $code error body on collection: $targetCollection: $errBody")
+            val (kind, msg) = parseFirestoreError(code, errBody)
             LeaderboardResult.Failure(kind, msg)
           }
-          else -> LeaderboardResult.Failure(
-            FailureKind.SERVER_ERROR,
-            "Fallback HTTP response code ${response.code}"
-          )
+          429 -> {
+            Log.w(TAG, "[FirestoreLeaderboardApi] runQuery HTTP 429 Rate Limited on collection: $targetCollection")
+            LeaderboardResult.Failure(
+              FailureKind.RATE_LIMITED,
+              "Firestore rate limit reached (429)"
+            )
+          }
+          in 500..599 -> {
+            val errBody = response.body?.string().orEmpty()
+            Log.e(TAG, "[FirestoreLeaderboardApi] runQuery server error HTTP $code on collection: $targetCollection: $errBody")
+            LeaderboardResult.Failure(
+              FailureKind.SERVER_ERROR,
+              "Firestore server error ($code)"
+            )
+          }
+          else -> {
+            LeaderboardResult.Failure(
+              FailureKind.SERVER_ERROR,
+              "Unexpected HTTP response code $code"
+            )
+          }
         }
       }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: SocketTimeoutException) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] runQuery TIMEOUT on collection: $targetCollection: ${e.message}")
+      LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e)
+    } catch (e: UnknownHostException) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] runQuery NETWORK_UNAVAILABLE (DNS) on collection: $targetCollection: ${e.message}")
+      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e)
+    } catch (e: IOException) {
+      Log.w(TAG, "[FirestoreLeaderboardApi] runQuery I/O exception on collection: $targetCollection: ${e.message}")
+      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
     } catch (e: Exception) {
-      LeaderboardResult.Failure(FailureKind.SERVER_ERROR, "Fallback query failed: ${e.message}", e)
+      Log.e(TAG, "[FirestoreLeaderboardApi] runQuery unexpected parse exception on collection: $targetCollection: ${e.message}", e)
+      LeaderboardResult.Failure(FailureKind.MALFORMED_PAYLOAD, "Failed to parse response: ${e.message}", e)
     }
   }
 
@@ -381,7 +450,18 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   }
 
   companion object {
+    const val TAG = "FirestoreLeaderboardApi"
     const val ANDROID_CERT_SHA1 = "174775252333dc2e8159f5ac6de1019661c3e897"
+
+    fun normalizeCollection(raw: String): String {
+      val trimmed = raw.trim()
+      return when {
+        trimmed.equals("leaderboard", ignoreCase = true) -> "leaderboards"
+        trimmed.equals("leaderboards", ignoreCase = true) -> "leaderboards"
+        trimmed.isBlank() -> "leaderboards"
+        else -> trimmed
+      }
+    }
 
     fun sanitizeCallsign(raw: String): String {
       val cleaned = raw.trim().filter { it.isLetterOrDigit() || it == '_' || it == '-' || it == ' ' }
