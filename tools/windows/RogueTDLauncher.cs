@@ -64,7 +64,19 @@ namespace RogueTDLauncher
 
                 // 4. Force Widescreen (Landscape) Orientation & Install APK
                 Console.WriteLine("\n[4/5] Installing " + Path.GetFileName(apkPath) + "...");
-                RunProcess(adbPath, string.Format("-s \"{0}\" install -r -d -g \"{1}\"", deviceSerial, apkPath), true);
+                var installOutput = RunProcess(adbPath, string.Format("-s \"{0}\" install -r -d -g \"{1}\"", deviceSerial, apkPath), true);
+                if (installOutput.Contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") ||
+                    installOutput.Contains("signatures do not match") ||
+                    installOutput.Contains("INSTALL_FAILED_CONFLICTING_PROVIDER") ||
+                    installOutput.Contains("conflicts with an existing package"))
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("  -> [Signature Conflict Detected] An existing installation with a conflicting certificate was found.");
+                    Console.WriteLine("  -> Performing clean update (uninstalling mismatched build & installing new package)...");
+                    Console.ResetColor();
+                    RunProcess(adbPath, string.Format("-s \"{0}\" uninstall {1}", deviceSerial, PackageName), true);
+                    RunProcess(adbPath, string.Format("-s \"{0}\" install -g \"{1}\"", deviceSerial, apkPath), true);
+                }
 
                 Console.WriteLine("  -> Configuring Widescreen Mode (Landscape)...");
                 // Disable accelerometer auto-rotation and lock rotation to landscape (1 = 90 deg)

@@ -4,9 +4,13 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.007
+### 🚀 What's New in Version 0.0.1.008
 
-🎮 **Tactical Ergonomics & Dynamic UI Rotation**
+🔐 **Persistent Signing Certificate Parity & Conflict Resolution**
+- **Canonical Keystore Auto-Restoration:** Hardened build configuration with an embedded canonical debug keystore decoder. Ensures all local developer builds, CI runners, and GitHub release binaries share the exact same signing key, permanently fixing "App not installed as package conflicts with an existing package" errors during in-app updates.
+- **Self-Healing ADB Companion:** Enhanced `Dual-Front-TD-ADB.exe` with automatic signature conflict detection; cleanly uninstalls mismatched legacy certificates and installs new packages in a single seamless step.
+
+🎮 **Tactical Ergonomics & Dynamic UI Rotation (v0.0.1.007 Highlights)**
 - **Booster Pad Dropdown Capsule:** Replaced the wide text sub-strip with an interactive dropdown capsule (`⚡ X/6`) alongside aura synergies explaining scrap boost bonuses, the 6/6 Harmonic Grid buff (+20% Tower Damage / +25% Scrap), and dual-thumb repositioning controls.
 - **Dynamic Orientation Stacking:** In portrait, Core HP and Scrap render inline horizontally for minimal vertical HUD height. In landscape rotation, Core HP, Scrap, and Auto-Wave dynamically stack vertically into thin pills.
 - **Side-by-Side Target Priority & Sell Buttons:** In portrait, Target Priority and Sell buttons stack vertically in a 44dp column to match squircle height (reducing dock width to 296dp). In landscape rotation, they deploy side-by-side.

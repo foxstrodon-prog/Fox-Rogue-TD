@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.007`):** [`apk/Dual-Front-TD-v0.0.1.007-debug.apk`](apk/Dual-Front-TD-v0.0.1.007-debug.apk)
+- **Latest Android APK (`v0.0.1.008`):** [`apk/Dual-Front-TD-v0.0.1.008-debug.apk`](apk/Dual-Front-TD-v0.0.1.008-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,13 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.007
+## 🕹️ What's New in Version 0.0.1.008
 
-### 🎮 Tactical Ergonomics & UI Rotation Fluidity
+### 🔐 Persistent Signing Certificate Parity & Conflict Resolution
+- **Canonical Keystore Auto-Restoration:** Hardened `app/build.gradle.kts` and GitHub Actions release workflow with an embedded canonical debug keystore decoder. Ensures all local developer builds, CI runners, and GitHub release binaries are signed with the exact same cryptographic key, permanently resolving "App not installed as package conflicts with an existing package" signature mismatches on in-app updates.
+- **Self-Healing ADB Companion:** Enhanced `Dual-Front-TD-ADB.exe` with automatic signature conflict detection; cleanly uninstalls mismatched legacy certificates and installs new packages in a single seamless step.
+
+### 🎮 Tactical Ergonomics & UI Rotation Fluidity (v0.0.1.007 / v0.0.1.006 Highlights)
 - **Booster Pad Dropdown Capsule:** Converted the wide booster pad sub-strip into an interactive dropdown capsule (`⚡ X/6`) alongside aura synergies detailing scrap boost bonuses, the 6/6 Harmonic Grid buff (+20% Tower Damage / +25% Scrap across all lanes), and dual-thumb repositioning controls.
 - **Dynamic Orientation Stacking:** In portrait mode, Core HP and Scrap render inline horizontally to minimize top HUD thickness. In landscape rotation, Core HP, Scrap, and Auto-Wave dynamically stack vertically into thin pills to preserve horizontal track clearance.
 - **Side-by-Side Target Priority & Sell Squircles:** In portrait, Target Priority and Sell buttons stack vertically in a 44dp column to match squircle height (reducing dock width to 296dp). In landscape rotation, they deploy side-by-side.
@@ -114,5 +118,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.007-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.008-debug.apk`)
 - Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)
