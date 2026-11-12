@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -25,6 +26,12 @@ fun GameCanvas(
     val gridWidth = level.width
     val gridHeight = level.height
     val biome = level.biome
+
+    val scratchPath1 = remember { Path() }
+    val scratchPath2 = remember { Path() }
+    val lanePathA = remember { Path() }
+    val lanePathB = remember { Path() }
+    val mergedPath = remember { Path() }
 
     Canvas(
         modifier = modifier
@@ -172,7 +179,10 @@ fun GameCanvas(
                 colorAlpha = colorAlpha,
                 colorBeta = colorBeta,
                 colorMerged = colorMerged, // Radiant violet gradient shift when merged!
-                animTime = animFlowTime
+                animTime = animFlowTime,
+                lanePathA = lanePathA,
+                lanePathB = lanePathB,
+                mergedPath = mergedPath
             )
 
         // Draw Tiles (Obstacles, Buffs, Spawners, Core)
@@ -479,14 +489,13 @@ fun GameCanvas(
                     }
                     TowerClass.ELEMENTAL_VOID -> {
                         val hR = cellW * 0.54f * auraPulse
-                        val hTri = Path().apply {
-                            moveTo(tcx, tcy - hR)
-                            lineTo(tcx + hR * 0.866f, tcy + hR * 0.5f)
-                            lineTo(tcx - hR * 0.866f, tcy + hR * 0.5f)
-                            close()
-                        }
-                        drawPath(path = hTri, color = apexAuraColor.copy(alpha = 0.20f * auraPulse))
-                        drawPath(path = hTri, color = apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+                        scratchPath1.reset()
+                        scratchPath1.moveTo(tcx, tcy - hR)
+                        scratchPath1.lineTo(tcx + hR * 0.866f, tcy + hR * 0.5f)
+                        scratchPath1.lineTo(tcx - hR * 0.866f, tcy + hR * 0.5f)
+                        scratchPath1.close()
+                        drawPath(path = scratchPath1, color = apexAuraColor.copy(alpha = 0.20f * auraPulse))
+                        drawPath(path = scratchPath1, color = apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
                     }
                     TowerClass.HEAVY_SIEGE -> {
                         val hS = cellW * 0.90f * auraPulse
@@ -497,18 +506,17 @@ fun GameCanvas(
                     TowerClass.STELLAR_COSMIC -> {
                         val sR = cellW * 0.52f * auraPulse
                         val sInner = sR * 0.48f
-                        val sPath = Path().apply {
-                            for (i in 0 until 10) {
-                                val r = if (i % 2 == 0) sR else sInner
-                                val angle = (i * PI / 5f - PI / 2f).toFloat()
-                                val px = tcx + cos(angle) * r
-                                val py = tcy + sin(angle) * r
-                                if (i == 0) moveTo(px, py) else lineTo(px, py)
-                            }
-                            close()
+                        scratchPath1.reset()
+                        for (i in 0 until 10) {
+                            val r = if (i % 2 == 0) sR else sInner
+                            val angle = (i * PI / 5f - PI / 2f).toFloat()
+                            val px = tcx + cos(angle) * r
+                            val py = tcy + sin(angle) * r
+                            if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                         }
-                        drawPath(path = sPath, color = apexAuraColor.copy(alpha = 0.22f * auraPulse))
-                        drawPath(path = sPath, color = apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+                        scratchPath1.close()
+                        drawPath(path = scratchPath1, color = apexAuraColor.copy(alpha = 0.22f * auraPulse))
+                        drawPath(path = scratchPath1, color = apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
                     }
                 }
             }
@@ -559,22 +567,25 @@ fun GameCanvas(
                             val p1 = Offset(tcx, tcy - triRadius)
                             val p2 = Offset(tcx + triRadius * 0.866f, tcy + triRadius * 0.5f)
                             val p3 = Offset(tcx - triRadius * 0.866f, tcy + triRadius * 0.5f)
-                            val triPath = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+                            scratchPath1.reset()
+                            scratchPath1.moveTo(p1.x, p1.y)
+                            scratchPath1.lineTo(p2.x, p2.y)
+                            scratchPath1.lineTo(p3.x, p3.y)
+                            scratchPath1.close()
 
-                            drawPath(path = triPath, color = Color(0xFF140D26))
-                            drawPath(path = triPath, color = borderColor, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
+                            drawPath(path = scratchPath1, color = Color(0xFF140D26))
+                            drawPath(path = scratchPath1, color = borderColor, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
 
                             // Level 2+ Inner Vector Rune
                             if (upgradeLevel >= 2) {
                                 val inR = cellW * 0.24f
-                                val inTri = Path().apply {
-                                    moveTo(tcx, tcy + inR)
-                                    lineTo(tcx - inR * 0.866f, tcy - inR * 0.5f)
-                                    lineTo(tcx + inR * 0.866f, tcy - inR * 0.5f)
-                                    close()
-                                }
-                                drawPath(path = inTri, color = vectorAccentColor.copy(alpha = 0.35f))
-                                drawPath(path = inTri, color = vectorAccentColor, style = Stroke(width = 1.5f, join = StrokeJoin.Round))
+                                scratchPath2.reset()
+                                scratchPath2.moveTo(tcx, tcy + inR)
+                                scratchPath2.lineTo(tcx - inR * 0.866f, tcy - inR * 0.5f)
+                                scratchPath2.lineTo(tcx + inR * 0.866f, tcy - inR * 0.5f)
+                                scratchPath2.close()
+                                drawPath(path = scratchPath2, color = vectorAccentColor.copy(alpha = 0.35f))
+                                drawPath(path = scratchPath2, color = vectorAccentColor, style = Stroke(width = 1.5f, join = StrokeJoin.Round))
                             }
 
                             // Focusing Emitter Beam
@@ -637,31 +648,29 @@ fun GameCanvas(
                         TowerClass.STELLAR_COSMIC -> {
                             val starR = cellW * 0.40f
                             val innerR = starR * 0.48f
-                            val starPath = Path().apply {
+                            scratchPath1.reset()
+                            for (i in 0 until 10) {
+                                val r = if (i % 2 == 0) starR else innerR
+                                val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                val px = tcx + cos(angle) * r
+                                val py = tcy + sin(angle) * r
+                                if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
+                            }
+                            scratchPath1.close()
+                            drawPath(path = scratchPath1, color = Color(0xFF1B1806))
+                            drawPath(path = scratchPath1, color = borderColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+
+                            if (upgradeLevel >= 2) {
+                                scratchPath2.reset()
                                 for (i in 0 until 10) {
-                                    val r = if (i % 2 == 0) starR else innerR
+                                    val r = if (i % 2 == 0) starR * 0.65f else innerR * 0.65f
                                     val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
                                     val px = tcx + cos(angle) * r
                                     val py = tcy + sin(angle) * r
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                    if (i == 0) scratchPath2.moveTo(px, py) else scratchPath2.lineTo(px, py)
                                 }
-                                close()
-                            }
-                            drawPath(path = starPath, color = Color(0xFF1B1806))
-                            drawPath(path = starPath, color = borderColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
-
-                            if (upgradeLevel >= 2) {
-                                val sInnerPath = Path().apply {
-                                    for (i in 0 until 10) {
-                                        val r = if (i % 2 == 0) starR * 0.65f else innerR * 0.65f
-                                        val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
-                                        val px = tcx + cos(angle) * r
-                                        val py = tcy + sin(angle) * r
-                                        if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                    }
-                                    close()
-                                }
-                                drawPath(path = sInnerPath, color = vectorAccentColor, style = Stroke(width = 1.6f, join = StrokeJoin.Round))
+                                scratchPath2.close()
+                                drawPath(path = scratchPath2, color = vectorAccentColor, style = Stroke(width = 1.6f, join = StrokeJoin.Round))
                             }
 
                             if (upgradeLevel >= 3) {
@@ -736,9 +745,13 @@ fun GameCanvas(
                             val p1 = Offset(tcx, tcy - r)
                             val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
                             val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
-                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
-                            drawPath(path = p, color = Color(0xFF0A192F))
-                            drawPath(path = p, color = cadColor, style = Stroke(width = 1.8f))
+                            scratchPath1.reset()
+                            scratchPath1.moveTo(p1.x, p1.y)
+                            scratchPath1.lineTo(p2.x, p2.y)
+                            scratchPath1.lineTo(p3.x, p3.y)
+                            scratchPath1.close()
+                            drawPath(path = scratchPath1, color = Color(0xFF0A192F))
+                            drawPath(path = scratchPath1, color = cadColor, style = Stroke(width = 1.8f))
 
                             // Vertex CAD Crosses
                             listOf(p1, p2, p3).forEach { pt ->
@@ -792,18 +805,17 @@ fun GameCanvas(
                         TowerClass.STELLAR_COSMIC -> {
                             val starR = cellW * 0.38f
                             val innerR = starR * 0.45f
-                            val starPath = Path().apply {
-                                for (i in 0 until 10) {
-                                    val r = if (i % 2 == 0) starR else innerR
-                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
-                                    val px = tcx + cos(angle) * r
-                                    val py = tcy + sin(angle) * r
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                }
-                                close()
+                            scratchPath1.reset()
+                            for (i in 0 until 10) {
+                                val r = if (i % 2 == 0) starR else innerR
+                                val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                val px = tcx + cos(angle) * r
+                                val py = tcy + sin(angle) * r
+                                if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                             }
-                            drawPath(path = starPath, color = Color(0xFF0A192F))
-                            drawPath(path = starPath, color = cadColor, style = Stroke(width = 1.8f))
+                            scratchPath1.close()
+                            drawPath(path = scratchPath1, color = Color(0xFF0A192F))
+                            drawPath(path = scratchPath1, color = cadColor, style = Stroke(width = 1.8f))
 
                             if (upgradeLevel >= 2) {
                                 drawCircle(color = vectorAccentColor.copy(alpha = 0.5f), radius = cellW * 0.22f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
@@ -863,10 +875,14 @@ fun GameCanvas(
                             val p1 = Offset(tcx, tcy - r)
                             val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
                             val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
-                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+                            scratchPath1.reset()
+                            scratchPath1.moveTo(p1.x, p1.y)
+                            scratchPath1.lineTo(p2.x, p2.y)
+                            scratchPath1.lineTo(p3.x, p3.y)
+                            scratchPath1.close()
 
-                            drawPath(path = p, color = steelDark)
-                            drawPath(path = p, color = steelPlate, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+                            drawPath(path = scratchPath1, color = steelDark)
+                            drawPath(path = scratchPath1, color = steelPlate, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
 
                             // Reinforced containment brackets
                             listOf(p1, p2, p3).forEach { pt ->
@@ -920,18 +936,17 @@ fun GameCanvas(
                         TowerClass.STELLAR_COSMIC -> {
                             val starR = cellW * 0.40f
                             val innerR = starR * 0.46f
-                            val starPath = Path().apply {
-                                for (i in 0 until 10) {
-                                    val r = if (i % 2 == 0) starR else innerR
-                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
-                                    val px = tcx + cos(angle) * r
-                                    val py = tcy + sin(angle) * r
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                }
-                                close()
+                            scratchPath1.reset()
+                            for (i in 0 until 10) {
+                                val r = if (i % 2 == 0) starR else innerR
+                                val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                val px = tcx + cos(angle) * r
+                                val py = tcy + sin(angle) * r
+                                if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                             }
-                            drawPath(path = starPath, color = steelDark)
-                            drawPath(path = starPath, color = steelPlate, style = Stroke(width = 3.0f, join = StrokeJoin.Round))
+                            scratchPath1.close()
+                            drawPath(path = scratchPath1, color = steelDark)
+                            drawPath(path = scratchPath1, color = steelPlate, style = Stroke(width = 3.0f, join = StrokeJoin.Round))
 
                             if (upgradeLevel >= 2) {
                                 drawCircle(color = vectorAccentColor, radius = cellW * 0.18f, center = Offset(tcx, tcy), style = Stroke(width = 2.0f))
@@ -990,10 +1005,14 @@ fun GameCanvas(
                             val p1 = Offset(tcx, tcy - r)
                             val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
                             val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
-                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+                            scratchPath1.reset()
+                            scratchPath1.moveTo(p1.x, p1.y)
+                            scratchPath1.lineTo(p2.x, p2.y)
+                            scratchPath1.lineTo(p3.x, p3.y)
+                            scratchPath1.close()
 
-                            drawPath(path = p, color = voidDark)
-                            drawPath(path = p, color = voidRift, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
+                            drawPath(path = scratchPath1, color = voidDark)
+                            drawPath(path = scratchPath1, color = voidRift, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
 
                             // Occult Shard Crystals
                             listOf(p1, p2, p3).forEach { pt ->
@@ -1020,14 +1039,13 @@ fun GameCanvas(
                             drawRoundRect(color = voidRift, topLeft = tl, size = Size(s, s), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
 
                             // Dimensional Monolith Aperture
-                            val innerDiamond = Path().apply {
-                                moveTo(tcx, tcy - s * 0.35f)
-                                lineTo(tcx + s * 0.35f, tcy)
-                                lineTo(tcx, tcy + s * 0.35f)
-                                lineTo(tcx - s * 0.35f, tcy)
-                                close()
-                            }
-                            drawPath(path = innerDiamond, color = voidGlow.copy(alpha = 0.25f))
+                            scratchPath2.reset()
+                            scratchPath2.moveTo(tcx, tcy - s * 0.35f)
+                            scratchPath2.lineTo(tcx + s * 0.35f, tcy)
+                            scratchPath2.lineTo(tcx, tcy + s * 0.35f)
+                            scratchPath2.lineTo(tcx - s * 0.35f, tcy)
+                            scratchPath2.close()
+                            drawPath(path = scratchPath2, color = voidGlow.copy(alpha = 0.25f))
 
                             val bLen = cellW * 0.38f
                             val perp = aimRad + (PI / 2f).toFloat()
@@ -1049,18 +1067,17 @@ fun GameCanvas(
                         TowerClass.STELLAR_COSMIC -> {
                             val starR = cellW * 0.40f
                             val innerR = starR * 0.48f
-                            val starPath = Path().apply {
-                                for (i in 0 until 10) {
-                                    val r = if (i % 2 == 0) starR else innerR
-                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
-                                    val px = tcx + cos(angle) * r
-                                    val py = tcy + sin(angle) * r
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                }
-                                close()
+                            scratchPath1.reset()
+                            for (i in 0 until 10) {
+                                val r = if (i % 2 == 0) starR else innerR
+                                val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                val px = tcx + cos(angle) * r
+                                val py = tcy + sin(angle) * r
+                                if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                             }
-                            drawPath(path = starPath, color = voidDark)
-                            drawPath(path = starPath, color = voidRift, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+                            scratchPath1.close()
+                            drawPath(path = scratchPath1, color = voidDark)
+                            drawPath(path = scratchPath1, color = voidRift, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
 
                             if (upgradeLevel >= 2) {
                                 drawCircle(color = vectorAccentColor.copy(alpha = 0.5f), radius = cellW * 0.18f, center = Offset(tcx, tcy), style = Stroke(width = 1.5f))
@@ -1118,10 +1135,14 @@ fun GameCanvas(
                             val p1 = Offset(tcx, tcy - r)
                             val p2 = Offset(tcx + r * 0.866f, tcy + r * 0.5f)
                             val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
-                            val p = Path().apply { moveTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); close() }
+                            scratchPath1.reset()
+                            scratchPath1.moveTo(p1.x, p1.y)
+                            scratchPath1.lineTo(p2.x, p2.y)
+                            scratchPath1.lineTo(p3.x, p3.y)
+                            scratchPath1.close()
 
-                            drawPath(path = p, color = pixelDark)
-                            drawPath(path = p, color = pixelYellow, style = Stroke(width = 2.0f, join = StrokeJoin.Miter))
+                            drawPath(path = scratchPath1, color = pixelDark)
+                            drawPath(path = scratchPath1, color = pixelYellow, style = Stroke(width = 2.0f, join = StrokeJoin.Miter))
 
                             listOf(p1, p2, p3).forEach { pt ->
                                 drawRect(color = pixelYellow, topLeft = Offset(pt.x - pUnit / 2f, pt.y - pUnit / 2f), size = Size(pUnit, pUnit))
@@ -1172,18 +1193,17 @@ fun GameCanvas(
                         TowerClass.STELLAR_COSMIC -> {
                             val starR = cellW * 0.38f
                             val innerR = starR * 0.45f
-                            val starPath = Path().apply {
-                                for (i in 0 until 10) {
-                                    val r = if (i % 2 == 0) starR else innerR
-                                    val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
-                                    val px = tcx + cos(angle) * r
-                                    val py = tcy + sin(angle) * r
-                                    if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                }
-                                close()
+                            scratchPath1.reset()
+                            for (i in 0 until 10) {
+                                val r = if (i % 2 == 0) starR else innerR
+                                val angle = (i * PI / 5f - PI / 2f).toFloat() + aimRad
+                                val px = tcx + cos(angle) * r
+                                val py = tcy + sin(angle) * r
+                                if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                             }
-                            drawPath(path = starPath, color = pixelDark)
-                            drawPath(path = starPath, color = pixelYellow, style = Stroke(width = 2.0f))
+                            scratchPath1.close()
+                            drawPath(path = scratchPath1, color = pixelDark)
+                            drawPath(path = scratchPath1, color = pixelYellow, style = Stroke(width = 2.0f))
 
                             if (upgradeLevel >= 2) {
                                 drawRect(color = vectorAccentColor, topLeft = Offset(tcx - pUnit, tcy - pUnit), size = Size(pUnit * 2f, pUnit * 2f), style = Stroke(width = 1.5f))
@@ -1213,13 +1233,12 @@ fun GameCanvas(
                 }
                 TowerClass.ELEMENTAL_VOID -> {
                     val bR = if (upgradeLevel >= 3) 4.5f else 3.5f
-                    val bTri = Path().apply {
-                        moveTo(tcx, badgeY - bR)
-                        lineTo(tcx + bR * 0.866f, badgeY + bR * 0.5f)
-                        lineTo(tcx - bR * 0.866f, badgeY + bR * 0.5f)
-                        close()
-                    }
-                    drawPath(path = bTri, color = badgeColor)
+                    scratchPath1.reset()
+                    scratchPath1.moveTo(tcx, badgeY - bR)
+                    scratchPath1.lineTo(tcx + bR * 0.866f, badgeY + bR * 0.5f)
+                    scratchPath1.lineTo(tcx - bR * 0.866f, badgeY + bR * 0.5f)
+                    scratchPath1.close()
+                    drawPath(path = scratchPath1, color = badgeColor)
                 }
                 TowerClass.HEAVY_SIEGE -> {
                     val bS = if (upgradeLevel >= 3) 6f else 5f
@@ -1227,17 +1246,16 @@ fun GameCanvas(
                 }
                 TowerClass.STELLAR_COSMIC -> {
                     val bR = if (upgradeLevel >= 3) 4.5f else 3.5f
-                    val sPath = Path().apply {
-                        for (i in 0 until 10) {
-                            val r = if (i % 2 == 0) bR else bR * 0.5f
-                            val angle = (i * PI / 5f - PI / 2f).toFloat()
-                            val px = tcx + cos(angle) * r
-                            val py = badgeY + sin(angle) * r
-                            if (i == 0) moveTo(px, py) else lineTo(px, py)
-                        }
-                        close()
+                    scratchPath1.reset()
+                    for (i in 0 until 10) {
+                        val r = if (i % 2 == 0) bR else bR * 0.5f
+                        val angle = (i * PI / 5f - PI / 2f).toFloat()
+                        val px = tcx + cos(angle) * r
+                        val py = badgeY + sin(angle) * r
+                        if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                     }
-                    drawPath(path = sPath, color = badgeColor)
+                    scratchPath1.close()
+                    drawPath(path = scratchPath1, color = badgeColor)
                 }
             }
         }
@@ -1340,20 +1358,19 @@ fun GameCanvas(
                     val p2 = Offset(baseBackX + perpCos * halfBase, baseBackY + perpSin * halfBase)
                     val p3 = Offset(baseBackX - perpCos * halfBase, baseBackY - perpSin * halfBase)
 
-                    val triPath = Path().apply {
-                        moveTo(p1.x, p1.y)
-                        lineTo(p2.x, p2.y)
-                        lineTo(p3.x, p3.y)
-                        close()
-                    }
+                    scratchPath1.reset()
+                    scratchPath1.moveTo(p1.x, p1.y)
+                    scratchPath1.lineTo(p2.x, p2.y)
+                    scratchPath1.lineTo(p3.x, p3.y)
+                    scratchPath1.close()
 
                     if (enemy.isBoss) {
-                        drawPath(path = triPath, color = Color(0xFF581C87))
-                        drawPath(path = triPath, color = affinityColor, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+                        drawPath(path = scratchPath1, color = Color(0xFF581C87))
+                        drawPath(path = scratchPath1, color = affinityColor, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
                         drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
                     } else {
-                        drawPath(path = triPath, color = enemyColor)
-                        drawPath(path = triPath, color = affinityColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+                        drawPath(path = scratchPath1, color = enemyColor)
+                        drawPath(path = scratchPath1, color = affinityColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
                         drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
                         drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
                     }
@@ -1377,24 +1394,23 @@ fun GameCanvas(
                 EnemyShape.STAR -> {
                     val starRadius = enemyRadius * 1.30f
                     val innerRadius = starRadius * 0.48f
-                    val starPath = Path().apply {
-                        for (i in 0 until 10) {
-                            val r = if (i % 2 == 0) starRadius else innerRadius
-                            val angle = (i * PI / 5f - PI / 2f).toFloat() + enemy.headingRad
-                            val px = ecx + cos(angle) * r
-                            val py = ecy + sin(angle) * r
-                            if (i == 0) moveTo(px, py) else lineTo(px, py)
-                        }
-                        close()
+                    scratchPath1.reset()
+                    for (i in 0 until 10) {
+                        val r = if (i % 2 == 0) starRadius else innerRadius
+                        val angle = (i * PI / 5f - PI / 2f).toFloat() + enemy.headingRad
+                        val px = ecx + cos(angle) * r
+                        val py = ecy + sin(angle) * r
+                        if (i == 0) scratchPath1.moveTo(px, py) else scratchPath1.lineTo(px, py)
                     }
+                    scratchPath1.close()
 
                     if (enemy.isBoss) {
-                        drawPath(path = starPath, color = Color(0xFF581C87))
-                        drawPath(path = starPath, color = affinityColor, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+                        drawPath(path = scratchPath1, color = Color(0xFF581C87))
+                        drawPath(path = scratchPath1, color = affinityColor, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
                         drawCircle(color = Color.White, radius = enemyRadius * 0.35f, center = Offset(ecx, ecy))
                     } else {
-                        drawPath(path = starPath, color = enemyColor)
-                        drawPath(path = starPath, color = affinityColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+                        drawPath(path = scratchPath1, color = enemyColor)
+                        drawPath(path = scratchPath1, color = affinityColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
                         drawCircle(color = Color.Black.copy(alpha = 0.45f), radius = enemyRadius * 0.4f, center = Offset(ecx, ecy))
                         drawCircle(color = affinityColor, radius = enemyRadius * 0.2f, center = Offset(ecx, ecy))
                     }
@@ -1467,18 +1483,18 @@ fun GameCanvas(
                 val buffColor = Color(targetTile.buff.badgeColor)
 
                 // Downward pointing arrow chevron
-                val arrowPath = Path().apply {
-                    moveTo(bx, arrowTipY)
-                    lineTo(bx - cellW * 0.22f, arrowTipY - cellH * 0.28f)
-                    lineTo(bx - cellW * 0.09f, arrowTipY - cellH * 0.28f)
-                    lineTo(bx - cellW * 0.09f, arrowTipY - cellH * 0.50f)
-                    lineTo(bx + cellW * 0.09f, arrowTipY - cellH * 0.50f)
-                    lineTo(bx + cellW * 0.09f, arrowTipY - cellH * 0.28f)
-                    lineTo(bx + cellW * 0.22f, arrowTipY - cellH * 0.28f)
-                    close()
-                }
-                drawPath(arrowPath, color = buffColor)
-                drawPath(arrowPath, color = Color.White, style = Stroke(width = 2.0f))
+                scratchPath1.reset()
+                scratchPath1.moveTo(bx, arrowTipY)
+                scratchPath1.lineTo(bx - cellW * 0.22f, arrowTipY - cellH * 0.28f)
+                scratchPath1.lineTo(bx - cellW * 0.09f, arrowTipY - cellH * 0.28f)
+                scratchPath1.lineTo(bx - cellW * 0.09f, arrowTipY - cellH * 0.50f)
+                scratchPath1.lineTo(bx + cellW * 0.09f, arrowTipY - cellH * 0.50f)
+                scratchPath1.lineTo(bx + cellW * 0.09f, arrowTipY - cellH * 0.28f)
+                scratchPath1.lineTo(bx + cellW * 0.22f, arrowTipY - cellH * 0.28f)
+                scratchPath1.close()
+
+                drawPath(scratchPath1, color = buffColor)
+                drawPath(scratchPath1, color = Color.White, style = Stroke(width = 2.0f))
 
                 // Pulsing highlight circle on the boosted tile pad
                 val ringPulse = (sin(animFlowTime * 0.007f) * 0.25f + 0.75f).toFloat()
@@ -1506,23 +1522,26 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSmoothMergedPat
     colorAlpha: Color,
     colorBeta: Color,
     colorMerged: Color,
-    animTime: Long
+    animTime: Long,
+    lanePathA: Path,
+    lanePathB: Path,
+    mergedPath: Path
 ) {
     if (laneAlpha.size < 2 || laneBeta.size < 2) return
 
-    fun buildPath(points: List<GridPos>): Path {
-        val p = Path()
+    fun buildPath(points: List<GridPos>, outPath: Path): Path {
+        outPath.reset()
         val start = Offset((points.first().x + 0.5f) * cellW + shakeX, (points.first().y + 0.5f) * cellH + shakeY)
-        p.moveTo(start.x, start.y)
+        outPath.moveTo(start.x, start.y)
         for (i in 1 until points.size) {
             val pt = points[i]
-            p.lineTo((pt.x + 0.5f) * cellW + shakeX, (pt.y + 0.5f) * cellH + shakeY)
+            outPath.lineTo((pt.x + 0.5f) * cellW + shakeX, (pt.y + 0.5f) * cellH + shakeY)
         }
-        return p
+        return outPath
     }
 
-    val pathA = buildPath(laneAlpha)
-    val pathB = buildPath(laneBeta)
+    val pathA = buildPath(laneAlpha, lanePathA)
+    val pathB = buildPath(laneBeta, lanePathB)
 
     // 1. Draw Asphalt/Terrain Underbed (smooth rounded curves)
     drawPath(path = pathA, color = pathColor, style = Stroke(width = cellW * 0.72f, cap = StrokeCap.Round, join = StrokeJoin.Round))
@@ -1566,15 +1585,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSmoothMergedPat
     }
 
     for (segment in contiguousSegments) {
-        val mergedPath = buildPath(segment)
+        val segPath = buildPath(segment, mergedPath)
         // Vibrant purple-violet convergence glow
         drawPath(
-            path = mergedPath,
+            path = segPath,
             color = colorMerged.copy(alpha = 0.75f),
             style = Stroke(width = cellW * 0.30f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
         drawPath(
-            path = mergedPath,
+            path = segPath,
             color = Color.White.copy(alpha = 0.85f),
             style = Stroke(width = cellW * 0.08f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )

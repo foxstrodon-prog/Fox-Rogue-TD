@@ -148,8 +148,9 @@ object WaveGenerator {
                     baseSpeedScale = 1.0f + minOf(0.35f, (waveNumber - 1) * 0.02f)
                 } else {
                     val post50 = (waveNumber - 50).toDouble()
-                    val expCurve = Math.pow(1.08, post50).toFloat()
-                    baseHpScale = w50Base * expCurve
+                    val safePost50 = minOf(post50, 300.0)
+                    val expCurve = Math.pow(1.08, safePost50).toFloat()
+                    baseHpScale = minOf(1.0e12f, w50Base * expCurve)
                     baseSpeedScale = minOf(2.2f, 1.35f + (waveNumber - 50) * 0.015f)
                 }
             }
