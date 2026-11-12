@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Executive Meta-Council Unit Test Suite for v0.0.1.015:
+ * Automated Unit Test Suite:
  * The Synergy Singularity (Board-Merge Capstone Loop) & 4-Tier Non-Visual Escalation Engine.
  */
 class SynergySingularityEscalationTest {

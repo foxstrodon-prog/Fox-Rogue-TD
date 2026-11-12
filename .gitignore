@@ -76,3 +76,12 @@ desktop.ini
 *.swp
 *.bak
 *~
+
+# ------------------------------------------------------------------------------
+# 5. AI Agent Profiles & Internal Audit Dossiers (Stored in AndroidStudioProjects/Agents)
+# ------------------------------------------------------------------------------
+.agents/
+AGENTS.md
+*AUDIT*.md
+*audit*.md
+*.audit.md

@@ -46,8 +46,8 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **$O(1)$ Projectile-Enemy Spatial Indexing & Squared Distance Comparisons:** Pre-indexed surviving enemies by ID (`enemyMap`) in projectile update loops to replace $O(P \cdot E)$ double scans with $O(1)$ hash lookups, and replaced per-tick Euclidean `Math.hypot` calls with squared distance comparisons (`dx * dx + dy * dy <= r * r`).
 - **Asymptotic Infinite Wave Ceiling:** Hardened `WaveGenerator.kt` late-game exponential scaling with an asymptotic double-clamp (`minOf(post50, 300.0)` and `minOf(1.0e12f, w50Base * expCurve)`), preventing `Float.POSITIVE_INFINITY` or `NaN` overflow while maintaining exact escalation curves.
 - **Global Movement Floor Safeguard:** Clamped hostile slow multipliers (`maxOf(0.15f, 1f - state.globalFrostSlowBonus)`) to prevent reverse-walking enemies under stacked global frost buffs.
-- **Modular God-File Decoupling:** Decoupled `CinematicController.kt` from `RogueTDViewModel.kt`, removing over 500 lines of scripted showcase logic and enforcing single-responsibility architecture across the simulation layer.
-- **Executive Studio Law & Specialist Engineering Governance:** Established root `AGENTS.md` and updated specialist prompts (`alan`, `frank`, `leo`, `mike`) to enforce zero-allocation 60/120 FPS loops, asymptotic math soft-caps, and modular file-size limits.
+- **Modular Simulation Decoupling:** Decoupled `CinematicController.kt` from `RogueTDViewModel.kt`, removing over 500 lines of showcase logic and enforcing single-responsibility architecture across the simulation layer.
+- **Architecture & Modularity Standards:** Enforced zero-allocation 60/120 FPS loop invariants, asymptotic math soft-caps, and modular file-size boundaries across game simulation and rendering layers.
 
 ---
 
@@ -192,7 +192,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **UI Framework:** Jetpack Compose & Material 3
 - **Architecture:** MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
 - **Graphics:** Hardware-accelerated Compose Canvas with custom coordinate transform matrices
-- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (76/76 passing)
+- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (95/95 passing)
 - **Target Platform:** Android (Target SDK 36, Android 16 ready, 16 KB page-size compatible) + Windows Companion Runner
 
 ---

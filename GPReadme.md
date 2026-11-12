@@ -23,15 +23,15 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 #### Version 0.0.1.016
 
-⚡ **Red-Team CS Optimization & Zero-Allocation Engine Rollout**
+⚡ **Performance Optimization & Zero-Allocation Engine Rollout**
 - **Zero-Allocation Compose Rendering Engine:** Refactored `GameCanvas.kt` rendering pipeline with singleton path reuse (`scratchPath1`, `scratchPath2`, `lanePathA`, `lanePathB`, `mergedPath`), eliminating all per-frame `Path()` heap allocations across tower skins, badges, enemy vectors, and tactical pointers.
 - **Hot-Loop Heap Elimination:** Replaced all high-frequency `UUID.randomUUID().toString()` string instantiations in weapon fire, enemy spawning, and projectiles with an atomic, zero-allocation primitive sequence generator (`"p" + nextEntityId++`).
 - **Dirty-Flag Synergy Caching:** Implemented dirty-flag caching (`isSynergyCacheDirty`) for `computeActiveSynergies()`. Active synergy set calculations are cached across ticks and recomputed only on structural state changes (tower build, upgrade, sell, or singularity collapse).
 - **$O(1)$ Projectile-Enemy Spatial Indexing & Squared Distance Comparisons:** Pre-indexed surviving enemies by ID (`enemyMap`) in projectile update loops to replace $O(P \cdot E)$ double scans with $O(1)$ hash lookups, and replaced per-tick Euclidean `Math.hypot` calls with squared distance comparisons (`dx * dx + dy * dy <= r * r`).
 - **Asymptotic Infinite Wave Ceiling:** Hardened `WaveGenerator.kt` late-game exponential scaling with an asymptotic double-clamp (`minOf(post50, 300.0)` and `minOf(1.0e12f, w50Base * expCurve)`), preventing `Float.POSITIVE_INFINITY` or `NaN` overflow while maintaining exact escalation curves.
 - **Global Movement Floor Safeguard:** Clamped hostile slow multipliers (`maxOf(0.15f, 1f - state.globalFrostSlowBonus)`) to prevent reverse-walking enemies under stacked global frost buffs.
-- **Modular God-File Decoupling:** Decoupled `CinematicController.kt` from `RogueTDViewModel.kt`, removing over 500 lines of scripted showcase logic and enforcing single-responsibility architecture across the simulation layer.
-- **Executive Studio Law & Specialist Engineering Governance:** Established root `AGENTS.md` and updated specialist prompts (`alan`, `frank`, `leo`, `mike`) to enforce zero-allocation 60/120 FPS loops, asymptotic math soft-caps, and modular file-size limits.
+- **Modular Simulation Decoupling:** Decoupled `CinematicController.kt` from `RogueTDViewModel.kt`, removing over 500 lines of showcase logic and enforcing single-responsibility architecture across the simulation layer.
+- **Architecture & Modularity Standards:** Enforced zero-allocation 60/120 FPS loop invariants, asymptotic math soft-caps, and modular file-size boundaries across game simulation and rendering layers.
 
 ---
 
@@ -193,5 +193,5 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 ### 📜 Source Code & Historical APK Archive
 Looking for full technical documentation or previous APK versions?
 Every release is preserved and open on GitHub:
-👉 **[GitHub Releases & APK Archive](https://github.com/Tanner2460/Fox-Rogue-TD/releases)**  
-👉 **[Source Code & Developer Docs](https://github.com/Tanner2460/Fox-Rogue-TD)**
+👉 **[GitHub Releases & APK Archive](https://github.com/foxstrodon-prog/Fox-Rogue-TD/releases)**  
+👉 **[Source Code & Developer Docs](https://github.com/foxstrodon-prog/Fox-Rogue-TD)**
