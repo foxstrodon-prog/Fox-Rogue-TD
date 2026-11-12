@@ -19,6 +19,19 @@ val leaderboardProps = Properties().apply {
 fun leaderboardSetting(name: String, default: String = ""): String =
   (System.getenv(name) ?: leaderboardProps.getProperty(name) ?: default).trim()
 
+fun findGoogleServicesApiKey(): String {
+  val gsFile = project.file("google-services.json")
+  if (gsFile.exists()) {
+    try {
+      val text = gsFile.readText()
+      val regex = """"current_key":\s*"([^"]+)"""".toRegex()
+      val match = regex.find(text)
+      if (match != null) return match.groupValues[1]
+    } catch (_: Exception) {}
+  }
+  return ""
+}
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -33,7 +46,7 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID", "roguetddualfront")}\"")
-    buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY", "AIzaSyC0wSzTFMWWFd6zFW5bmXf_-jiX2fbdhRs")}\"")
+    buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY", findGoogleServicesApiKey())}\"")
     buildConfigField("String", "LEADERBOARD_COLLECTION", "\"${leaderboardSetting("LEADERBOARD_COLLECTION", "leaderboards")}\"")
   }
 
