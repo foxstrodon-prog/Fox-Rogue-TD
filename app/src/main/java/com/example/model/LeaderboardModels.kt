@@ -27,9 +27,14 @@ data class OnlineScoreEntry(
   val wavesCleared: Int,
   val scrapEarned: Int,
   val timestampMs: Long,
-  val isLocalPlayer: Boolean = false
+  val isLocalPlayer: Boolean = false,
+  val userId: String = ""
 ) {
   val name: String get() = callsign
+  val username: String get() = callsign
+  val highScore: Int get() = score
+  val maxWave: Int get() = wavesCleared
+  val timestamp: Long get() = timestampMs
   val isDevTuned: Boolean get() = false
   val date: String get() = if (timestampMs > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(timestampMs)) else ""
 }
@@ -44,8 +49,14 @@ data class PendingSubmission(
   val timestampMs: Long,
   val clientVersion: String,
   val attempts: Int = 0,
-  val lastAttemptMs: Long = 0L
-)
+  val lastAttemptMs: Long = 0L,
+  val userId: String = ""
+) {
+  val username: String get() = callsign
+  val highScore: Int get() = score
+  val maxWave: Int get() = wavesCleared
+  val timestamp: Long get() = timestampMs
+}
 
 data class LeaderboardUiState(
   val entries: List<OnlineScoreEntry> = emptyList(),

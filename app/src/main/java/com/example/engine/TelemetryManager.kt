@@ -2,6 +2,7 @@ package com.example.engine
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Bundle
 import com.example.engine.storage.PlayerIdentity
 import com.example.model.DevBalanceConfig
 import com.example.model.LifetimeTelemetry
@@ -9,12 +10,16 @@ import com.example.model.RunRecord
 import com.example.model.TowerClass
 import com.example.model.TowerInstance
 import com.example.model.TowerPerformanceRecord
+import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class TelemetryManager(private val context: Context) {
+class TelemetryManager @JvmOverloads constructor(
+    private val context: Context,
+    private val analytics: FirebaseAnalytics? = runCatching { FirebaseAnalytics.getInstance(context) }.getOrNull()
+) {
     private val prefs: SharedPreferences = context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE)
 
     fun getActivePlayerName(): String {
@@ -338,5 +343,42 @@ class TelemetryManager(private val context: Context) {
             arr.put(obj)
         }
         prefs.edit().putString("tower_performance_records", arr.toString()).apply()
+    }
+
+    fun logWaveStart(waveIndex: Int) {
+        val bundle = Bundle().apply {
+            putString(FirebaseAnalytics.Param.LEVEL_NAME, "Wave_$waveIndex")
+            putLong("wave_number", waveIndex.toLong())
+        }
+        analytics?.logEvent(FirebaseAnalytics.Event.LEVEL_START, bundle)
+    }
+
+    fun logWaveComplete(waveIndex: Int, scrapEarned: Int) {
+        val bundle = Bundle().apply {
+            putString(FirebaseAnalytics.Param.LEVEL_NAME, "Wave_$waveIndex")
+            putLong("wave_number", waveIndex.toLong())
+            putLong("scrap_earned", scrapEarned.toLong())
+        }
+        analytics?.logEvent("level_complete", bundle)
+    }
+
+    fun logLevelFail(waveFailed: Int, towersBuilt: Int, currencyRemaining: Int, mvpTowerClass: String) {
+        val bundle = Bundle().apply {
+            putString(FirebaseAnalytics.Param.LEVEL_NAME, "Wave_$waveFailed")
+            putLong("wave_failed", waveFailed.toLong())
+            putLong("towers_built", towersBuilt.toLong())
+            putLong("currency_remaining", currencyRemaining.toLong())
+            putString("mvp_tower_class", mvpTowerClass)
+        }
+        analytics?.logEvent("level_fail", bundle)
+    }
+
+    fun logTutorialStart() {
+        analytics?.logEvent(FirebaseAnalytics.Event.TUTORIAL_BEGIN, null)
+        analytics?.logEvent("tutorial_start", null)
+    }
+
+    fun logTutorialComplete() {
+        analytics?.logEvent(FirebaseAnalytics.Event.TUTORIAL_COMPLETE, null)
     }
 }

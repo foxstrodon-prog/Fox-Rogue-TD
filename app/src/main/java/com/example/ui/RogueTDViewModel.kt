@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.engine.*
+import com.example.engine.network.AuthRepository
 import com.example.engine.repository.LeaderboardRepository
 import com.example.engine.storage.LeaderboardStore
 import com.example.engine.worker.LeaderboardWorkScheduler
@@ -104,9 +105,12 @@ data class GameUIState(
 
 class RogueTDViewModel @JvmOverloads constructor(
     application: Application,
+    val authRepository: AuthRepository = AuthRepository(application),
+    val remoteConfigManager: RemoteConfigManager = RemoteConfigManager(),
     val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(
         store = LeaderboardStore(application),
-        scheduler = LeaderboardWorkScheduler(application)
+        scheduler = LeaderboardWorkScheduler(application),
+        authRepo = authRepository
     )
 ) : AndroidViewModel(application) {
 
@@ -153,6 +157,12 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var frameCount = 0
 
     init {
+        remoteConfigManager.initialize()
+        telemetryManager.logTutorialStart()
+        viewModelScope.launch(Dispatchers.IO) {
+            authRepository.ensureAuthenticated()
+        }
+
         val config = _uiState.value.balanceConfig
         soundManager.setMasterVolumeLevel(config.masterVolume)
         soundManager.setMusicVolumeLevel(config.musicVolume)
@@ -358,6 +368,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun dismissFirstTileHint() {
+        telemetryManager.logTutorialComplete()
         _uiState.update { it.copy(hasClickedFirstTile = true) }
     }
 
@@ -744,7 +755,8 @@ class RogueTDViewModel @JvmOverloads constructor(
                 val path = if (spawn.laneIndex == 0) level.laneAlpha else level.laneBeta
                 val start = path.first()
                 val customEnemyBal = state.balanceConfig.getEnemyBalance(spawn.type)
-                val hpMultiplier = spawn.hpScale * state.balanceConfig.enemyHpMultiplier
+                val bossMul = if (spawn.isBoss) remoteConfigManager.bossHealthMultiplier else 1.0f
+                val hpMultiplier = spawn.hpScale * state.balanceConfig.enemyHpMultiplier * remoteConfigManager.waveHpMultiplier * bossMul
                 val effectiveMaxHp = customEnemyBal.hp * hpMultiplier
                 val newEnemy = EnemyInstance(
                     id = UUID.randomUUID().toString(),
@@ -862,7 +874,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         val boostedTiles = level.tiles.filter { it.buff != TileBuff.NONE }
         val harmonicCount = towers.count { t -> boostedTiles.any { it.pos == t.gridPos } }
         val isHarmonicActive = harmonicCount >= 6 && boostedTiles.isNotEmpty()
-        val harmonicDmgBonus = if (isHarmonicActive) 0.20f else 0.0f
+        val harmonicDmgBonus = if (isHarmonicActive) remoteConfigManager.harmonicGridDamageBoost else 0.0f
         val harmonicIncomeMul = if (isHarmonicActive) 1.25f else 1.0f
 
         for (tower in towers) {
@@ -1164,7 +1176,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         for (enemy in survivingEnemies) {
             if (enemy.isDead) {
                 killsGained++
-                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
+                val bounty = (enemy.type.scrapValue * state.scrapBountyBonus * state.balanceConfig.globalIncomeMultiplier * remoteConfigManager.scrapBountyMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
                 scrapGained += bounty
 
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700)
@@ -1228,6 +1240,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             }
 
             scrapGained += completionReward
+            telemetryManager.logWaveComplete(currentWave, completionReward)
 
             val corePos = level.tiles.firstOrNull { it.type == TileType.CORE }?.pos ?: GridPos(level.width / 2, level.height - 1)
             val clearMessage = if (currentWave % 5 == 0) "★ Milestone Wave $currentWave Cleared! +$completionReward ★" else "Wave $currentWave Cleared! +$completionReward"
@@ -1330,6 +1343,8 @@ class RogueTDViewModel @JvmOverloads constructor(
         val state = _uiState.value
         if (state.isWaveActive || state.isGameOver) return
 
+        telemetryManager.logWaveStart(state.waveNumber)
+
         val waveData = WaveGenerator.generateWave(state.waveNumber, state.balanceConfig.enemiesPerRoundMultiplier)
         pendingSpawns = waveData.spawnList.toMutableList()
         nextSpawnTimeMs = 300L
@@ -1344,6 +1359,9 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun selectTile(tile: MapTile?) {
+        if (!_uiState.value.hasClickedFirstTile && tile != null) {
+            telemetryManager.logTutorialComplete()
+        }
         val tower = _uiState.value.towers.firstOrNull { it.gridPos == tile?.pos }
         _uiState.update {
             it.copy(
@@ -1717,6 +1735,16 @@ class RogueTDViewModel @JvmOverloads constructor(
             isDevTuned = isDev
         )
 
+        if (!isVictory) {
+            val mvpClass = state.towers.maxByOrNull { it.totalDamage }?.towerClass?.name ?: "KINETIC_BALLISTIC"
+            telemetryManager.logLevelFail(
+                waveFailed = waves + 1,
+                towersBuilt = state.towers.size,
+                currencyRemaining = state.scrap,
+                mvpTowerClass = mvpClass
+            )
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             telemetryManager.recordRun(record)
             telemetryManager.recordTowerSession(state.towers)
@@ -1725,7 +1753,8 @@ class RogueTDViewModel @JvmOverloads constructor(
             leaderboardRepository.enqueueRun(
                 run = record,
                 callsign = playerName,
-                isDevTuned = isDev
+                isDevTuned = isDev,
+                userId = authRepository.currentUserId
             )
             leaderboardRepository.fetchLeaderboard(forceRefresh = true)
         }

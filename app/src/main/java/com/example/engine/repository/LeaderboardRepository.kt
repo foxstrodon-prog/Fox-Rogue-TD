@@ -1,6 +1,7 @@
 package com.example.engine.repository
 
 import android.os.SystemClock
+import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.storage.LeaderboardStore
 import com.example.engine.worker.LeaderboardWorkScheduler
@@ -18,10 +19,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class LeaderboardRepository(
+class LeaderboardRepository @JvmOverloads constructor(
   private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
   private val store: LeaderboardStore,
-  private val scheduler: LeaderboardWorkScheduler
+  private val scheduler: LeaderboardWorkScheduler,
+  private val authRepo: AuthRepository? = null
 ) {
 
   private val _boardState = MutableStateFlow(LeaderboardUiState())
@@ -88,11 +90,19 @@ class LeaderboardRepository(
       when (result) {
         is LeaderboardResult.Success -> {
           lastFetchElapsedRealtime = SystemClock.elapsedRealtime()
-          store.saveCachedLeaderboard(result.data)
+          val myUserId = authRepo?.currentUserId
+          val processed = if (myUserId.isNullOrBlank()) {
+            result.data
+          } else {
+            result.data.map { entry ->
+              if (entry.userId == myUserId) entry.copy(isLocalPlayer = true) else entry
+            }
+          }
+          store.saveCachedLeaderboard(processed)
           val pendingCount = store.getPendingQueue().size
           _boardState.update {
             it.copy(
-              entries = result.data,
+              entries = processed,
               status = GlobalBoardStatus.ONLINE,
               failureKind = null,
               isRefreshing = false,
@@ -119,7 +129,12 @@ class LeaderboardRepository(
     }
   }
 
-  suspend fun enqueueRun(run: RunRecord, callsign: String, isDevTuned: Boolean) = withContext(Dispatchers.IO) {
+  suspend fun enqueueRun(
+    run: RunRecord,
+    callsign: String,
+    isDevTuned: Boolean,
+    userId: String? = null
+  ) = withContext(Dispatchers.IO) {
     if (isDevTuned || run.isDevTuned) {
       return@withContext
     }
@@ -127,6 +142,8 @@ class LeaderboardRepository(
     if (store.isAlreadySubmitted(run.id)) {
       return@withContext
     }
+
+    val effectiveUserId = userId ?: authRepo?.currentUserId.orEmpty()
 
     val submission = PendingSubmission(
       runId = run.id,
@@ -136,7 +153,8 @@ class LeaderboardRepository(
       scrapEarned = run.scrapEarned,
       totalDamage = run.totalDamage.toLong(),
       timestampMs = run.timestamp,
-      clientVersion = com.example.BuildConfig.VERSION_NAME
+      clientVersion = com.example.BuildConfig.VERSION_NAME,
+      userId = effectiveUserId
     )
 
     store.enqueuePending(submission)

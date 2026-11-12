@@ -3,6 +3,7 @@ package com.example.engine.worker
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.storage.LeaderboardStore
 import com.example.model.FailureKind
@@ -14,7 +15,8 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
   context: Context,
   params: WorkerParameters,
   private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
-  private val store: LeaderboardStore = LeaderboardStore(context)
+  private val store: LeaderboardStore = LeaderboardStore(context),
+  private val authRepo: AuthRepository = AuthRepository(context)
 ) : CoroutineWorker(context, params) {
 
   override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -23,8 +25,17 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
     val pendingList = store.getPendingQueue()
     if (pendingList.isEmpty()) return@withContext Result.success()
 
+    authRepo.ensureAuthenticated()
+    val idToken = authRepo.getIdToken()
+    val effectiveUserId = authRepo.currentUserId.orEmpty()
+
     for (item in pendingList) {
-      val result = api.submitScore(item)
+      val itemWithUser = if (item.userId.isBlank() && effectiveUserId.isNotBlank()) {
+        item.copy(userId = effectiveUserId)
+      } else {
+        item
+      }
+      val result = api.submitScore(itemWithUser, idToken = idToken)
       when (result) {
         is LeaderboardResult.Success -> {
           store.removePending(item.runId)

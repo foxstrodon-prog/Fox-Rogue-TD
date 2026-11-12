@@ -2,6 +2,9 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.engine.RemoteConfigManager
+import com.example.engine.TelemetryManager
+import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.storage.LeaderboardStore
 import com.example.engine.storage.PlayerIdentity
@@ -185,5 +188,74 @@ class LeaderboardCoreTest {
     assertEquals(1, pending.size)
     assertEquals("legit_run_1", pending[0].runId)
     assertEquals("TestCommander", pending[0].callsign)
+  }
+
+  @Test
+  fun `AuthRepository falls back to persistent UUID when unauthenticated`() = runBlocking {
+    val authRepo = AuthRepository(context, auth = null)
+    val uid = authRepo.currentUserId
+    assertTrue(!uid.isNullOrBlank())
+    assertEquals(36, uid!!.length)
+
+    val ensured = authRepo.ensureAuthenticated()
+    assertEquals(uid, ensured)
+    assertFalse(authRepo.isAuthenticated.value)
+  }
+
+  @Test
+  fun `RemoteConfigManager provides standard fallback multipliers`() {
+    val rcm = RemoteConfigManager(remoteConfig = null)
+    assertEquals(1.0f, rcm.waveHpMultiplier, 0.01f)
+    assertEquals(1.0f, rcm.scrapBountyMultiplier, 0.01f)
+    assertEquals(1.0f, rcm.bossHealthMultiplier, 0.01f)
+    assertEquals(0.20f, rcm.harmonicGridDamageBoost, 0.01f)
+  }
+
+  @Test
+  fun `TelemetryManager logs churn telemetry and tutorial events without throwing`() {
+    val tm = TelemetryManager(context, analytics = null)
+    tm.logTutorialStart()
+    tm.logTutorialComplete()
+    tm.logWaveStart(1)
+    tm.logWaveComplete(1, 150)
+    tm.logLevelFail(waveFailed = 15, towersBuilt = 6, currencyRemaining = 45, mvpTowerClass = "HEAVY_SIEGE")
+  }
+
+  @Test
+  fun `LeaderboardStore preserves userId across pending queue and cached entries`() = runBlocking {
+    val store = LeaderboardStore(context)
+    val item = PendingSubmission(
+      runId = "run-auth-1",
+      callsign = "Vanguard",
+      score = 4200,
+      wavesCleared = 8,
+      scrapEarned = 260,
+      totalDamage = 18000L,
+      timestampMs = 1234567L,
+      clientVersion = "0.0.1.009",
+      userId = "firebase_anon_uid_999"
+    )
+    store.enqueuePending(item)
+
+    val pending = store.getPendingQueue()
+    assertEquals(1, pending.size)
+    assertEquals("firebase_anon_uid_999", pending[0].userId)
+
+    val entry = OnlineScoreEntry(
+      id = "run-auth-1",
+      rank = 1,
+      callsign = "Vanguard",
+      score = 4200,
+      wavesCleared = 8,
+      scrapEarned = 260,
+      timestampMs = 1234567L,
+      userId = "firebase_anon_uid_999"
+    )
+    store.saveCachedLeaderboard(listOf(entry))
+    val cached = store.getCachedLeaderboard()
+    assertEquals(1, cached.size)
+    assertEquals("firebase_anon_uid_999", cached[0].userId)
+    assertEquals(4200, cached[0].highScore)
+    assertEquals(8, cached[0].maxWave)
   }
 }

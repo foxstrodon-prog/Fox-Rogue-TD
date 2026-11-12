@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "leaderboards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDevTuned", "order": "ASCENDING" },
+        { "fieldPath": "maxWave", "order": "DESCENDING" },
+        { "fieldPath": "highScore", "order": "DESCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.008`):** [`apk/Dual-Front-TD-v0.0.1.008-debug.apk`](apk/Dual-Front-TD-v0.0.1.008-debug.apk)
+- **Latest Android APK (`v0.0.1.009`):** [`apk/Dual-Front-TD-v0.0.1.009-debug.apk`](apk/Dual-Front-TD-v0.0.1.009-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,26 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.008
+## 🕹️ What's New in Version 0.0.1.009
+
+### 👤 Native Anonymous Authentication & Zero-Friction Identity
+- **Silent Player Identity:** Integrated native Firebase Anonymous Authentication for seamless player identity. Every commander receives a persistent, secure cryptographic identity without sign-up forms, passwords, or personal data collection.
+- **Score Authorship Protection:** Security rules strictly verify that leaderboard submissions match the authenticated user identity while keeping scores tamper-proof and immutable.
+
+### 🏆 Dual-Metric Composite Global Leaderboards
+- **Composite Ranking Query:** Implemented dual-criteria composite ranking sorted primarily by `maxWave` descending, using `highScore` as an instant tie-breaker, backed by dedicated cloud composite indexing for minimal read overhead.
+- **Local Commander Highlight:** Dynamically flags and highlights the active commander's rank entry on the global scoreboard.
+
+### 🌐 Real-Time Remote Balancing (Remote Config)
+- **Dynamic Wave & Economy Multipliers:** Bound game engine balance curves to cloud configuration parameters, enabling on-the-fly adjustments to enemy health scaling, scrap bounties, boss health multipliers, and harmonic grid damage boosts.
+
+### 📊 Churn Telemetry & Difficulty Spike Pinpointing
+- **Failure State Analytics:** Instrumented granular failure event logging (`level_fail`) capturing the exact failure wave, tower count, remaining scrap currency, and MVP tower class to identify overtuned difficulty cliffs.
+- **FTUE Funnel Metrics:** Added telemetry tracking across initial hint engagement and wave progression milestones.
+
+---
+
+## 🕹️ Previous Updates (Version 0.0.1.008)
 
 ### 🔐 Persistent Signing Certificate Parity & Conflict Resolution
 - **Canonical Keystore Auto-Restoration:** Hardened `app/build.gradle.kts` and GitHub Actions release workflow with an embedded canonical debug keystore decoder. Ensures all local developer builds, CI runners, and GitHub release binaries are signed with the exact same cryptographic key, permanently resolving "App not installed as package conflicts with an existing package" signature mismatches on in-app updates.

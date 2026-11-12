@@ -43,7 +43,8 @@ class LeaderboardStore(context: Context) {
               wavesCleared = obj.optInt("wavesCleared", 0),
               scrapEarned = obj.optInt("scrapEarned", 0),
               timestampMs = obj.optLong("timestampMs", 0L),
-              isLocalPlayer = obj.optBoolean("isLocalPlayer", false)
+              isLocalPlayer = obj.optBoolean("isLocalPlayer", false),
+              userId = obj.optString("userId", "")
             )
           )
         }
@@ -68,6 +69,7 @@ class LeaderboardStore(context: Context) {
             put("scrapEarned", entry.scrapEarned)
             put("timestampMs", entry.timestampMs)
             put("isLocalPlayer", entry.isLocalPlayer)
+            put("userId", entry.userId)
           }
           array.put(obj)
         }
@@ -162,7 +164,8 @@ class LeaderboardStore(context: Context) {
             timestampMs = obj.optLong("timestampMs", 0L),
             clientVersion = obj.optString("clientVersion", "0.0.0.008"),
             attempts = obj.optInt("attempts", 0),
-            lastAttemptMs = obj.optLong("lastAttemptMs", 0L)
+            lastAttemptMs = obj.optLong("lastAttemptMs", 0L),
+            userId = obj.optString("userId", "")
           )
         )
       }
@@ -187,6 +190,7 @@ class LeaderboardStore(context: Context) {
           put("clientVersion", item.clientVersion)
           put("attempts", item.attempts)
           put("lastAttemptMs", item.lastAttemptMs)
+          put("userId", item.userId)
         }
         array.put(obj)
       }

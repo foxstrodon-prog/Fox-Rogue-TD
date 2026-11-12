@@ -1,0 +1,35 @@
+{
+  "parameters": {
+    "wave_hp_multiplier": {
+      "defaultValue": {
+        "value": "1.0"
+      },
+      "description": "Global enemy HP multiplier for difficulty curve tuning",
+      "valueType": "NUMBER"
+    },
+    "scrap_bounty_multiplier": {
+      "defaultValue": {
+        "value": "1.0"
+      },
+      "description": "Global scrap reward multiplier from killed enemies",
+      "valueType": "NUMBER"
+    },
+    "boss_health_multiplier": {
+      "defaultValue": {
+        "value": "1.0"
+      },
+      "description": "Boss HP multiplier across milestone waves (10, 20, 30...)",
+      "valueType": "NUMBER"
+    },
+    "harmonic_grid_damage_boost": {
+      "defaultValue": {
+        "value": "0.20"
+      },
+      "description": "Damage boost percentage when all 6 booster pads are populated (Harmonic Grid 6/6)",
+      "valueType": "NUMBER"
+    }
+  },
+  "version": {
+    "description": "Initial balance parameters for Dual Front TD v0.0.1.009"
+  }
+}

@@ -4,7 +4,28 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.008
+### 🚀 What's New in Version 0.0.1.009
+
+👤 **Native Anonymous Authentication & Secure Identity**
+- **Zero-Friction Identity:** Added native Firebase Anonymous Authentication for secure, persistent player identification without passwords, emails, or personal data collection.
+- **Score Authorship:** Secure cloud rules verify that submitted high scores match the authenticated player identity, locking submissions against unauthorized tampering.
+
+🏆 **Dual-Metric Composite Global Leaderboards**
+- **Composite Leaderboard Indexing:** Sorted primarily by `maxWave` descending, with `highScore` as an instant tie-breaker. Fully backed by cloud composite index queries.
+- **Local Commander Highlight:** Live scoreboard dynamically identifies and highlights the active player's rank.
+
+🌐 **Real-Time Remote Balancing (Remote Config)**
+- **Cloud-Tuned Difficulty Curves:** Bound enemy health, scrap bounties, boss health multipliers, and harmonic grid damage boosts to remote configuration parameters for live balance adjustments.
+
+📊 **Churn Telemetry & Difficulty Spike Pinpointing**
+- **Defeat State Telemetry:** Added `level_fail` event analytics capturing wave number, tower count, remaining scrap currency, and MVP tower class to pinpoint overtuned waves.
+- **FTUE Funnel Checkpoints:** Tracks initial hint engagement and wave progression milestones.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.008
 
 🔐 **Persistent Signing Certificate Parity & Conflict Resolution**
 - **Canonical Keystore Auto-Restoration:** Hardened build configuration with an embedded canonical debug keystore decoder. Ensures all local developer builds, CI runners, and GitHub release binaries share the exact same signing key, permanently fixing "App not installed as package conflicts with an existing package" errors during in-app updates.

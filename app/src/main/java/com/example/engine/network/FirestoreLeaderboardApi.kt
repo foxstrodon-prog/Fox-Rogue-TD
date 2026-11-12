@@ -26,7 +26,10 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   val isConfigured: Boolean
     get() = projectId.isNotBlank() && apiKey.isNotBlank()
 
-  suspend fun submitScore(item: PendingSubmission): LeaderboardResult<Unit> = withContext(Dispatchers.IO) {
+  suspend fun submitScore(
+    item: PendingSubmission,
+    idToken: String? = null
+  ): LeaderboardResult<Unit> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
@@ -36,25 +39,42 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
 
     val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$collection?documentId=${item.runId}&key=$apiKey"
 
+    val sanitizedCallsign = sanitizeCallsign(item.callsign)
+    val effectiveUserId = item.userId.ifBlank { "anonymous" }
+
     val fieldsObj = JSONObject().apply {
-      put("callsign", JSONObject().put("stringValue", sanitizeCallsign(item.callsign)))
+      // Primary fields strictly validated by Firestore Security Rules
+      put("userId", JSONObject().put("stringValue", effectiveUserId))
+      put("username", JSONObject().put("stringValue", sanitizedCallsign))
+      put("highScore", JSONObject().put("integerValue", item.score.toString()))
+      put("maxWave", JSONObject().put("integerValue", item.wavesCleared.toString()))
+      put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
+      put("isDevTuned", JSONObject().put("booleanValue", false))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion))
+
+      // Legacy fields preserved for backward compatibility
+      put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
       put("score", JSONObject().put("integerValue", item.score.toString()))
       put("wavesCleared", JSONObject().put("integerValue", item.wavesCleared.toString()))
       put("scrapEarned", JSONObject().put("integerValue", item.scrapEarned.toString()))
       put("timestampMs", JSONObject().put("integerValue", item.timestampMs.toString()))
-      put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion))
     }
     val requestBodyJson = JSONObject().apply {
       put("fields", fieldsObj)
     }
 
     val mediaType = "application/json; charset=utf-8".toMediaType()
-    val request = Request.Builder()
+    val requestBuilder = Request.Builder()
       .url(url)
       .addHeader("X-Goog-Api-Key", apiKey)
       .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
       .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
+
+    if (!idToken.isNullOrBlank()) {
+      requestBuilder.addHeader("Authorization", "Bearer $idToken")
+    }
+
+    val request = requestBuilder
       .post(requestBodyJson.toString().toRequestBody(mediaType))
       .build()
 
@@ -117,11 +137,15 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         })
         put("orderBy", JSONArray().apply {
           put(JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "score"))
+            put("field", JSONObject().put("fieldPath", "maxWave"))
             put("direction", "DESCENDING")
           })
           put(JSONObject().apply {
-            put("field", JSONObject().put("fieldPath", "timestampMs"))
+            put("field", JSONObject().put("fieldPath", "highScore"))
+            put("direction", "DESCENDING")
+          })
+          put(JSONObject().apply {
+            put("field", JSONObject().put("fieldPath", "timestamp"))
             put("direction", "ASCENDING")
           })
         })
@@ -231,19 +255,28 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       val id = docName.substringAfterLast("/")
       val fields = doc.optJSONObject("fields") ?: continue
 
-      val callsign = fields.optJSONObject("callsign")?.optString("stringValue") ?: "Commander"
-      val score = fields.optJSONObject("score")?.let {
+      val callsign = fields.optJSONObject("username")?.optString("stringValue")
+        ?: fields.optJSONObject("callsign")?.optString("stringValue")
+        ?: "Commander"
+      val score = fields.optJSONObject("highScore")?.let {
+        it.optString("integerValue").toIntOrNull() ?: it.optInt("integerValue", 0)
+      } ?: fields.optJSONObject("score")?.let {
         it.optString("integerValue").toIntOrNull() ?: it.optInt("integerValue", 0)
       } ?: 0
-      val waves = fields.optJSONObject("wavesCleared")?.let {
+      val waves = fields.optJSONObject("maxWave")?.let {
+        it.optString("integerValue").toIntOrNull() ?: it.optInt("integerValue", 0)
+      } ?: fields.optJSONObject("wavesCleared")?.let {
         it.optString("integerValue").toIntOrNull() ?: it.optInt("integerValue", 0)
       } ?: 0
       val scrap = fields.optJSONObject("scrapEarned")?.let {
         it.optString("integerValue").toIntOrNull() ?: it.optInt("integerValue", 0)
       } ?: 0
-      val timestampMs = fields.optJSONObject("timestampMs")?.let {
+      val timestampMs = fields.optJSONObject("timestamp")?.let {
+        it.optString("integerValue").toLongOrNull() ?: it.optLong("integerValue", 0L)
+      } ?: fields.optJSONObject("timestampMs")?.let {
         it.optString("integerValue").toLongOrNull() ?: it.optLong("integerValue", 0L)
       } ?: 0L
+      val userId = fields.optJSONObject("userId")?.optString("stringValue") ?: ""
 
       entries.add(
         OnlineScoreEntry(
@@ -253,7 +286,8 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
           score = score,
           wavesCleared = waves,
           scrapEarned = scrap,
-          timestampMs = timestampMs
+          timestampMs = timestampMs,
+          userId = userId
         )
       )
     }
