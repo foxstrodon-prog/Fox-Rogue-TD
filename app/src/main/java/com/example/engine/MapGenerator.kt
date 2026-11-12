@@ -19,7 +19,7 @@ data class GeneratedLevel(
 
 object MapGenerator {
     const val DEFAULT_WIDTH = 10
-    const val DEFAULT_HEIGHT = 16
+    const val DEFAULT_HEIGHT = 18
 
     val BIOMES = listOf(
         Biome(

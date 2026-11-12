@@ -12,7 +12,7 @@ import kotlin.math.floor
 class SpatialHashGrid(
     private val cellSize: Float = 2.0f,
     private val gridWidth: Int = 16,
-    private val gridHeight: Int = 16
+    private val gridHeight: Int = 18
 ) {
     // Array of buckets, each holding an index list of enemies
     private val buckets = Array(gridWidth * gridHeight) { mutableListOf<EnemyInstance>() }

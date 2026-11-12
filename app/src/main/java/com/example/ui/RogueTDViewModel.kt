@@ -141,7 +141,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var updateDismissedForSession: Boolean = false
 
     // Zero-allocation Uniform Grid Spatial Partitioning (Leo & Dr. Alan)
-    val spatialGrid = com.example.engine.SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 16)
+    val spatialGrid = com.example.engine.SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 18)
 
     // Real-Time Telemetry Probes (Tessa)
     var currentFps: Int = 60

@@ -175,6 +175,7 @@ fun TowerClassSilhouette(
 fun SquircleActionButton(
     title: String = "",
     subtitle: String? = null,
+    titleColor: Color? = null,
     name: String = "",
     iconText: String = "",
     iconComposable: (@Composable () -> Unit)? = null,
@@ -308,7 +309,7 @@ fun SquircleActionButton(
             ) {
                 Text(
                     text = resolvedTitle,
-                    color = if (!isUnlocked) Color(0xFF64748B) else Color.White,
+                    color = if (!isUnlocked) Color(0xFF64748B) else (titleColor ?: Color.White),
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -405,12 +406,20 @@ fun FloatingSquircleUpgradeBar(
 
                 when (tower.tier) {
                     0 -> {
-                        // 3 Vectors: Offense, Defense, Support (Title Case, no truncation, 2-line stacked)
+                        // 3 Vectors: Offense, Defense, Support (Compound Name & Unified Class Color)
                         val vectors = TowerUpgradeManager.getTier1Vectors()
                         val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
                         val canAfford = state.scrap >= cost
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
+
+                        val classPrefix = when (tower.towerClass) {
+                            TowerClass.KINETIC_BALLISTIC -> "Kinetic"
+                            TowerClass.ELEMENTAL_VOID -> "Void"
+                            TowerClass.HEAVY_SIEGE -> "Siege"
+                            TowerClass.STELLAR_COSMIC -> "Stellar"
+                        }
+                        val classThemeColor = Color(tower.towerClass.themeColor)
 
                         vectors.forEach { vec ->
                             val icon = when (vec) {
@@ -418,17 +427,23 @@ fun FloatingSquircleUpgradeBar(
                                 TowerVector.DEFENSIVE -> "🛡"
                                 TowerVector.SUPPORT -> "⚡"
                             }
+                            val vecSuffix = when (vec) {
+                                TowerVector.OFFENSIVE -> "Offense"
+                                TowerVector.DEFENSIVE -> "Defense"
+                                TowerVector.SUPPORT -> "Support"
+                            }
                             val (b1, b2) = when (vec) {
                                 TowerVector.OFFENSIVE -> "+35% Damage" to "High Fire Rate"
                                 TowerVector.DEFENSIVE -> "+40% Range" to "Slow & Fortify"
                                 TowerVector.SUPPORT -> "Aura Synergies" to "+Scrap Bounty"
                             }
                             SquircleActionButton(
-                                title = vec.displayName,
-                                subtitle = "Vector",
+                                title = classPrefix,
+                                subtitle = vecSuffix,
+                                titleColor = classThemeColor,
                                 iconText = icon,
                                 cost = cost,
-                                themeColor = Color(vec.color),
+                                themeColor = classThemeColor,
                                 canAfford = canAfford,
                                 isUnlocked = true,
                                 bullet1 = b1,
@@ -537,50 +552,112 @@ fun FloatingSquircleUpgradeBar(
                     }
                 }
 
-                // Priority toggle button
+                // Priority toggle and Sell buttons (Stacked in Column in portrait, Side-by-side in Row when rotated)
                 val prio = tower.targetPriority
-                Box(
-                    modifier = Modifier
-                        .size(width = 44.dp, height = 74.dp)
-                        .graphicsLayer { rotationZ = animatedRotation }
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                        .border(1.5.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                        .clickable {
-                            val nextPrio = when (prio) {
-                                TargetPriority.FIRST -> TargetPriority.CLOSEST
-                                TargetPriority.CLOSEST -> TargetPriority.STRONGEST
-                                TargetPriority.STRONGEST -> TargetPriority.WEAKEST
-                                TargetPriority.WEAKEST -> TargetPriority.FIRST
-                            }
-                            onChangePriority(nextPrio)
-                        }
-                        .padding(horizontal = 2.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Text("🎯", fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+                val isRotated = counterAngle != 0f
 
-                // Sell button
-                Box(
-                    modifier = Modifier
-                        .size(width = 44.dp, height = 74.dp)
-                        .graphicsLayer { rotationZ = animatedRotation }
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                        .border(1.5.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                        .clickable { onSellTower() }
-                        .padding(horizontal = 2.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Text("🗑", fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
+                if (isRotated) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Priority button
+                        Box(
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 74.dp)
+                                .graphicsLayer { rotationZ = animatedRotation }
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                                .border(1.5.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                                .clickable {
+                                    val nextPrio = when (prio) {
+                                        TargetPriority.FIRST -> TargetPriority.CLOSEST
+                                        TargetPriority.CLOSEST -> TargetPriority.STRONGEST
+                                        TargetPriority.STRONGEST -> TargetPriority.WEAKEST
+                                        TargetPriority.WEAKEST -> TargetPriority.FIRST
+                                    }
+                                    onChangePriority(nextPrio)
+                                }
+                                .padding(horizontal = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Text("🎯", fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Sell button
+                        Box(
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 74.dp)
+                                .graphicsLayer { rotationZ = animatedRotation }
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                                .border(1.5.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                                .clickable { onSellTower() }
+                                .padding(horizontal = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Text("🗑", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.height(76.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Priority button (Top half)
+                        Box(
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 36.dp)
+                                .graphicsLayer { rotationZ = animatedRotation }
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                                .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    val nextPrio = when (prio) {
+                                        TargetPriority.FIRST -> TargetPriority.CLOSEST
+                                        TargetPriority.CLOSEST -> TargetPriority.STRONGEST
+                                        TargetPriority.STRONGEST -> TargetPriority.WEAKEST
+                                        TargetPriority.WEAKEST -> TargetPriority.FIRST
+                                    }
+                                    onChangePriority(nextPrio)
+                                }
+                                .padding(horizontal = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🎯", fontSize = 10.sp)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Sell button (Bottom half)
+                        Box(
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 36.dp)
+                                .graphicsLayer { rotationZ = animatedRotation }
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F172A).copy(alpha = 0.92f))
+                                .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                                .clickable { onSellTower() }
+                                .padding(horizontal = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🗑", fontSize = 9.sp)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
                     }
                 }
             }

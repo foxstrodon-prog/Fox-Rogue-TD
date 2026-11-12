@@ -47,6 +47,7 @@ fun MinimalTopHud(
     modifier: Modifier = Modifier
 ) {
     var showSynergyDropdown by remember { mutableStateOf(false) }
+    var showPadsDropdown by remember { mutableStateOf(false) }
 
     // Energetic tactical pulse for wave launch readiness
     val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
@@ -67,6 +68,7 @@ fun MinimalTopHud(
         270 -> 90f
         else -> 0f
     }
+    val isRotated = counterAngle != 0f
     val animatedRotation by animateFloatAsState(
         targetValue = counterAngle,
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
@@ -81,7 +83,7 @@ fun MinimalTopHud(
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -109,57 +111,101 @@ fun MinimalTopHud(
                     )
                 }
 
-                // Core HP (Stacked Heart Icon + Count)
+                // Core HP (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
                 ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Favorite,
-                            contentDescription = "Core HP",
-                            tint = Color(0xFFFF2A55),
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Text(
-                            text = "${state.coreHp}",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.5.sp,
-                            maxLines = 1
-                        )
+                    if (isRotated) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Favorite,
+                                contentDescription = "Core HP",
+                                tint = Color(0xFFFF2A55),
+                                modifier = Modifier.size(9.dp)
+                            )
+                            Text(
+                                text = "${state.coreHp}",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Favorite,
+                                contentDescription = "Core HP",
+                                tint = Color(0xFFFF2A55),
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${state.coreHp}",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
 
-                // Credits (Formatted for 5-6 digits with high visibility)
+                // Credits / Scrap (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
                 ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Diamond,
-                            contentDescription = "Credits",
-                            tint = Color(0xFFFFD700),
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Text(
-                            text = "${state.scrap}",
-                            color = Color(0xFFFFD700),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 9.5.sp,
-                            maxLines = 1
-                        )
+                    if (isRotated) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Diamond,
+                                contentDescription = "Credits",
+                                tint = Color(0xFFFFD700),
+                                modifier = Modifier.size(9.dp)
+                            )
+                            Text(
+                                text = "${state.scrap}",
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.sp,
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Diamond,
+                                contentDescription = "Credits",
+                                tint = Color(0xFFFFD700),
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${state.scrap}",
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.5.sp,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
 
@@ -250,7 +296,87 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Auto Wave Toggle (Tactile switch styling with explicit ON / OFF state)
+                // Booster Pads Dropdown Capsule (Replaces wide sub-strip text with interactive details)
+                val padsCount = state.harmonicPadsCount
+                val isHarmonicActive = state.harmonicGridActive
+                Box(modifier = counterRotateModifier) {
+                    Surface(
+                        color = if (isHarmonicActive) Color(0xFFFFD700).copy(alpha = 0.25f)
+                        else if (padsCount > 0) Color(0xFF00E5FF).copy(alpha = 0.20f)
+                        else Color(0xFF161F30).copy(alpha = 0.60f),
+                        shape = RoundedCornerShape(5.dp),
+                        border = if (isHarmonicActive) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.8f))
+                        else if (padsCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
+                        else null,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .clickable { showPadsDropdown = !showPadsDropdown }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "⚡", fontSize = 9.sp)
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = "($padsCount/6)",
+                                color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showPadsDropdown,
+                        onDismissRequest = { showPadsDropdown = false },
+                        modifier = Modifier
+                            .background(Color(0xFF0F172A).copy(alpha = 0.95f))
+                            .border(1.dp, if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF), RoundedCornerShape(6.dp))
+                            .widthIn(max = 250.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (isHarmonicActive) "⚡ HARMONIC GRID ACTIVE (6/6)" else "⚡ BOOSTER PADS ($padsCount/6)",
+                                    color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp
+                                )
+                            },
+                            onClick = { },
+                            enabled = false
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = "• Scrap Boost: +${padsCount * 3}% (+3% per active pad)",
+                                        color = Color(0xFF00E5FF),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 9.5.sp
+                                    )
+                                    Text(
+                                        text = "• 6/6 Harmonic Grid: +20% Tower Damage & +25% Bonus Scrap across all lanes",
+                                        color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF94A3B8),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 9.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Tactical Mechanics:\nPads recharge when towers fire. Use Dual-Thumb gestures or Dev Menu to relocate pads across Front Alpha & Omega lanes.",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 8.5.sp,
+                                        lineHeight = 11.sp
+                                    )
+                                }
+                            },
+                            onClick = { showPadsDropdown = false }
+                        )
+                    }
+                }
+
+                // Auto Wave Toggle (Tactile switch styling, stacks vertically when rotated)
                 val autoWaveActive = state.autoCallNextWave
                 Surface(
                     color = if (autoWaveActive) Color(0xFF003822).copy(alpha = 0.90f) else Color(0xFF161F30).copy(alpha = 0.75f),
@@ -263,23 +389,55 @@ fun MinimalTopHud(
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onToggleAutoWave() }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF64748B))
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = if (autoWaveActive) "AUTO: ON" else "AUTO: OFF",
-                            color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 8.sp
-                        )
+                    if (isRotated) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "AUTO",
+                                color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 7.sp
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF64748B))
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = if (autoWaveActive) "ON" else "OFF",
+                                    color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 7.sp
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF64748B))
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (autoWaveActive) "AUTO: ON" else "AUTO: OFF",
+                                color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 8.sp
+                            )
+                        }
                     }
                 }
 
@@ -320,37 +478,20 @@ fun MinimalTopHud(
                     )
                 }
 
-                // Gear Cog Button (Opens Pause Menu & Settings)
+                // Gear Cog Button (Clean borderless floating icon, no grey box)
                 IconButton(
                     onClick = onOpenPauseMenu,
                     modifier = counterRotateModifier
                         .size(26.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFF161F30).copy(alpha = 0.70f))
                         .testTag("pause_menu_button")
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Settings,
                         contentDescription = "Game Settings & Controls",
                         tint = Color(0xFFFFB800),
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
-            }
-
-            // Bullet Capsule Sub-strip: Booster Pad Status & Harmonic Grid
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(
-                modifier = counterRotateModifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (state.harmonicGridActive) "⚡ HARMONIC GRID ACTIVE: 6/6 (+20% DMG / +25% SCRAP)" else "PADS: ${state.harmonicPadsCount}/6 (${state.harmonicPadsCount * 3}% SCRAP BOOST)",
-                    color = if (state.harmonicGridActive) Color(0xFFFFD700) else Color(0xFF00E5FF),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 8.sp
-                )
             }
         }
     }
