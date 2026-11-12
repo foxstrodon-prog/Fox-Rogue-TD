@@ -4,7 +4,22 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.014
+### 🚀 What's New in Version 0.0.1.015
+
+🌌 **The Synergy Singularity & 4-Tier Non-Visual Escalation Engine**
+- **The Synergy Singularity (Board-Merge Capstone Loop):** Fill and max 100% of the buildable map grid (Tier ≥ 2 Archetype or Apex) to unlock the high-stakes `[★ SINGULARITY CAPSTONE]` squircle on your oldest anchor tower. Activating it permanently banks all active global synergies and auras into a multi-generational `BankedSynergyVault`, clearing the remaining tiles for drafting fresh generations of towers.
+- **Mid-Wave Tactical High-Alert:** Singularity activation is supported unrestricted—even during intense mid-wave engagements—via a tactical confirmation modal displaying sacrificed tower counts and exact scrap refund.
+- **20% Singularity Scrap Bounty:** Sacrificing your board refunds 20% of all invested scrap across all sacrificed towers directly into the treasury (minimum 250c), enabling instant drafting of 2–3 starter towers for Generation N+1.
+- **Persistent Multi-Generational Monument:** Banked synergies stack cumulatively generation after generation inside the single Capstone monument, creating massive compounding aura curves.
+- **4-Tier Difficulty Modes:** Choose your challenge level in the Pause Menu—`EASY` (Wave 30 milestone), `MEDIUM` (Wave 50 milestone), `HARD` (Wave 100 milestone), and `INFINITE` (endless escalation).
+- **True Exponential Escalation Math:** Hard mode scales exponentially past Wave 30 ($1.35 \times 1.045^{\text{wave}-30}$) and Infinite mode scales with an aggressive $1.08^{\text{wave}-50}$ curve past Wave 50.
+- **Asymptotic Engine Safeguards:** Clamped enemy slow factors to a minimum of 15% speed (preventing 0% freeze locks) and enforced a 50ms turret firing cooldown floor (20 shots/sec cap) to safeguard CPU performance under multi-generational synergy overclocking.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.014
 
 🎯 **Tactical HUD Evolution, 52-Tower Unique Matrix & Ergonomics**
 - **Standardized Rotated Bullet HUD:** All rotated indicators (Wave, HP, Scrap, Synergies, Teleportation Pads, Auto-Wave, and Begin) standardized to a sleek, uniform `28.dp x 38.dp` layout, providing generous vertical headroom that eliminates text clipping in landscape orientation.

@@ -93,6 +93,21 @@ enum class GameSpeed(val multiplier: Float, val label: String) {
     HYPER(10.0f, "10X")
 }
 
+enum class GameDifficulty(
+    val id: String,
+    val label: String,
+    val maxWave: Int,
+    val description: String,
+    val hpScaleMultiplier: Float,
+    val speedScaleMultiplier: Float,
+    val enemyCountMultiplier: Float
+) {
+    EASY("easy", "EASY", 30, "Reconnaissance: Wave 30 Milestone (-20% HP, -10% Speed)", 0.80f, 0.90f, 0.85f),
+    MEDIUM("medium", "MEDIUM", 50, "Standard Defense: Wave 50 Milestone (Calibrated Baseline)", 1.00f, 1.00f, 1.00f),
+    HARD("hard", "HARD", 100, "Endgame Gauntlet: Wave 100 Milestone (True Exponential Past W30)", 1.25f, 1.05f, 1.15f),
+    INFINITE("infinite", "INFINITE", Int.MAX_VALUE, "Endless Incursion: Infinite Scaling (1.08^W Past W50)", 1.00f, 1.00f, 1.00f)
+}
+
 enum class TargetPriority(val label: String) {
     FIRST("First"),
     CLOSEST("Closest"),
@@ -989,6 +1004,19 @@ data class FinalFormDef(
     val specialTag: String = ""
 )
 
+data class GlobalAuraSynergy(
+    val auraName: String,
+    val effectDescription: String,
+    val sourceCount: Int,
+    val iconEmoji: String,
+    val color: Long
+)
+
+data class BankedSynergyVault(
+    val generation: Int,
+    val synergies: List<GlobalAuraSynergy>
+)
+
 data class TowerInstance(
     val id: String,
     var type: TowerType = TowerType.GATLING,
@@ -1006,7 +1034,10 @@ data class TowerInstance(
     var targetPriority: TargetPriority = TargetPriority.FIRST,
     var lastShotTimeMs: Long = 0L,
     var targetEnemyId: String? = null,
-    var rotationAngleDeg: Float = 0f
+    var rotationAngleDeg: Float = 0f,
+    var isCapstone: Boolean = false,
+    var generation: Int = 0,
+    val synergyVault: MutableList<BankedSynergyVault> = mutableListOf()
 ) {
     val isBase: Boolean get() = tier == 0 && branchTier1 == null
     val isTier1: Boolean get() = tier == 1 || (branchTier1 != null && finalFormCode == null && tier == 0)
@@ -1015,6 +1046,14 @@ data class TowerInstance(
     val isFinalForm: Boolean get() = finalFormCode != null || tier == 3 || isTier3GlobalActive
     val isMaxed: Boolean get() = isTier3 || finalFormCode != null
     val isAscended: Boolean get() = isTier3 || finalFormCode != null
+
+    fun getInvestedScrapValue(): Int {
+        val base = type.baseCost
+        val t1 = if (tier >= 1 || vector != null || branchTier1 != null) (base * 0.8f).toInt() else 0
+        val t2 = if (tier >= 2 || archetype != null || finalFormCode != null) (base * 1.5f).toInt() else 0
+        val t3 = if (tier >= 3 || isTier3GlobalActive) 280 else 0
+        return base + t1 + t2 + t3
+    }
 
     val shape: EnemyShape get() = when (archetype?.towerClass ?: towerClass) {
         TowerClass.KINETIC_BALLISTIC -> EnemyShape.CIRCLE
@@ -1147,14 +1186,6 @@ data class TrackParticle(
     val speed: Float,
     val color: Long,
     val size: Float
-)
-
-data class GlobalAuraSynergy(
-    val auraName: String,
-    val effectDescription: String,
-    val sourceCount: Int,
-    val iconEmoji: String,
-    val color: Long
 )
 
 /** Visual-grammar role of an enemy: drives colour coding and (for SUPPORT) aura behaviour. */
@@ -1360,7 +1391,7 @@ data class EnemyInstance(
 ) {
     val isDead: Boolean get() = currentHp <= 0f
     val effectiveSpeed: Float
-        get() = (if (slowTimerMs > 0L) speed * slowFactor else speed) * auraSpeedMul
+        get() = (if (slowTimerMs > 0L) speed * maxOf(0.15f, slowFactor) else speed) * auraSpeedMul
 }
 
 /**

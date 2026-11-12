@@ -2,6 +2,7 @@ package com.example.ui.menu
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -170,6 +171,7 @@ fun PauseMenuDialog(
     onPlayTowerUpgradeTestSound: (TowerClass, Int) -> Unit = { _, _ -> },
     onTurretSkinSlotSelected: (Int) -> Unit = {},
     onMapThemeSlotSelected: (Int) -> Unit = {},
+    onDifficultyChanged: (GameDifficulty) -> Unit = {},
     onResume: () -> Unit
 ) {
     var isCustomizationOpen by remember { mutableStateOf(false) }
@@ -811,6 +813,58 @@ fun PauseMenuDialog(
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "TACTICAL ESCALATION / DIFFICULTY",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF1E293B))
+                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        GameDifficulty.entries.forEach { diff ->
+                            val isSel = state.difficulty == diff
+                            val diffColor = when (diff) {
+                                GameDifficulty.EASY -> Color(0xFF10B981)
+                                GameDifficulty.MEDIUM -> Color(0xFF38BDF8)
+                                GameDifficulty.HARD -> Color(0xFFFF5722)
+                                GameDifficulty.INFINITE -> Color(0xFFA855F7)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSel) diffColor else Color.Transparent)
+                                    .clickable { onDifficultyChanged(diff) }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = diff.label,
+                                    color = if (isSel) Color.White else Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = state.difficulty.description,
+                        color = Color(0xFF64748B),
+                        fontSize = 9.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 

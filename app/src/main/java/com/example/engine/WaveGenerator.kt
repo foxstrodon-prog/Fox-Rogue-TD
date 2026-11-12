@@ -2,6 +2,7 @@ package com.example.engine
 
 import com.example.model.EnemyRole
 import com.example.model.EnemyType
+import com.example.model.GameDifficulty
 
 data class EnemySpawnEntry(
     val type: EnemyType,
@@ -75,7 +76,12 @@ object WaveGenerator {
         EnemyType.ASTRAL_COLOSSUS -> 1400L
     }
 
-    fun generateWave(waveNumber: Int, enemyCountMultiplier: Float = 1.0f): WaveData {
+    fun generateWave(
+        waveNumber: Int,
+        enemyCountMultiplier: Float = 1.0f,
+        difficulty: GameDifficulty = GameDifficulty.MEDIUM
+    ): WaveData {
+        val countMul = enemyCountMultiplier * difficulty.enemyCountMultiplier
         val isBossWave = (waveNumber % 10 == 0) || (waveNumber == 5) || (waveNumber == 45) || (waveNumber == 50) || (waveNumber == 52)
         val name = when {
             waveNumber == 5 -> "Sector Vanguard: Dual Elite Scout"
@@ -112,13 +118,47 @@ object WaveGenerator {
         }
 
         val spawnList = mutableListOf<EnemySpawnEntry>()
-        val baseHpScale = 1.0f + (waveNumber - 1) * 0.20f + if (waveNumber > 10) (waveNumber - 10) * 0.12f else 0f
-        val baseSpeedScale = 1.0f + minOf(0.35f, (waveNumber - 1) * 0.02f)
+        val baseHpScale: Float
+        val baseSpeedScale: Float
+
+        when (difficulty) {
+            GameDifficulty.EASY -> {
+                baseHpScale = (1.0f + (waveNumber - 1) * 0.16f) * difficulty.hpScaleMultiplier
+                baseSpeedScale = (1.0f + minOf(0.25f, (waveNumber - 1) * 0.015f)) * difficulty.speedScaleMultiplier
+            }
+            GameDifficulty.MEDIUM -> {
+                baseHpScale = 1.0f + (waveNumber - 1) * 0.20f + if (waveNumber > 10) (waveNumber - 10) * 0.12f else 0f
+                baseSpeedScale = 1.0f + minOf(0.35f, (waveNumber - 1) * 0.02f)
+            }
+            GameDifficulty.HARD -> {
+                val pre30Base = 1.0f + (waveNumber - 1) * 0.22f + if (waveNumber > 10) (waveNumber - 10) * 0.14f else 0f
+                if (waveNumber <= 30) {
+                    baseHpScale = pre30Base * difficulty.hpScaleMultiplier
+                } else {
+                    val post30 = (waveNumber - 30).toDouble()
+                    val expCurve = 1.35f * Math.pow(1.045, post30).toFloat()
+                    baseHpScale = (1.0f + 29 * 0.22f + 20 * 0.14f) * expCurve
+                }
+                baseSpeedScale = (1.0f + minOf(0.40f, (waveNumber - 1) * 0.025f)) * difficulty.speedScaleMultiplier
+            }
+            GameDifficulty.INFINITE -> {
+                val w50Base = 1.0f + 49 * 0.20f + 40 * 0.12f
+                if (waveNumber <= 50) {
+                    baseHpScale = 1.0f + (waveNumber - 1) * 0.20f + if (waveNumber > 10) (waveNumber - 10) * 0.12f else 0f
+                    baseSpeedScale = 1.0f + minOf(0.35f, (waveNumber - 1) * 0.02f)
+                } else {
+                    val post50 = (waveNumber - 50).toDouble()
+                    val expCurve = Math.pow(1.08, post50).toFloat()
+                    baseHpScale = w50Base * expCurve
+                    baseSpeedScale = minOf(2.2f, 1.35f + (waveNumber - 50) * 0.015f)
+                }
+            }
+        }
 
         when (waveNumber) {
             1 -> {
-                // Wave 1: Drones on Alpha and Beta (alternating, scaled by enemyCountMultiplier)
-                val count = (12 * enemyCountMultiplier).toInt().coerceAtLeast(4)
+                // Wave 1: Drones on Alpha and Beta (alternating, scaled by countMul)
+                val count = (12 * countMul).toInt().coerceAtLeast(4)
                 for (i in 0 until count) {
                     val lane = i % 2
                     spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = if (i == 0) 300L else 750L, laneIndex = lane, hpScale = 0.9f))
@@ -126,8 +166,8 @@ object WaveGenerator {
             }
             2 -> {
                 // Wave 2: Drones and Automatons on both lanes
-                val droneCount = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
-                val soldierCount = (6 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                val droneCount = (8 * countMul).toInt().coerceAtLeast(2)
+                val soldierCount = (6 * countMul).toInt().coerceAtLeast(2)
                 for (i in 0 until droneCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 650L, laneIndex = i % 2, hpScale = baseHpScale))
                 }
@@ -137,7 +177,7 @@ object WaveGenerator {
             }
             3 -> {
                 // Wave 3: Speedsters flank on Beta, Drones on Alpha
-                val count = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
+                val count = (8 * countMul).toInt().coerceAtLeast(2)
                 for (i in 0 until count) {
                     spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 500L, laneIndex = 0, hpScale = baseHpScale))
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = 1, hpScale = baseHpScale, speedScale = 1.05f))
@@ -147,7 +187,7 @@ object WaveGenerator {
                 // Wave 4: Golems leading each lane
                 spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 400L, laneIndex = 0, hpScale = baseHpScale))
                 spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 500L, laneIndex = 1, hpScale = baseHpScale))
-                val soldierCount = (10 * enemyCountMultiplier).toInt().coerceAtLeast(4)
+                val soldierCount = (10 * countMul).toInt().coerceAtLeast(4)
                 for (i in 0 until soldierCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 700L, laneIndex = i % 2, hpScale = baseHpScale))
                 }
@@ -163,7 +203,7 @@ object WaveGenerator {
                         isBoss = true
                     )
                 )
-                val count = (8 * enemyCountMultiplier).toInt().coerceAtLeast(3)
+                val count = (8 * countMul).toInt().coerceAtLeast(3)
                 for (i in 0 until count) {
                     spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 650L, laneIndex = 1, hpScale = baseHpScale))
                 }
@@ -188,8 +228,8 @@ object WaveGenerator {
                         isBoss = true
                     )
                 )
-                val disruptorCount = (8 * enemyCountMultiplier).toInt().coerceAtLeast(2)
-                val speedsterCount = (12 * enemyCountMultiplier).toInt().coerceAtLeast(4)
+                val disruptorCount = (8 * countMul).toInt().coerceAtLeast(2)
+                val speedsterCount = (12 * countMul).toInt().coerceAtLeast(4)
                 for (i in 0 until disruptorCount) {
                     spawnList.add(EnemySpawnEntry(EnemyType.DISRUPTOR, delayMs = 700L, laneIndex = 1, hpScale = baseHpScale))
                 }
@@ -199,7 +239,7 @@ object WaveGenerator {
             }
             35 -> {
                 // Wave 35: Dual-Front Bullet Hell (Cinematic 2) - 80-unit high-speed swarm across twin lanes
-                val swarmCount = (80 * enemyCountMultiplier).toInt().coerceAtLeast(40)
+                val swarmCount = (80 * countMul).toInt().coerceAtLeast(40)
                 for (i in 0 until swarmCount) {
                     val lane = i % 2
                     val type = if (i % 3 == 0) EnemyType.SPEEDSTER else EnemyType.DRONE
@@ -216,7 +256,7 @@ object WaveGenerator {
             }
             40 -> {
                 // Wave 40: Booster Teleportation Maneuver (Cinematic 3) - 50 armored soldiers demanding cross-lane turret warping
-                val soldierCount = (50 * enemyCountMultiplier).toInt().coerceAtLeast(25)
+                val soldierCount = (50 * countMul).toInt().coerceAtLeast(25)
                 for (i in 0 until soldierCount) {
                     val lane = i % 2
                     spawnList.add(
@@ -232,7 +272,7 @@ object WaveGenerator {
             }
             42 -> {
                 // Wave 42: Prismatic Void Shatter (Cinematic 4) - 60 cluster units with Bruisers & Soldiers
-                val count = (60 * enemyCountMultiplier).toInt().coerceAtLeast(30)
+                val count = (60 * countMul).toInt().coerceAtLeast(30)
                 for (i in 0 until count) {
                     val lane = i % 2
                     val type = if (i % 5 == 0) EnemyType.BRUISER else EnemyType.SOLDIER
@@ -269,7 +309,7 @@ object WaveGenerator {
                         )
                     )
                 }
-                val escorts = (20 * enemyCountMultiplier).toInt().coerceAtLeast(10)
+                val escorts = (20 * countMul).toInt().coerceAtLeast(10)
                 for (i in 0 until escorts) {
                     spawnList.add(
                         EnemySpawnEntry(
@@ -293,7 +333,7 @@ object WaveGenerator {
                         isBoss = true
                     )
                 )
-                val droneEscort = (30 * enemyCountMultiplier).toInt().coerceAtLeast(15)
+                val droneEscort = (30 * countMul).toInt().coerceAtLeast(15)
                 for (i in 0 until droneEscort) {
                     spawnList.add(
                         EnemySpawnEntry(
@@ -308,7 +348,7 @@ object WaveGenerator {
             }
             52 -> {
                 // Wave 52: Ascension Gauntlet (Cinematic 6) - Total Evolution Siege
-                val totalEnemies = (52 * enemyCountMultiplier).toInt().coerceAtLeast(26)
+                val totalEnemies = (52 * countMul).toInt().coerceAtLeast(26)
                 for (i in 0 until totalEnemies) {
                     val type = when {
                         i % 12 == 0 -> EnemyType.ASTRAL_COLOSSUS
@@ -331,7 +371,7 @@ object WaveGenerator {
             else -> {
                 // Procedural mixed waves attacking both lanes
                 val baseCount = 16 + waveNumber * 3
-                val enemyCount = (baseCount * enemyCountMultiplier).toInt().coerceAtLeast(6)
+                val enemyCount = (baseCount * countMul).toInt().coerceAtLeast(6)
                 val canHaveBoss = isBossWave
 
                 if (canHaveBoss) {
@@ -375,12 +415,24 @@ object WaveGenerator {
         }
 
         // Calibrated early-game scrap bonus: reduces hyper-inflation
-        val bonusScrap = 35 + waveNumber * 6 + if (isBossWave) 50 else 0
+        val baseBonusScrap = 35 + waveNumber * 6 + if (isBossWave) 50 else 0
+        val bonusScrap = when (difficulty) {
+            GameDifficulty.EASY -> (baseBonusScrap * 1.25f).toInt()
+            GameDifficulty.MEDIUM -> baseBonusScrap
+            GameDifficulty.HARD -> (baseBonusScrap * 0.90f).toInt()
+            GameDifficulty.INFINITE -> baseBonusScrap
+        }
+
+        val displayModifier = if (difficulty != GameDifficulty.MEDIUM) {
+            "[${difficulty.label}] $modifier"
+        } else {
+            modifier
+        }
 
         return WaveData(
             waveNumber = waveNumber,
             name = name,
-            modifierLabel = modifier,
+            modifierLabel = displayModifier,
             totalEnemies = spawnList.size,
             spawnList = spawnList,
             completionBonusScrap = bonusScrap,

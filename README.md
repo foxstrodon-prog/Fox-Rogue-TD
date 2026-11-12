@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.014`):** [`apk/Dual-Front-TD-v0.0.1.014-debug.apk`](apk/Dual-Front-TD-v0.0.1.014-debug.apk)
+- **Latest Android APK (`v0.0.1.015`):** [`apk/Dual-Front-TD-v0.0.1.015-debug.apk`](apk/Dual-Front-TD-v0.0.1.015-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,22 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.014
+## 🕹️ What's New in Version 0.0.1.015
 
-### 🎯 Tactical HUD Evolution, 52-Tower Unique Matrix & Ergonomics
+### 🌌 The Synergy Singularity & 4-Tier Non-Visual Escalation Engine
+- **The Synergy Singularity (Board-Merge Capstone Loop):** Fill and max 100% of the buildable map grid (Tier ≥ 2 Archetype or Apex) to unlock the high-stakes `[★ SINGULARITY CAPSTONE]` squircle on your oldest anchor tower. Activating it permanently banks all active global synergies and auras into a multi-generational `BankedSynergyVault`, clearing the remaining tiles for drafting fresh generations of towers.
+- **Mid-Wave Tactical High-Alert:** Singularity activation is supported unrestricted—even during intense mid-wave engagements—via a tactical confirmation modal displaying sacrificed tower counts and exact scrap refund.
+- **20% Singularity Scrap Bounty:** Sacrificing your board refunds 20% of all invested scrap across all sacrificed towers directly into the treasury (minimum 250c), enabling instant drafting of 2–3 starter towers for Generation N+1.
+- **Persistent Multi-Generational Monument:** Banked synergies stack cumulatively generation after generation inside the single Capstone monument, creating massive compounding aura curves.
+- **4-Tier Difficulty Modes:** Choose your challenge level in the Pause Menu—`EASY` (Wave 30 milestone), `MEDIUM` (Wave 50 milestone), `HARD` (Wave 100 milestone), and `INFINITE` (endless escalation).
+- **True Exponential Escalation Math:** Hard mode scales exponentially past Wave 30 ($1.35 \times 1.045^{\text{wave}-30}$) and Infinite mode scales with an aggressive $1.08^{\text{wave}-50}$ curve past Wave 50.
+- **Asymptotic Engine Safeguards:** Clamped enemy slow factors to a minimum of 15% speed (preventing 0% freeze locks) and enforced a 50ms turret firing cooldown floor (20 shots/sec cap) to safeguard CPU performance under multi-generational synergy overclocking.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.014
 - **Standardized Rotated Bullet HUD:** All rotated indicators (Wave, HP, Scrap, Synergies, Teleportation Pads, Auto-Wave, and Begin) standardized to a sleek, uniform `28.dp x 38.dp` layout, providing generous vertical headroom that eliminates text clipping in landscape orientation.
 - **Streamlined Launch & Rotation Parity:** Streamlined Begin button with a single play arrow and vertical icon/label stacking under rotation; decoupled the Settings gear from rotation; added automatic system rotation lock (`ACCELEROMETER_ROTATION`) compliance with an on-tilt suggestion trigger.
 - **Full-Width Edge-Anchored Landscape Dropdowns:** Overhauled Synergies and Teleportation Pads menus in landscape to use full-width unconstrained dialogs (`usePlatformDefaultWidth = false`) anchored directly adjacent to the Top HUD on the active edge, providing 320–360dp width so all mechanics and 6/6 Harmonic Grid details display clearly without clipping.

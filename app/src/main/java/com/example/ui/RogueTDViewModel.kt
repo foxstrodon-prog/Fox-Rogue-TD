@@ -103,7 +103,9 @@ data class GameUIState(
     val turretSkinSlot: Int = 1,
     val mapThemeSlot: Int = 1,
     val towerVisualSkin: String = "Vector Blueprint",
-    val activeCinematic: ActiveCinematicState? = null
+    val activeCinematic: ActiveCinematicState? = null,
+    val difficulty: GameDifficulty = GameDifficulty.MEDIUM,
+    val isSingularityWarningOpen: Boolean = false
 )
 
 class RogueTDViewModel @JvmOverloads constructor(
@@ -628,7 +630,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             minLaneLength = balance.minLaneLength,
             maxLaneLength = balance.maxLaneLength
         )
-        val firstWave = WaveGenerator.generateWave(1, balance.enemiesPerRoundMultiplier)
+        val firstWave = WaveGenerator.generateWave(1, balance.enemiesPerRoundMultiplier, _uiState.value.difficulty)
 
         val initialParticles = mutableListOf<TrackParticle>()
         for (i in 0 until 12) {
@@ -937,7 +939,8 @@ class RogueTDViewModel @JvmOverloads constructor(
             val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
             val fireRate = customTConfig.fireRate * state.balanceConfig.globalTowerFireRateMultiplier * towerSpdMul * (1.0f + tileSpdBonus + synergySpdBonus + globalFireRateBonus + overchargeSpd)
-            val cooldownMs = (1000f / fireRate).toLong()
+            val calculatedCooldown = if (fireRate > 0f) (1000f / fireRate).toLong() else 1000L
+            val cooldownMs = maxOf(50L, calculatedCooldown)
 
             val towerX = tower.gridPos.x.toFloat()
             val towerY = tower.gridPos.y.toFloat()
@@ -1035,7 +1038,8 @@ class RogueTDViewModel @JvmOverloads constructor(
                         newBeams.add(LaserBeam(UUID.randomUUID().toString(), towerX, towerY, target.worldX, target.worldY, tower.type.color))
                         val slowRate = if (p0 >= 1) 0.65f else 0.50f
                         target.slowTimerMs = if (p0 >= 2) 2200L else 1400L
-                        target.slowFactor = if (p0 >= 2) 0.0f else (1f - slowRate)
+                        val rawSlow = if (p0 >= 2) 0.85f else slowRate
+                        target.slowFactor = maxOf(0.15f, 1f - rawSlow)
                         applyDamageToEnemy(target, finalDmg, tower, isCrit, armorPierce = false)
                     }
                     TowerType.TESLA -> {
@@ -1279,7 +1283,13 @@ class RogueTDViewModel @JvmOverloads constructor(
             val clearMessage = if (currentWave % 5 == 0) "★ Milestone Wave $currentWave Cleared! +$completionReward ★" else "Wave $currentWave Cleared! +$completionReward"
             addFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 1f, clearMessage, if (currentWave % 5 == 0) 0xFFFFD700 else 0xFF00F0FF)
 
-            currentWave++
+            if (currentWave >= state.difficulty.maxWave) {
+                isVictory = true
+                recordRunCompletion(isVictory = true, waves = currentWave)
+                addFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 2f, "👑 ${state.difficulty.label} VICTORY ACHIEVED! 👑", 0xFFFFD700)
+            } else {
+                currentWave++
+            }
         }
 
         val synergies = computeActiveSynergies(towers)
@@ -1378,7 +1388,11 @@ class RogueTDViewModel @JvmOverloads constructor(
 
         telemetryManager.logWaveStart(state.waveNumber)
 
-        val waveData = WaveGenerator.generateWave(state.waveNumber, state.balanceConfig.enemiesPerRoundMultiplier)
+        val waveData = WaveGenerator.generateWave(
+            state.waveNumber,
+            state.balanceConfig.enemiesPerRoundMultiplier,
+            state.difficulty
+        )
         pendingSpawns = waveData.spawnList.toMutableList()
         nextSpawnTimeMs = 300L
         waveHasStartedSpawning = false
@@ -1552,7 +1566,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             counts[key] = (counts[key] ?: 0) + 1
         }
 
-        return counts.map { (key, count) ->
+        val activeList = counts.map { (key, count) ->
             val (arch, auraIdx) = key
             val aura = if (auraIdx == 1) arch.secondaryAura else arch.primaryAura
             val emoji = when (arch.towerClass) {
@@ -1568,7 +1582,119 @@ class RogueTDViewModel @JvmOverloads constructor(
                 iconEmoji = emoji,
                 color = arch.color
             )
+        }.toMutableList()
+
+        val capstone = towers.firstOrNull { it.isCapstone }
+        if (capstone != null && capstone.synergyVault.isNotEmpty()) {
+            val bankedList = capstone.synergyVault.flatMap { it.synergies }
+            for (bs in bankedList) {
+                val existingIndex = activeList.indexOfFirst { it.auraName == bs.auraName }
+                if (existingIndex >= 0) {
+                    val existing = activeList[existingIndex]
+                    activeList[existingIndex] = existing.copy(sourceCount = existing.sourceCount + bs.sourceCount)
+                } else {
+                    activeList.add(bs)
+                }
+            }
         }
+
+        return activeList
+    }
+
+    fun canInitiateSingularity(): Boolean {
+        val state = _uiState.value
+        val level = state.level ?: return false
+        val buildableTiles = level.tiles.filter { it.isBuildable }
+        if (buildableTiles.isEmpty()) return false
+        if (state.towers.size < buildableTiles.size) return false
+        return state.towers.all { it.tier >= 2 || it.finalFormCode != null }
+    }
+
+    fun getSingularityAnchorTower(): TowerInstance? {
+        val state = _uiState.value
+        val capstone = state.towers.firstOrNull { it.isCapstone }
+        if (capstone != null) return capstone
+        return state.towers.minByOrNull { it.id }
+    }
+
+    fun requestSingularityCollapse() {
+        if (!canInitiateSingularity()) return
+        _uiState.update { it.copy(isSingularityWarningOpen = true) }
+    }
+
+    fun dismissSingularityWarning() {
+        _uiState.update { it.copy(isSingularityWarningOpen = false) }
+    }
+
+    fun confirmSingularityCollapse() {
+        val state = _uiState.value
+        if (!canInitiateSingularity()) {
+            _uiState.update { it.copy(isSingularityWarningOpen = false) }
+            return
+        }
+
+        val anchor = getSingularityAnchorTower() ?: return
+        val sacrificed = state.towers.filter { it.id != anchor.id }
+
+        // Calculate 20% scrap refund bounty
+        val totalInvested = sacrificed.sumOf { it.getInvestedScrapValue() }
+        val scrapBounty = maxOf(250, (totalInvested * 0.20f).toInt())
+
+        // Capture current generation active synergies to bank into anchor
+        val currentSynergies = computeActiveSynergies(state.towers)
+        anchor.synergyVault.add(
+            BankedSynergyVault(
+                generation = anchor.generation + 1,
+                synergies = currentSynergies
+            )
+        )
+        anchor.isCapstone = true
+        anchor.generation += 1
+
+        val newExplosions = state.explosions.toMutableList()
+        sacrificed.forEach { st ->
+            newExplosions.add(
+                ExplosionEffect(
+                    id = UUID.randomUUID().toString(),
+                    x = st.gridPos.x.toFloat(),
+                    y = st.gridPos.y.toFloat(),
+                    maxRadius = 1.6f,
+                    color = 0xFFFFD700
+                )
+            )
+        }
+
+        soundManager.play(com.example.audio.SoundFx.UPGRADE)
+
+        _uiState.update {
+            it.copy(
+                towers = listOf(anchor),
+                selectedTower = anchor,
+                scrap = it.scrap + scrapBounty,
+                totalScrapEarned = it.totalScrapEarned + scrapBounty,
+                explosions = newExplosions,
+                screenShakeIntensity = 1.0f,
+                isSingularityWarningOpen = false
+            )
+        }
+
+        addFloatingText(
+            anchor.gridPos.x.toFloat(),
+            anchor.gridPos.y.toFloat(),
+            "+$scrapBounty SCRAP BOUNTY!",
+            0xFFFFD700
+        )
+        addFloatingText(
+            anchor.gridPos.x.toFloat(),
+            anchor.gridPos.y.toFloat() - 0.7f,
+            "★ GEN ${anchor.generation} CAPSTONE VAULT ONLINE ★",
+            0xFF00F0FF
+        )
+    }
+
+    fun setGameDifficulty(difficulty: GameDifficulty) {
+        if (_uiState.value.isWaveActive) return
+        _uiState.update { it.copy(difficulty = difficulty) }
     }
 
     fun upgradeTowerToTier1(tower: TowerInstance, branchKey: String) {

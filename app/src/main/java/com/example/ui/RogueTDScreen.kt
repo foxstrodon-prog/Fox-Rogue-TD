@@ -47,6 +47,7 @@ import com.example.model.*
 import com.example.audio.*
 import com.example.ui.hud.MinimalTopHud
 import com.example.ui.hud.MinimalBottomDock
+import com.example.ui.hud.SingularityWarningDialog
 import com.example.ui.hud.BuildTowerDrawer
 import com.example.ui.hud.BranchingTowerInspector
 import com.example.ui.hud.ThreePathTowerInspector
@@ -138,6 +139,7 @@ fun RogueTDScreen(
             onUpgradeToFinalForm = { tower, code -> viewModel.upgradeTowerToFinalForm(tower, code) },
             onUpgradePath = { tower, pathIdx -> viewModel.upgradeTowerPath(tower, pathIdx) },
             onAscendTower = { viewModel.ascendTower(it) },
+            onRequestSingularity = { viewModel.requestSingularityCollapse() },
             onSellTower = { viewModel.sellSelectedTower() },
             onChangePriority = { viewModel.changeSelectedTowerPriority(it) },
             onDeselect = { viewModel.selectTile(null) },
@@ -145,6 +147,15 @@ fun RogueTDScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp)
         )
+
+        // === TACTICAL SINGULARITY WARNING MODAL ===
+        if (state.isSingularityWarningOpen) {
+            SingularityWarningDialog(
+                state = state,
+                onConfirm = { viewModel.confirmSingularityCollapse() },
+                onDismiss = { viewModel.dismissSingularityWarning() }
+            )
+        }
 
         // === ROUND 1 TACTICAL HINT (Floating non-blocking banner at top) ===
         if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
@@ -337,6 +348,7 @@ fun RogueTDScreen(
                 onPlayTowerUpgradeTestSound = { cls, slot -> viewModel.playTowerUpgradeTestSound(cls, slot) },
                 onTurretSkinSlotSelected = { viewModel.setTurretSkinSlot(it) },
                 onMapThemeSlotSelected = { viewModel.setMapThemeSlot(it) },
+                onDifficultyChanged = { viewModel.setGameDifficulty(it) },
                 onResume = { viewModel.closePauseMenu() }
             )
         }
