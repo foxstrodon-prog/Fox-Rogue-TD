@@ -54,11 +54,11 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
             FailureKind.RATE_LIMITED,
             FailureKind.TIMEOUT,
             FailureKind.SERVER_ERROR,
-            FailureKind.NETWORK_UNAVAILABLE -> {
+            FailureKind.NETWORK_UNAVAILABLE,
+            FailureKind.UNCONFIGURED -> {
               store.incrementAttempt(item.runId)
               return@withContext Result.retry()
             }
-            FailureKind.UNCONFIGURED,
             FailureKind.MALFORMED_PAYLOAD -> {
               store.removePending(item.runId)
             }

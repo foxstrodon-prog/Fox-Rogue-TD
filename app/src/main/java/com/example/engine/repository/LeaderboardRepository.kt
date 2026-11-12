@@ -5,6 +5,7 @@ import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.storage.LeaderboardStore
 import com.example.engine.worker.LeaderboardWorkScheduler
+import com.example.model.FailureKind
 import com.example.model.GlobalBoardStatus
 import com.example.model.LeaderboardResult
 import com.example.model.LeaderboardUiState
@@ -114,7 +115,13 @@ class LeaderboardRepository @JvmOverloads constructor(
         is LeaderboardResult.Failure -> {
           val cached = store.getCachedLeaderboard()
           val pendingCount = store.getPendingQueue().size
-          val status = if (cached.isNotEmpty()) GlobalBoardStatus.OFFLINE_CACHED else GlobalBoardStatus.ERROR
+          val status = if (cached.isNotEmpty()) {
+            GlobalBoardStatus.OFFLINE_CACHED
+          } else if (result.kind == FailureKind.UNCONFIGURED) {
+            GlobalBoardStatus.NOT_CONFIGURED
+          } else {
+            GlobalBoardStatus.ERROR
+          }
           _boardState.update {
             it.copy(
               entries = if (cached.isNotEmpty()) cached else it.entries,

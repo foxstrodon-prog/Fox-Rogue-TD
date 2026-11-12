@@ -83,7 +83,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         when (response.code) {
           200, 201 -> LeaderboardResult.Success(Unit)
           409 -> LeaderboardResult.Success(Unit) // Idempotent: already exists
-          400, 403 -> {
+          400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
             val (kind, msg) = parseFirestoreError(response.code, errBody)
             LeaderboardResult.Failure(kind, msg)
@@ -174,7 +174,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
             val results = parseQueryResults(responseBody)
             LeaderboardResult.Success(results)
           }
-          400, 403 -> {
+          400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
             val (kind, msg) = parseFirestoreError(response.code, errBody)
             LeaderboardResult.Failure(kind, msg)
@@ -208,10 +208,19 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
 
   private fun parseFirestoreError(code: Int, body: String): Pair<FailureKind, String> {
     if (body.isBlank()) {
-      return FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+      return if (code == 404) {
+        FailureKind.UNCONFIGURED to "Cloud Firestore database not found in Firebase project ($projectId). Please create the (default) database in Firebase Console. Scores are cached locally."
+      } else {
+        FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+      }
     }
     return try {
-      val json = JSONObject(body)
+      val trimmed = body.trim()
+      val json = if (trimmed.startsWith("[")) {
+        JSONArray(trimmed).optJSONObject(0) ?: JSONObject()
+      } else {
+        JSONObject(trimmed)
+      }
       val err = json.optJSONObject("error")
       val msg = err?.optString("message", "") ?: ""
       val status = err?.optString("status", "") ?: ""
@@ -225,21 +234,28 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         }
       }
       when {
+        code == 404 || status == "NOT_FOUND" || msg.contains("does not exist", ignoreCase = true) || msg.contains("add a Cloud Datastore or Cloud Firestore database", ignoreCase = true) -> {
+          FailureKind.UNCONFIGURED to "Cloud Firestore database not created in Firebase project ($projectId). Please visit Firebase Console -> Firestore Database and click 'Create database'. Scores are safely cached locally."
+        }
         reason == "SERVICE_DISABLED" || msg.contains("Cloud Firestore API has not been used", ignoreCase = true) || msg.contains("is disabled", ignoreCase = true) -> {
-          FailureKind.SECURITY_REJECTED to "Cloud Firestore API not enabled in Firebase project ($projectId). Scores cached in offline queue."
+          FailureKind.UNCONFIGURED to "Cloud Firestore API not enabled in Firebase project ($projectId). Scores cached in offline queue."
         }
         msg.contains("API key not valid", ignoreCase = true) || reason == "API_KEY_INVALID" -> {
-          FailureKind.SECURITY_REJECTED to "Firebase API Key invalid or expired ($code). Scores cached in offline queue."
+          FailureKind.UNCONFIGURED to "Firebase API Key invalid or expired ($code). Scores cached in offline queue."
         }
         status == "PERMISSION_DENIED" -> {
-          FailureKind.SECURITY_REJECTED to "Firestore Security Rules denied access. Scores cached in offline queue."
+          FailureKind.SECURITY_REJECTED to "Firestore Security Rules denied access. Ensure Anonymous Auth is enabled in Firebase Console. Scores cached in offline queue."
         }
         else -> {
           FailureKind.SECURITY_REJECTED to (if (msg.isNotBlank()) msg else "Request rejected ($code)")
         }
       }
     } catch (_: Exception) {
-      FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+      if (code == 404) {
+        FailureKind.UNCONFIGURED to "Cloud Firestore database not created in Firebase project ($projectId). Please create the (default) database in Firebase Console."
+      } else {
+        FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+      }
     }
   }
 

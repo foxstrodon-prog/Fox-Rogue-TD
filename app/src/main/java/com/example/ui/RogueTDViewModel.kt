@@ -188,8 +188,8 @@ class RogueTDViewModel @JvmOverloads constructor(
                         leaderboardStatus = boardState.status,
                         leaderboardErrorMessage = when (boardState.status) {
                             GlobalBoardStatus.ERROR -> boardState.failureKind?.name ?: "Connection error"
-                            GlobalBoardStatus.OFFLINE_CACHED -> if (boardState.entries.isEmpty()) "Connection failed. Please check network." else null
-                            GlobalBoardStatus.NOT_CONFIGURED -> "Local Only (Global Board Unconfigured)"
+                            GlobalBoardStatus.OFFLINE_CACHED -> if (boardState.entries.isEmpty()) "Connection failed. Scores cached locally." else null
+                            GlobalBoardStatus.NOT_CONFIGURED -> "Database Pending: Enable (default) Firestore in Firebase Console"
                             else -> null
                         }
                     )
