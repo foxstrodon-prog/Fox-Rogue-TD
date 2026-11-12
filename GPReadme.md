@@ -4,7 +4,19 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.012
+### 🚀 What's New in Version 0.0.1.013
+
+🏆 **Operational Global Leaderboard & Dev-Tuning Separation**
+- **Dev-Tuning Disqualification Resolution:** Decoupled volume levels, mute state, music track preferences, turret skins, and visual themes from dev-tuning detection via `isGameplayModified()`. Honest gameplay is never disqualified from global rankings due to audio or cosmetic customizations.
+- **Cold-Start Network Resiliency:** Opening the telemetry modal or in-game pause leaderboard directly bypasses query throttles (`forceRefresh = true`) and auto-retries initial network socket handshakes during cold boot.
+- **Verified Uplink Empty-State UX:** Cleanly differentiated between connected empty scoreboards (`GLOBAL UPLINK VERIFIED • CONNECTED`) and actual network drops, providing an instant `"Refresh Rankings"` affordance.
+- **Google Identity Toolkit REST Fallback:** Hardened `AuthRepository` with an automated REST fallback for Anonymous Authentication, ensuring valid JWT tokens on all Android devices and emulators.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.012
 
 🏆 **Canonical Leaderboards, Dual-Path Security & Observability**
 - **Canonical Routing & Cross-Path Failover:** Automatic path normalization guarantees that all player runs submit and query through canonical `/leaderboards` with automated cross-path failover to `/leaderboard`.

@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.012`):** [`apk/Dual-Front-TD-v0.0.1.012-debug.apk`](apk/Dual-Front-TD-v0.0.1.012-debug.apk)
+- **Latest Android APK (`v0.0.1.013`):** [`apk/Dual-Front-TD-v0.0.1.013-debug.apk`](apk/Dual-Front-TD-v0.0.1.013-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,19 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.012
+## 🕹️ What's New in Version 0.0.1.013
 
-### 🏆 Canonical Leaderboards, Dual-Path Security & Observability
+### 🏆 Operational Global Leaderboard & Dev-Tuning Separation
+- **Dev-Tuning Disqualification Resolution:** Completely disentangled audio volumes, mute toggles, music track selections, turret skins, and visual themes from dev-tuning detection via `isGameplayModified()`. Legitimate player runs are never disqualified from global rankings by player preferences or cosmetic customizations.
+- **Cold-Start Network Resiliency:** Opening the telemetry modal or in-game pause leaderboard directly bypasses query throttles (`forceRefresh = true`) and auto-retries initial network socket handshakes during cold boot.
+- **Verified Uplink Empty-State UX:** Cleanly differentiated between connected empty scoreboards (`GLOBAL UPLINK VERIFIED • CONNECTED`) and actual network drops, providing an instant `"Refresh Rankings"` affordance.
+- **Google Identity Toolkit REST Fallback:** Hardened `AuthRepository` with an automated REST fallback for Anonymous Authentication, ensuring valid JWT tokens on all Android devices and emulators.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.012
 - **Canonical Collection Normalization & Fail-Safe Fallback:** All client requests are automatically sanitized and normalized to canonical `/leaderboards`, with seamless cross-path failover to `/leaderboard` to ensure 100% submission and query reliability.
 - **Dual-Path Security Rules Alignment:** Cloud security rules strictly authorize and validate both `/leaderboards/{runId}` and `/leaderboard/{scoreId}` with identical field schemas, eliminating HTTP 403 `PERMISSION_DENIED` errors.
 - **Structured Logcat Telemetry:** Integrated verbose, structured diagnostic logging across `[FirestoreLeaderboardApi]`, `[LeaderboardRepository]`, and `[ScoreSubmissionWorker]` for full real-time device observability.

@@ -740,9 +740,41 @@ fun TelemetryLeaderboardDialog(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.padding(16.dp)
                                     ) {
+                                        val isOnline = state.leaderboardStatus == GlobalBoardStatus.ONLINE
+                                        if (isOnline) {
+                                            Surface(
+                                                color = Color(0xFF06331E),
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D).copy(alpha = 0.5f)),
+                                                modifier = Modifier.padding(bottom = 12.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.CheckCircle,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFF00FF9D),
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "GLOBAL UPLINK VERIFIED • CONNECTED",
+                                                        color = Color(0xFF00FF9D),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Text(
-                                            text = state.leaderboardErrorMessage ?: "No online leaderboard scores yet.\nDeploy and survive waves to earn global ranking!",
-                                            color = Color(0xFF64748B),
+                                            text = if (isOnline) {
+                                                "Leaderboard uplink is live!\nBe the first Commander to record a verified high score."
+                                            } else {
+                                                state.leaderboardErrorMessage ?: "Connection standby. Tap Refresh to connect."
+                                            },
+                                            color = if (isOnline) Color(0xFF94A3B8) else Color(0xFFFF2A55),
                                             fontSize = 11.sp,
                                             textAlign = TextAlign.Center
                                         )
@@ -760,7 +792,7 @@ fun TelemetryLeaderboardDialog(
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Retry Uplink",
+                                                text = if (isOnline) "Refresh Rankings" else "Retry Uplink",
                                                 color = Color(0xFF00F0FF),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
@@ -1449,7 +1481,7 @@ fun RunSummaryDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Online Leaderboard Submission Status Badge
-                val isDevTuned = state.lastRunRecord?.isDevTuned == true || state.balanceConfig != DevBalanceConfig()
+                val isDevTuned = state.lastRunRecord?.isDevTuned == true || state.balanceConfig.isGameplayModified()
                 if (isDevTuned) {
                     Surface(
                         color = Color(0xFFEAB308).copy(alpha = 0.15f),

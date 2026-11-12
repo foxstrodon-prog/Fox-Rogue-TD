@@ -93,7 +93,14 @@ class LeaderboardRepository @JvmOverloads constructor(
         )
       }
 
-      val result = api.fetchTopScores()
+      var result = api.fetchTopScores()
+      if (result is LeaderboardResult.Failure &&
+          (result.kind == FailureKind.NETWORK_UNAVAILABLE || result.kind == FailureKind.TIMEOUT) &&
+          _boardState.value.entries.isEmpty()) {
+        Log.d(TAG, "[LeaderboardRepository] Cold-start network handshake pending, retrying in 1500ms...")
+        kotlinx.coroutines.delay(1500L)
+        result = api.fetchTopScores()
+      }
       when (result) {
         is LeaderboardResult.Success -> {
           lastFetchElapsedRealtime = SystemClock.elapsedRealtime()

@@ -282,7 +282,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun toggleTelemetryView(open: Boolean) {
         if (open) {
             refreshTelemetry()
-            fetchOnlineLeaderboard()
+            fetchOnlineLeaderboard(forceRefresh = true)
         }
         _uiState.update { it.copy(isTelemetryOpen = open) }
     }
@@ -294,7 +294,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun openTelemetryFromPauseMenu() {
         refreshTelemetry()
-        fetchOnlineLeaderboard()
+        fetchOnlineLeaderboard(forceRefresh = true)
         _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true) }
     }
 
@@ -381,7 +381,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun updateBalanceConfig(newConfig: DevBalanceConfig) {
-        if (newConfig != DevBalanceConfig()) {
+        if (newConfig.isGameplayModified()) {
             devTunedThisRun = true
         }
         telemetryManager.saveBalanceConfig(newConfig)
@@ -1726,7 +1726,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
         val mvp = state.towers.maxByOrNull { it.totalDamage }?.let { it.archetype?.displayName ?: it.type.displayName } ?: "Vulcan Minigun"
         val playerName = telemetryManager.getActivePlayerName()
-        val isDev = devTunedThisRun || state.balanceConfig != DevBalanceConfig()
+        val isDev = devTunedThisRun || state.balanceConfig.isGameplayModified()
         val record = RunRecord(
             id = UUID.randomUUID().toString(),
             seed = state.seed,

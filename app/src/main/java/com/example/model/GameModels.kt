@@ -1901,10 +1901,61 @@ data class DevBalanceConfig(
     }
 
     /**
+     * True when gameplay balance sliders (scrap, multipliers, tower/enemy overrides, lane lengths)
+     * differ from standard baseline. Audio, volume, music track, skins, and cosmetic themes
+     * do NOT constitute gameplay modifications and will never disqualify a run.
+     */
+    fun isGameplayModified(): Boolean {
+        val default = DevBalanceConfig()
+        if (startingScrap != default.startingScrap) return true
+        if (globalIncomeMultiplier != default.globalIncomeMultiplier) return true
+        if (globalTowerFireRateMultiplier != default.globalTowerFireRateMultiplier) return true
+        if (enemyHpMultiplier != default.enemyHpMultiplier) return true
+        if (enemySpeedMultiplier != default.enemySpeedMultiplier) return true
+        if (kineticDamageMultiplier != default.kineticDamageMultiplier) return true
+        if (elementalDamageMultiplier != default.elementalDamageMultiplier) return true
+        if (heavyDamageMultiplier != default.heavyDamageMultiplier) return true
+        if (waveBonusMultiplier != default.waveBonusMultiplier) return true
+        if (buildCostMultiplier != default.buildCostMultiplier) return true
+        if (minLaneLength != default.minLaneLength) return true
+        if (maxLaneLength != default.maxLaneLength) return true
+        if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) return true
+
+        if (customTowerConfigs.isNotEmpty()) {
+            val allDescriptors = getAll39TowerDescriptors()
+            for (desc in allDescriptors) {
+                val curr = getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
+                val defTower = default.getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
+                if (curr.cost != defTower.cost ||
+                    Math.abs(curr.damage - defTower.damage) > 0.01f ||
+                    Math.abs(curr.fireRate - defTower.fireRate) > 0.01f ||
+                    Math.abs(curr.range - defTower.range) > 0.01f ||
+                    Math.abs(curr.specialEffectValue - defTower.specialEffectValue) > 0.01f) {
+                    return true
+                }
+            }
+        }
+
+        if (customEnemyConfigs.isNotEmpty()) {
+            for (type in EnemyType.values()) {
+                val curr = getEnemyBalance(type)
+                if (curr.hp != type.baseHp ||
+                    curr.speed != type.baseSpeed ||
+                    curr.armor != type.baseArmor ||
+                    curr.scrapValue != type.scrapValue) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /**
      * True when every balance slider / per-unit override matches the shipped baseline.
      * Anything else marks a run as DEV/SANDBOX (isDevTuned) and excludes it from ranked submissions.
      */
-    val isBaseline: Boolean get() = exportDiffJson().trim() == "{}"
+    val isBaseline: Boolean get() = !isGameplayModified()
 
     /**
      * Generates a strict delta / diff-only JSON string containing ONLY values

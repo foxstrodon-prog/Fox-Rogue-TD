@@ -502,9 +502,41 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 012`() {
-    assertEquals("0.0.1.012", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(33, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 013`() {
+    assertEquals("0.0.1.013", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(34, com.example.BuildConfig.VERSION_CODE)
+  }
+
+  @Test
+  fun `verify DevBalanceConfig isGameplayModified distinguishes audio cosmetic settings from gameplay cheats`() {
+    val default = com.example.model.DevBalanceConfig()
+    assertFalse("Default baseline must not be gameplay modified", default.isGameplayModified())
+
+    // Modifying audio and cosmetic settings must NOT flag gameplay modified
+    val cosmeticOnly = default.copy(
+      masterVolume = 0.2f,
+      musicVolume = 0.9f,
+      sfxVolume = 0.5f,
+      upgradeVolume = 0.1f,
+      isMuted = true,
+      musicTrackName = "CYBER_GRID",
+      kineticSfxSlot = 2,
+      elementalSfxSlot = 3,
+      siegeSfxSlot = 4,
+      turretSkinSlot = 2,
+      mapThemeSlot = 3
+    )
+    assertFalse("Cosmetics and audio changes must never disqualify player from leaderboard", cosmeticOnly.isGameplayModified())
+
+    // Modifying true gameplay values must flag gameplay modified
+    val cheatScrap = default.copy(startingScrap = 9999)
+    assertTrue("Modified starting scrap must be flagged", cheatScrap.isGameplayModified())
+
+    val cheatHp = default.copy(enemyHpMultiplier = 0.2f)
+    assertTrue("Modified enemy HP must be flagged", cheatHp.isGameplayModified())
+
+    val cheatFireRate = default.copy(globalTowerFireRateMultiplier = 3.0f)
+    assertTrue("Modified tower fire rate must be flagged", cheatFireRate.isGameplayModified())
   }
 
   @Test
