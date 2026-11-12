@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.005`):** [`apk/Dual-Front-TD-v0.0.1.005-debug.apk`](apk/Dual-Front-TD-v0.0.1.005-debug.apk)
+- **Latest Android APK (`v0.0.1.007`):** [`apk/Dual-Front-TD-v0.0.1.007-debug.apk`](apk/Dual-Front-TD-v0.0.1.007-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,15 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.004
+## 🕹️ What's New in Version 0.0.1.007
+
+### 🎮 Tactical Ergonomics & UI Rotation Fluidity
+- **Booster Pad Dropdown Capsule:** Converted the wide booster pad sub-strip into an interactive dropdown capsule (`⚡ X/6`) alongside aura synergies detailing scrap boost bonuses, the 6/6 Harmonic Grid buff (+20% Tower Damage / +25% Scrap across all lanes), and dual-thumb repositioning controls.
+- **Dynamic Orientation Stacking:** In portrait mode, Core HP and Scrap render inline horizontally to minimize top HUD thickness. In landscape rotation, Core HP, Scrap, and Auto-Wave dynamically stack vertically into thin pills to preserve horizontal track clearance.
+- **Side-by-Side Target Priority & Sell Squircles:** In portrait, Target Priority and Sell buttons stack vertically in a 44dp column to match squircle height (reducing dock width to 296dp). In landscape rotation, they deploy side-by-side.
+- **Tier 0 Compound Upgrade Naming:** Vector upgrade buttons now use unified compound naming and archetype theme colors (`Kinetic Offense`, `Void Defense`, `Siege Support`, `Stellar Offense`).
+- **Clean Settings Gear:** Removed the opaque container box behind the settings gear cog for a clean borderless floating icon.
+- **Tactical Map Expansion (+2 Rows: 10x18):** Expanded battlefield map height by 2 rows with synchronized spatial hash indexing for deeper choke-point positioning.
 
 ### 🚀 CI/CD Pipeline & GitHub Actions Hardening
 - **Node.js 24 & Action Modernization:** Migrated `actions/setup-java` to `@v5` and `gradle/actions/setup-gradle` to `@v4` (targeting native Node.js 24 runners and resolving upstream Node 20 deprecation notices).
@@ -106,5 +114,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.005-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.007-debug.apk`)
 - Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)

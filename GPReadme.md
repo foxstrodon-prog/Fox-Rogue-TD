@@ -4,20 +4,23 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.004
+### 🚀 What's New in Version 0.0.1.007
 
-⚙️ **Build System Hardening & Modernized CI Pipeline**
-- Upgraded the automated build and release pipeline to native Node 24 actions (`actions/setup-java@v5` and `gradle/actions/setup-gradle@v4`).
-- Added build runner pinning to `ubuntu-24.04` LTS to ensure deterministic builds.
-- Implemented workflow concurrency groups and idempotent release uploading to eliminate duplicate release collisions.
-
-🎬 **In-Game Feature Showcase Mode Polish**
-- In-game feature cinematics now feature automated gameplay demonstrations (targeting reticles, booster pad swaps, and squircle upgrade inspections).
-- Added full screen touch locking during showcase playback to guarantee smooth, uninterruptible presentations.
+🎮 **Tactical Ergonomics & Dynamic UI Rotation**
+- **Booster Pad Dropdown Capsule:** Replaced the wide text sub-strip with an interactive dropdown capsule (`⚡ X/6`) alongside aura synergies explaining scrap boost bonuses, the 6/6 Harmonic Grid buff (+20% Tower Damage / +25% Scrap), and dual-thumb repositioning controls.
+- **Dynamic Orientation Stacking:** In portrait, Core HP and Scrap render inline horizontally for minimal vertical HUD height. In landscape rotation, Core HP, Scrap, and Auto-Wave dynamically stack vertically into thin pills.
+- **Side-by-Side Target Priority & Sell Buttons:** In portrait, Target Priority and Sell buttons stack vertically in a 44dp column to match squircle height (reducing dock width to 296dp). In landscape rotation, they deploy side-by-side.
+- **Tier 0 Compound Upgrade Naming:** Vector upgrade buttons now use unified compound naming and archetype theme colors (`Kinetic Offense`, `Void Defense`, `Siege Support`, `Stellar Offense`).
+- **Clean Settings Gear:** Borderless floating gear cog icon integrated cleanly into the top HUD.
+- **Tactical Map Expansion (+2 Rows: 10x18):** Expanded battlefield map height by 2 rows with synchronized spatial hash indexing for deeper choke-point positioning.
 
 ---
 
 ### 📦 Recent Patch History
+
+#### Version 0.0.1.004
+- **Build System Hardening:** Upgraded the automated build and release pipeline to native Node 24 actions and Ubuntu 24.04 LTS runners.
+- **Showcase Polish:** In-game cinematics now feature automated gameplay demonstrations with full touch lock during playback.
 
 #### Version 0.0.1.003
 - **True Screen Orientation & Smooth Counter-Rotation:** Canvas coordinates remain fixed while top bullet HUD, floating squircle buttons, and combat damage numbers counter-rotate cleanly across portrait and landscape.

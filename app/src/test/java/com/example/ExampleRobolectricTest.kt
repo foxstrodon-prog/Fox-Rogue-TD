@@ -502,9 +502,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 006`() {
-    assertEquals("0.0.1.006", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(27, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 007`() {
+    assertEquals("0.0.1.007", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(28, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
