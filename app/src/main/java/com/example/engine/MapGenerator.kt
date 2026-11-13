@@ -4,18 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.example.model.*
 import kotlin.random.Random
 
-data class GeneratedLevel(
-    val seed: Long,
-    val width: Int,
-    val height: Int,
-    val biome: Biome,
-    val tiles: List<MapTile>,
-    val laneAlpha: List<GridPos>,
-    val laneBeta: List<GridPos>,
-    val intersectionPoints: Set<GridPos>
-) {
-    val path: List<GridPos> get() = laneAlpha
-}
+typealias GeneratedLevel = com.example.model.GeneratedLevel
 
 object MapGenerator {
     const val DEFAULT_WIDTH = 10

@@ -356,6 +356,41 @@ object TowerUpgradeManager {
     fun getAscensionCost(tower: TowerInstance): Int {
         return (tower.type.baseCost * 2.0f).toInt()
     }
+
+    fun computeActiveSynergies(towers: List<TowerInstance>): List<GlobalAuraSynergy> {
+        val counts = LinkedHashMap<Pair<TowerArchetype, Int>, Int>()
+        for (i in towers.indices) {
+            val t = towers[i]
+            if (t.isTier3) {
+                val arch = t.archetype ?: mapTypeToArchetype(t.type)
+                val key = arch to t.selectedAuraIndex
+                counts[key] = (counts[key] ?: 0) + 1
+            }
+        }
+        val activeList = counts.map { (key, count) ->
+            val (arch, auraIdx) = key
+            val aura = if (auraIdx == 1) arch.secondaryAura else arch.primaryAura
+            val emoji = when (arch.towerClass) {
+                TowerClass.KINETIC_BALLISTIC -> "⚔️"
+                TowerClass.ELEMENTAL_VOID -> "✨"
+                TowerClass.HEAVY_SIEGE -> "💥"
+                TowerClass.STELLAR_COSMIC -> "★"
+            }
+            GlobalAuraSynergy(aura.name, aura.description, count, emoji, arch.color)
+        }.toMutableList()
+
+        val capstone = towers.firstOrNull { it.isCapstone }
+        if (capstone != null && capstone.synergyVault.isNotEmpty()) {
+            for (vault in capstone.synergyVault) {
+                for (bs in vault.synergies) {
+                    val idx = activeList.indexOfFirst { it.auraName == bs.auraName }
+                    if (idx >= 0) activeList[idx] = activeList[idx].copy(sourceCount = activeList[idx].sourceCount + bs.sourceCount)
+                    else activeList.add(bs)
+                }
+            }
+        }
+        return activeList
+    }
 }
 
 val TowerType.ascensionGlobalBuff: String

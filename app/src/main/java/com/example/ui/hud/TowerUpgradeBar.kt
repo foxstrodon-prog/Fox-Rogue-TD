@@ -1,6 +1,5 @@
 package com.example.ui.hud
 
-import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,16 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Diamond
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,26 +23,21 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.example.engine.TowerUpgradeManager
 import com.example.model.*
 import com.example.ui.GameUIState
+import com.example.ui.hud.components.TargetPriorityMenu
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /**
  * Procedural Vector Tower Class Silhouette.
- * Kinetic Ballistic: Dual-barrel rotating Gatling silhouette / Circle emblem.
- * Elemental Void: Prismatic Crystal / Triangle beam emitter emblem.
- * Heavy Siege: Armored Cupola Mortar / Square blast box emblem.
- * Stellar Cosmic: 8-point Radiant Star / Celestial Corona emblem.
+ * Uses cached Skia Path (remember { Path() }) for zero per-frame allocations (Task D-03).
  */
 @Composable
 fun TowerClassSilhouette(
@@ -59,6 +45,8 @@ fun TowerClassSilhouette(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val cachedPath = remember { Path() }
+
     Canvas(modifier = modifier.size(15.dp)) {
         val w = size.width
         val h = size.height
@@ -67,7 +55,6 @@ fun TowerClassSilhouette(
 
         when (towerClass) {
             TowerClass.KINETIC_BALLISTIC -> {
-                // Dual-barrel rotating Gatling silhouette / Circle chassis
                 drawCircle(
                     color = color,
                     radius = w * 0.44f,
@@ -96,15 +83,13 @@ fun TowerClassSilhouette(
                 )
             }
             TowerClass.ELEMENTAL_VOID -> {
-                // Prismatic Crystal / Triangle beam emitter emblem
-                val path = Path().apply {
-                    moveTo(cx, cy - h * 0.45f)
-                    lineTo(cx + w * 0.42f, cy + h * 0.38f)
-                    lineTo(cx - w * 0.42f, cy + h * 0.38f)
-                    close()
-                }
+                cachedPath.reset()
+                cachedPath.moveTo(cx, cy - h * 0.45f)
+                cachedPath.lineTo(cx + w * 0.42f, cy + h * 0.38f)
+                cachedPath.lineTo(cx - w * 0.42f, cy + h * 0.38f)
+                cachedPath.close()
                 drawPath(
-                    path = path,
+                    path = cachedPath,
                     color = color,
                     style = Stroke(width = 1.6f)
                 )
@@ -121,7 +106,6 @@ fun TowerClassSilhouette(
                 )
             }
             TowerClass.HEAVY_SIEGE -> {
-                // Armored Cupola Mortar / Square blast box emblem
                 val pad = w * 0.12f
                 drawRoundRect(
                     color = color,
@@ -142,8 +126,7 @@ fun TowerClassSilhouette(
                 )
             }
             TowerClass.STELLAR_COSMIC -> {
-                // 8-point Radiant Star / Celestial Corona emblem
-                val starPath = Path()
+                cachedPath.reset()
                 val outerR = w * 0.46f
                 val innerR = w * 0.18f
                 val numPoints = 8
@@ -152,10 +135,10 @@ fun TowerClassSilhouette(
                     val r = if (i % 2 == 0) outerR else innerR
                     val x = cx + r * kotlin.math.cos(angle)
                     val y = cy + r * kotlin.math.sin(angle)
-                    if (i == 0) starPath.moveTo(x, y) else starPath.lineTo(x, y)
+                    if (i == 0) cachedPath.moveTo(x, y) else cachedPath.lineTo(x, y)
                 }
-                starPath.close()
-                drawPath(path = starPath, color = color)
+                cachedPath.close()
+                drawPath(path = cachedPath, color = color)
                 drawCircle(
                     color = Color.White,
                     radius = w * 0.10f,
@@ -168,9 +151,6 @@ fun TowerClassSilhouette(
 
 /**
  * Floating Squircle Action Button (Track 2 / v0.0.1.005 Tactical Ergonomics).
- * Scaled squircle (CornerSize 14dp) with glowing neon border matching unique color,
- * procedural tower silhouette / glyph, 2-line stacked title & subtitle,
- * scrap currency coin badge ("🪙 180c"), and alert RED cost highlighting when unaffordable.
  */
 @Composable
 fun SquircleActionButton(
@@ -196,7 +176,6 @@ fun SquircleActionButton(
     val scale = remember { Animatable(1f) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Resolve 2-line stacked typography if title/subtitle or legacy name was provided
     val (resolvedTitle, resolvedSubtitle) = when {
         title.isNotEmpty() -> title to subtitle
         name.isNotEmpty() -> {
@@ -206,7 +185,6 @@ fun SquircleActionButton(
         else -> "" to subtitle
     }
 
-    // Resolve price text
     val displayPrice = when {
         cost != null -> "${cost}c"
         badgeText.isNotEmpty() -> badgeText
@@ -226,15 +204,15 @@ fun SquircleActionButton(
                 when {
                     !isUnlocked -> Color(0xFF090D16).copy(alpha = 0.88f)
                     canAfford -> Color(0xFF0F172A).copy(alpha = 0.95f)
-                    else -> Color(0xFF080C14).copy(alpha = 0.92f) // Darker container when unaffordable
+                    else -> Color(0xFF080C14).copy(alpha = 0.92f)
                 }
             )
             .border(
                 1.5.dp,
                 when {
                     !isUnlocked -> Color(0xFF334155).copy(alpha = 0.6f)
-                    canAfford -> themeColor // Glowing neon border strictly matching unique theme color
-                    else -> themeColor.copy(alpha = 0.35f) // Dimmed theme border when unaffordable
+                    canAfford -> themeColor
+                    else -> themeColor.copy(alpha = 0.35f)
                 },
                 RoundedCornerShape(14.dp)
             )
@@ -253,7 +231,6 @@ fun SquircleActionButton(
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxSize()
         ) {
-            // Header Row: Tower Class Silhouette on Left (if present), 🪙 Cost / LOCK on Right
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = if (iconComposable != null) Arrangement.SpaceBetween else Arrangement.End,
@@ -265,7 +242,6 @@ fun SquircleActionButton(
                     }
                 }
 
-                // Price / Lock Badge
                 if (!isUnlocked) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "🔒", fontSize = 7.sp)
@@ -280,14 +256,11 @@ fun SquircleActionButton(
                     }
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "🪙",
-                            fontSize = 7.5.sp
-                        )
+                        Text(text = "🪙", fontSize = 7.5.sp)
                         Spacer(modifier = Modifier.width(1.dp))
                         Text(
                             text = displayPrice,
-                            color = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55), // VIVID ALERT RED when unaffordable!
+                            color = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
                             fontSize = 7.5.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
@@ -296,13 +269,10 @@ fun SquircleActionButton(
                 }
             }
 
-            // 2-Line Centered Name Labels with Unique Color Accent (Tight Cohesive Spacing, Zero Vertical Gap)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                modifier = Modifier.fillMaxWidth().weight(1f)
             ) {
                 Text(
                     text = resolvedTitle,
@@ -327,7 +297,6 @@ fun SquircleActionButton(
                 }
             }
 
-            // 2 Short, Sweet Bullet Points
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(0.5.dp)
@@ -359,7 +328,6 @@ fun SquircleActionButton(
 
 /**
  * Floating Squircle Upgrade Action Bar (Track 2 / v0.0.1.005).
- * Sleek row of floating squircle action buttons positioned 32dp above gesture bar.
  */
 @Composable
 fun FloatingSquircleUpgradeBar(
@@ -378,7 +346,6 @@ fun FloatingSquircleUpgradeBar(
     val isActionActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.type == TileType.EMPTY)
     if (!isActionActive) return
 
-    // Shortest-path counter-rotation: at 270 deg (phone tilted right), rotate +90 deg instead of -270 deg
     val counterAngle = when (((state.deviceRotationAngle % 360f + 360f) % 360f).toInt()) {
         90 -> -90f
         180 -> 180f
@@ -391,7 +358,6 @@ fun FloatingSquircleUpgradeBar(
         label = "squircle_counter_rotation"
     )
 
-    // Floating free without an obstructive background menu card sheet
     Row(
         modifier = modifier
             .padding(bottom = 32.dp)
@@ -400,7 +366,6 @@ fun FloatingSquircleUpgradeBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         when {
-            // 1. PLACED TOWER SELECTED (Evaluated FIRST so upgrade buttons always appear on placed towers)
             state.selectedTower != null -> {
                 val tower = state.selectedTower
                 val sellValue = tower.getSellValue()
@@ -415,7 +380,6 @@ fun FloatingSquircleUpgradeBar(
 
                 when (tower.tier) {
                     0 -> {
-                        // 3 Vectors: Offense, Defense, Support (Unique 52-Tower Vector Hexes & Pre-0.0.1.002 Bullets)
                         val vectors = TowerUpgradeManager.getTier1Vectors()
                         val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
                         val canAfford = state.scrap >= cost
@@ -460,7 +424,6 @@ fun FloatingSquircleUpgradeBar(
                     }
 
                     1 -> {
-                        // 3 Archetypes for this class & vector (2 lines <= 9 chars, Pre-0.0.1.002 evocative bullets & unique hexes)
                         val vec = tower.vector ?: TowerVector.OFFENSIVE
                         val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
                         val itemWidth = 84.dp
@@ -469,84 +432,7 @@ fun FloatingSquircleUpgradeBar(
                         archetypes.forEach { arch ->
                             val cost = TowerUpgradeManager.getTier2Cost(arch)
                             val canAfford = state.scrap >= cost
-
-                            val (archTitle, archSub) = when (arch) {
-                                TowerArchetype.VULCAN_GATLING -> "Vulcan" to "Gatling"
-                                TowerArchetype.FLAK_CANNON -> "Twin Flak" to "Cannon"
-                                TowerArchetype.SNIPER_SENTRY -> "Sniper" to "Sentry"
-                                TowerArchetype.BARRICADE_TURRET -> "Barricade" to "Turret"
-                                TowerArchetype.MINE_DISPENSER -> "Mine" to "Dispenser"
-                                TowerArchetype.RIOT_DISRUPTOR -> "Riot" to "Disruptor"
-                                TowerArchetype.RADAR_SENTRY -> "Radar" to "Sentry"
-                                TowerArchetype.AMMO_SUPPLY_DEPOT -> "Ammo" to "Depot"
-                                TowerArchetype.SALVAGE_CRUSHER -> "Salvage" to "Crusher"
-                                TowerArchetype.SOLAR_DEATH_RAY -> "Solar" to "Death Ray"
-                                TowerArchetype.INFERNO_CANNON -> "Inferno" to "Emitter"
-                                TowerArchetype.PLASMA_PULSAR -> "Plasma" to "Pulsar"
-                                TowerArchetype.FROST_SPIRE -> "Frost" to "Spire"
-                                TowerArchetype.TESLA_STORMCOIL -> "Tesla" to "Stormcoil"
-                                TowerArchetype.GRAVITON_VOID -> "Graviton" to "Void"
-                                TowerArchetype.DYNAMO_CONDUIT -> "Dynamo" to "Conduit"
-                                TowerArchetype.QUANTUM_BEACON -> "Quantum" to "Beacon"
-                                TowerArchetype.DARK_MATTER_FORGE -> "Dark" to "Matter"
-                                TowerArchetype.HELLFIRE_MORTAR -> "Hellfire" to "Mortar"
-                                TowerArchetype.TITAN_RAILGUN -> "Titan" to "Railgun"
-                                TowerArchetype.ORBITAL_STRIKE_RELAY -> "Orbital" to "Relay"
-                                TowerArchetype.EARTHQUAKE_STAMPER -> "Seismic" to "Slammer"
-                                TowerArchetype.CRYO_FORTRESS -> "Cryo" to "Fortress"
-                                TowerArchetype.SHOCKWAVE_BASTION -> "Shockwave" to "Bastion"
-                                TowerArchetype.NANITE_FORGE -> "Nanite" to "Forge"
-                                TowerArchetype.SIEGE_COMMAND_POST -> "Command" to "Post"
-                                TowerArchetype.WAR_CHEST_VAULT -> "War Chest" to "Vault"
-                                TowerArchetype.SUPERNOVA_PULSAR -> "Supernova" to "Pulsar"
-                                TowerArchetype.GRAVITON_LANCE -> "Graviton" to "Lance"
-                                TowerArchetype.CELESTIAL_COMET -> "Celestial" to "Comet"
-                                TowerArchetype.EVENT_HORIZON -> "Event" to "Horizon"
-                                TowerArchetype.NEBULA_AEGIS -> "Nebula" to "Aegis"
-                                TowerArchetype.BLACK_HOLE_SENTRY -> "Singular." to "Bastion"
-                                TowerArchetype.CHRONO_PYLON -> "Chrono" to "Pylon"
-                                TowerArchetype.STARLIGHT_BEACON -> "Starlight" to "Beacon"
-                                TowerArchetype.ASTRAL_HARVESTER -> "Astral" to "Harvest"
-                            }
-
-                            val b1 = when (arch) {
-                                TowerArchetype.VULCAN_GATLING -> "Rotary DPS"
-                                TowerArchetype.FLAK_CANNON -> "Shrapnel AoE"
-                                TowerArchetype.SNIPER_SENTRY -> "Penetrator"
-                                TowerArchetype.BARRICADE_TURRET -> "Suppression"
-                                TowerArchetype.MINE_DISPENSER -> "Lane Mines"
-                                TowerArchetype.RIOT_DISRUPTOR -> "Acoustic Wave"
-                                TowerArchetype.RADAR_SENTRY -> "Target Link"
-                                TowerArchetype.AMMO_SUPPLY_DEPOT -> "Munitions"
-                                TowerArchetype.SALVAGE_CRUSHER -> "Scrap Siphon"
-                                TowerArchetype.SOLAR_DEATH_RAY -> "Thermal Beam"
-                                TowerArchetype.INFERNO_CANNON -> "Burn DoT"
-                                TowerArchetype.PLASMA_PULSAR -> "Ion Cascade"
-                                TowerArchetype.FROST_SPIRE -> "Cryo Stasis"
-                                TowerArchetype.TESLA_STORMCOIL -> "Lightning Web"
-                                TowerArchetype.GRAVITON_VOID -> "Vortex Pull"
-                                TowerArchetype.DYNAMO_CONDUIT -> "Flux Battery"
-                                TowerArchetype.QUANTUM_BEACON -> "Phase Warp"
-                                TowerArchetype.DARK_MATTER_FORGE -> "Armor Melter"
-                                TowerArchetype.HELLFIRE_MORTAR -> "Artillery AoE"
-                                TowerArchetype.TITAN_RAILGUN -> "Uranium Slug"
-                                TowerArchetype.ORBITAL_STRIKE_RELAY -> "Kinetic Bomb"
-                                TowerArchetype.EARTHQUAKE_STAMPER -> "Tremor Stun"
-                                TowerArchetype.CRYO_FORTRESS -> "Glacier Wall"
-                                TowerArchetype.SHOCKWAVE_BASTION -> "EMP Bastion"
-                                TowerArchetype.NANITE_FORGE -> "Nanite Shred"
-                                TowerArchetype.SIEGE_COMMAND_POST -> "Overcharge"
-                                TowerArchetype.WAR_CHEST_VAULT -> "Yield Smelter"
-                                TowerArchetype.SUPERNOVA_PULSAR -> "Cosmic Flare"
-                                TowerArchetype.GRAVITON_LANCE -> "Gravity Well"
-                                TowerArchetype.CELESTIAL_COMET -> "Meteor Storm"
-                                TowerArchetype.EVENT_HORIZON -> "Time Warp"
-                                TowerArchetype.NEBULA_AEGIS -> "Cosmic Shield"
-                                TowerArchetype.BLACK_HOLE_SENTRY -> "Micro Void"
-                                TowerArchetype.CHRONO_PYLON -> "Time Haste"
-                                TowerArchetype.STARLIGHT_BEACON -> "True Sight"
-                                TowerArchetype.ASTRAL_HARVESTER -> "Cosmic Siphon"
-                            }
+                            val (archTitle, archSub, b1) = getArchetypeCardLabels(arch)
                             val b2 = arch.primaryAura.shortBadge
 
                             SquircleActionButton(
@@ -568,13 +454,17 @@ fun FloatingSquircleUpgradeBar(
                     }
 
                     2 -> {
-                        // 3 Tier 3 Global Auras / Ascensions (2-line stacked: Apex + Sub-class)
                         val cost = TowerUpgradeManager.getTier3GlobalCost(tower, state.towers)
                         val canAfford = state.scrap >= cost
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
 
-                        listOf("Alpha" to "Apex Alpha", "Beta" to "Apex Beta", "Gamma" to "Apex Gamma").forEachIndexed { idx, (subTitle, _) ->
+                        for (idx in 0..2) {
+                            val subTitle = when (idx) {
+                                0 -> "Alpha"
+                                1 -> "Beta"
+                                else -> "Gamma"
+                            }
                             val (b1, b2) = when (idx) {
                                 0 -> "Global Aura Buff" to "+50% Apex DMG"
                                 1 -> "Corona Shockwave" to "+50% Apex DMG"
@@ -597,41 +487,17 @@ fun FloatingSquircleUpgradeBar(
                             )
                         }
 
-                        // 4th Squircle: Interactive Synergy Conduit / Singularity Dock
-                        if (isSingularityGateReady) {
-                            SquircleActionButton(
-                                title = "★ FORGE ★",
-                                subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CONDUIT",
-                                cost = 0,
-                                themeColor = Color(0xFFFFD700),
-                                canAfford = true,
-                                isUnlocked = true,
-                                bullet1 = "Bank Synergies",
-                                bullet2 = "+20% Scrap",
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = onRequestSingularity,
-                                modifier = Modifier.testTag("singularity_capstone_button")
-                            )
-                        } else {
-                            val readyCount = state.towers.count { it.tier >= 2 || it.finalFormCode != null }
-                            SquircleActionButton(
-                                title = "CONDUIT",
-                                subtitle = "PROGRESS",
-                                cost = 0,
-                                themeColor = Color(0xFF38BDF8),
-                                canAfford = true,
-                                isUnlocked = true,
-                                bullet1 = "$readyCount/${buildableTiles.size} Ready",
-                                bullet2 = "Tap for Info",
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = onRequestSingularity,
-                                modifier = Modifier.testTag("singularity_conduit_teaser_button")
-                            )
-                        }
+                        val readyCount = state.towers.count { it.tier >= 2 || it.finalFormCode != null }
+                        SingularityGateSquircle(
+                            tower = tower,
+                            isSingularityGateReady = isSingularityGateReady,
+                            readyCount = readyCount,
+                            totalBuildable = buildableTiles.size,
+                            itemWidth = itemWidth,
+                            itemHeight = itemHeight,
+                            animatedRotation = animatedRotation,
+                            onRequestSingularity = onRequestSingularity
+                        )
                     }
 
                     else -> {
@@ -639,7 +505,6 @@ fun FloatingSquircleUpgradeBar(
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
 
-                        // 1. Status Squircle: Capstone Monument or Apex Ascended
                         if (tower.isCapstone) {
                             Box(
                                 modifier = Modifier
@@ -676,114 +541,29 @@ fun FloatingSquircleUpgradeBar(
                             }
                         }
 
-                        // 2. Interactive Synergy Conduit / Singularity Dock
-                        if (isSingularityGateReady) {
-                            SquircleActionButton(
-                                title = "★ FORGE ★",
-                                subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CONDUIT",
-                                cost = 0,
-                                themeColor = Color(0xFFFFD700),
-                                canAfford = true,
-                                isUnlocked = true,
-                                bullet1 = "Bank Synergies",
-                                bullet2 = "+20% Scrap",
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = onRequestSingularity,
-                                modifier = Modifier.testTag("singularity_capstone_button")
-                            )
-                        } else {
-                            SquircleActionButton(
-                                title = "CONDUIT",
-                                subtitle = "PROGRESS",
-                                cost = 0,
-                                themeColor = Color(0xFF38BDF8),
-                                canAfford = true,
-                                isUnlocked = true,
-                                bullet1 = "$readyCount/${buildableTiles.size} Ready",
-                                bullet2 = "Tap for Info",
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = onRequestSingularity,
-                                modifier = Modifier.testTag("singularity_conduit_teaser_button")
-                            )
-                        }
+                        SingularityGateSquircle(
+                            tower = tower,
+                            isSingularityGateReady = isSingularityGateReady,
+                            readyCount = readyCount,
+                            totalBuildable = buildableTiles.size,
+                            itemWidth = itemWidth,
+                            itemHeight = itemHeight,
+                            animatedRotation = animatedRotation,
+                            onRequestSingularity = onRequestSingularity
+                        )
                     }
                 }
 
-                // Target Priority (Top) and Sell (Bottom) buttons stacked together on the right flank (Rotates in place)
-                Column(
-                    modifier = Modifier.height(76.dp),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Priority button (Top half)
-                    Box(
-                        modifier = Modifier
-                            .size(if (isRotated) 38.dp else 44.dp, 36.dp)
-                            .graphicsLayer { rotationZ = animatedRotation }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                            .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
-                            .clickable {
-                                val nextPrio = when (prio) {
-                                    TargetPriority.FIRST -> TargetPriority.CLOSEST
-                                    TargetPriority.CLOSEST -> TargetPriority.STRONGEST
-                                    TargetPriority.STRONGEST -> TargetPriority.WEAKEST
-                                    TargetPriority.WEAKEST -> TargetPriority.FIRST
-                                }
-                                onChangePriority(nextPrio)
-                            }
-                            .padding(horizontal = 2.dp)
-                            .testTag("target_priority_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isRotated) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text("🎯", fontSize = 10.sp)
-                                Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 6.5.sp, fontWeight = FontWeight.Bold)
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🎯", fontSize = 10.sp)
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(prio.label.take(4).uppercase(), color = Color(0xFF00F0FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    // Sell button (Bottom half)
-                    Box(
-                        modifier = Modifier
-                            .size(if (isRotated) 38.dp else 44.dp, 36.dp)
-                            .graphicsLayer { rotationZ = animatedRotation }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                            .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.7f), RoundedCornerShape(10.dp))
-                            .clickable { onSellTower() }
-                            .padding(horizontal = 2.dp)
-                            .testTag("sell_tower_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isRotated) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text("🗑", fontSize = 10.sp)
-                                Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 6.5.sp, fontWeight = FontWeight.Black)
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🗑", fontSize = 9.sp)
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text("+$sellValue", color = Color(0xFFFFD700), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                }
+                TargetPriorityMenu(
+                    priority = prio,
+                    sellValue = sellValue,
+                    isRotated = isRotated,
+                    animatedRotation = animatedRotation,
+                    onChangePriority = onChangePriority,
+                    onSellTower = onSellTower
+                )
             }
 
-            // 2. EMPTY TILE SELECTED (Shows 4 Class Build Action Squircles with Vector Silhouette Icons)
             state.selectedTile != null && state.selectedTile.type == TileType.EMPTY -> {
                 val tile = state.selectedTile
                 val classes = TowerUpgradeManager.getTowerClasses()
@@ -844,9 +624,93 @@ fun FloatingSquircleUpgradeBar(
     }
 }
 
+@Composable
+private fun SingularityGateSquircle(
+    tower: TowerInstance,
+    isSingularityGateReady: Boolean,
+    readyCount: Int,
+    totalBuildable: Int,
+    itemWidth: Dp,
+    itemHeight: Dp,
+    animatedRotation: Float,
+    onRequestSingularity: () -> Unit
+) {
+    if (isSingularityGateReady) {
+        SquircleActionButton(
+            title = "★ FORGE ★",
+            subtitle = if (tower.isCapstone) "GEN ${tower.generation + 1}" else "CONDUIT",
+            cost = 0,
+            themeColor = Color(0xFFFFD700),
+            canAfford = true,
+            isUnlocked = true,
+            bullet1 = "Bank Synergies",
+            bullet2 = "+20% Scrap",
+            itemWidth = itemWidth,
+            itemHeight = itemHeight,
+            rotationAngle = animatedRotation,
+            onClick = onRequestSingularity,
+            modifier = Modifier.testTag("singularity_capstone_button")
+        )
+    } else {
+        SquircleActionButton(
+            title = "CONDUIT",
+            subtitle = "PROGRESS",
+            cost = 0,
+            themeColor = Color(0xFF38BDF8),
+            canAfford = true,
+            isUnlocked = true,
+            bullet1 = "$readyCount/$totalBuildable Ready",
+            bullet2 = "Tap for Info",
+            itemWidth = itemWidth,
+            itemHeight = itemHeight,
+            rotationAngle = animatedRotation,
+            onClick = onRequestSingularity,
+            modifier = Modifier.testTag("singularity_conduit_teaser_button")
+        )
+    }
+}
+
+private fun getArchetypeCardLabels(arch: TowerArchetype): Triple<String, String, String> = when (arch) {
+    TowerArchetype.VULCAN_GATLING -> Triple("Vulcan", "Gatling", "Rotary DPS")
+    TowerArchetype.FLAK_CANNON -> Triple("Twin Flak", "Cannon", "Shrapnel AoE")
+    TowerArchetype.SNIPER_SENTRY -> Triple("Sniper", "Sentry", "Penetrator")
+    TowerArchetype.BARRICADE_TURRET -> Triple("Barricade", "Turret", "Suppression")
+    TowerArchetype.MINE_DISPENSER -> Triple("Mine", "Dispenser", "Lane Mines")
+    TowerArchetype.RIOT_DISRUPTOR -> Triple("Riot", "Disruptor", "Acoustic Wave")
+    TowerArchetype.RADAR_SENTRY -> Triple("Radar", "Sentry", "Target Link")
+    TowerArchetype.AMMO_SUPPLY_DEPOT -> Triple("Ammo", "Depot", "Munitions")
+    TowerArchetype.SALVAGE_CRUSHER -> Triple("Salvage", "Crusher", "Scrap Siphon")
+    TowerArchetype.SOLAR_DEATH_RAY -> Triple("Solar", "Death Ray", "Thermal Beam")
+    TowerArchetype.INFERNO_CANNON -> Triple("Inferno", "Emitter", "Burn DoT")
+    TowerArchetype.PLASMA_PULSAR -> Triple("Plasma", "Pulsar", "Ion Cascade")
+    TowerArchetype.FROST_SPIRE -> Triple("Frost", "Spire", "Cryo Stasis")
+    TowerArchetype.TESLA_STORMCOIL -> Triple("Tesla", "Stormcoil", "Lightning Web")
+    TowerArchetype.GRAVITON_VOID -> Triple("Graviton", "Void", "Vortex Pull")
+    TowerArchetype.DYNAMO_CONDUIT -> Triple("Dynamo", "Conduit", "Flux Battery")
+    TowerArchetype.QUANTUM_BEACON -> Triple("Quantum", "Beacon", "Phase Warp")
+    TowerArchetype.DARK_MATTER_FORGE -> Triple("Dark", "Matter", "Armor Melter")
+    TowerArchetype.HELLFIRE_MORTAR -> Triple("Hellfire", "Mortar", "Artillery AoE")
+    TowerArchetype.TITAN_RAILGUN -> Triple("Titan", "Railgun", "Uranium Slug")
+    TowerArchetype.ORBITAL_STRIKE_RELAY -> Triple("Orbital", "Relay", "Kinetic Bomb")
+    TowerArchetype.EARTHQUAKE_STAMPER -> Triple("Seismic", "Slammer", "Tremor Stun")
+    TowerArchetype.CRYO_FORTRESS -> Triple("Cryo", "Fortress", "Glacier Wall")
+    TowerArchetype.SHOCKWAVE_BASTION -> Triple("Shockwave", "Bastion", "EMP Bastion")
+    TowerArchetype.NANITE_FORGE -> Triple("Nanite", "Forge", "Nanite Shred")
+    TowerArchetype.SIEGE_COMMAND_POST -> Triple("Command", "Post", "Overcharge")
+    TowerArchetype.WAR_CHEST_VAULT -> Triple("War Chest", "Vault", "Yield Smelter")
+    TowerArchetype.SUPERNOVA_PULSAR -> Triple("Supernova", "Pulsar", "Cosmic Flare")
+    TowerArchetype.GRAVITON_LANCE -> Triple("Graviton", "Lance", "Gravity Well")
+    TowerArchetype.CELESTIAL_COMET -> Triple("Celestial", "Comet", "Meteor Storm")
+    TowerArchetype.EVENT_HORIZON -> Triple("Event", "Horizon", "Time Warp")
+    TowerArchetype.NEBULA_AEGIS -> Triple("Nebula", "Aegis", "Cosmic Shield")
+    TowerArchetype.BLACK_HOLE_SENTRY -> Triple("Singular.", "Bastion", "Micro Void")
+    TowerArchetype.CHRONO_PYLON -> Triple("Chrono", "Pylon", "Time Haste")
+    TowerArchetype.STARLIGHT_BEACON -> Triple("Starlight", "Beacon", "True Sight")
+    TowerArchetype.ASTRAL_HARVESTER -> Triple("Astral", "Harvest", "Cosmic Siphon")
+}
+
 /**
  * Minimal Floating Bottom Command Dock / Tower Upgrade Bar for Fox-Rogue-TD.
- * Delegates directly to the sleek FloatingSquircleUpgradeBar.
  */
 @Composable
 fun MinimalBottomDock(
@@ -880,906 +744,5 @@ fun MinimalBottomDock(
         onChangePriority = onChangePriority,
         onDeselect = onDeselect,
         modifier = modifier
-    )
-}
-
-/**
- * Tactical Warning Modal for Synergy Singularity Collapse (v0.0.1.015).
- * Warns player before sacrificing all active towers to forge the Capstone Monument.
- */
-@Composable
-fun SingularityWarningDialog(
-    state: GameUIState,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    if (!state.isSingularityWarningOpen) return
-    val anchor = state.selectedTower?.takeIf { it.tier >= 2 || it.finalFormCode != null }
-        ?: state.towers.firstOrNull { it.isCapstone }
-        ?: state.towers.minByOrNull { it.id }
-    val sacrificedCount = state.towers.count { it.id != anchor?.id }
-    val totalInvested = state.towers.filter { it.id != anchor?.id }.sumOf { it.getInvestedScrapValue() }
-    val scrapBounty = maxOf(250, (totalInvested * 0.20f).toInt())
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            color = Color(0xFF0F172A),
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFFF3B30)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("⚠️", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "SYNERGY SINGULARITY",
-                        color = Color(0xFFFF3B30),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp
-                    )
-                }
-
-                Surface(
-                    color = Color(0xFF1E293B),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            "COLLAPSE SACRIFICE SUMMARY",
-                            color = Color(0xFFFFD700),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            "• Sacrificing $sacrificedCount maxed defensive turrets",
-                            color = Color.White,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            "• Permanent Bank: ALL active auras stored into Capstone",
-                            color = Color(0xFF00FF9D),
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            "• Singularity Scrap Bounty: +$scrapBounty Scrap (20% Refund)",
-                            color = Color(0xFFFFD700),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (state.isWaveActive) {
-                            Text(
-                                "⚠️ HIGH-STAKES WARNING: Active wave creeps will NOT be despawned! Your defenses will be down to 1 Capstone tower until you rebuild!",
-                                color = Color(0xFFFF5722),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        } else {
-                            Text(
-                                "• Tactical Intermission: Clears board so you can draft a brand-new generation of turrets before the next wave.",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(42.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64748B))
-                    ) {
-                        Text("ABORT", color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
-                    }
-
-                    Button(
-                        onClick = onConfirm,
-                        modifier = Modifier.weight(1.3f).height(42.dp).testTag("confirm_singularity_button"),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF2A55), contentColor = Color.White)
-                    ) {
-                        Text("COLLAPSE BOARD", fontWeight = FontWeight.Black, fontSize = 11.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BuildTowerDrawer(
-    tile: MapTile,
-    allTowers: List<TowerInstance> = emptyList(),
-    scrap: Int,
-    isLandscape: Boolean = false,
-    onBuildClass: (TowerClass) -> Unit = {},
-    onBuild: (TowerType) -> Unit = {},
-    onClose: () -> Unit
-) {
-    val classes = TowerUpgradeManager.getTowerClasses()
-
-    val renderCard: @Composable (TowerClass, Modifier) -> Unit = { towerClass, cardModifier ->
-        val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, allTowers)
-        val cost = towerClass.baseCost
-        val canAfford = scrap >= cost
-        val isEnabled = isUnlocked && canAfford
-        val themeColor = Color(towerClass.color)
-
-        val unlockCondition = when (towerClass) {
-            TowerClass.KINETIC_BALLISTIC -> "Unlocked"
-            TowerClass.ELEMENTAL_VOID -> "Unlock: 1 Tier 3"
-            TowerClass.HEAVY_SIEGE -> "Unlock: 2 Tier 3"
-            TowerClass.STELLAR_COSMIC -> "Unlock: 3 Tier 3"
-        }
-
-        Card(
-            onClick = {
-                if (isEnabled) {
-                    onBuildClass(towerClass)
-                    if (towerClass == TowerClass.KINETIC_BALLISTIC) {
-                        onBuild(TowerType.GATLING)
-                    } else if (towerClass == TowerClass.STELLAR_COSMIC) {
-                        onBuild(TowerType.STELLAR)
-                    }
-                }
-            },
-            enabled = isEnabled,
-            colors = CardDefaults.cardColors(
-                containerColor = if (isEnabled) Color(0xFF131F33) else Color(0xFF0C1322),
-                disabledContainerColor = Color(0xFF0C1322)
-            ),
-            shape = RoundedCornerShape(8.dp),
-            modifier = cardModifier
-                .testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
-                .border(
-                    1.dp,
-                    if (isEnabled) themeColor.copy(alpha = 0.8f) else Color(0xFF1E293B),
-                    RoundedCornerShape(8.dp)
-                )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(6.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TowerClassSilhouette(
-                            towerClass = towerClass,
-                            color = if (!isUnlocked) Color(0xFF64748B) else Color(towerClass.color),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = towerClass.displayName,
-                            color = if (isUnlocked) (if (canAfford) Color.White else Color(0xFF94A3B8)) else Color(0xFF64748B),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 10.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (!isUnlocked) {
-                        Icon(
-                            imageVector = Icons.Filled.Lock,
-                            contentDescription = "Locked",
-                            tint = Color(0xFFFF2A55),
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                val statsPreview = when (towerClass) {
-                    TowerClass.KINETIC_BALLISTIC -> "DMG: 26 | SPD: 4.4x | RNG: 2.6u\n+18% Global Speed Aura"
-                    TowerClass.ELEMENTAL_VOID -> "DMG: 45 | SPD: 2.8x | RNG: 3.2u\nFreezing Slow & Armor Shred"
-                    TowerClass.HEAVY_SIEGE -> "DMG: 145 | SPD: 0.8x | RNG: 4.8u\nAoE Splash & Boss Buster"
-                    TowerClass.STELLAR_COSMIC -> "DMG: 180 | SPD: 2.0x | RNG: 5.5u\nCosmic Radiance & Apex Pulsar"
-                }
-
-                Text(
-                    text = if (!isUnlocked) unlockCondition else statsPreview,
-                    color = if (!isUnlocked) Color(0xFFFF2A55) else Color(0xFF00FF9D),
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 10.5.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "🪙",
-                            fontSize = 11.sp
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = "$cost c",
-                            color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Text(
-                        text = if (!isUnlocked) "LOCKED" else if (canAfford) "BUILD" else "NEED SCRAP",
-                        color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) themeColor else Color(0xFFFF2A55),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 9.sp
-                    )
-                }
-            }
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "DEPLOY DEFENSE TOWER",
-                    color = Color.White,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 11.sp
-                )
-                if (tile.buff != TileBuff.NONE) {
-                    Text(
-                        text = "TERRAIN BONUS: ${tile.buff.label} (${tile.buff.desc})",
-                        color = Color(tile.buff.badgeColor),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp
-                    )
-                }
-            }
-
-            IconButton(onClick = onClose, modifier = Modifier.size(22.dp)) {
-                Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        if (isLandscape) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                classes.forEach { towerClass ->
-                    renderCard(towerClass, Modifier.fillMaxWidth())
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                classes.chunked(2).forEach { rowPair ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        rowPair.forEach { towerClass ->
-                            renderCard(towerClass, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BranchingTowerInspector(
-    tower: TowerInstance,
-    allTowers: List<TowerInstance>,
-    scrap: Int,
-    activeSynergies: List<GlobalAuraSynergy> = emptyList(),
-    isLandscape: Boolean = false,
-    onUpgradeToVector: (TowerVector) -> Unit = {},
-    onUpgradeToArchetype: (TowerArchetype) -> Unit = {},
-    onUpgradeToTier3Global: (Int) -> Unit = {},
-    onUpgradeToTier1: (String) -> Unit = {},
-    onUpgradeToFinalForm: (String) -> Unit = {},
-    onSell: () -> Unit,
-    onChangePriority: (TargetPriority) -> Unit,
-    onClose: () -> Unit
-) {
-    val sellValue = tower.getSellValue()
-    val arch = tower.archetype
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // --- HEADER ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(9.dp)
-                        .clip(CircleShape)
-                        .background(if (tower.isTier3) Color(0xFFFFB800) else Color(arch?.color ?: tower.towerClass.color))
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = tower.towerClass.shapeSymbol,
-                            color = Color(tower.towerClass.color),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = tower.getDisplayName(),
-                            color = if (tower.isTier3) Color(0xFFFFB800) else Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Text(
-                        text = when (tower.tier) {
-                            3 -> "TIER 3 [${tower.towerClass.shapeName}]: ${tower.activeAura?.name ?: "GLOBAL AURA"} ONLINE"
-                            2 -> "TIER 2 [${tower.towerClass.shapeName}]: SPECIALIZED ARCHETYPE LOCKED"
-                            1 -> "TIER 1 [${tower.towerClass.shapeName}]: ${tower.vector?.displayName ?: "VECTOR"} SPECIALIZED"
-                            else -> "TIER 0 [${tower.towerClass.shapeName}]: ${tower.towerClass.displayName} (SELECT VECTOR)"
-                        },
-                        color = when (tower.tier) {
-                            3 -> Color(0xFFFFB800)
-                            2 -> Color(0xFF00F0FF)
-                            1 -> Color(0xFF00FF9D)
-                            else -> Color(0xFF94A3B8)
-                        },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 8.5.sp
-                    )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TargetPriority.values().forEach { prio ->
-                    val isSel = tower.targetPriority == prio
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSel) Color(0xFF00F0FF) else Color(0xFF1E293B))
-                            .clickable { onChangePriority(prio) }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = prio.label,
-                            color = if (isSel) Color.Black else Color(0xFF94A3B8),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(2.dp))
-                }
-
-                IconButton(onClick = onClose, modifier = Modifier.size(22.dp)) {
-                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // --- DETAILED STAT SHEET (3 Sections: Base Stats, Local Upgrades, Incoming Global Multipliers) ---
-        Surface(
-            color = Color(0xFF0F172A).copy(alpha = 0.85f),
-            shape = RoundedCornerShape(6.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Section 1: Effective Combat Stats with accurate DPS
-                val effDmg = tower.getEffectiveDamage()
-                val effSpd = tower.getEffectiveFireRate()
-                val effDps = tower.getEffectiveDps()
-                val effRng = tower.getEffectiveCombatRange()
-                Column {
-                    Text(text = "COMBAT STATS (LIVE DPS)", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
-                    Text(text = "DMG: ${effDmg.toInt()} | SPD: ${String.format(Locale.US, "%.1f", effSpd)}/s | DPS: ${effDps.toInt()} | RNG: ${effRng.toInt()}u", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                }
-                // Section 2: Local Upgrades
-                Column {
-                    Text(text = "LOCAL TIER", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
-                    Text(text = "Tier ${tower.tier}/3 (${tower.vector?.displayName ?: "Base"})", color = Color(0xFF00FF9D), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                }
-                // Section 3: Incoming Global Buffs
-                Column {
-                    Text(text = "GLOBAL AURAS", color = Color(0xFF64748B), fontSize = 7.sp, fontWeight = FontWeight.Black)
-                    Text(text = "${activeSynergies.size} Active Multipliers", color = Color(0xFFFFB800), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(5.dp))
-
-        // --- TIER PROGRESSION SELECTION CARDS ---
-        when (tower.tier) {
-            // TIER 0: Pick 1 of 3 Vectors (Offensive, Defensive, Support) for this class
-            0 -> {
-                val vectors = TowerUpgradeManager.getTier1Vectors()
-                val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
-                val canAfford = scrap >= cost
-
-                val renderVectorCard: @Composable (TowerVector, Modifier) -> Unit = { vec, cardModifier ->
-                    val statBoost = when (vec) {
-                        TowerVector.OFFENSIVE -> "+45% DMG  |  +15% CRIT  |  Heavy Penetration"
-                        TowerVector.DEFENSIVE -> "+35% RNG  |  +20% Slow  |  Pushback & Stun"
-                        TowerVector.SUPPORT -> "+40% SPD  |  +25% SCRAP |  Range Uplink Aura"
-                    }
-
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = cardModifier
-                            .border(1.dp, if (canAfford) Color(vec.color).copy(alpha = 0.8f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(7.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = vec.displayName,
-                                    color = Color(vec.color),
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = "🪙", fontSize = 9.sp)
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = "${cost} c",
-                                        color = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
-                                        fontSize = 9.5.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = statBoost,
-                                color = Color(0xFF00FF9D),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 8.5.sp,
-                                lineHeight = 11.sp,
-                                maxLines = 2
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Button(
-                                onClick = { if (canAfford) onUpgradeToVector(vec) },
-                                enabled = canAfford,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(vec.color),
-                                    contentColor = Color.Black
-                                ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(26.dp)
-                                    .testTag("upgrade_vector_${vec.idName}")
-                            ) {
-                                Text("Select ${vec.displayName}", fontSize = 8.5.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                }
-
-                if (isLandscape) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        vectors.forEach { vec ->
-                            renderVectorCard(vec, Modifier.fillMaxWidth())
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        vectors.forEach { vec ->
-                            renderVectorCard(vec, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            // TIER 1: Pick 1 of 3 Archetypes for the selected Vector and Tower Class
-            1 -> {
-                val vec = tower.vector ?: TowerVector.OFFENSIVE
-                val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
-
-                val renderArchetypeCard: @Composable (TowerArchetype, Modifier) -> Unit = { archetype, cardModifier ->
-                    val cost = TowerUpgradeManager.getTier2Cost(archetype)
-                    val canAfford = scrap >= cost
-
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = cardModifier
-                            .border(1.dp, if (canAfford) Color(archetype.color).copy(alpha = 0.8f) else Color(0xFF26334D), RoundedCornerShape(8.dp))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(7.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = archetype.displayName,
-                                    color = Color(archetype.color),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = "🪙", fontSize = 9.sp)
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = "${cost} c",
-                                        color = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
-                                        fontSize = 9.5.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = "DMG: ${archetype.baseDamage.toInt()} | SPD: ${archetype.baseFireRate}x | RNG: ${archetype.baseRange}u",
-                                color = Color.White,
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                lineHeight = 11.sp
-                            )
-
-                            Surface(
-                                color = Color(archetype.color).copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(3.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "Auras: ${archetype.primaryAura.shortBadge} / ${archetype.secondaryAura.shortBadge}",
-                                    color = Color(archetype.color),
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.5.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(3.dp))
-
-                            Button(
-                                onClick = { if (canAfford) onUpgradeToArchetype(archetype) },
-                                enabled = canAfford,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(archetype.color),
-                                    contentColor = Color.Black
-                                ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(26.dp)
-                                    .testTag("upgrade_archetype_${archetype.archetypeId}")
-                            ) {
-                                Text("Lock Identity", fontSize = 8.5.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                }
-
-                if (isLandscape) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        archetypes.forEach { archetype ->
-                            renderArchetypeCard(archetype, Modifier.fillMaxWidth())
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        archetypes.forEach { archetype ->
-                            renderArchetypeCard(archetype, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            // TIER 2: Upgrade to Tier 3 Global Aura Projection (Choose between 2 unique auras!)
-            2 -> {
-                val archetype = tower.archetype ?: mapTypeToArchetype(tower.type)
-                val cost = TowerUpgradeManager.getTier3GlobalCost(tower, allTowers)
-                val canAfford = scrap >= cost
-
-                val renderAuraCard: @Composable (AuraOption, Int, Modifier) -> Unit = { aura, auraIndex, cardModifier ->
-                    val auraColor = if (auraIndex == 0) Color(0xFFFFB800) else Color(0xFF00FF9D)
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131F33)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = cardModifier
-                            .border(
-                                1.dp,
-                                if (canAfford) auraColor else Color(0xFF26334D),
-                                RoundedCornerShape(8.dp)
-                            )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(6.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = aura.name,
-                                    color = auraColor,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 8.5.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Surface(
-                                    color = auraColor.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(3.dp)
-                                ) {
-                                    Text(
-                                        text = aura.shortBadge,
-                                        color = auraColor,
-                                        fontSize = 7.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = aura.description,
-                                color = Color.White,
-                                fontSize = 7.5.sp,
-                                lineHeight = 9.5.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Button(
-                                onClick = { if (canAfford) onUpgradeToTier3Global(auraIndex) },
-                                enabled = canAfford,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = auraColor,
-                                    contentColor = Color.Black
-                                ),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(24.dp)
-                                    .testTag(if (auraIndex == 0) "upgrade_tier3_global" else "upgrade_tier3_aura_1")
-                            ) {
-                                Text("Activate Aura", fontSize = 8.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                }
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Choose Tier 3 Global Aura Projection",
-                            color = Color(0xFFFFB800),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 9.sp
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "🪙", fontSize = 8.5.sp)
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = "${cost} c",
-                                color = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 9.sp
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(3.dp))
-
-                    if (isLandscape) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            renderAuraCard(archetype.primaryAura, 0, Modifier.fillMaxWidth())
-                            renderAuraCard(archetype.secondaryAura, 1, Modifier.fillMaxWidth())
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            renderAuraCard(archetype.primaryAura, 0, Modifier.weight(1f))
-                            renderAuraCard(archetype.secondaryAura, 1, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            // TIER 3: Apex Form Active with Selected Aura
-            3 -> {
-                val aura = tower.activeAura ?: (tower.archetype ?: mapTypeToArchetype(tower.type)).primaryAura
-                Surface(
-                    color = Color(0xFFFFB800).copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "🌟 ${aura.name} ACTIVE",
-                                color = Color(0xFFFFB800),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp
-                            )
-                            Text(
-                                text = aura.description,
-                                color = Color.White,
-                                fontSize = 8.sp,
-                                lineHeight = 10.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = Color(0xFF00FF9D).copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "[${aura.shortBadge}]",
-                                color = Color(0xFF00FF9D),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 8.5.sp,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Sell Button & Combat Stats
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Kills: ${tower.kills} | Dmg: ${tower.totalDamage.toInt()}",
-                color = Color(0xFF94A3B8),
-                fontSize = 9.sp
-            )
-
-            OutlinedButton(
-                onClick = onSell,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(6.dp),
-                modifier = Modifier
-                    .height(28.dp)
-                    .testTag("sell_tower_button")
-            ) {
-                Icon(imageVector = Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(11.dp))
-                Spacer(modifier = Modifier.width(2.dp))
-                Text("SELL (+$sellValue)", fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun ThreePathTowerInspector(
-    tower: TowerInstance,
-    allTowers: List<TowerInstance>,
-    scrap: Int,
-    onUpgradePath: (Int) -> Unit,
-    onAscend: () -> Unit,
-    onSell: () -> Unit,
-    onChangePriority: (TargetPriority) -> Unit,
-    onClose: () -> Unit
-) {
-    BranchingTowerInspector(
-        tower = tower,
-        allTowers = allTowers,
-        scrap = scrap,
-        onUpgradeToTier1 = { branch ->
-            val idx = when (branch) { "A" -> 0; "B" -> 1; else -> 2 }
-            onUpgradePath(idx)
-        },
-        onUpgradeToFinalForm = {
-            onAscend()
-        },
-        onSell = onSell,
-        onChangePriority = onChangePriority,
-        onClose = onClose
     )
 }

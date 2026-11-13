@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.018`):** [`apk/Dual-Front-TD-v0.0.1.018-debug.apk`](apk/Dual-Front-TD-v0.0.1.018-debug.apk)
+- **Latest Android APK (`v0.0.1.019`):** [`apk/Dual-Front-TD-v0.0.1.019-debug.apk`](apk/Dual-Front-TD-v0.0.1.019-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,25 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.018
+## 🕹️ What's New in Version 0.0.1.019
 
-### 🏆 Global Leaderboard Restoration, Simulation Decoupling & Engine Hardening
+### 🏗️ 750-Line Modularity Overhaul, Domain Coordinators & Zero-Allocation Engine Hardening
+- **750-Line Architectural Modularity Law (100% Compliance):** Restructured all 54 production Kotlin source files under `app/src/main/java/com/example/` so every single file strictly adheres to the `<= 750`-line architectural ceiling with high domain cohesion.
+- **God-ViewModel Decomposition & Domain Coordinators:** Reduced `RogueTDViewModel.kt` to 596 lines by extracting focused domain coordinators into `engine/coordinator/`:
+  - `SimulationCoordinator.kt`: Virtual time scaling, combat simulation ticking, track particle stepping, status effect decay, and sound tick dispatch.
+  - `TowerPlacementCoordinator.kt`: Coordinate grid snapping, path clearance verification, scrap transactions, turret construction, and singularity collapse orchestration.
+  - `WaveProgressionCoordinator.kt`: Dual-lane spawn timers, wave queue popping, boss multiplier scaling, and wave completion payouts.
+- **UI & Canvas Sub-Renderer Decomposition:**
+  - Split `GameCanvas.kt` into specialized sub-renderers under `ui/canvas/`: `TerrainRenderer.kt`, `TrackRenderer.kt`, and `EntityRenderer.kt`, eliminating all per-frame `listOf(...)` allocations inside draw loops.
+  - Extracted HUD and dialog surfaces into `ui/hud/components/` (`TargetPriorityMenu.kt`, `SingularityWarningDialog.kt`) and `ui/dialog/` (`RunSummaryDialogs.kt`, `TelemetryLeaderboardDialog.kt`, `AudioVisualCustomizationPanel.kt`, `DevMenuComponents.kt`), and cached vector `Path` instances in `TowerUpgradeBar.kt`.
+- **Model, Config & Audio Partitioning:** Partitioned core models into `EntityModels.kt`, `MapModels.kt`, `ThemeModels.kt`, and `TowerSynergyConfig.kt`, and split procedural audio synthesis into `ProceduralAudioSynthesizer.kt` and `AudioSynthesizer.kt`.
+- **Zero-Allocation Hot-Loop & Spatial Grid Hardening:** Eliminated per-tick collection copies (`toMutableList()`, `.filter`, `.map`, `.associateBy`) across `SimulationCoordinator.kt` and `CombatSimulationEngine.kt`, added reusable `DamageResult` containers in `DamageCalculator.kt`, hardened `SpatialHashGrid.queryNearby` with caller-supplied buffers and in-place predicates, and added strict zero-distance/NaN guards to projectile step math.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.018
 - **Global Leaderboard Restoration & UX Navigation:** Fixed navigation routing from the Pause Menu and Post-Run Summary Dialog to route directly to Tab 2 (Global Ranks). Added automatic score refreshing on tab switch via reactive Compose effects, and synchronized background WorkManager score upload completion directly with `LeaderboardRepository` for instant rank updating.
 - **REST Identity Toolkit Auth Hardening:** Hardened `AuthRepository` with graceful fallback to Firebase REST Identity Toolkit anonymous authentication when native Firebase Auth initialization is unavailable, preserving strict unauthenticated device UUID fallback contracts. Added real-time score upload status feedback to post-run dialogs.
 - **Simulation Decoupling via `CombatSimulationEngine`:** Extracted pure simulation math, ballistics calculation, enemy path progression, Cryo shatterburst effects, and visual particle simulation from `RogueTDViewModel.kt` into `CombatSimulationEngine.kt`, reducing ViewModel complexity and enforcing clean separation of concerns.

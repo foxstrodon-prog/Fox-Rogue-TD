@@ -11,18 +11,18 @@ data class EnemyAdvanceResult(
 
 /**
  * Pure combat physics, ballistics math, enemy path movement, and AoE spatial query acceleration engine.
- * Decoupled from ViewModel state orchestration for modularity and testability (Task C-01 & Task C-03).
+ * Decoupled from ViewModel state orchestration for modularity and testability (Task C-01, C-03, D-02 & D-04).
  */
 class CombatSimulationEngine(
     val spatialGrid: SpatialHashGrid = SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 20)
 ) {
-    // Double-buffered scratch lists for zero-allocation combat loops (Task C-06)
+    // Pre-sized scratch lists for zero-allocation combat loops (Task C-06 & D-02)
     private val scratchSurvivingEnemies = ArrayList<EnemyInstance>(128)
     private val scratchSurvivingProjectiles = ArrayList<Projectile>(128)
     private val scratchAoEList = ArrayList<EnemyInstance>(64)
 
     /**
-     * Advances track energy particles along lane vectors.
+     * Advances track energy particles along lane vectors with zero heap allocations.
      */
     fun advanceTrackParticles(
         particles: List<TrackParticle>,
@@ -30,20 +30,26 @@ class CombatSimulationEngine(
         deltaSec: Float
     ): List<TrackParticle> {
         if (particles.isEmpty()) return emptyList()
-        return particles.map { p ->
-            val path = if (p.laneIndex == 0) level.laneAlpha else level.laneBeta
+        val pathA = level.laneAlpha
+        val pathB = level.laneBeta
+        for (i in particles.indices) {
+            val p = particles[i]
+            val path = if (p.laneIndex == 0) pathA else pathB
             var seg = p.segmentIndex
             var prog = p.progress + p.speed * deltaSec
-            while (prog >= 1.0f && seg < path.size - 2) {
+            val maxSeg = path.size - 2
+            while (prog >= 1.0f && seg < maxSeg) {
                 prog -= 1.0f
                 seg++
             }
-            if (seg >= path.size - 2 && prog >= 1.0f) {
+            if (seg >= maxSeg && prog >= 1.0f) {
                 seg = 0
                 prog = 0f
             }
-            p.copy(segmentIndex = seg, progress = prog)
+            p.segmentIndex = seg
+            p.progress = prog
         }
+        return particles
     }
 
     /**
@@ -61,13 +67,15 @@ class CombatSimulationEngine(
         var coreDamageTaken = 0
 
         val globalSlow = if (globalFrostSlowBonus > 0f) maxOf(0.15f, 1f - globalFrostSlowBonus) else 1.0f
+        val pathA = level.laneAlpha
+        val pathB = level.laneBeta
 
         for (i in currentEnemies.indices) {
             val enemy = currentEnemies[i]
             if (enemy.slowTimerMs > 0) enemy.slowTimerMs = maxOf(0L, enemy.slowTimerMs - deltaMs)
             if (enemy.shockTimerMs > 0) enemy.shockTimerMs = maxOf(0L, enemy.shockTimerMs - deltaMs)
 
-            val path = if (enemy.laneIndex == 0) level.laneAlpha else level.laneBeta
+            val path = if (enemy.laneIndex == 0) pathA else pathB
             val moveDistance = enemy.effectiveSpeed * enemySpeedMultiplier * globalSlow * deltaSec
             enemy.segmentProgress += moveDistance
 
@@ -91,9 +99,17 @@ class CombatSimulationEngine(
 
         spatialGrid.rebuild(scratchSurvivingEnemies)
         return EnemyAdvanceResult(
-            survivingEnemies = ArrayList(scratchSurvivingEnemies),
+            survivingEnemies = scratchSurvivingEnemies,
             coreDamageTaken = coreDamageTaken
         )
+    }
+
+    private fun findEnemyById(enemies: List<EnemyInstance>, id: String): EnemyInstance? {
+        for (i in enemies.indices) {
+            val e = enemies[i]
+            if (e.id == id) return e
+        }
+        return null
     }
 
     /**
@@ -110,11 +126,9 @@ class CombatSimulationEngine(
         scratchSurvivingProjectiles.clear()
         if (projectiles.isEmpty()) return emptyList()
 
-        val enemyMap = survivingEnemies.associateBy { it.id }
-
         for (i in projectiles.indices) {
             val proj = projectiles[i]
-            val targetEnemy = if (proj.targetEnemyId != null) enemyMap[proj.targetEnemyId] else null
+            val targetEnemy = if (proj.targetEnemyId != null) findEnemyById(survivingEnemies, proj.targetEnemyId) else null
             val destX = targetEnemy?.worldX ?: proj.targetX
             val destY = targetEnemy?.worldY ?: proj.targetY
 
@@ -126,14 +140,14 @@ class CombatSimulationEngine(
             if (dist <= step || dist < 0.25f) {
                 if (proj.isSplash) {
                     addExplosion(destX, destY, proj.splashRadius, proj.color, 250L)
-                    // AoE accelerated via SpatialHashGrid (Task C-04)
+                    // AoE accelerated via SpatialHashGrid
                     spatialGrid.getPotentialCollisions(destX, destY, proj.splashRadius, scratchAoEList)
                     for (j in scratchAoEList.indices) {
                         val st = scratchAoEList[j]
                         applyDamage(st, proj.damage, null, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
                     }
 
-                    // Mortar Cluster Munitions (Task C-04)
+                    // Mortar Cluster Munitions
                     if (proj.hasClusterSplit) {
                         for (c in 0 until 3) {
                             val angle = (c * 2.094f) + Random.nextFloat()
@@ -150,13 +164,20 @@ class CombatSimulationEngine(
                         }
                     }
                 } else {
-                    val hitEnemy = if (proj.targetEnemyId != null) enemyMap[proj.targetEnemyId] else null
+                    val hitEnemy = if (proj.targetEnemyId != null) findEnemyById(survivingEnemies, proj.targetEnemyId) else null
                     if (hitEnemy != null) {
                         applyDamage(hitEnemy, proj.damage, null, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
                         // Gatling Ricochet
                         if (proj.hasClusterSplit) {
                             spatialGrid.getPotentialCollisions(hitEnemy.worldX, hitEnemy.worldY, 2.5f, scratchAoEList)
-                            val bounceTarget = scratchAoEList.firstOrNull { it.id != hitEnemy.id }
+                            var bounceTarget: EnemyInstance? = null
+                            for (j in scratchAoEList.indices) {
+                                val candidate = scratchAoEList[j]
+                                if (candidate.id != hitEnemy.id) {
+                                    bounceTarget = candidate
+                                    break
+                                }
+                            }
                             if (bounceTarget != null) {
                                 applyDamage(bounceTarget, proj.damage * 0.50f, null, false, false, proj.sourceShape, proj.sourceAffinity)
                             }
@@ -164,18 +185,23 @@ class CombatSimulationEngine(
                     }
                 }
             } else {
-                proj.currentX += (dx / dist) * step
-                proj.currentY += (dy / dist) * step
+                // Task D-04: Strict zero-distance and NaN guards
+                @Suppress("KotlinConstantConditions")
+                if (!dist.isNaN() && dist > 0.0001f) {
+                    val invDist = 1.0f / dist
+                    proj.currentX += (dx * invDist) * step
+                    proj.currentY += (dy * invDist) * step
+                }
                 proj.traveledDistance += step
                 scratchSurvivingProjectiles.add(proj)
             }
         }
 
-        return ArrayList(scratchSurvivingProjectiles)
+        return scratchSurvivingProjectiles
     }
 
     /**
-     * Resolves Cryo Shatterburst AoE using [SpatialHashGrid.getPotentialCollisions] (Task C-04).
+     * Resolves Cryo Shatterburst AoE using [SpatialHashGrid.getPotentialCollisions].
      */
     fun processCryoShatterburst(
         enemy: EnemyInstance,

@@ -7,17 +7,30 @@ import com.example.model.EnemyShape
  * Pure, extensible combat damage calculation engine for Fox-Rogue-TD.
  * Evaluates geometric shape compatibility (Circle, Triangle, Square) and
  * rock-paper-scissors elemental color affinities (Red > Green > Yellow > Red).
+ *
+ * Uses a reusable mutable result container in hot combat loops to eliminate per-hit heap allocations (Task D-02).
  */
 object DamageCalculator {
 
-    data class DamageResult(
-        val finalDamage: Float,
-        val shapeMultiplier: Float,
-        val colorMultiplier: Float,
-        val isShapeMatch: Boolean,
-        val isColorAdvantage: Boolean,
-        val isColorDisadvantage: Boolean
-    )
+    class DamageResult(
+        var finalDamage: Float = 0f,
+        var shapeMultiplier: Float = 1f,
+        var colorMultiplier: Float = 1f,
+        var isShapeMatch: Boolean = false,
+        var isColorAdvantage: Boolean = false,
+        var isColorDisadvantage: Boolean = false
+    ) {
+        fun copy(): DamageResult = DamageResult(
+            finalDamage = finalDamage,
+            shapeMultiplier = shapeMultiplier,
+            colorMultiplier = colorMultiplier,
+            isShapeMatch = isShapeMatch,
+            isColorAdvantage = isColorAdvantage,
+            isColorDisadvantage = isColorDisadvantage
+        )
+    }
+
+    private val scratchResult = DamageResult()
 
     /**
      * Calculates the damage dealt to an enemy taking into account:
@@ -30,6 +43,8 @@ object DamageCalculator {
      *   - Disadvantage: 0.70x mitigation (-30%)
      *   - Neutral / Same: 1.00x
      * - Enemy armor mitigation
+     *
+     * Writes into [out] (defaulting to a reusable pre-allocated container) with zero heap allocations.
      */
     fun calculateDamage(
         baseDamage: Float,
@@ -37,7 +52,8 @@ object DamageCalculator {
         towerAffinity: ElementAffinity,
         enemyShape: EnemyShape,
         enemyAffinity: ElementAffinity,
-        enemyArmor: Float = 0f
+        enemyArmor: Float = 0f,
+        out: DamageResult = scratchResult
     ): DamageResult {
         // 1. Shape matching logic
         val isShapeMatch = (towerShape == enemyShape)
@@ -56,13 +72,12 @@ object DamageCalculator {
         val armorFactor = (1.0f - enemyArmor.coerceIn(0f, 0.90f))
         val computed = baseDamage * shapeMultiplier * colorMultiplier * armorFactor
 
-        return DamageResult(
-            finalDamage = computed.coerceAtLeast(1.0f),
-            shapeMultiplier = shapeMultiplier,
-            colorMultiplier = colorMultiplier,
-            isShapeMatch = isShapeMatch,
-            isColorAdvantage = isAdvantage,
-            isColorDisadvantage = isDisadvantage
-        )
+        out.finalDamage = computed.coerceAtLeast(1.0f)
+        out.shapeMultiplier = shapeMultiplier
+        out.colorMultiplier = colorMultiplier
+        out.isShapeMatch = isShapeMatch
+        out.isColorAdvantage = isAdvantage
+        out.isColorDisadvantage = isDisadvantage
+        return out
     }
 }

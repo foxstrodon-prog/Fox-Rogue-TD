@@ -4,7 +4,20 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.018
+### 🚀 What's New in Version 0.0.1.019
+
+🏗️ **750-Line Modularity Overhaul, Domain Coordinators & Zero-Allocation Engine Hardening**
+- **750-Line Architectural Modularity Law (100% Compliance):** Restructured all 54 production Kotlin source files under `app/src/main/java/com/example/` so every single file strictly adheres to the `<= 750`-line architectural ceiling with high domain cohesion.
+- **God-ViewModel Decomposition & Domain Coordinators:** Reduced `RogueTDViewModel.kt` under 600 lines by extracting focused domain coordinators (`SimulationCoordinator.kt`, `TowerPlacementCoordinator.kt`, and `WaveProgressionCoordinator.kt`) under `engine/coordinator/`.
+- **UI & Canvas Sub-Renderer Decomposition:** Split `GameCanvas.kt` into `TerrainRenderer.kt`, `TrackRenderer.kt`, and `EntityRenderer.kt` under `ui/canvas/` (eliminating all per-frame `listOf(...)` allocations inside draw loops), and extracted modular HUD/dialog components (`TargetPriorityMenu.kt`, `SingularityWarningDialog.kt`, `RunSummaryDialogs.kt`, `TelemetryLeaderboardDialog.kt`, `AudioVisualCustomizationPanel.kt`, `DevMenuComponents.kt`).
+- **Model, Config & Audio Partitioning:** Partitioned core models and synergy matrices into `EntityModels.kt`, `MapModels.kt`, `ThemeModels.kt`, and `TowerSynergyConfig.kt`, and split procedural audio synthesis into `ProceduralAudioSynthesizer.kt` and `AudioSynthesizer.kt`.
+- **Zero-Allocation Hot-Loop & Spatial Grid Hardening:** Eliminated per-tick collection allocations across `SimulationCoordinator.kt` and `CombatSimulationEngine.kt`, added reusable `DamageResult` containers in `DamageCalculator.kt`, hardened `SpatialHashGrid.queryNearby` with caller-supplied buffers, and added strict zero-distance/NaN guards to projectile step math.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.018
 
 🏆 **Global Leaderboard Restoration, Simulation Decoupling & Engine Hardening**
 - **Global Leaderboard Restoration & UX Navigation:** Fixed navigation routing from the Pause Menu and Post-Run Summary Dialog to route directly to Tab 2 (Global Ranks). Added automatic score refreshing on tab switch via reactive Compose effects, and synchronized background WorkManager score upload completion directly with `LeaderboardRepository` for instant rank updating.
