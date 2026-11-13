@@ -367,7 +367,7 @@ fun RogueTDScreen(
             RunSummaryDialog(
                 state = state,
                 onRestart = { viewModel.startNewRun() },
-                onViewTelemetry = { viewModel.toggleTelemetryView(true) },
+                onViewTelemetry = { viewModel.toggleTelemetryView(true, initialTab = 2) },
                 onSetPlayerName = { viewModel.setPlayerName(it) }
             )
         }
@@ -489,7 +489,12 @@ fun TelemetryLeaderboardDialog(
     onRetryLeaderboard: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = LAST RUN, 1 = MY LIFETIME, 2 = LEADERBOARD
+    var selectedTab by remember(state.telemetryInitialTab) { mutableStateOf(state.telemetryInitialTab) }
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 2) {
+            onRetryLeaderboard()
+        }
+    }
     var editingCallsign by remember { mutableStateOf(state.activePlayerName) }
     var isEditingName by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
@@ -1534,6 +1539,33 @@ fun RunSummaryDialog(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
+                } else if (state.leaderboardPendingCount > 0) {
+                    Surface(
+                        color = Color(0xFF00F0FF).copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF)),
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .testTag("leaderboard_retry")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(10.dp),
+                                strokeWidth = 1.5.dp,
+                                color = Color(0xFF00F0FF)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "UPLOADING RUN TO GLOBAL RANKS...",
+                                color = Color(0xFF00F0FF),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.5.sp
+                            )
+                        }
+                    }
                 } else {
                     when (state.leaderboardStatus) {
                         GlobalBoardStatus.LOADING -> {
@@ -1554,7 +1586,7 @@ fun RunSummaryDialog(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "UPLOADING RUN...",
+                                        text = "SYNCING LEADERBOARD...",
                                         color = Color(0xFF00F0FF),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 8.5.sp
@@ -1579,18 +1611,17 @@ fun RunSummaryDialog(
                             }
                         }
                         GlobalBoardStatus.ERROR -> {
-                            val hasPending = state.leaderboardPendingCount > 0
                             Surface(
-                                color = if (hasPending) Color(0xFF64748B).copy(alpha = 0.2f) else Color(0xFFFF2A55).copy(alpha = 0.15f),
+                                color = Color(0xFFFF2A55).copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (hasPending) Color(0xFF64748B) else Color(0xFFFF2A55)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55)),
                                 modifier = Modifier
                                     .padding(bottom = 8.dp)
                                     .testTag("leaderboard_retry")
                             ) {
                                 Text(
-                                    text = if (hasPending) "QUEUED FOR UPLOAD (OFFLINE)" else "UPLOAD FAILED",
-                                    color = if (hasPending) Color(0xFF94A3B8) else Color(0xFFFF2A55),
+                                    text = "UPLOAD FAILED",
+                                    color = Color(0xFFFF2A55),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 8.5.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -1599,14 +1630,14 @@ fun RunSummaryDialog(
                         }
                         GlobalBoardStatus.OFFLINE_CACHED, GlobalBoardStatus.IDLE -> {
                             Surface(
-                                color = Color(0xFF64748B).copy(alpha = 0.2f),
+                                color = Color(0xFF00FF9D).copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64748B)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D)),
                                 modifier = Modifier.padding(bottom = 8.dp)
                             ) {
                                 Text(
-                                    text = "QUEUED FOR UPLOAD (OFFLINE)",
-                                    color = Color(0xFF94A3B8),
+                                    text = "SCORE SUBMITTED TO GLOBAL LEADERBOARD",
+                                    color = Color(0xFF00FF9D),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 8.5.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)

@@ -82,9 +82,7 @@ class AuthRepository @JvmOverloads constructor(
     }
 
     suspend fun getIdToken(forceRefresh: Boolean = false): String? = withContext(Dispatchers.IO) {
-        if (auth == null) return@withContext null
-
-        val user = auth.currentUser
+        val user = auth?.currentUser
         if (user != null) {
             try {
                 val task = user.getIdToken(forceRefresh)

@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.017`):** [`apk/Dual-Front-TD-v0.0.1.017-debug.apk`](apk/Dual-Front-TD-v0.0.1.017-debug.apk)
+- **Latest Android APK (`v0.0.1.018`):** [`apk/Dual-Front-TD-v0.0.1.018-debug.apk`](apk/Dual-Front-TD-v0.0.1.018-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,21 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.017
+## 🕹️ What's New in Version 0.0.1.018
 
-### 🎯 Combat Rebalance, Synergy Conduit Agency & Map Expansion
+### 🏆 Global Leaderboard Restoration, Simulation Decoupling & Engine Hardening
+- **Global Leaderboard Restoration & UX Navigation:** Fixed navigation routing from the Pause Menu and Post-Run Summary Dialog to route directly to Tab 2 (Global Ranks). Added automatic score refreshing on tab switch via reactive Compose effects, and synchronized background WorkManager score upload completion directly with `LeaderboardRepository` for instant rank updating.
+- **REST Identity Toolkit Auth Hardening:** Hardened `AuthRepository` with graceful fallback to Firebase REST Identity Toolkit anonymous authentication when native Firebase Auth initialization is unavailable, preserving strict unauthenticated device UUID fallback contracts. Added real-time score upload status feedback to post-run dialogs.
+- **Simulation Decoupling via `CombatSimulationEngine`:** Extracted pure simulation math, ballistics calculation, enemy path progression, Cryo shatterburst effects, and visual particle simulation from `RogueTDViewModel.kt` into `CombatSimulationEngine.kt`, reducing ViewModel complexity and enforcing clean separation of concerns.
+- **Spatial Hash AoE Acceleration:** Upgraded explosive munitions sweeps (Mortar artillery, Hellfire blasts, Cluster munitions, and Void singularity splash) from full linear scans to $O(K)$ localized spatial neighborhood queries via `SpatialHashGrid.getPotentialCollisions(x, y, radius)`.
+- **Domain Model Partitioning:** Partitioned monolithic `GameModels.kt` by separating tower archetypes, classes, and balances into `TowerBalanceConfig.kt` and enemy roles, shapes, and archetypes into `EnemyBalanceConfig.kt`, maintaining high cohesion and strict file size boundaries.
+- **Zero-Allocation Hot-Loop Scratch Buffering:** Implemented pre-allocated double-buffered scratch lists for surviving entities and AoE collision queries in `CombatSimulationEngine`, eliminating per-tick garbage collection pauses during high-density 100+ swarm waves.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.017
 - **Combat Cadence & Level 1–3 Progression Salience:** Rebalanced baseline starter weapon fire rates by ~40–50% (Gatling 1.2/s, Cryo 1.6/s, Tesla 0.7/s, Mortar 0.40/s, Laser 1.8/s, Void 0.6/s, Stellar 0.9/s) and scaled per-shot base damage up (+80% to +130%) so early-game towers deliver punchy, measured strikes rather than hose-like sprays. Scaled upgrade progression through Tier 1 (+20% SPD, +15% DMG), Tier 2 (+40% SPD, +35% DMG), and Tier 3 (+70% SPD, +60% DMG) so evolutions feel truly transformative.
 - **Physical Ballistics & Projectile Travel Time:** Tuned ballistic velocities (Gatling 8.5, Mortar 4.2, Stellar 6.0) so munitions travel across the grid with realistic flight physics and artillery arcs, allowing players to track ordnance flight time.
 - **Player-Chosen Synergy Conduit & Permanent Teaser Squircle:**

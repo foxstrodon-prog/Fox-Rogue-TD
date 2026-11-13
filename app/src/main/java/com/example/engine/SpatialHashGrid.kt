@@ -12,7 +12,7 @@ import kotlin.math.floor
 class SpatialHashGrid(
     private val cellSize: Float = 2.0f,
     private val gridWidth: Int = 16,
-    private val gridHeight: Int = 18
+    private val gridHeight: Int = 20
 ) {
     // Array of buckets, each holding an index list of enemies
     private val buckets = Array(gridWidth * gridHeight) { mutableListOf<EnemyInstance>() }
@@ -78,6 +78,43 @@ class SpatialHashGrid(
             }
         }
         return queryResults
+    }
+
+    /**
+     * Spatial hash AoE acceleration sweep for splash munitions (Mortar, Hellfire, Cluster, Void).
+     * Retrieves all living hostiles within [radius] of ([centerX], [centerY]) using O(1) cell buckets.
+     */
+    fun getPotentialCollisions(centerX: Float, centerY: Float, radius: Float): List<EnemyInstance> {
+        return queryNearby(centerX, centerY, radius)
+    }
+
+    /**
+     * Non-allocating variant of [getPotentialCollisions] that fills a reusable caller-supplied [out] list.
+     */
+    fun getPotentialCollisions(centerX: Float, centerY: Float, radius: Float, out: MutableList<EnemyInstance>): MutableList<EnemyInstance> {
+        out.clear()
+        val minCellX = floor((centerX - radius) / cellSize).toInt().coerceIn(0, gridWidth - 1)
+        val maxCellX = floor((centerX + radius) / cellSize).toInt().coerceIn(0, gridWidth - 1)
+        val minCellY = floor((centerY - radius) / cellSize).toInt().coerceIn(0, gridHeight - 1)
+        val maxCellY = floor((centerY + radius) / cellSize).toInt().coerceIn(0, gridHeight - 1)
+
+        val radiusSq = radius * radius
+
+        for (cy in minCellY..maxCellY) {
+            val rowOffset = cy * gridWidth
+            for (cx in minCellX..maxCellX) {
+                val bucket = buckets[rowOffset + cx]
+                for (i in bucket.indices) {
+                    val enemy = bucket[i]
+                    val dx = enemy.worldX - centerX
+                    val dy = enemy.worldY - centerY
+                    if ((dx * dx + dy * dy) <= radiusSq) {
+                        out.add(enemy)
+                    }
+                }
+            }
+        }
+        return out
     }
 
     /**

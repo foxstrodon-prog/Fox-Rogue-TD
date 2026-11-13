@@ -61,6 +61,7 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
           Log.i(TAG, "[ScoreSubmissionWorker] Confirmed score submission for runId=${item.runId}. Removing from pending queue.")
           store.removePending(item.runId)
           store.recordSubmittedId(item.runId)
+          com.example.engine.repository.LeaderboardRepository.notifySubmissionComplete()
         }
         is LeaderboardResult.Failure -> {
           Log.w(TAG, "[ScoreSubmissionWorker] Submission failed for runId=${item.runId}: kind=${result.kind}, message=${result.message}")

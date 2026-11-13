@@ -12,11 +12,15 @@ import com.example.model.LeaderboardResult
 import com.example.model.LeaderboardUiState
 import com.example.model.PendingSubmission
 import com.example.model.RunRecord
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -28,6 +32,7 @@ class LeaderboardRepository @JvmOverloads constructor(
   private val authRepo: AuthRepository? = null
 ) {
 
+  private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
   private val _boardState = MutableStateFlow(LeaderboardUiState())
   val boardState: StateFlow<LeaderboardUiState> = _boardState.asStateFlow()
 
@@ -35,6 +40,14 @@ class LeaderboardRepository @JvmOverloads constructor(
   private var lastFetchElapsedRealtime: Long = 0L
 
   suspend fun initialize() = withContext(Dispatchers.IO) {
+    scope.launch {
+      syncEventFlow.collect {
+        val pending = store.getPendingQueue()
+        Log.d(TAG, "[LeaderboardRepository] syncEventFlow triggered: pendingCount=${pending.size}. Triggering fresh fetch.")
+        _boardState.update { it.copy(pendingCount = pending.size) }
+        fetchLeaderboard(forceRefresh = true)
+      }
+    }
     val cached = store.getCachedLeaderboard()
     val pending = store.getPendingQueue()
     val initialStatus = if (!api.isConfigured) {
@@ -196,5 +209,10 @@ class LeaderboardRepository @JvmOverloads constructor(
 
   companion object {
     private const val TAG = "LeaderboardRepository"
+    val syncEventFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    fun notifySubmissionComplete() {
+      syncEventFlow.tryEmit(Unit)
+    }
   }
 }

@@ -105,7 +105,8 @@ data class GameUIState(
     val towerVisualSkin: String = "Vector Blueprint",
     val activeCinematic: ActiveCinematicState? = null,
     val difficulty: GameDifficulty = GameDifficulty.MEDIUM,
-    val isSingularityWarningOpen: Boolean = false
+    val isSingularityWarningOpen: Boolean = false,
+    val telemetryInitialTab: Int = 0
 )
 
 class RogueTDViewModel @JvmOverloads constructor(
@@ -164,8 +165,9 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var waveHasStartedSpawning: Boolean = false
     private var updateDismissedForSession: Boolean = false
 
-    // Zero-allocation Uniform Grid Spatial Partitioning (Leo & Dr. Alan)
-    val spatialGrid = com.example.engine.SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 18)
+    // Zero-allocation Uniform Grid Spatial Partitioning & Simulation Engine (Leo & Dr. Alan)
+    val combatEngine = com.example.engine.CombatSimulationEngine()
+    val spatialGrid: com.example.engine.SpatialHashGrid get() = combatEngine.spatialGrid
 
     // Real-Time Telemetry Probes (Tessa)
     var currentFps: Int = 60
@@ -321,12 +323,12 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
     }
 
-    fun toggleTelemetryView(open: Boolean) {
+    fun toggleTelemetryView(open: Boolean, initialTab: Int = 0) {
         if (open) {
             refreshTelemetry()
             fetchOnlineLeaderboard(forceRefresh = true)
         }
-        _uiState.update { it.copy(isTelemetryOpen = open) }
+        _uiState.update { it.copy(isTelemetryOpen = open, telemetryInitialTab = initialTab) }
     }
 
     fun toggleSettingsView(open: Boolean) {
@@ -337,7 +339,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun openTelemetryFromPauseMenu() {
         refreshTelemetry()
         fetchOnlineLeaderboard(forceRefresh = true)
-        _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true) }
+        _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true, telemetryInitialTab = 2) }
     }
 
     fun openSettingsFromPauseMenu() {
@@ -776,21 +778,8 @@ class RogueTDViewModel @JvmOverloads constructor(
         val newOvercharge = maxOf(0L, state.overchargeRemainingMs - deltaMs)
         val currentEnemies = state.enemies.toMutableList()
 
-        // 0. Advance Track Energy Particles along the vector curves
-        val updatedParticles = state.trackParticles.map { p ->
-            val path = if (p.laneIndex == 0) level.laneAlpha else level.laneBeta
-            var seg = p.segmentIndex
-            var prog = p.progress + p.speed * deltaSec
-            while (prog >= 1.0f && seg < path.size - 2) {
-                prog -= 1.0f
-                seg++
-            }
-            if (seg >= path.size - 2 && prog >= 1.0f) {
-                seg = 0
-                prog = 0f
-            }
-            p.copy(segmentIndex = seg, progress = prog)
-        }
+        // 0. Advance Track Energy Particles along the vector curves (CombatSimulationEngine)
+        val updatedParticles = combatEngine.advanceTrackParticles(state.trackParticles, level, deltaSec)
 
         // 1. Dual-Lane Wave Spawning
         if (state.isWaveActive && pendingSpawns.isNotEmpty()) {
@@ -824,39 +813,17 @@ class RogueTDViewModel @JvmOverloads constructor(
             }
         }
 
-        // 2. Dual-Lane Movement & Status Effects
-        val survivingEnemies = mutableListOf<EnemyInstance>()
-        var coreDamageTaken = 0
-
-        for (enemy in currentEnemies) {
-            if (enemy.slowTimerMs > 0) enemy.slowTimerMs = maxOf(0L, enemy.slowTimerMs - deltaMs)
-            if (enemy.shockTimerMs > 0) enemy.shockTimerMs = maxOf(0L, enemy.shockTimerMs - deltaMs)
-
-            val path = if (enemy.laneIndex == 0) level.laneAlpha else level.laneBeta
-            val globalSlow = if (state.globalFrostSlowBonus > 0f) maxOf(0.15f, 1f - state.globalFrostSlowBonus) else 1.0f
-            val moveDistance = enemy.effectiveSpeed * state.balanceConfig.enemySpeedMultiplier * globalSlow * deltaSec
-            enemy.segmentProgress += moveDistance
-
-            while (enemy.segmentProgress >= 1f && enemy.currentPathSegmentIndex < path.size - 1) {
-                enemy.segmentProgress -= 1f
-                enemy.currentPathSegmentIndex++
-            }
-
-            if (enemy.currentPathSegmentIndex >= path.size - 1) {
-                coreDamageTaken += if (enemy.isBoss) 6 else 1
-            } else {
-                val p0 = path[enemy.currentPathSegmentIndex]
-                val p1 = path[enemy.currentPathSegmentIndex + 1]
-                val t = enemy.segmentProgress
-                enemy.worldX = p0.x + (p1.x - p0.x) * t
-                enemy.worldY = p0.y + (p1.y - p0.y) * t
-                enemy.headingRad = atan2((p1.y - p0.y).toFloat(), (p1.x - p0.x).toFloat())
-                survivingEnemies.add(enemy)
-            }
-        }
-
-        // Rebuild Spatial Hash Grid for O(1) bucket lookups across all towers & projectiles (Leo & Dr. Alan)
-        spatialGrid.rebuild(survivingEnemies)
+        // 2. Dual-Lane Movement & Status Effects (CombatSimulationEngine)
+        val enemyAdvance = combatEngine.advanceEnemies(
+            currentEnemies = currentEnemies,
+            level = level,
+            deltaSec = deltaSec,
+            deltaMs = deltaMs,
+            globalFrostSlowBonus = state.globalFrostSlowBonus,
+            enemySpeedMultiplier = state.balanceConfig.enemySpeedMultiplier
+        )
+        val survivingEnemies = enemyAdvance.survivingEnemies
+        val coreDamageTaken = enemyAdvance.coreDamageTaken
 
         // Core Damage & Screen Shake
         var newCoreHp = state.coreHp
@@ -1162,75 +1129,18 @@ class RogueTDViewModel @JvmOverloads constructor(
             }
         }
 
-        // 4. Update Projectiles & Splitting
-        val survivingProjectiles = mutableListOf<Projectile>()
-        val enemyMap = survivingEnemies.associateBy { it.id }
-
-        for (proj in newProjectiles) {
-            val targetEnemy = if (proj.targetEnemyId != null) enemyMap[proj.targetEnemyId] else null
-            val destX = targetEnemy?.worldX ?: proj.targetX
-            val destY = targetEnemy?.worldY ?: proj.targetY
-
-            val dx = destX - proj.currentX
-            val dy = destY - proj.currentY
-            val dist = hypot(dx, dy)
-            val step = proj.speed * deltaSec
-
-            if (dist <= step || dist < 0.25f) {
-                if (proj.isSplash) {
-                    newExplosions.add(ExplosionEffect(nextId("exp_"), destX, destY, proj.splashRadius, color = proj.color))
-                    val splashRadSq = proj.splashRadius * proj.splashRadius
-                    val splashTargets = survivingEnemies.filter {
-                        val ex = it.worldX - destX
-                        val ey = it.worldY - destY
-                        (ex * ex + ey * ey) <= splashRadSq
-                    }
-                    for (st in splashTargets) {
-                        applyDamageToEnemy(st, proj.damage, null, proj.isCrit, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
-                    }
-
-                    // Mortar Cluster Munitions
-                    if (proj.hasClusterSplit) {
-                        for (i in 0 until 3) {
-                            val angle = (i * 2.094f) + Random.nextFloat()
-                            val offsetX = cos(angle) * 0.85f
-                            val offsetY = sin(angle) * 0.85f
-                            newExplosions.add(ExplosionEffect(nextId("exp_"), destX + offsetX, destY + offsetY, 0.9f, color = 0xFFFFB800, lifeMs = 200L))
-                            val clusterRadSq = 0.9f * 0.9f
-                            val clusterTargets = survivingEnemies.filter {
-                                val ex = it.worldX - (destX + offsetX)
-                                val ey = it.worldY - (destY + offsetY)
-                                (ex * ex + ey * ey) <= clusterRadSq
-                            }
-                            for (ct in clusterTargets) {
-                                applyDamageToEnemy(ct, proj.damage * 0.45f, null, false, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
-                            }
-                        }
-                    }
-                } else {
-                    val hitEnemy = if (proj.targetEnemyId != null) enemyMap[proj.targetEnemyId] else null
-                    if (hitEnemy != null) {
-                        applyDamageToEnemy(hitEnemy, proj.damage, null, proj.isCrit, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
-                        // Gatling Ricochet
-                        if (proj.hasClusterSplit) {
-                            val bounceTarget = survivingEnemies.firstOrNull {
-                                val bx = it.worldX - hitEnemy.worldX
-                                val by = it.worldY - hitEnemy.worldY
-                                it.id != hitEnemy.id && (bx * bx + by * by) < 6.25f
-                            }
-                            if (bounceTarget != null) {
-                                applyDamageToEnemy(bounceTarget, proj.damage * 0.50f, null, false, armorPierce = false, sourceShape = proj.sourceShape, sourceAffinity = proj.sourceAffinity)
-                            }
-                        }
-                    }
-                }
-            } else {
-                proj.currentX += (dx / dist) * step
-                proj.currentY += (dy / dist) * step
-                proj.traveledDistance += step
-                survivingProjectiles.add(proj)
+        // 4. Update Projectiles & Splitting (CombatSimulationEngine with Spatial Hash AoE)
+        val survivingProjectiles = combatEngine.updateProjectiles(
+            projectiles = newProjectiles,
+            survivingEnemies = survivingEnemies,
+            deltaSec = deltaSec,
+            applyDamage = { target, dmg, tower, crit, pierce, shape, affinity ->
+                applyDamageToEnemy(target, dmg, tower, crit, pierce, shape, affinity)
+            },
+            addExplosion = { x, y, radius, color, lifeMs ->
+                newExplosions.add(ExplosionEffect(nextId("exp_"), x, y, radius, color = color, lifeMs = lifeMs))
             }
-        }
+        )
 
         // 5. Harvest dead hostiles
         var killsGained = 0
@@ -1252,38 +1162,25 @@ class RogueTDViewModel @JvmOverloads constructor(
 
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700)
 
-                // Cryo Shatterburst
+                // Cryo Shatterburst (CombatSimulationEngine with Spatial Hash AoE)
                 if (enemy.slowTimerMs > 0 && state.globalFrostSlowBonus > 0f) {
-                    newExplosions.add(ExplosionEffect(nextId("exp_"), enemy.worldX, enemy.worldY, 1.4f, color = 0xFF38BDF8))
-                    val shatterRadSq = 1.4f * 1.4f
-                    val shatterTargets = survivingEnemies.filter {
-                        val sx = it.worldX - enemy.worldX
-                        val sy = it.worldY - enemy.worldY
-                        it != enemy && (sx * sx + sy * sy) <= shatterRadSq
-                    }
-                    for (st in shatterTargets) {
-                        applyDamageToEnemy(st, enemy.maxHp * 0.25f, null, false, armorPierce = true)
-                    }
+                    combatEngine.processCryoShatterburst(
+                        enemy = enemy,
+                        addExplosion = { x, y, radius, color, lifeMs ->
+                            newExplosions.add(ExplosionEffect(nextId("exp_"), x, y, radius, color = color, lifeMs = lifeMs))
+                        },
+                        applyDamage = { target, dmg, tower, crit, pierce, shape, affinity ->
+                            applyDamageToEnemy(target, dmg, tower, crit, pierce, shape, affinity)
+                        }
+                    )
                 }
             } else {
                 remainingAlive.add(enemy)
             }
         }
 
-        // 6. Update Visual Effects
-        newBeams.removeAll {
-            it.lifeMs -= deltaMs
-            it.lifeMs <= 0
-        }
-        newArcs.removeAll {
-            it.lifeMs -= deltaMs
-            it.lifeMs <= 0
-        }
-        newExplosions.removeAll {
-            it.lifeMs -= deltaMs
-            it.currentRadius = it.maxRadius * (1f - (it.lifeMs.toFloat() / it.maxLifeMs))
-            it.lifeMs <= 0
-        }
+        // 6. Update Visual Effects (CombatSimulationEngine)
+        combatEngine.updateVisualEffects(newBeams, newArcs, newExplosions, deltaMs)
 
         val updatedFloatingTexts = _uiState.value.floatingTexts.mapNotNull { ft ->
             val remLife = ft.lifeMs - deltaMs
