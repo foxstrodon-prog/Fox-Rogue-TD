@@ -11,7 +11,7 @@ class CinematicController(private val vm: RogueTDViewModel) {
 
     fun launchCinematic(scenario: CinematicScenario) {
         val level = vm.uiState.value.level ?: return
-        val emptyTiles = level.tiles.filter { it.type == TileType.EMPTY }
+        val emptyTiles = level.tiles.filter { it.isBuildable }
         if (emptyTiles.size < 4) return
 
         val towers = mutableListOf<TowerInstance>()

@@ -141,8 +141,8 @@ enum class TowerType(
         role = "Rapid Kinetic Rotary Cannons",
         baseCost = 100,
         baseRange = 2.5f,
-        baseDamage = 48f,
-        baseFireRate = 1.2f,
+        baseDamage = 64f,
+        baseFireRate = 0.80f,
         color = 0xFF00F0FF
     ),
     CRYO(
@@ -150,8 +150,8 @@ enum class TowerType(
         role = "Sub-Zero Freezing Laser Spire",
         baseCost = 130,
         baseRange = 2.4f,
-        baseDamage = 36f,
-        baseFireRate = 1.6f,
+        baseDamage = 48f,
+        baseFireRate = 1.05f,
         color = 0xFF38BDF8,
         isBeam = true,
         slowPercent = 0.50f
@@ -161,8 +161,8 @@ enum class TowerType(
         role = "Chaining High-Voltage Lightning Web",
         baseCost = 160,
         baseRange = 2.2f,
-        baseDamage = 100f,
-        baseFireRate = 0.7f,
+        baseDamage = 135f,
+        baseFireRate = 0.48f,
         color = 0xFFB026FF,
         chains = 3
     ),
@@ -171,8 +171,8 @@ enum class TowerType(
         role = "Heavy Incendiary Ballistic Artillery",
         baseCost = 200,
         baseRange = 4.2f,
-        baseDamage = 210f,
-        baseFireRate = 0.40f,
+        baseDamage = 280f,
+        baseFireRate = 0.28f,
         color = 0xFFFF7A00,
         isSplash = true,
         splashRadius = 1.8f
@@ -182,8 +182,8 @@ enum class TowerType(
         role = "High-Intensity Thermal Piercing Beam",
         baseCost = 240,
         baseRange = 3.0f,
-        baseDamage = 175f,
-        baseFireRate = 1.8f,
+        baseDamage = 235f,
+        baseFireRate = 1.15f,
         color = 0xFFFF0055,
         isBeam = true
     ),
@@ -192,8 +192,8 @@ enum class TowerType(
         role = "Graviton Vortex & Armor Shredder",
         baseCost = 280,
         baseRange = 2.5f,
-        baseDamage = 175f,
-        baseFireRate = 0.6f,
+        baseDamage = 235f,
+        baseFireRate = 0.40f,
         color = 0xFF8B5CF6,
         isSplash = true,
         splashRadius = 2.5f
@@ -203,8 +203,8 @@ enum class TowerType(
         role = "Cosmic Flare & Gravitational Warp",
         baseCost = 180,
         baseRange = 3.6f,
-        baseDamage = 130f,
-        baseFireRate = 0.9f,
+        baseDamage = 175f,
+        baseFireRate = 0.60f,
         color = 0xFFFFD700,
         isSplash = true,
         splashRadius = 2.0f

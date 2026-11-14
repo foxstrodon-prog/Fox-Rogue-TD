@@ -22,7 +22,9 @@ data class TowerInstance(
     var rotationAngleDeg: Float = 0f,
     var isCapstone: Boolean = false,
     var generation: Int = 0,
-    val synergyVault: MutableList<BankedSynergyVault> = mutableListOf()
+    val synergyVault: MutableList<BankedSynergyVault> = mutableListOf(),
+    var investedScrap: Int = 0,
+    var cachedBalance: TowerUnitBalance? = null
 ) {
     val isBase: Boolean get() = tier == 0 && branchTier1 == null
     val isTier1: Boolean get() = tier == 1 || (branchTier1 != null && finalFormCode == null && tier == 0)
@@ -32,7 +34,26 @@ data class TowerInstance(
     val isMaxed: Boolean get() = isTier3 || finalFormCode != null
     val isAscended: Boolean get() = isTier3 || finalFormCode != null
 
+    fun invalidateBalanceCache() {
+        cachedBalance = null
+    }
+
+    fun resolveBalance(balanceConfig: DevBalanceConfig = DevBalanceConfig()): TowerUnitBalance {
+        val current = cachedBalance
+        if (current != null && balanceConfig.customTowerConfigs.isEmpty()) return current
+        val resolved = balanceConfig.getEffectiveTowerBalance(type, branchTier1, finalFormCode)
+        if (balanceConfig.customTowerConfigs.isEmpty()) {
+            cachedBalance = resolved
+        }
+        return resolved
+    }
+
     fun getInvestedScrapValue(): Int {
+        if (investedScrap > 0) return investedScrap
+        return computeFallbackInvestedScrap()
+    }
+
+    private fun computeFallbackInvestedScrap(): Int {
         val base = type.baseCost
         val t1 = if (tier >= 1 || vector != null || branchTier1 != null) (base * 0.8f).toInt() else 0
         val t2 = if (tier >= 2 || archetype != null || finalFormCode != null) (base * 1.5f).toInt() else 0
@@ -68,10 +89,19 @@ data class TowerInstance(
         globalRangeBonus: Float = 0f,
         balanceRange: Float? = null
     ): Float {
-        val t1Def = if (branchTier1 != null) com.example.engine.TowerUpgradeManager.getTier1Options(type).firstOrNull { it.branchKey == branchTier1 } else null
-        val ffDef = if (finalFormCode != null) com.example.engine.TowerUpgradeManager.getFinalForm(type, finalFormCode!!) else null
-        val towerRngMul = ffDef?.rangeMultiplier ?: t1Def?.rangeMultiplier ?: (if (isTier3) 1.35f else if (isTier2) 1.20f else if (branchTier1 == "C" || vector == TowerVector.SUPPORT) 1.35f else 1.0f)
-        val baseRng = archetype?.baseRange ?: balanceRange ?: type.baseRange
+        val baseRng = balanceRange ?: archetype?.baseRange ?: type.baseRange
+        val towerRngMul = if (archetype != null || vector != null || tier > 0) {
+            when {
+                isTier3 -> 1.35f
+                isTier2 -> 1.20f
+                vector == TowerVector.SUPPORT || branchTier1 == "C" -> 1.35f
+                else -> 1.0f
+            }
+        } else {
+            val ffDef = if (finalFormCode != null) com.example.engine.TowerUpgradeManager.getFinalForm(type, finalFormCode!!) else null
+            val t1Def = if (branchTier1 != null) com.example.engine.TowerUpgradeManager.getTier1Form(type, branchTier1!!) else null
+            ffDef?.rangeMultiplier ?: t1Def?.rangeMultiplier ?: 1.0f
+        }
         val tileRngBonus = if (tileBuff == TileBuff.HIGH_GROUND) 0.35f else 0.0f
         return baseRng * towerRngMul * (1.0f + tileRngBonus + globalRangeBonus)
     }
@@ -81,16 +111,34 @@ data class TowerInstance(
         tileBuff: TileBuff = TileBuff.NONE,
         globalDamageBonus: Float = 0f
     ): Float {
-        val bal = balanceConfig.getEffectiveTowerBalance(type, branchTier1, finalFormCode)
         val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.30f else 0.0f
         val apexBonus = if (isFinalForm) 0.30f else 0.0f
-        val classDmgMul = when (towerClass) {
+        val arch = archetype
+        val (baseDmg, tierDmgBonus) = if (arch != null) {
+            val customDmg = balanceConfig.customTowerConfigs[arch.name]?.damage
+                ?: balanceConfig.customTowerConfigs[type.name]?.damage
+            val resolvedBase = customDmg ?: arch.baseDamage
+            val t3Mul = if (tier >= 3 || isTier3GlobalActive) 1.25f else 1.0f
+            resolvedBase to t3Mul
+        } else {
+            val bal = resolveBalance(balanceConfig)
+            val tMul = if (branchTier1 == null && finalFormCode == null && (vector != null || tier > 0)) {
+                when (tier) {
+                    3 -> 1.60f
+                    2 -> 1.35f
+                    1 -> 1.15f
+                    else -> 1.0f
+                }
+            } else 1.0f
+            bal.damage to tMul
+        }
+        val classDmgMul = when (arch?.towerClass ?: towerClass) {
             TowerClass.KINETIC_BALLISTIC -> balanceConfig.kineticDamageMultiplier
             TowerClass.ELEMENTAL_VOID -> balanceConfig.elementalDamageMultiplier
             TowerClass.HEAVY_SIEGE -> balanceConfig.heavyDamageMultiplier
-            TowerClass.STELLAR_COSMIC -> 1.0f
+            TowerClass.STELLAR_COSMIC -> 1.15f
         }
-        return bal.damage * classDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
+        return baseDmg * tierDmgBonus * classDmgMul * (1.0f + tileDmgBonus + globalDamageBonus + apexBonus)
     }
 
     fun getEffectiveFireRate(
@@ -98,9 +146,27 @@ data class TowerInstance(
         tileBuff: TileBuff = TileBuff.NONE,
         globalFireRateBonus: Float = 0f
     ): Float {
-        val bal = balanceConfig.getEffectiveTowerBalance(type, branchTier1, finalFormCode)
         val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
-        return bal.fireRate * balanceConfig.globalTowerFireRateMultiplier * (1.0f + tileSpdBonus + globalFireRateBonus)
+        val arch = archetype
+        val (baseSpd, tierSpdBonus) = if (arch != null) {
+            val customSpd = balanceConfig.customTowerConfigs[arch.name]?.fireRate
+                ?: balanceConfig.customTowerConfigs[type.name]?.fireRate
+            val resolvedBase = customSpd ?: arch.baseFireRate
+            val t3Mul = if (tier >= 3 || isTier3GlobalActive) 1.20f else 1.0f
+            resolvedBase to t3Mul
+        } else {
+            val bal = resolveBalance(balanceConfig)
+            val tMul = if (branchTier1 == null && finalFormCode == null && (vector != null || tier > 0)) {
+                when (tier) {
+                    3 -> 1.45f
+                    2 -> 1.25f
+                    1 -> 1.15f
+                    else -> 1.0f
+                }
+            } else 1.0f
+            bal.fireRate to tMul
+        }
+        return baseSpd * tierSpdBonus * balanceConfig.globalTowerFireRateMultiplier * (1.0f + tileSpdBonus + globalFireRateBonus)
     }
 
     fun getEffectiveDps(
@@ -118,11 +184,15 @@ data class TowerInstance(
     }
 
     // Fallback helpers for tests/compatibility
-    val pathTiers: IntArray get() = intArrayOf(
-        if (branchTier1 == "A" || vector == TowerVector.OFFENSIVE) (if (isFinalForm) 2 else 1) else 0,
-        if (branchTier1 == "B" || vector == TowerVector.DEFENSIVE) (if (isFinalForm) 2 else 1) else 0,
-        if (branchTier1 == "C" || vector == TowerVector.SUPPORT) (if (isFinalForm) 2 else 1) else 0
-    )
+    val pathTiers: IntArray = intArrayOf(0, 0, 0)
+        get() {
+            if (field[0] == 0 && field[1] == 0 && field[2] == 0) {
+                if (branchTier1 == "A" || vector == TowerVector.OFFENSIVE) field[0] = if (isFinalForm) 2 else 1
+                if (branchTier1 == "B" || vector == TowerVector.DEFENSIVE) field[1] = if (isFinalForm) 2 else 1
+                if (branchTier1 == "C" || vector == TowerVector.SUPPORT) field[2] = if (isFinalForm) 2 else 1
+            }
+            return field
+        }
 
     fun getSellValue(): Int = com.example.engine.TowerUpgradeManager.getSellValue(this)
 
@@ -150,7 +220,7 @@ data class TowerInstance(
                 if (ff != null) "${type.displayName} - ${ff.subName}" else type.displayName
             }
             branchTier1 != null -> {
-                val t1 = com.example.engine.TowerUpgradeManager.getTier1Options(type).firstOrNull { it.branchKey == branchTier1 }
+                val t1 = com.example.engine.TowerUpgradeManager.getTier1Form(type, branchTier1!!)
                 if (t1 != null) "${type.displayName} - ${t1.subName}" else type.displayName
             }
             else -> when (towerClass) {

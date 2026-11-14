@@ -343,7 +343,7 @@ fun FloatingSquircleUpgradeBar(
     onDeselect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val isActionActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.type == TileType.EMPTY)
+    val isActionActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.isBuildable)
     if (!isActionActive) return
 
     val counterAngle = when (((state.deviceRotationAngle % 360f + 360f) % 360f).toInt()) {
@@ -564,7 +564,7 @@ fun FloatingSquircleUpgradeBar(
                 )
             }
 
-            state.selectedTile != null && state.selectedTile.type == TileType.EMPTY -> {
+            state.selectedTile != null && state.selectedTile.isBuildable -> {
                 val tile = state.selectedTile
                 val classes = TowerUpgradeManager.getTowerClasses()
                 val itemWidth = 72.dp

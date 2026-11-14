@@ -19,19 +19,6 @@ val leaderboardProps = Properties().apply {
 fun leaderboardSetting(name: String, default: String = ""): String =
   (System.getenv(name) ?: leaderboardProps.getProperty(name) ?: default).trim()
 
-fun findGoogleServicesApiKey(): String {
-  val gsFile = project.file("google-services.json")
-  if (gsFile.exists()) {
-    try {
-      val text = gsFile.readText()
-      val regex = """"current_key":\s*"([^"]+)"""".toRegex()
-      val match = regex.find(text)
-      if (match != null) return match.groupValues[1]
-    } catch (_: Exception) {}
-  }
-  return ""
-}
-
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -40,13 +27,12 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 41
-    versionName = "0.0.1.020"
+    versionCode = 42
+    versionName = "0.0.1.021"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID", "roguetddualfront")}\"")
-    buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY", findGoogleServicesApiKey())}\"")
     buildConfigField("String", "LEADERBOARD_COLLECTION", "\"${leaderboardSetting("LEADERBOARD_COLLECTION", "leaderboards")}\"")
   }
 
@@ -172,4 +158,11 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+tasks.register<Copy>("stageDebugApk") {
+  dependsOn("assembleDebug")
+  from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+  into(rootProject.layout.projectDirectory.dir("apk"))
+  rename { "Dual-Front-TD-v0.0.1.021-debug.apk" }
 }

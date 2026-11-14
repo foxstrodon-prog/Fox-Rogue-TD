@@ -16,9 +16,15 @@ data class EnemyAdvanceResult(
 class CombatSimulationEngine(
     val spatialGrid: SpatialHashGrid = SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 20)
 ) {
-    // Pre-sized scratch lists for zero-allocation combat loops (Task C-06 & D-02)
-    private val scratchSurvivingEnemies = ArrayList<EnemyInstance>(128)
-    private val scratchSurvivingProjectiles = ArrayList<Projectile>(128)
+    // Pre-sized double-buffered scratch lists for zero-allocation combat loops without concurrent aliasing
+    private val scratchSurvivingEnemiesA = ArrayList<EnemyInstance>(128)
+    private val scratchSurvivingEnemiesB = ArrayList<EnemyInstance>(128)
+    private var useEnemyBufferA = true
+
+    private val scratchSurvivingProjectilesA = ArrayList<Projectile>(128)
+    private val scratchSurvivingProjectilesB = ArrayList<Projectile>(128)
+    private var useProjBufferA = true
+
     private val scratchAoEList = ArrayList<EnemyInstance>(64)
 
     /**
@@ -29,7 +35,7 @@ class CombatSimulationEngine(
         level: GeneratedLevel,
         deltaSec: Float
     ): List<TrackParticle> {
-        if (particles.isEmpty()) return emptyList()
+        if (particles.isEmpty() || !deltaSec.isFinite() || deltaSec <= 0f) return particles
         val pathA = level.laneAlpha
         val pathB = level.laneBeta
         for (i in particles.indices) {
@@ -63,9 +69,12 @@ class CombatSimulationEngine(
         globalFrostSlowBonus: Float,
         enemySpeedMultiplier: Float
     ): EnemyAdvanceResult {
+        useEnemyBufferA = !useEnemyBufferA
+        val scratchSurvivingEnemies = if (useEnemyBufferA) scratchSurvivingEnemiesA else scratchSurvivingEnemiesB
         scratchSurvivingEnemies.clear()
         var coreDamageTaken = 0
 
+        val safeDeltaSec = if (deltaSec.isFinite() && deltaSec >= 0f) deltaSec else 0f
         val globalSlow = if (globalFrostSlowBonus > 0f) maxOf(0.15f, 1f - globalFrostSlowBonus) else 1.0f
         val pathA = level.laneAlpha
         val pathB = level.laneBeta
@@ -76,8 +85,10 @@ class CombatSimulationEngine(
             if (enemy.shockTimerMs > 0) enemy.shockTimerMs = maxOf(0L, enemy.shockTimerMs - deltaMs)
 
             val path = if (enemy.laneIndex == 0) pathA else pathB
-            val moveDistance = enemy.effectiveSpeed * enemySpeedMultiplier * globalSlow * deltaSec
-            enemy.segmentProgress += moveDistance
+            val moveDistance = enemy.effectiveSpeed * enemySpeedMultiplier * globalSlow * safeDeltaSec
+            if (moveDistance.isFinite()) {
+                enemy.segmentProgress += moveDistance
+            }
 
             while (enemy.segmentProgress >= 1f && enemy.currentPathSegmentIndex < path.size - 1) {
                 enemy.segmentProgress -= 1f
@@ -89,10 +100,14 @@ class CombatSimulationEngine(
             } else {
                 val p0 = path[enemy.currentPathSegmentIndex]
                 val p1 = path[enemy.currentPathSegmentIndex + 1]
-                val t = enemy.segmentProgress
-                enemy.worldX = p0.x + (p1.x - p0.x) * t
-                enemy.worldY = p0.y + (p1.y - p0.y) * t
-                enemy.headingRad = atan2((p1.y - p0.y).toFloat(), (p1.x - p0.x).toFloat())
+                val t = if (enemy.segmentProgress.isFinite()) enemy.segmentProgress else 0f
+                val wx = p0.x + (p1.x - p0.x) * t
+                val wy = p0.y + (p1.y - p0.y) * t
+                enemy.worldX = if (wx.isFinite()) wx else p0.x.toFloat()
+                enemy.worldY = if (wy.isFinite()) wy else p0.y.toFloat()
+                val dy = (p1.y - p0.y).toFloat()
+                val dx = (p1.x - p0.x).toFloat()
+                enemy.headingRad = if (dx != 0f || dy != 0f) atan2(dy, dx) else 0f
                 scratchSurvivingEnemies.add(enemy)
             }
         }
@@ -123,19 +138,35 @@ class CombatSimulationEngine(
         applyDamage: (target: EnemyInstance, rawDamage: Float, sourceTower: TowerInstance?, isCrit: Boolean, armorPierce: Boolean, sourceShape: EnemyShape?, sourceAffinity: ElementAffinity?) -> Unit,
         addExplosion: (x: Float, y: Float, radius: Float, color: Long, lifeMs: Long) -> Unit
     ): List<Projectile> {
-        scratchSurvivingProjectiles.clear()
         if (projectiles.isEmpty()) return emptyList()
+        if (!deltaSec.isFinite() || deltaSec <= 0f) return projectiles
+
+        useProjBufferA = !useProjBufferA
+        val scratchSurvivingProjectiles = if (useProjBufferA) scratchSurvivingProjectilesA else scratchSurvivingProjectilesB
+        scratchSurvivingProjectiles.clear()
 
         for (i in projectiles.indices) {
             val proj = projectiles[i]
+            if (!proj.currentX.isFinite() || !proj.currentY.isFinite() || !proj.speed.isFinite() || proj.speed <= 0f) {
+                continue
+            }
+
             val targetEnemy = if (proj.targetEnemyId != null) findEnemyById(survivingEnemies, proj.targetEnemyId) else null
             val destX = targetEnemy?.worldX ?: proj.targetX
             val destY = targetEnemy?.worldY ?: proj.targetY
+
+            if (!destX.isFinite() || !destY.isFinite()) {
+                continue
+            }
 
             val dx = destX - proj.currentX
             val dy = destY - proj.currentY
             val dist = hypot(dx, dy)
             val step = proj.speed * deltaSec
+
+            if (!dist.isFinite() || !step.isFinite()) {
+                continue
+            }
 
             if (dist <= step || dist < 0.25f) {
                 if (proj.isSplash) {
@@ -185,15 +216,18 @@ class CombatSimulationEngine(
                     }
                 }
             } else {
-                // Task D-04: Strict zero-distance and NaN guards
-                @Suppress("KotlinConstantConditions")
-                if (!dist.isNaN() && dist > 0.0001f) {
+                // Task D-04 & Red-Team Flaw 5: Strict zero-distance and NaN/Infinity guards
+                if (dist > 0.0001f && dist.isFinite()) {
                     val invDist = 1.0f / dist
-                    proj.currentX += (dx * invDist) * step
-                    proj.currentY += (dy * invDist) * step
+                    val nextX = proj.currentX + (dx * invDist) * step
+                    val nextY = proj.currentY + (dy * invDist) * step
+                    if (nextX.isFinite() && nextY.isFinite()) {
+                        proj.currentX = nextX
+                        proj.currentY = nextY
+                        proj.traveledDistance += step
+                        scratchSurvivingProjectiles.add(proj)
+                    }
                 }
-                proj.traveledDistance += step
-                scratchSurvivingProjectiles.add(proj)
             }
         }
 
@@ -208,6 +242,7 @@ class CombatSimulationEngine(
         addExplosion: (x: Float, y: Float, radius: Float, color: Long, lifeMs: Long) -> Unit,
         applyDamage: (target: EnemyInstance, rawDamage: Float, sourceTower: TowerInstance?, isCrit: Boolean, armorPierce: Boolean, sourceShape: EnemyShape?, sourceAffinity: ElementAffinity?) -> Unit
     ) {
+        if (!enemy.worldX.isFinite() || !enemy.worldY.isFinite()) return
         addExplosion(enemy.worldX, enemy.worldY, 1.4f, 0xFF38BDF8, 250L)
         spatialGrid.getPotentialCollisions(enemy.worldX, enemy.worldY, 1.4f, scratchAoEList)
         for (i in scratchAoEList.indices) {
@@ -237,7 +272,9 @@ class CombatSimulationEngine(
         }
         explosions.removeAll {
             it.lifeMs -= deltaMs
-            it.currentRadius = it.maxRadius * (1f - (it.lifeMs.toFloat() / it.maxLifeMs))
+            val safeMaxLife = it.maxLifeMs
+            val ratio = if (safeMaxLife > 0L) (it.lifeMs.toFloat() / safeMaxLife.toFloat()).coerceIn(0f, 1f) else 0f
+            it.currentRadius = it.maxRadius * (1f - ratio)
             it.lifeMs <= 0
         }
     }

@@ -4,7 +4,19 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.020
+### 🚀 What's New in Version 0.0.1.021
+
+🛡️ **Synergy Singularity Economy Calibration, Deliberate Cadence Overhaul & Red-Team Engine Hardening**
+- **Synergy Singularity in Every Mode (EASY, MEDIUM & HARD):** Curated tactical maps to 15 high-agency buildable pads (6 Harmonic + 9 tactical lane pads) and calibrated difficulty-aware scrap income (`EASY 1.45x`, `MEDIUM 1.20x`, `HARD 1.05x`) so you can fill the entire board to Tier 2+ and forge the **Synergy Conduit** before the final wave in every mode.
+- **Deliberate, Punchy Tower Fire Rates:** Lowered base and Tier 2 archetype fire rates by 30–40% across all 52 tower forms while boosting per-shot damage, eliminating multiplier double-dipping for crisp, readable ballistics.
+- **Zero-Allocation 60/120 FPS Engine & HUD Isolation:** Pre-computed static balance/upgrade lookup maps (`0` heap allocations per tick), double-buffered combat entity lists, and isolated discrete HUD Compose state from 60–120 FPS canvas rendering.
+- **Exact 75% Sell-Back & Range Progression Fixes:** Tracked exact `investedScrap` across dynamic Final Form scaling for accurate 75% sell refunds, unified Tier 2 (`1.20x`) and Tier 3 (`1.35x`) range multipliers, hardened `CombatSimulationEngine` against `NaN` propagation, and eliminated redundant HTTP 403 leaderboard retries.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.020
 
 🔒 **Accessibility Font-Scale Lock, Standardized Dev JSON Metadata & Two-Stage Soft Back Navigation**
 - **Universal UI Font-Scale Lock (`fontScale = 1.0f`):** Locked `LocalDensity` in `MyApplicationTheme` and `Configuration.fontScale` in `MainActivity` to `1.0f`. All tactical HUDs, floating squircles, and popup `Dialog(...)` sub-windows now maintain exact layout proportions regardless of Android system accessibility font-size settings.

@@ -97,12 +97,13 @@ enum class GameDifficulty(
     val description: String,
     val hpScaleMultiplier: Float,
     val speedScaleMultiplier: Float,
-    val enemyCountMultiplier: Float
+    val enemyCountMultiplier: Float,
+    val scrapIncomeMultiplier: Float = 1.0f
 ) {
-    EASY("easy", "EASY", 30, "Reconnaissance: Wave 30 Milestone (-20% HP, -10% Speed)", 0.80f, 0.90f, 0.85f),
-    MEDIUM("medium", "MEDIUM", 50, "Standard Defense: Wave 50 Milestone (Calibrated Baseline)", 1.00f, 1.00f, 1.00f),
-    HARD("hard", "HARD", 100, "Endgame Gauntlet: Wave 100 Milestone (True Exponential Past W30)", 1.25f, 1.05f, 1.15f),
-    INFINITE("infinite", "INFINITE", Int.MAX_VALUE, "Endless Incursion: Infinite Scaling (1.08^W Past W50)", 1.00f, 1.00f, 1.00f)
+    EASY("easy", "EASY", 30, "Reconnaissance: Wave 30 Milestone (-20% HP, -10% Speed)", 0.80f, 0.90f, 0.85f, 1.45f),
+    MEDIUM("medium", "MEDIUM", 50, "Standard Defense: Wave 50 Milestone (Calibrated Baseline)", 1.00f, 1.00f, 1.00f, 1.20f),
+    HARD("hard", "HARD", 100, "Endgame Gauntlet: Wave 100 Milestone (True Exponential Past W30)", 1.25f, 1.05f, 1.15f, 1.05f),
+    INFINITE("infinite", "INFINITE", Int.MAX_VALUE, "Endless Incursion: Infinite Scaling (1.08^W Past W50)", 1.00f, 1.00f, 1.00f, 1.00f)
 }
 
 enum class TargetPriority(val label: String) {
@@ -217,19 +218,7 @@ data class DevBalanceConfig(
     }
 
     fun getTowerBalance(type: TowerType): TowerUnitBalance {
-        return customTowerConfigs[type.name] ?: TowerUnitBalance(
-            customName = null,
-            damage = type.baseDamage,
-            range = type.baseRange,
-            fireRate = type.baseFireRate,
-            cost = type.baseCost,
-            specialEffectValue = when {
-                type.isSplash -> type.splashRadius
-                type.slowPercent > 0f -> type.slowPercent
-                type.chains > 0 -> type.chains.toFloat()
-                else -> 0f
-            }
-        )
+        return customTowerConfigs[type.name] ?: DEFAULT_TOWER_BALANCES[type.name]!!
     }
 
     fun getEffectiveTowerBalance(
@@ -238,62 +227,64 @@ data class DevBalanceConfig(
         finalFormCode: String? = null
     ): TowerUnitBalance {
         val key = getTowerKey(type, branchTier1, finalFormCode)
-        val custom = customTowerConfigs[key]
-        if (custom != null) return custom
-
-        return when {
-            finalFormCode != null -> {
-                val ff = com.example.engine.TowerUpgradeManager.getFinalForm(type, finalFormCode)
-                val dmgMul = ff?.damageMultiplier ?: 1.0f
-                val spdMul = ff?.fireRateMultiplier ?: 1.0f
-                val rngMul = ff?.rangeMultiplier ?: 1.0f
-                val cost = ff?.cost ?: (type.baseCost * 2)
-                TowerUnitBalance(
-                    customName = ff?.subName,
-                    damage = type.baseDamage * dmgMul,
-                    range = type.baseRange * rngMul,
-                    fireRate = type.baseFireRate * spdMul,
-                    cost = cost,
-                    specialEffectValue = when {
-                        type.isSplash -> type.splashRadius
-                        type.slowPercent > 0f -> type.slowPercent
-                        type.chains > 0 -> type.chains.toFloat()
-                        else -> 0f
-                    }
-                )
-            }
-            branchTier1 != null -> {
-                val t1 = com.example.engine.TowerUpgradeManager.getTier1Options(type).firstOrNull { it.branchKey == branchTier1 }
-                val dmgMul = t1?.damageMultiplier ?: 1.0f
-                val spdMul = t1?.fireRateMultiplier ?: 1.0f
-                val rngMul = t1?.rangeMultiplier ?: 1.0f
-                val cost = t1?.cost ?: (type.baseCost * 1.5f).toInt()
-                TowerUnitBalance(
-                    customName = t1?.subName,
-                    damage = type.baseDamage * dmgMul,
-                    range = type.baseRange * rngMul,
-                    fireRate = type.baseFireRate * spdMul,
-                    cost = cost,
-                    specialEffectValue = when {
-                        type.isSplash -> type.splashRadius
-                        type.slowPercent > 0f -> type.slowPercent
-                        type.chains > 0 -> type.chains.toFloat()
-                        else -> 0f
-                    }
-                )
-            }
-            else -> getTowerBalance(type)
-        }
+        customTowerConfigs[key]?.let { return it }
+        DEFAULT_TOWER_BALANCES[key]?.let { return it }
+        return getTowerBalance(type)
     }
 
     companion object {
-        fun getAll52TowerDescriptors(): List<TowerBalanceDescriptor> {
-            val list = mutableListOf<TowerBalanceDescriptor>()
-            val baseTypes = listOf(TowerType.GATLING, TowerType.CRYO, TowerType.TESLA, TowerType.STELLAR)
+        val DEFAULT_TOWER_BALANCES: Map<String, TowerUnitBalance> = buildMap {
+            for (type in TowerType.values()) {
+                val specialVal = when {
+                    type.isSplash -> type.splashRadius
+                    type.slowPercent > 0f -> type.slowPercent
+                    type.chains > 0 -> type.chains.toFloat()
+                    else -> 0f
+                }
+                put(
+                    type.name,
+                    TowerUnitBalance(
+                        customName = null,
+                        damage = type.baseDamage,
+                        range = type.baseRange,
+                        fireRate = type.baseFireRate,
+                        cost = type.baseCost,
+                        specialEffectValue = specialVal
+                    )
+                )
+                for (t1 in com.example.engine.TowerUpgradeManager.getTier1Options(type)) {
+                    put(
+                        "${type.name}_${t1.branchKey}",
+                        TowerUnitBalance(
+                            customName = t1.subName,
+                            damage = type.baseDamage * t1.damageMultiplier,
+                            range = type.baseRange * t1.rangeMultiplier,
+                            fireRate = type.baseFireRate * t1.fireRateMultiplier,
+                            cost = t1.cost,
+                            specialEffectValue = specialVal
+                        )
+                    )
+                }
+                for (ff in com.example.engine.TowerUpgradeManager.get9FinalForms(type)) {
+                    put(
+                        "${type.name}_${ff.code}",
+                        TowerUnitBalance(
+                            customName = ff.subName,
+                            damage = type.baseDamage * ff.damageMultiplier,
+                            range = type.baseRange * ff.rangeMultiplier,
+                            fireRate = type.baseFireRate * ff.fireRateMultiplier,
+                            cost = ff.cost,
+                            specialEffectValue = specialVal
+                        )
+                    )
+                }
+            }
+        }
 
+        private val ALL_52_DESCRIPTORS: List<TowerBalanceDescriptor> = buildList {
+            val baseTypes = listOf(TowerType.GATLING, TowerType.CRYO, TowerType.TESLA, TowerType.STELLAR)
             for (type in baseTypes) {
-                // L1 Base (4 towers)
-                list.add(
+                add(
                     TowerBalanceDescriptor(
                         key = type.name,
                         displayName = type.displayName,
@@ -311,11 +302,8 @@ data class DevBalanceConfig(
                         }
                     )
                 )
-
-                // L2 Tier 1 Options (12 towers: 3 per base)
-                val t1Options = com.example.engine.TowerUpgradeManager.getTier1Options(type)
-                for (opt in t1Options) {
-                    list.add(
+                for (opt in com.example.engine.TowerUpgradeManager.getTier1Options(type)) {
+                    add(
                         TowerBalanceDescriptor(
                             key = "${type.name}_${opt.branchKey}",
                             displayName = "${type.displayName} - ${opt.subName}",
@@ -330,11 +318,8 @@ data class DevBalanceConfig(
                         )
                     )
                 }
-
-                // L3 Final Forms (36 towers: 9 per base)
-                val finalForms = com.example.engine.TowerUpgradeManager.get9FinalForms(type)
-                for (ff in finalForms) {
-                    list.add(
+                for (ff in com.example.engine.TowerUpgradeManager.get9FinalForms(type)) {
+                    add(
                         TowerBalanceDescriptor(
                             key = "${type.name}_${ff.code}",
                             displayName = "${type.displayName} - ${ff.subName}",
@@ -351,22 +336,28 @@ data class DevBalanceConfig(
                     )
                 }
             }
-            return list
         }
 
-        fun getAll39TowerDescriptors(): List<TowerBalanceDescriptor> {
-            return getAll52TowerDescriptors().filter { it.family != TowerType.STELLAR }
+        private val ALL_39_DESCRIPTORS: List<TowerBalanceDescriptor> =
+            ALL_52_DESCRIPTORS.filter { it.family != TowerType.STELLAR }
+
+        val STATIC_ENEMY_BALANCES: Map<EnemyType, EnemyUnitBalance> = EnemyType.values().associateWith { type ->
+            EnemyUnitBalance(
+                customName = null,
+                hp = type.baseHp,
+                speed = type.baseSpeed,
+                armor = type.baseArmor,
+                scrapValue = type.scrapValue
+            )
         }
+
+        fun getAll52TowerDescriptors(): List<TowerBalanceDescriptor> = ALL_52_DESCRIPTORS
+
+        fun getAll39TowerDescriptors(): List<TowerBalanceDescriptor> = ALL_39_DESCRIPTORS
     }
 
     fun getEnemyBalance(type: EnemyType): EnemyUnitBalance {
-        return customEnemyConfigs[type.name] ?: EnemyUnitBalance(
-            customName = null,
-            hp = type.baseHp,
-            speed = type.baseSpeed,
-            armor = type.baseArmor,
-            scrapValue = type.scrapValue
-        )
+        return customEnemyConfigs[type.name] ?: STATIC_ENEMY_BALANCES[type]!!
     }
 
     /**

@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.020`):** [`apk/Dual-Front-TD-v0.0.1.020-debug.apk`](apk/Dual-Front-TD-v0.0.1.020-debug.apk)
+- **Latest Android APK (`v0.0.1.021`):** [`apk/Dual-Front-TD-v0.0.1.021-debug.apk`](apk/Dual-Front-TD-v0.0.1.021-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,33 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.020
+## 🕹️ What's New in Version 0.0.1.021
+
+### 🛡️ Red-Team Architecture Remediation, Synergy Singularity Economy Calibration & Combat Cadence Overhaul
+- **Synergy Singularity Guaranteed Across EASY, MEDIUM & HARD:**
+  - Curated procedural map generation (`MapGenerator.kt`) to a focused **15 tactical buildable pads** (6 boosted Harmonic pads + 9 lane-adjacent tactical pads) while converting surrounding non-lane terrain to scenic sector bedrock (`TileType.OBSTACLE`).
+  - Added difficulty-aware economy scaling (`scrapIncomeMultiplier`: EASY `1.45x`, MEDIUM `1.20x`, HARD `1.05x`, INFINITE `1.00x`) across wave completion bonuses (`WaveGenerator.kt`) and enemy kill bounties (`SimulationCoordinator.kt`), guaranteeing players can fill 100% of buildable pads to Tier 2+ and forge the **Synergy Conduit** well before the final wave in every difficulty mode.
+- **Deliberate Combat Cadence & Archetype Fire-Rate Rebalance:**
+  - Lowered all 7 base `TowerType` fire rates by ~30–35% (`GATLING = 0.80/s`, `CRYO = 1.05/s`, `TESLA = 0.48/s`, `MORTAR = 0.28/s`, `LASER = 1.15/s`, `VOID = 0.40/s`, `STELLAR = 0.60/s`) and all 36 `TowerArchetype` fire rates by ~40%, with proportional per-shot damage compensation.
+  - Eliminated fire-rate multiplier double-dipping in `SimulationCoordinator.kt`.
+- **Zero-Allocation Hot-Loop Balance & Upgrade Resolution (Flaw 1 Fix):**
+  - Pre-allocated static $O(1)$ lookup maps in `TowerUpgradeManager.kt` and `DevBalanceConfig` (`DEFAULT_TOWER_BALANCES`, `STATIC_ENEMY_BALANCES`) and added `cachedBalance` on `TowerInstance`, eliminating 480+ per-second heap allocations during 60–120 FPS combat ticks.
+- **Double-Buffered Entity Lists & HUD Recomposition Isolation (Flaw 2 Fix):**
+  - Implemented A/B double-buffered entity lists (`scratchSurvivingEnemiesA/B`, `scratchSurvivingProjectilesA/B`) in `CombatSimulationEngine.kt` to prevent concurrent UI list mutation, and isolated discrete HUD state (`toHudState()`) from high-frequency 60–120 FPS render state (`RenderState`) in `RogueTDScreen.kt`.
+- **Exact Dynamic Scrap Investment & 75% Sell-Back Math (Flaw 3 Fix):**
+  - Added `investedScrap: Int` tracking directly on `TowerInstance` across placement and all upgrade paths, ensuring `TowerUpgradeManager.getSellValue()` always refunds an exact 75% of actual scrap spent (including dynamic Final Form scaling).
+- **Unified Combat Range Progression (Flaw 4 Fix):**
+  - Fixed shadowed `finalFormCode` vs. `tier` range conditions in `TowerInstance.getEffectiveCombatRange()` so Tier 2 (`1.20x`) and Tier 3 (`1.35x`) range bonuses apply cleanly without shadowing or double-multiplying.
+- **Comprehensive NaN & Zero-Division Physics Guards (Flaw 5 Fix):**
+  - Added strict `.isFinite()` and zero-denominator guards across projectile steps, enemy path segments, AoE splash radii, and explosion lifetimes in `CombatSimulationEngine.kt`.
+- **Fail-Fast Firestore Security Rule Handling (Flaw 6 Fix):**
+  - Removed redundant cross-collection failover on HTTP `403 PERMISSION_DENIED` (`FailureKind.SECURITY_REJECTED`) in `FirestoreLeaderboardApi.kt`, cutting rejected request overhead in half.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.020
 
 ### 🔒 Accessibility Font-Scale Lock, Standardized Dev JSON Metadata & Two-Stage Soft Back Navigation
 - **Universal UI Font-Scale Lock (`fontScale = 1.0f`):** Locked `LocalDensity` in `MyApplicationTheme` (`Theme.kt`) and `Configuration.fontScale` in `MainActivity.attachBaseContext()` / `onConfigurationChanged()` to `1.0f`. All tactical HUDs, floating squircles, and popup `Dialog(...)` sub-windows now maintain exact layout proportions regardless of Android system accessibility font-size settings.

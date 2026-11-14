@@ -127,4 +127,84 @@ class TowerEvolutionTest {
         tower.selectedAuraIndex = 1
         assertEquals(archetype.secondaryAura, tower.activeAura)
     }
+
+    @Test
+    fun `getEffectiveTowerBalance and TowerUpgradeManager return cached static instances with zero heap allocation`() {
+        val config = DevBalanceConfig()
+        val b1 = config.getEffectiveTowerBalance(TowerType.GATLING, "A", "A.a")
+        val b2 = config.getEffectiveTowerBalance(TowerType.GATLING, "A", "A.a")
+        assertSame("Repeated getEffectiveTowerBalance calls must return identical pre-allocated reference", b1, b2)
+
+        val ff1 = TowerUpgradeManager.getFinalForm(TowerType.TESLA, "B.c")
+        val ff2 = TowerUpgradeManager.getFinalForm(TowerType.TESLA, "B.c")
+        assertNotNull(ff1)
+        assertSame("Repeated getFinalForm calls must return identical pre-allocated reference", ff1, ff2)
+    }
+
+    @Test
+    fun `getEffectiveCombatRange progresses monotonically across Tiers 0 1 2 and 3 without shadowing`() {
+        val t0 = TowerInstance(id = "r0", type = TowerType.GATLING, gridPos = GridPos(0, 0), tier = 0)
+        val t1 = TowerInstance(id = "r1", type = TowerType.GATLING, gridPos = GridPos(0, 0), tier = 1, branchTier1 = "A", vector = TowerVector.OFFENSIVE)
+        val t2 = TowerInstance(
+            id = "r2",
+            type = TowerType.GATLING,
+            gridPos = GridPos(0, 0),
+            tier = 2,
+            branchTier1 = "A",
+            vector = TowerVector.OFFENSIVE,
+            archetype = TowerArchetype.VULCAN_GATLING,
+            finalFormCode = "A.a" // rangeMultiplier = 1.0f, should still get Tier 2 1.20x bonus!
+        )
+        val t3 = TowerInstance(
+            id = "r3",
+            type = TowerType.GATLING,
+            gridPos = GridPos(0, 0),
+            tier = 3,
+            branchTier1 = "A",
+            vector = TowerVector.OFFENSIVE,
+            archetype = TowerArchetype.VULCAN_GATLING,
+            finalFormCode = "A.a"
+        )
+
+        val range0 = t0.getEffectiveCombatRange()
+        val range1 = t1.getEffectiveCombatRange()
+        val range2 = t2.getEffectiveCombatRange()
+        val range3 = t3.getEffectiveCombatRange()
+
+        assertEquals(range0, range1, 0.001f)
+        assertTrue("Tier 2 range ($range2) must exceed Tier 1 range ($range1)", range2 > range1 * 1.15f)
+        assertTrue("Tier 3 range ($range3) must exceed Tier 2 range ($range2)", range3 > range2 * 1.10f)
+    }
+
+    @Test
+    fun `mapClassToType and mapArchetypeToType resolve weapon types and archetype fire rates without double dipping`() {
+        assertEquals(TowerType.GATLING, mapClassToType(TowerClass.KINETIC_BALLISTIC))
+        assertEquals(TowerType.CRYO, mapClassToType(TowerClass.ELEMENTAL_VOID))
+        assertEquals(TowerType.MORTAR, mapClassToType(TowerClass.HEAVY_SIEGE))
+        assertEquals(TowerType.STELLAR, mapClassToType(TowerClass.STELLAR_COSMIC))
+
+        assertEquals(TowerType.LASER, mapArchetypeToType(TowerArchetype.SOLAR_DEATH_RAY))
+        assertEquals(TowerType.CRYO, mapArchetypeToType(TowerArchetype.FROST_SPIRE))
+        assertEquals(TowerType.TESLA, mapArchetypeToType(TowerArchetype.TESLA_STORMCOIL))
+        assertEquals(TowerType.VOID, mapArchetypeToType(TowerArchetype.GRAVITON_VOID))
+        assertEquals(TowerType.MORTAR, mapArchetypeToType(TowerArchetype.HELLFIRE_MORTAR))
+        assertEquals(TowerType.STELLAR, mapArchetypeToType(TowerArchetype.SUPERNOVA_PULSAR))
+        assertEquals(TowerType.GATLING, mapArchetypeToType(TowerArchetype.VULCAN_GATLING))
+
+        val archTower = TowerInstance(
+            id = "arch_t2",
+            type = mapArchetypeToType(TowerArchetype.HELLFIRE_MORTAR),
+            gridPos = GridPos(1, 1),
+            towerClass = TowerClass.HEAVY_SIEGE,
+            tier = 2,
+            vector = TowerVector.OFFENSIVE,
+            archetype = TowerArchetype.HELLFIRE_MORTAR,
+            finalFormCode = null
+        )
+        assertEquals("Tier 2 archetype fire rate must match archetype.baseFireRate without 1.25x double-dip",
+            TowerArchetype.HELLFIRE_MORTAR.baseFireRate,
+            archTower.getEffectiveFireRate(),
+            0.001f
+        )
+    }
 }

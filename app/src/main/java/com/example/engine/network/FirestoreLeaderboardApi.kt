@@ -21,7 +21,7 @@ import java.net.UnknownHostException
 class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
   private val projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
-  private val apiKey: String = com.example.BuildConfig.LEADERBOARD_API_KEY,
+  private val apiKey: String = "",
   collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION
 ) {
   val canonicalCollection: String = normalizeCollection(collection)
@@ -29,17 +29,17 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   val collection: String get() = canonicalCollection
 
   val isConfigured: Boolean
-    get() = projectId.isNotBlank() && apiKey.isNotBlank()
+    get() = projectId.isNotBlank()
 
   suspend fun submitScore(
     item: PendingSubmission,
     idToken: String? = null
   ): LeaderboardResult<Unit> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
-      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot submit score: projectId or apiKey is unconfigured")
+      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot submit score: projectId is unconfigured")
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
-        "Leaderboard project ID or API key is not configured"
+        "Leaderboard project ID is not configured"
       )
     }
 
@@ -54,7 +54,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.020" }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.021" }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
@@ -70,9 +70,9 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     // Primary attempt on canonicalCollection
     var result = executeSubmitScore(canonicalCollection, item.runId, requestBodyJson, idToken)
 
-    // Cross-path failover to alternateCollection if 403 or 404 on canonical
+    // Cross-path failover to alternateCollection ONLY on 404 (UNCONFIGURED), never on 403 (SECURITY_REJECTED)
     if (result is LeaderboardResult.Failure &&
-        (result.kind == FailureKind.SECURITY_REJECTED || result.kind == FailureKind.UNCONFIGURED) &&
+        result.kind == FailureKind.UNCONFIGURED &&
         canonicalCollection != alternateCollection) {
       Log.w(TAG, "[FirestoreLeaderboardApi] Primary submit on '$canonicalCollection' failed with ${result.kind}. Attempting cross-path failover to '$alternateCollection'")
       val fallbackResult = executeSubmitScore(alternateCollection, item.runId, requestBodyJson, idToken)
@@ -91,7 +91,8 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     requestBodyJson: JSONObject,
     idToken: String?
   ): LeaderboardResult<Unit> {
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId&key=$apiKey"
+    val keyParam = if (apiKey.isNotBlank()) "&key=$apiKey" else ""
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId$keyParam"
     val payloadString = requestBodyJson.toString()
     val mediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -99,7 +100,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
 
     val requestBuilder = Request.Builder()
       .url(url)
-      .addHeader("X-Goog-Api-Key", apiKey)
+      .apply { if (apiKey.isNotBlank()) addHeader("X-Goog-Api-Key", apiKey) }
       .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
       .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
 
@@ -172,10 +173,10 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
 
   suspend fun fetchTopScores(limit: Int = 50): LeaderboardResult<List<OnlineScoreEntry>> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
-      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot fetch scores: projectId or apiKey is unconfigured")
+      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot fetch scores: projectId is unconfigured")
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
-        "Leaderboard project ID or API key is not configured"
+        "Leaderboard project ID is not configured"
       )
     }
 
@@ -188,9 +189,9 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       result = executeRunQuery(canonicalCollection, limit, singleMetricOnly = true)
     }
 
-    // Cross-path failover to alternateCollection if 403 or 404 on canonical
+    // Cross-path failover to alternateCollection ONLY on 404 (UNCONFIGURED), never on 403 (SECURITY_REJECTED)
     if (result is LeaderboardResult.Failure &&
-        (result.kind == FailureKind.SECURITY_REJECTED || result.kind == FailureKind.UNCONFIGURED) &&
+        result.kind == FailureKind.UNCONFIGURED &&
         canonicalCollection != alternateCollection) {
       Log.w(TAG, "[FirestoreLeaderboardApi] Fetch on canonical collection '$canonicalCollection' failed with ${result.kind}. Attempting cross-path failover to '$alternateCollection'")
       val altResult = executeRunQuery(alternateCollection, limit, singleMetricOnly = false)
@@ -216,7 +217,8 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     limit: Int,
     singleMetricOnly: Boolean
   ): LeaderboardResult<List<OnlineScoreEntry>> {
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery?key=$apiKey"
+    val keyParam = if (apiKey.isNotBlank()) "?key=$apiKey" else ""
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery$keyParam"
 
     val queryJson = JSONObject().apply {
       val structuredQuery = JSONObject().apply {
@@ -263,7 +265,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
 
     val request = Request.Builder()
       .url(url)
-      .addHeader("X-Goog-Api-Key", apiKey)
+      .apply { if (apiKey.isNotBlank()) addHeader("X-Goog-Api-Key", apiKey) }
       .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
       .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
       .post(payloadString.toRequestBody(mediaType))

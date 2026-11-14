@@ -415,14 +415,9 @@ object WaveGenerator {
             }
         }
 
-        // Calibrated early-game scrap bonus: reduces hyper-inflation
-        val baseBonusScrap = 35 + waveNumber * 6 + if (isBossWave) 50 else 0
-        val bonusScrap = when (difficulty) {
-            GameDifficulty.EASY -> (baseBonusScrap * 1.25f).toInt()
-            GameDifficulty.MEDIUM -> baseBonusScrap
-            GameDifficulty.HARD -> (baseBonusScrap * 0.90f).toInt()
-            GameDifficulty.INFINITE -> baseBonusScrap
-        }
+        // Calibrated difficulty-aware wave completion scrap bonus ensuring full-board Synergy Singularity feasibility
+        val baseBonusScrap = 65 + waveNumber * 12 + if (isBossWave) 90 else 0
+        val bonusScrap = (baseBonusScrap * difficulty.scrapIncomeMultiplier).toInt()
 
         val displayModifier = if (difficulty != GameDifficulty.MEDIUM) {
             "[${difficulty.label}] $modifier"

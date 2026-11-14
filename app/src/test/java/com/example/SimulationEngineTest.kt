@@ -121,4 +121,64 @@ class SimulationEngineTest {
         assertTrue("Enemy should be marked dead when damage exceeds HP", enemy.isDead)
         assertEquals(0f, enemy.currentHp, 0.001f)
     }
+
+    @Test
+    fun `CombatSimulationEngine drops NaN projectiles and guards zero maxLifeMs explosions`() {
+        val engine = com.example.engine.CombatSimulationEngine(spatialGrid)
+        val enemy = createEnemy("e1", x = 5f, y = 5f, hp = 100f)
+        val nanProj = com.example.model.Projectile(
+            id = "p_nan",
+            currentX = Float.NaN,
+            currentY = 5f,
+            targetEnemyId = "e1",
+            targetX = 5f,
+            targetY = 5f,
+            speed = 8.5f,
+            damage = 50f,
+            color = 0xFFFFFFFF
+        )
+        val zeroDistProj = com.example.model.Projectile(
+            id = "p_zero",
+            currentX = 5f,
+            currentY = 5f,
+            targetEnemyId = "e1",
+            targetX = 5f,
+            targetY = 5f,
+            speed = 8.5f,
+            damage = 25f,
+            color = 0xFFFFFFFF
+        )
+
+        val surviving = engine.updateProjectiles(
+            projectiles = listOf(nanProj, zeroDistProj),
+            survivingEnemies = listOf(enemy),
+            deltaSec = 0.016f,
+            applyDamage = { target, dmg, _, _, _, _, _ -> target.currentHp -= dmg },
+            addExplosion = { _, _, _, _, _ -> }
+        )
+
+        assertTrue("NaN and impacting zero-distance projectiles must not survive as corrupted entities", surviving.isEmpty())
+        assertTrue("Enemy HP must remain finite", enemy.currentHp.isFinite())
+        assertEquals(75f, enemy.currentHp, 0.001f)
+
+        // Verify zero maxLifeMs explosion does not produce NaN radius
+        val zeroLifeExp = com.example.model.ExplosionEffect(
+            id = "exp_0",
+            x = 5f,
+            y = 5f,
+            maxRadius = 2.0f,
+            currentRadius = 0f,
+            color = 0xFFFF5500,
+            lifeMs = 100L,
+            maxLifeMs = 0L
+        )
+        val explosions = mutableListOf(zeroLifeExp)
+        engine.updateVisualEffects(
+            beams = mutableListOf(),
+            arcs = mutableListOf(),
+            explosions = explosions,
+            deltaMs = 16L
+        )
+        assertTrue("Zero maxLifeMs explosion currentRadius must remain finite", zeroLifeExp.currentRadius.isFinite())
+    }
 }

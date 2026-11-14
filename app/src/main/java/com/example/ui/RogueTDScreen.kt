@@ -28,7 +28,6 @@ import com.example.engine.AppUpdateState
 import com.example.engine.GeneratedLevel
 import com.example.engine.UpdateDownloadStatus
 import com.example.model.FloatingText
-import com.example.model.TileType
 import com.example.ui.dialog.EndRunConfirmDialog
 import com.example.ui.dialog.RunSummaryDialog
 import com.example.ui.dialog.TelemetryLeaderboardDialog
@@ -45,12 +44,14 @@ fun RogueTDScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val hudState by remember { derivedStateOf { state.toHudState() } }
+    val renderState by remember { derivedStateOf { state.toRenderState() } }
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    val isSquircleOpen = state.selectedTower != null || (state.selectedTile != null && state.selectedTile?.type == TileType.EMPTY)
+    val isSquircleOpen = hudState.selectedTower != null || (hudState.selectedTile != null && hudState.selectedTile?.isBuildable == true)
     BackHandler(
-        enabled = state.activeCinematic == null && !state.isGameOver && !state.isVictory && !state.isPauseMenuOpen
+        enabled = hudState.activeCinematic == null && !hudState.isGameOver && !hudState.isVictory && !hudState.isPauseMenuOpen
     ) {
         if (isSquircleOpen) {
             viewModel.selectTile(null)
@@ -73,15 +74,15 @@ fun RogueTDScreen(
             )
 
             FloatingTextOverlay(
-                texts = state.floatingTexts,
-                level = state.level,
-                rotationAngle = state.deviceRotationAngle
+                texts = renderState.floatingTexts,
+                level = hudState.level,
+                rotationAngle = hudState.deviceRotationAngle
             )
         }
 
         // === MINIMAL FLOATING TOP TACTICAL HUD ===
         MinimalTopHud(
-            state = state,
+            state = hudState,
             onDeployWave = { viewModel.deployWave() },
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onOpenPauseMenu = { viewModel.openPauseMenu() },
@@ -99,11 +100,11 @@ fun RogueTDScreen(
         )
 
         // === IN-APP GITHUB APK AUTO-UPDATER BANNER ===
-        if (state.updateUIState.status in listOf(UpdateDownloadStatus.AVAILABLE, UpdateDownloadStatus.DOWNLOADING, UpdateDownloadStatus.READY_TO_INSTALL)) {
+        if (hudState.updateUIState.status in listOf(UpdateDownloadStatus.AVAILABLE, UpdateDownloadStatus.DOWNLOADING, UpdateDownloadStatus.READY_TO_INSTALL)) {
             UpdateBanner(
-                updateState = state.updateUIState,
+                updateState = hudState.updateUIState,
                 onDownloadAndInstall = {
-                    if (state.updateUIState.status == UpdateDownloadStatus.AVAILABLE) {
+                    if (hudState.updateUIState.status == UpdateDownloadStatus.AVAILABLE) {
                         viewModel.openUpdateModal()
                     } else {
                         viewModel.downloadAndInstallUpdate()
@@ -117,7 +118,7 @@ fun RogueTDScreen(
 
         // === FLOATING SQUIRCLE UPGRADE ACTION BAR (TRACK 2) ===
         MinimalBottomDock(
-            state = state,
+            state = hudState,
             onDeployWave = { viewModel.deployWave() },
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onBuildTower = { tile, type -> viewModel.buildTower(tile, type) },

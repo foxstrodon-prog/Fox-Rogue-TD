@@ -241,7 +241,7 @@ class LeaderboardCoreTest {
       scrapEarned = 260,
       totalDamage = 18000L,
       timestampMs = 1234567L,
-      clientVersion = "0.0.1.020",
+      clientVersion = "0.0.1.021",
       userId = "firebase_anon_uid_999"
     )
     store.enqueuePending(item)
@@ -266,5 +266,54 @@ class LeaderboardCoreTest {
     assertEquals("firebase_anon_uid_999", cached[0].userId)
     assertEquals(4200, cached[0].highScore)
     assertEquals(8, cached[0].maxWave)
+  }
+
+  @Test
+  fun `FirestoreLeaderboardApi does not failover to alternateCollection on HTTP 403 SECURITY_REJECTED`() = runBlocking {
+    var requestCount = 0
+    val mockClient = okhttp3.OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        requestCount++
+        okhttp3.Response.Builder()
+          .request(chain.request())
+          .protocol(okhttp3.Protocol.HTTP_1_1)
+          .code(403)
+          .message("Forbidden")
+          .body(
+            """{"error":{"code":403,"message":"Missing or insufficient permissions.","status":"PERMISSION_DENIED"}}"""
+              .toByteArray()
+              .let { okhttp3.ResponseBody.create(null, it) }
+          )
+          .build()
+      }
+      .build()
+
+    val api = FirestoreLeaderboardApi(
+      client = mockClient,
+      projectId = "test-project",
+      apiKey = "test-key",
+      collection = "leaderboards"
+    )
+    val item = PendingSubmission(
+      runId = "run-403",
+      callsign = "Fox",
+      score = 1000,
+      wavesCleared = 10,
+      scrapEarned = 500,
+      totalDamage = 5000L,
+      timestampMs = 1000L,
+      clientVersion = "0.0.1.021"
+    )
+
+    val submitRes = api.submitScore(item)
+    assertTrue(submitRes is LeaderboardResult.Failure)
+    assertEquals(FailureKind.SECURITY_REJECTED, (submitRes as LeaderboardResult.Failure).kind)
+    assertEquals("HTTP 403 on submitScore must fail fast after 1 request without cross-path failover", 1, requestCount)
+
+    requestCount = 0
+    val fetchRes = api.fetchTopScores(10)
+    assertTrue(fetchRes is LeaderboardResult.Failure)
+    assertEquals(FailureKind.SECURITY_REJECTED, (fetchRes as LeaderboardResult.Failure).kind)
+    assertEquals("HTTP 403 on fetchTopScores must fail fast after 1 request without cross-path failover", 1, requestCount)
   }
 }

@@ -33,9 +33,10 @@ class TowerPlacementCoordinator(
             return
         }
         val tower = uiStateFlow.value.towers.firstOrNull { it.gridPos == tile?.pos }
+        val effectiveSelectedTile = if (tile != null && (tile.isBuildable || tower != null)) tile else null
         uiStateFlow.update {
             it.copy(
-                selectedTile = tile,
+                selectedTile = effectiveSelectedTile,
                 selectedTower = tower,
                 hasClickedFirstTile = if (tile != null) true else it.hasClickedFirstTile
             )
@@ -52,7 +53,14 @@ class TowerPlacementCoordinator(
             return
         }
 
-        val newTower = TowerInstance(id = nextId("tow_"), gridPos = tile.pos, towerClass = towerClass, tier = 0)
+        val newTower = TowerInstance(
+            id = nextId("tow_"),
+            type = mapClassToType(towerClass),
+            gridPos = tile.pos,
+            towerClass = towerClass,
+            tier = 0,
+            investedScrap = cost
+        )
         soundManager.play(SoundFx.PLACE)
         onSynergyDirty()
 
@@ -70,6 +78,7 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.tier = 1
         tower.vector = vector
         tower.branchTier1 = when (vector) {
@@ -77,6 +86,8 @@ class TowerPlacementCoordinator(
             TowerVector.DEFENSIVE -> "B"
             TowerVector.SUPPORT -> "C"
         }
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
 
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
@@ -92,11 +103,15 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.tier = 2
         tower.archetype = archetype
         tower.vector = archetype.vector
         tower.towerClass = archetype.towerClass
-        tower.finalFormCode = "${tower.branchTier1 ?: "A"}.a"
+        tower.type = mapArchetypeToType(archetype)
+        tower.finalFormCode = null
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
 
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
@@ -114,9 +129,12 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.tier = 3
         tower.isTier3GlobalActive = true
         tower.selectedAuraIndex = auraIndex
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
         val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
         val chosenAura = if (auraIndex == 1) arch.secondaryAura else arch.primaryAura
 
@@ -136,8 +154,11 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.branchTier1 = branchKey
-        val option = TowerUpgradeManager.getTier1Options(tower.type).firstOrNull { it.branchKey == branchKey }
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
+        val option = TowerUpgradeManager.getTier1Form(tower.type, branchKey)
         val name = option?.subName ?: "Branch $branchKey"
 
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
@@ -154,7 +175,10 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.finalFormCode = finalFormCode
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
         val finalFormDef = TowerUpgradeManager.getFinalForm(tower.type, finalFormCode)
         val name = finalFormDef?.subName ?: "Apex Form"
 
@@ -176,7 +200,10 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.pathTiers[pathIndex] = nextTier
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
         val upgradeName = TowerUpgradeManager.getPathUpgrade(tower.type, pathIndex, nextTier).name
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
@@ -192,7 +219,10 @@ class TowerPlacementCoordinator(
             return
         }
 
+        val prevInvested = tower.getInvestedScrapValue()
         tower.finalFormCode = "${tower.branchTier1 ?: "A"}.a"
+        tower.investedScrap = prevInvested + cost
+        tower.invalidateBalanceCache()
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
 

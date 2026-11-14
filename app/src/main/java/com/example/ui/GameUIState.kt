@@ -91,4 +91,52 @@ data class GameUIState(
     val difficulty: GameDifficulty = GameDifficulty.MEDIUM,
     val isSingularityWarningOpen: Boolean = false,
     val telemetryInitialTab: Int = 0
+) {
+    /**
+     * Extracts the high-frequency 60-120 FPS render state for [GameCanvas].
+     */
+    fun toRenderState(): RenderState = RenderState(
+        enemies = enemies,
+        projectiles = projectiles,
+        laserBeams = laserBeams,
+        lightningArcs = lightningArcs,
+        explosions = explosions,
+        floatingTexts = floatingTexts,
+        trackParticles = trackParticles,
+        screenShakeIntensity = screenShakeIntensity,
+        animTimeMs = animTimeMs
+    )
+
+    /**
+     * Returns a normalized discrete HUD state with high-frequency tick fields zeroed out,
+     * preventing Jetpack Compose from recomposing HUD bars on pure physics/movement frames.
+     */
+    fun toHudState(): GameUIState = copy(
+        enemies = emptyList(),
+        projectiles = emptyList(),
+        laserBeams = emptyList(),
+        lightningArcs = emptyList(),
+        explosions = emptyList(),
+        floatingTexts = emptyList(),
+        trackParticles = emptyList(),
+        screenShakeIntensity = 0f,
+        animTimeMs = 0L,
+        overchargeRemainingMs = if (overchargeRemainingMs > 0L) 1L else 0L,
+        totalDamageDealt = 0f
+    )
+}
+
+/**
+ * Dedicated high-frequency render state stream read inside the [GameCanvas] draw phase.
+ */
+data class RenderState(
+    val enemies: List<EnemyInstance> = emptyList(),
+    val projectiles: List<Projectile> = emptyList(),
+    val laserBeams: List<LaserBeam> = emptyList(),
+    val lightningArcs: List<LightningArc> = emptyList(),
+    val explosions: List<ExplosionEffect> = emptyList(),
+    val floatingTexts: List<FloatingText> = emptyList(),
+    val trackParticles: List<TrackParticle> = emptyList(),
+    val screenShakeIntensity: Float = 0f,
+    val animTimeMs: Long = 0L
 )

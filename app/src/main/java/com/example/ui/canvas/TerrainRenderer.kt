@@ -158,6 +158,14 @@ fun DrawScope.drawTerrainTiles(
                             style = Stroke(width = 1.5f)
                         )
                     }
+                } else if (tile.isBuildable) {
+                    drawRoundRect(
+                        color = Color(0xFF1E293B).copy(alpha = 0.55f),
+                        topLeft = Offset(tx + 3f, ty + 3f),
+                        size = Size(cellW - 6f, cellH - 6f),
+                        cornerRadius = CornerRadius(5f, 5f),
+                        style = Stroke(width = 1.2f)
+                    )
                 }
             }
             else -> Unit
@@ -220,7 +228,8 @@ fun DrawScope.drawSelectedTowerOverlays(
     val effectiveRange = selTower.getEffectiveCombatRange(
         tileBuff = tileBuff,
         globalRangeBonus = state.globalRangeBonus,
-        balanceRange = state.balanceConfig.getTowerBalance(selTower.type).range
+        balanceRange = selTower.archetype?.let { state.balanceConfig.customTowerConfigs[it.name]?.range }
+            ?: state.balanceConfig.customTowerConfigs[selTower.type.name]?.range
     )
     val pixelRadius = effectiveRange * cellW
     val tcx = (selTower.gridPos.x + 0.5f) * cellW + shakeX
@@ -247,7 +256,7 @@ fun DrawScope.drawTacticalTutorialPointer(
     var targetTile: MapTile? = null
     for (i in 0 until level.tiles.size) {
         val tile = level.tiles[i]
-        if (tile.type == TileType.EMPTY && tile.buff != TileBuff.NONE) {
+        if (tile.isBuildable && tile.buff != TileBuff.NONE) {
             targetTile = tile
             break
         }
@@ -260,7 +269,7 @@ fun DrawScope.drawTacticalTutorialPointer(
         val earlyBetaLimit = maxOf(3, level.laneBeta.size / 2)
         for (i in 0 until level.tiles.size) {
             val tile = level.tiles[i]
-            if (tile.type != TileType.EMPTY) continue
+            if (!tile.isBuildable) continue
             val dAlpha = hypot((tile.pos.x - spawnerAlpha.x).toFloat(), (tile.pos.y - spawnerAlpha.y).toFloat())
             val dBeta = hypot((tile.pos.x - spawnerBeta.x).toFloat(), (tile.pos.y - spawnerBeta.y).toFloat())
             val dCenter = hypot((tile.pos.x - gridWidth / 2f), (tile.pos.y - gridHeight / 2f))

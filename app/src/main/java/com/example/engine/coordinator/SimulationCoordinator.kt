@@ -104,7 +104,7 @@ class SimulationCoordinator(
         for (i in towers.indices) {
             val t = towers[i]
             val ffCode = t.finalFormCode
-            if (t.isFinalForm && ffCode != null) {
+            if (t.archetype == null && t.isFinalForm && ffCode != null) {
                 val ff = TowerUpgradeManager.getFinalForm(t.type, ffCode) ?: continue
                 val n = ff.subName
                 when (ff.code) {
@@ -175,20 +175,18 @@ class SimulationCoordinator(
             val p1 = if (tower.branchTier1 == "B" || tower.vector == TowerVector.DEFENSIVE) (if (tower.isFinalForm) 2 else 1) else 0
             val p2 = if (tower.branchTier1 == "C" || tower.vector == TowerVector.SUPPORT) (if (tower.isFinalForm) 2 else 1) else 0
 
-            val t1Def = if (tower.branchTier1 != null) TowerUpgradeManager.getTier1Options(tower.type).firstOrNull { it.branchKey == tower.branchTier1 } else null
-            val ffDef = if (tower.finalFormCode != null) TowerUpgradeManager.getFinalForm(tower.type, tower.finalFormCode!!) else null
-
-            val tierSpdMultiplier = maxOf(ffDef?.fireRateMultiplier ?: t1Def?.fireRateMultiplier ?: 1.0f, when (tower.tier) { 3 -> 1.70f; 2 -> 1.40f; 1 -> 1.20f; else -> 1.0f })
-            val tierDmgMultiplier = maxOf(ffDef?.damageMultiplier ?: t1Def?.damageMultiplier ?: 1.0f, when (tower.tier) { 3 -> 1.60f; 2 -> 1.35f; 1 -> 1.15f; else -> 1.0f })
-
             val synergyBonus = if (tower.vector != null && tower.vector == tileBuff.vectorCategory) 0.15f else 0.0f
-            val customTConfig = state.balanceConfig.getEffectiveTowerBalance(tower.type, tower.branchTier1, tower.finalFormCode)
-            val effectiveRange = tower.getEffectiveCombatRange(tileBuff, globalRangeBonus, customTConfig.range)
+            val customBaseRange = tower.archetype?.let { state.balanceConfig.customTowerConfigs[it.name]?.range }
+                ?: state.balanceConfig.customTowerConfigs[tower.type.name]?.range
+            val effectiveRange = tower.getEffectiveCombatRange(tileBuff, globalRangeBonus, customBaseRange)
 
-            val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
             val overchargeSpd = if (newOvercharge > 0) 1.0f else 0.0f
-            val fireRate = customTConfig.fireRate * state.balanceConfig.globalTowerFireRateMultiplier * tierSpdMultiplier * (1.0f + tileSpdBonus + synergyBonus + globalFireRateBonus + overchargeSpd)
-            val cooldownMs = maxOf(50L, if (fireRate > 0f) (1000f / fireRate).toLong() else 1000L)
+            val fireRate = tower.getEffectiveFireRate(
+                balanceConfig = state.balanceConfig,
+                tileBuff = tileBuff,
+                globalFireRateBonus = synergyBonus + globalFireRateBonus + overchargeSpd
+            )
+            val cooldownMs = maxOf(50L, if (fireRate > 0f && fireRate.isFinite()) (1000f / fireRate).toLong() else 1000L)
 
             val towerX = tower.gridPos.x.toFloat()
             val towerY = tower.gridPos.y.toFloat()
@@ -210,15 +208,11 @@ class SimulationCoordinator(
                 }
                 soundManager.playTurretFire(tower.towerClass, sfxSlot)
 
-                val tileDmgBonus = if (tileBuff == TileBuff.AMPLIFIER) 0.30f else 0.0f
-                val apexBonus = if (tower.isFinalForm) 0.30f else 0.0f
-                val classDmgMul = when (tower.towerClass) {
-                    TowerClass.KINETIC_BALLISTIC -> state.balanceConfig.kineticDamageMultiplier
-                    TowerClass.ELEMENTAL_VOID -> state.balanceConfig.elementalDamageMultiplier
-                    TowerClass.HEAVY_SIEGE -> state.balanceConfig.heavyDamageMultiplier
-                    TowerClass.STELLAR_COSMIC -> 1.15f
-                }
-                val baseDmg = customTConfig.damage * tierDmgMultiplier * classDmgMul * (1.0f + tileDmgBonus + synergyBonus + harmonicDmgBonus + globalDamageBonus + apexBonus)
+                val baseDmg = tower.getEffectiveDamage(
+                    balanceConfig = state.balanceConfig,
+                    tileBuff = tileBuff,
+                    globalDamageBonus = synergyBonus + harmonicDmgBonus + globalDamageBonus
+                )
                 val isCrit = Random.nextFloat() < globalCritRate
                 val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
@@ -244,12 +238,13 @@ class SimulationCoordinator(
         remainingAlive.clear()
         val conduitIncomeBonus = 1.0f + (conduitTilesCount * 0.15f)
         val padEconomyBonus = 1.0f + (harmonicCount * 0.03f)
+        val diffIncomeMul = state.difficulty.scrapIncomeMultiplier
 
         for (i in survivingEnemies.indices) {
             val enemy = survivingEnemies[i]
             if (enemy.isDead) {
                 killsGained++
-                val bounty = (enemy.type.scrapValue * globalScrapBonus * state.balanceConfig.globalIncomeMultiplier * remoteConfigManager.scrapBountyMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
+                val bounty = (enemy.type.scrapValue * diffIncomeMul * globalScrapBonus * state.balanceConfig.globalIncomeMultiplier * remoteConfigManager.scrapBountyMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
                 scrapGained += bounty
                 addFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700, false)
 

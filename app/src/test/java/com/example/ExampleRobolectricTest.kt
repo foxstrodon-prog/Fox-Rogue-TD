@@ -509,9 +509,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 020`() {
-    assertEquals("0.0.1.020", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(41, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 021`() {
+    assertEquals("0.0.1.021", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(42, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -1079,8 +1079,11 @@ class ExampleRobolectricTest {
     assertTrue(libJson.contains("\"deltas\": ["))
     soundManager.release()
 
-    val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup()
+    val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).create()
     val activity = controller.get()
+    assertEquals(1.0f, activity.resources.configuration.fontScale, 0.001f)
+    val mutatedConfig = android.content.res.Configuration(activity.resources.configuration).apply { fontScale = 1.6f }
+    activity.onConfigurationChanged(mutatedConfig)
     assertEquals(1.0f, activity.resources.configuration.fontScale, 0.001f)
     controller.destroy()
   }

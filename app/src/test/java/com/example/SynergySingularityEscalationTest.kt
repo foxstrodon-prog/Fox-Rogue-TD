@@ -224,4 +224,54 @@ class SynergySingularityEscalationTest {
         assertEquals("Rotary", newAnchor.synergyVault[0].synergies[0].auraName)
         assertEquals("Stormcoil", newAnchor.synergyVault[1].synergies[0].auraName)
     }
+
+    @Test
+    fun `Full board Synergy Singularity is achievable in EASY MEDIUM and HARD modes`() {
+        val level = com.example.engine.MapGenerator.generate(42L)
+        val buildablePads = level.tiles.count { it.isBuildable }
+        assertTrue("Buildable pads ($buildablePads) must be curated between 14 and 16", buildablePads in 14..16)
+
+        val costPerTier2Tower = TowerType.GATLING.baseCost +
+            (TowerType.GATLING.baseCost * 0.8f).toInt() +
+            (TowerType.GATLING.baseCost * 1.5f).toInt()
+        val requiredFullBoardScrap = buildablePads * costPerTier2Tower
+
+        // Verify EASY (by Wave 24 of 30), MEDIUM (by Wave 38 of 50), and HARD (by Wave 55 of 100)
+        val checkpoints = listOf(
+            GameDifficulty.EASY to 24,
+            GameDifficulty.MEDIUM to 38,
+            GameDifficulty.HARD to 55
+        )
+        for ((diff, targetWave) in checkpoints) {
+            var cumulativeScrap = 420 // Starting scrap
+            for (w in 1..targetWave) {
+                val waveData = WaveGenerator.generateWave(w, difficulty = diff)
+                val killScrap = waveData.spawnList.sumOf { spec ->
+                    maxOf(1, (spec.type.scrapValue * diff.scrapIncomeMultiplier).toInt())
+                }
+                cumulativeScrap += killScrap + waveData.completionBonusScrap
+            }
+            assertTrue(
+                "Mode ${diff.name} by Wave $targetWave must yield enough scrap ($cumulativeScrap) to fill all $buildablePads pads to Tier 2+ ($requiredFullBoardScrap)",
+                cumulativeScrap >= requiredFullBoardScrap
+            )
+        }
+    }
+
+    @Test
+    fun `Dynamic investedScrap tracking and 75 percent getSellValue match actual spend`() {
+        val tower = TowerInstance(
+            id = "t_dyn",
+            type = TowerType.GATLING,
+            gridPos = GridPos(2, 2),
+            tier = 2,
+            vector = TowerVector.OFFENSIVE,
+            branchTier1 = "A",
+            archetype = TowerArchetype.VULCAN_GATLING,
+            finalFormCode = "A.a",
+            investedScrap = 120 + 96 + 320 // Exact dynamic inflation cost paid
+        )
+        assertEquals(536, tower.getInvestedScrapValue())
+        assertEquals((536 * 0.75f).toInt(), com.example.engine.TowerUpgradeManager.getSellValue(tower))
+    }
 }

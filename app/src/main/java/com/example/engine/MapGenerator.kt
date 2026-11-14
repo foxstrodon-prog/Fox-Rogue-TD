@@ -196,17 +196,31 @@ object MapGenerator {
             }
         }
 
-        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads
+        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads (6 total) + 9 tactical empty pads (15 total buildable pads)
         candidateBuffPositions.shuffle(random)
         val greenPads = candidateBuffPositions.take(2).toSet()
         val tealPads = candidateBuffPositions.drop(2).take(2).toSet()
         val orangePads = candidateBuffPositions.drop(4).take(2).toSet()
+        val boostedPads = greenPads + tealPads + orangePads
+
+        val extraTacticalCandidates = if (candidateBuffPositions.size >= 15) {
+            candidateBuffPositions.drop(6).take(9)
+        } else {
+            val remainingAdjacent = candidateBuffPositions.drop(6)
+            val fallbackEmpty = tileList
+                .filter { it.type == TileType.EMPTY && it.pos !in boostedPads && it.pos !in remainingAdjacent }
+                .map { it.pos }
+                .shuffled(random)
+            (remainingAdjacent + fallbackEmpty).take(9)
+        }
+        val allowedBuildableSet = boostedPads + extraTacticalCandidates.toSet()
 
         val finalTiles = tileList.map { tile ->
-            when (tile.pos) {
-                in greenPads -> tile.copy(buff = TileBuff.AMPLIFIER)
-                in tealPads -> tile.copy(buff = TileBuff.HIGH_GROUND)
-                in orangePads -> tile.copy(buff = TileBuff.CONDUIT)
+            when {
+                tile.pos in greenPads -> tile.copy(buff = TileBuff.AMPLIFIER)
+                tile.pos in tealPads -> tile.copy(buff = TileBuff.HIGH_GROUND)
+                tile.pos in orangePads -> tile.copy(buff = TileBuff.CONDUIT)
+                tile.type == TileType.EMPTY && tile.pos !in allowedBuildableSet -> tile.copy(isClearance = true)
                 else -> tile
             }
         }
