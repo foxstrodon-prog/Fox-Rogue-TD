@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.021`):** [`apk/Dual-Front-TD-v0.0.1.021-debug.apk`](apk/Dual-Front-TD-v0.0.1.021-debug.apk)
+- **Latest Android APK (`v0.0.1.022`):** [`apk/Dual-Front-TD-v0.0.1.022-debug.apk`](apk/Dual-Front-TD-v0.0.1.022-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,36 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.021
+## 🕹️ What's New in Version 0.0.1.022
+
+### 🗺️ Every Non-Lane Tile Buildable, Dense Winding Lane Expansion, Geometry Dev Sliders, Square Grid Auto-Zoom & Affordability Dots
+- **100% Buildable Board (Zero Inoperable Clearance Lockout):**
+  - Removed artificial clearance locks on empty tiles: every grid coordinate without a lane, spawner, or core is `TileType.EMPTY` with `isClearance = false` and fully buildable (`isBuildable == true`).
+  - Preserved all 6 Booster Pads (2 Green `AMPLIFIER`, 2 Teal `HIGH_GROUND`, 2 Orange `CONDUIT`) adjacent to lanes, counting towards total buildable spots.
+- **Dense Winding Lane Expansion & Target Open Spots:**
+  - Instead of locking blank tiles, procedural lanes wind densely across the grid using 2-tile U-bends (`A -> B` to `A -> A' -> B' -> B`) until the board reaches the desired `targetOpenSlots` (e.g. 15 available tower slots).
+  - Parity-matching 1-tile detour across adjacent opposing lane tiles guarantees exact parity alignment without getting stuck.
+  - All invariants strictly verified: Manhattan distance 1 continuity, no single-lane loops, all 4 corners touched, and central spine overlap clamped within `minLaneOverlap..maxLaneOverlap`.
+- **Per-Difficulty Open Slots, Overlap & Map Size Dev Sliders:**
+  - Added new **"MAP GEOMETRY & LANE COVERAGE"** section to Tab 0 (`ECONOMY`) of the Dev Menu Drawer with interactive sliders for:
+    - Easy Mode Available Tower Spots (`6..40`, default 15)
+    - Medium Mode Available Tower Spots (`6..40`, default 15)
+    - Hard Mode Available Tower Spots (`6..40`, default 15)
+    - Min Lane Overlap (`2..20`, default 4) & Max Lane Overlap (`4..30`, default 12)
+    - Map Grid Columns / Width (`6..16`, default 10) & Map Grid Rows / Height (`10..28`, default 20)
+  - Full persistence via `SharedPreferences` and automatic diff export under `"deltas"` in `DevBalanceConfig.exportDiffJson()`.
+- **Live Map Regeneration Before Wave 1:**
+  - When map geometry sliders or game difficulty change while Wave 1 has not started (`!isWaveActive && waveNumber == 1 && towers.isEmpty()`), the map automatically regenerates with full track particles for immediate visual preview.
+- **Strictly Square Grid Cells & Dynamic Viewport Auto-Zoom:**
+  - Replaced aspect-ratio distortion with uniform 1:1 square cell calculations across both render and touch hit-testing: `cellSize = minOf(width / gridWidth, height / gridHeight)`, dynamically zooming and centering the board as rows or columns change.
+- **Affordability Indicators on Buildable Tiles:**
+  - Buildable empty tiles now display a subtle, faint pulsing white center dot whenever the player has accumulated enough Scrap to afford the lowest-cost unlocked tower class.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.021
 
 ### 🛡️ Red-Team Architecture Remediation, Synergy Singularity Economy Calibration & Combat Cadence Overhaul
 - **Synergy Singularity Guaranteed Across EASY, MEDIUM & HARD:**

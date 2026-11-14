@@ -194,6 +194,13 @@ data class DevBalanceConfig(
     val buildCostMultiplier: Float = 1.0f,     // 0.5x to 2.0x tower build costs
     val minLaneLength: Int = 16,              // 8 to 35 slider
     val maxLaneLength: Int = 32,              // 15 to 50 slider
+    val easyTargetOpenSlots: Int = 15,
+    val mediumTargetOpenSlots: Int = 15,
+    val hardTargetOpenSlots: Int = 15,
+    val minLaneOverlap: Int = 4,
+    val maxLaneOverlap: Int = 12,
+    val mapColumns: Int = 10,
+    val mapRows: Int = 20,
     val enemiesPerRoundMultiplier: Float = 1.0f, // 0.5x to 3.0x enemies per round
     val masterVolume: Float = 0.7f,
     val musicVolume: Float = 0.45f,
@@ -209,6 +216,14 @@ data class DevBalanceConfig(
     val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
     val customEnemyConfigs: Map<String, EnemyUnitBalance> = emptyMap()
 ) {
+    fun getTargetOpenSlotsForDifficulty(difficulty: GameDifficulty): Int {
+        return when (difficulty) {
+            GameDifficulty.EASY -> easyTargetOpenSlots
+            GameDifficulty.MEDIUM -> mediumTargetOpenSlots
+            GameDifficulty.HARD, GameDifficulty.INFINITE -> hardTargetOpenSlots
+        }
+    }
+
     fun getTowerKey(type: TowerType, branchTier1: String? = null, finalFormCode: String? = null): String {
         return when {
             finalFormCode != null -> "${type.name}_$finalFormCode"
@@ -379,6 +394,13 @@ data class DevBalanceConfig(
         if (buildCostMultiplier != default.buildCostMultiplier) return true
         if (minLaneLength != default.minLaneLength) return true
         if (maxLaneLength != default.maxLaneLength) return true
+        if (easyTargetOpenSlots != default.easyTargetOpenSlots) return true
+        if (mediumTargetOpenSlots != default.mediumTargetOpenSlots) return true
+        if (hardTargetOpenSlots != default.hardTargetOpenSlots) return true
+        if (minLaneOverlap != default.minLaneOverlap) return true
+        if (maxLaneOverlap != default.maxLaneOverlap) return true
+        if (mapColumns != default.mapColumns) return true
+        if (mapRows != default.mapRows) return true
         if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) return true
 
         if (customTowerConfigs.isNotEmpty()) {
@@ -441,6 +463,13 @@ data class DevBalanceConfig(
         if (buildCostMultiplier != default.buildCostMultiplier) diffMap["buildCostMultiplier"] = buildCostMultiplier
         if (minLaneLength != default.minLaneLength) diffMap["minLaneLength"] = minLaneLength
         if (maxLaneLength != default.maxLaneLength) diffMap["maxLaneLength"] = maxLaneLength
+        if (easyTargetOpenSlots != default.easyTargetOpenSlots) diffMap["easyTargetOpenSlots"] = easyTargetOpenSlots
+        if (mediumTargetOpenSlots != default.mediumTargetOpenSlots) diffMap["mediumTargetOpenSlots"] = mediumTargetOpenSlots
+        if (hardTargetOpenSlots != default.hardTargetOpenSlots) diffMap["hardTargetOpenSlots"] = hardTargetOpenSlots
+        if (minLaneOverlap != default.minLaneOverlap) diffMap["minLaneOverlap"] = minLaneOverlap
+        if (maxLaneOverlap != default.maxLaneOverlap) diffMap["maxLaneOverlap"] = maxLaneOverlap
+        if (mapColumns != default.mapColumns) diffMap["mapColumns"] = mapColumns
+        if (mapRows != default.mapRows) diffMap["mapRows"] = mapRows
         if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) diffMap["enemiesPerRoundMultiplier"] = enemiesPerRoundMultiplier
 
         // Audio & Visual Settings Diffs

@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Version tag override (e.g., v0.0.1.021) - leave empty to auto-detect from app/build.gradle.kts'
+        description: 'Version tag override (e.g., v0.0.1.022) - leave empty to auto-detect from app/build.gradle.kts'
         required: false
         default: ''
       publish_release:

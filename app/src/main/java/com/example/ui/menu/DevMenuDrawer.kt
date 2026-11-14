@@ -257,6 +257,121 @@ fun DevBalanceSettingsDialog(
                                             onValueChange = { onConfigChanged(config.copy(globalIncomeMultiplier = (it * 100).roundToInt() / 100f)) }
                                         )
                                     }
+
+                                    item {
+                                        Text(
+                                            text = "MAP GEOMETRY & LANE COVERAGE",
+                                            color = Color(0xFF00F0FF),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                        )
+                                    }
+
+                                    val totalCells = config.mapColumns * config.mapRows
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Easy Mode Available Tower Spots (Lane Length)",
+                                            subtitle = "Winds lanes across board leaving target buildable tiles",
+                                            value = config.easyTargetOpenSlots.toFloat(),
+                                            range = 6f..40f,
+                                            steps = 33,
+                                            valueFormatter = { "${it.toInt()} Tower Spots (${(totalCells - it.toInt()).coerceAtLeast(0)} Path/Core Tiles)" },
+                                            color = Color(0xFF00FF9D),
+                                            onValueChange = { onConfigChanged(config.copy(easyTargetOpenSlots = it.roundToInt())) }
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Medium Mode Available Tower Spots (Lane Length)",
+                                            subtitle = "Winds lanes across board leaving target buildable tiles",
+                                            value = config.mediumTargetOpenSlots.toFloat(),
+                                            range = 6f..40f,
+                                            steps = 33,
+                                            valueFormatter = { "${it.toInt()} Tower Spots (${(totalCells - it.toInt()).coerceAtLeast(0)} Path/Core Tiles)" },
+                                            color = Color(0xFFFFB800),
+                                            onValueChange = { onConfigChanged(config.copy(mediumTargetOpenSlots = it.roundToInt())) }
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Hard Mode Available Tower Spots (Lane Length)",
+                                            subtitle = "Winds lanes across board leaving target buildable tiles",
+                                            value = config.hardTargetOpenSlots.toFloat(),
+                                            range = 6f..40f,
+                                            steps = 33,
+                                            valueFormatter = { "${it.toInt()} Tower Spots (${(totalCells - it.toInt()).coerceAtLeast(0)} Path/Core Tiles)" },
+                                            color = Color(0xFFFF2A55),
+                                            onValueChange = { onConfigChanged(config.copy(hardTargetOpenSlots = it.roundToInt())) }
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Min Lane Overlap",
+                                            subtitle = "Minimum shared spine crossover tiles",
+                                            value = config.minLaneOverlap.toFloat(),
+                                            range = 2f..20f,
+                                            steps = 17,
+                                            valueFormatter = { "${it.toInt()} Shared Tiles" },
+                                            color = Color(0xFF00F0FF),
+                                            onValueChange = {
+                                                val newMin = it.roundToInt()
+                                                onConfigChanged(config.copy(
+                                                    minLaneOverlap = newMin,
+                                                    maxLaneOverlap = maxOf(config.maxLaneOverlap, newMin)
+                                                ))
+                                            }
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Max Lane Overlap",
+                                            subtitle = "Maximum shared spine crossover tiles",
+                                            value = config.maxLaneOverlap.toFloat(),
+                                            range = 4f..30f,
+                                            steps = 25,
+                                            valueFormatter = { "${it.toInt()} Shared Tiles" },
+                                            color = Color(0xFFA855F7),
+                                            onValueChange = {
+                                                val newMax = it.roundToInt()
+                                                onConfigChanged(config.copy(
+                                                    maxLaneOverlap = newMax,
+                                                    minLaneOverlap = minOf(config.minLaneOverlap, newMax)
+                                                ))
+                                            }
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Map Grid Columns (Width)",
+                                            subtitle = "Grid cell columns across board",
+                                            value = config.mapColumns.toFloat(),
+                                            range = 6f..16f,
+                                            steps = 9,
+                                            valueFormatter = { "${it.toInt()} Cols (${it.toInt() * config.mapRows} Tiles)" },
+                                            color = Color(0xFF38BDF8),
+                                            onValueChange = { onConfigChanged(config.copy(mapColumns = it.roundToInt())) }
+                                        )
+                                    }
+
+                                    item {
+                                        BalanceSliderCard(
+                                            title = "Map Grid Rows (Height)",
+                                            subtitle = "Grid cell rows down board",
+                                            value = config.mapRows.toFloat(),
+                                            range = 10f..28f,
+                                            steps = 17,
+                                            valueFormatter = { "${it.toInt()} Rows (${config.mapColumns * it.toInt()} Tiles)" },
+                                            color = Color(0xFFFF7A00),
+                                            onValueChange = { onConfigChanged(config.copy(mapRows = it.roundToInt())) }
+                                        )
+                                    }
                                 }
                             }
 

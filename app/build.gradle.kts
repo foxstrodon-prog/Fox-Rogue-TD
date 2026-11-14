@@ -27,8 +27,8 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 42
-    versionName = "0.0.1.021"
+    versionCode = 43
+    versionName = "0.0.1.022"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -164,5 +164,5 @@ tasks.register<Copy>("stageDebugApk") {
   dependsOn("assembleDebug")
   from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
   into(rootProject.layout.projectDirectory.dir("apk"))
-  rename { "Dual-Front-TD-v0.0.1.021-debug.apk" }
+  rename { "Dual-Front-TD-v0.0.1.022-debug.apk" }
 }

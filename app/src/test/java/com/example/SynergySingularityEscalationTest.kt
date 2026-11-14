@@ -231,6 +231,24 @@ class SynergySingularityEscalationTest {
         val buildablePads = level.tiles.count { it.isBuildable }
         assertTrue("Buildable pads ($buildablePads) must be curated between 14 and 16", buildablePads in 14..16)
 
+        val emptyTiles = level.tiles.filter { it.type == TileType.EMPTY }
+        for (tile in emptyTiles) {
+            assertFalse("Empty tile at ${tile.pos} must not have isClearance set to true", tile.isClearance)
+            assertTrue("Empty tile at ${tile.pos} must be buildable", tile.isBuildable)
+        }
+
+        // Verify all 4 corners touched
+        val corners = setOf(
+            GridPos(0, 0),
+            GridPos(level.width - 1, 0),
+            GridPos(0, level.height - 1),
+            GridPos(level.width - 1, level.height - 1)
+        )
+        val lanePoints = (level.laneAlpha + level.laneBeta).toSet()
+        for (corner in corners) {
+            assertTrue("Corner $corner must be touched by lanes", corner in lanePoints)
+        }
+
         val costPerTier2Tower = TowerType.GATLING.baseCost +
             (TowerType.GATLING.baseCost * 0.8f).toInt() +
             (TowerType.GATLING.baseCost * 1.5f).toInt()

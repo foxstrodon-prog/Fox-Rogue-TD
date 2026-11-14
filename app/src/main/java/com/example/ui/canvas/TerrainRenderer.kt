@@ -8,9 +8,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.example.engine.TowerUpgradeManager
 import com.example.model.*
 import com.example.ui.GameUIState
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -64,6 +66,15 @@ fun DrawScope.drawTerrainTiles(
     colorMerged: Color,
     animFlowTime: Long
 ) {
+    val unlockedClasses = TowerClass.entries.filter { TowerUpgradeManager.isClassUnlocked(it, state.towers) }
+    val minTowerCost = if (unlockedClasses.isNotEmpty()) {
+        unlockedClasses.minOf { (it.baseCost * state.balanceConfig.buildCostMultiplier).roundToInt() }
+    } else {
+        Int.MAX_VALUE
+    }
+    val canAffordNewTower = state.scrap >= minTowerCost
+    val occupiedTowerPositions = state.towers.map { it.gridPos }.toSet()
+
     val tiles = level.tiles
     for (i in 0 until tiles.size) {
         val tile = tiles[i]
@@ -166,6 +177,15 @@ fun DrawScope.drawTerrainTiles(
                         cornerRadius = CornerRadius(5f, 5f),
                         style = Stroke(width = 1.2f)
                     )
+
+                    if (canAffordNewTower && tile.pos !in occupiedTowerPositions) {
+                        val dotPulse = (sin(animFlowTime * 0.005f) * 0.08f + 0.30f).toFloat()
+                        drawCircle(
+                            color = Color.White.copy(alpha = dotPulse),
+                            radius = cellW * 0.05f,
+                            center = Offset(centerX, centerY)
+                        )
+                    }
                 }
             }
             else -> Unit

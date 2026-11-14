@@ -241,7 +241,7 @@ class LeaderboardCoreTest {
       scrapEarned = 260,
       totalDamage = 18000L,
       timestampMs = 1234567L,
-      clientVersion = "0.0.1.021",
+      clientVersion = "0.0.1.022",
       userId = "firebase_anon_uid_999"
     )
     store.enqueuePending(item)
@@ -302,7 +302,7 @@ class LeaderboardCoreTest {
       scrapEarned = 500,
       totalDamage = 5000L,
       timestampMs = 1000L,
-      clientVersion = "0.0.1.021"
+      clientVersion = "0.0.1.022"
     )
 
     val submitRes = api.submitScore(item)

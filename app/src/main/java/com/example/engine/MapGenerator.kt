@@ -69,7 +69,10 @@ object MapGenerator {
         width: Int = DEFAULT_WIDTH,
         height: Int = DEFAULT_HEIGHT,
         minLaneLength: Int = 16,
-        maxLaneLength: Int = 32
+        maxLaneLength: Int = 32,
+        targetOpenSlots: Int = 15,
+        minLaneOverlap: Int = 4,
+        maxLaneOverlap: Int = 12
     ): GeneratedLevel {
         require(minLaneLength in 4..maxLaneLength) {
             "minLaneLength ($minLaneLength) must be >= 4 and <= maxLaneLength ($maxLaneLength)"
@@ -95,18 +98,39 @@ object MapGenerator {
         }
 
         // 2. Central Nexus/Merge Zone (Multi-axis crossover and shared rail)
+        val clampedMinOverlap = minLaneOverlap.coerceIn(1, (width * height / 3).coerceAtLeast(1))
+        val clampedMaxOverlap = maxLaneOverlap.coerceAtLeast(clampedMinOverlap)
+        val targetOverlap = if (clampedMaxOverlap > clampedMinOverlap) {
+            random.nextInt(clampedMinOverlap, clampedMaxOverlap + 1)
+        } else {
+            clampedMinOverlap
+        }
+
         val centerX = width / 2
         val centerY = height / 2
-        val isHorizontalSpine = random.nextBoolean()
-        
-        val mergedRail = if (isHorizontalSpine) {
-            val startX = (centerX - 2).coerceAtLeast(1)
-            val endX = (centerX + 1).coerceAtMost(width - 2)
-            (startX..endX).map { x -> GridPos(x, centerY) }
+
+        val mergedRail: List<GridPos> = if (height >= width) {
+            if (targetOverlap <= height - 2) {
+                val startY = (centerY - targetOverlap / 2).coerceIn(1, (height - 1 - targetOverlap).coerceAtLeast(1))
+                (0 until targetOverlap).map { GridPos(centerX, startY + it) }
+            } else {
+                val col1 = (1 until height - 1).map { GridPos(centerX, it) }
+                val nextX = if (centerX + 1 < width - 1) centerX + 1 else (centerX - 1).coerceAtLeast(1)
+                val remaining = targetOverlap - col1.size
+                val col2 = (height - 2 downTo (height - 1 - remaining).coerceAtLeast(1)).map { GridPos(nextX, it) }
+                (col1 + col2).take(targetOverlap)
+            }
         } else {
-            val startY = (centerY - 2).coerceAtLeast(1)
-            val endY = (centerY + 1).coerceAtMost(height - 2)
-            (startY..endY).map { y -> GridPos(centerX, y) }
+            if (targetOverlap <= width - 2) {
+                val startX = (centerX - targetOverlap / 2).coerceIn(1, (width - 1 - targetOverlap).coerceAtLeast(1))
+                (0 until targetOverlap).map { GridPos(startX + it, centerY) }
+            } else {
+                val row1 = (1 until width - 1).map { GridPos(it, centerY) }
+                val nextY = if (centerY + 1 < height - 1) centerY + 1 else (centerY - 1).coerceAtLeast(1)
+                val remaining = targetOverlap - row1.size
+                val row2 = (width - 2 downTo (width - 1 - remaining).coerceAtLeast(1)).map { GridPos(it, nextY) }
+                (row1 + row2).take(targetOverlap)
+            }
         }
 
         val mergeStart = mergedRail.first()
@@ -137,9 +161,10 @@ object MapGenerator {
         val leadAlphaLeg2 = removeLoops(findPath(cLeadAlpha, mergeStart, width, height, random, blocked = blockedLeadAlpha2))
         val leadAlpha = leadAlphaLeg1.dropLast(1) + leadAlphaLeg2
 
-        val leadBetaLeg1 = removeLoops(findPath(spawnerBeta, cLeadBeta, width, height, random))
+        val blockedLeadBeta1 = (leadAlpha - setOf(mergeStart)).toSet()
+        val leadBetaLeg1 = removeLoops(findPath(spawnerBeta, cLeadBeta, width, height, random, blocked = blockedLeadBeta1))
         val entryBeta = if (leadBetaLeg1.size >= 2) leadBetaLeg1[leadBetaLeg1.size - 2] else null
-        val blockedLeadBeta2 = (leadBetaLeg1.dropLast(1) + listOfNotNull(entryBeta)).toSet()
+        val blockedLeadBeta2 = (blockedLeadBeta1 + leadBetaLeg1.dropLast(1) + listOfNotNull(entryBeta)).toSet()
         val leadBetaLeg2 = removeLoops(findPath(cLeadBeta, mergeStart, width, height, random, blocked = blockedLeadBeta2))
         val leadBeta = leadBetaLeg1.dropLast(1) + leadBetaLeg2
 
@@ -151,19 +176,100 @@ object MapGenerator {
         val tailAlphaLeg2 = removeLoops(findPath(cTailAlpha, corePos, width, height, random, blocked = blockedTailAlpha2))
         val tailAlpha = tailAlphaLeg1.dropLast(1) + tailAlphaLeg2
 
-        val blockedTailBeta1 = (leadBeta + mergedRail.dropLast(1)).toSet() - setOf(mergeEnd, cTailBeta)
+        val blockedTailBeta1 = (leadBeta + mergedRail.dropLast(1) + tailAlpha.dropLast(1)).toSet() - setOf(mergeEnd, cTailBeta)
         val tailBetaLeg1 = removeLoops(findPath(mergeEnd, cTailBeta, width, height, random, blocked = blockedTailBeta1))
         val entryTailBeta = if (tailBetaLeg1.size >= 2) tailBetaLeg1[tailBetaLeg1.size - 2] else null
         val blockedTailBeta2 = (blockedTailBeta1 + tailBetaLeg1.dropLast(1) + listOfNotNull(entryTailBeta)).toSet() - setOf(cTailBeta, corePos)
         val tailBetaLeg2 = removeLoops(findPath(cTailBeta, corePos, width, height, random, blocked = blockedTailBeta2))
         val tailBeta = tailBetaLeg1.dropLast(1) + tailBetaLeg2
 
-        val laneAlpha = leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha
-        val laneBeta = leadBeta.dropLast(1) + mergedRail.dropLast(1) + tailBeta
+        val laneAlpha = (leadAlpha.dropLast(1) + mergedRail.dropLast(1) + tailAlpha).toMutableList()
+        val laneBeta = (leadBeta.dropLast(1) + mergedRail.dropLast(1) + tailBeta).toMutableList()
 
-        val alphaSet = laneAlpha.toSet()
-        val betaSet = laneBeta.toSet()
-        val intersections = (alphaSet.intersect(betaSet) - setOf(corePos, spawnerAlpha, spawnerBeta)).toSet()
+        val protectedSet = setOf(spawnerAlpha, spawnerBeta, corePos)
+        val occupied = (laneAlpha.toSet() + laneBeta.toSet() + protectedSet).toMutableSet()
+        var emptyCount = width * height - occupied.size
+
+        // 6. Parity adjustment: If emptyCount and targetOpenSlots have different parities,
+        // use a 1-tile detour across an existing other-lane tile to flip parity by 1.
+        if (Math.abs(emptyCount - targetOpenSlots) % 2 != 0) {
+            val fixed = trySingleTileDetour(laneAlpha, laneBeta.toSet(), occupied, width, height, protectedSet) ||
+                trySingleTileDetour(laneBeta, laneAlpha.toSet(), occupied, width, height, protectedSet)
+            if (fixed) {
+                emptyCount--
+            }
+        }
+
+        // 7. Dense Winding Lane Expansion:
+        // Iteratively expand straight segments of laneAlpha and laneBeta into adjacent unused empty tiles
+        // using 2-tile U-bends (A -> B replaced by A -> A' -> B' -> B) until emptyCount <= targetOpenSlots.
+        data class UBendCandidate(val isAlpha: Boolean, val index: Int, val aPrime: GridPos, val bPrime: GridPos)
+
+        var stallCount = 0
+        while (emptyCount >= targetOpenSlots + 2 && stallCount < 10) {
+            val candidates = mutableListOf<UBendCandidate>()
+
+            val alphaSet = laneAlpha.toSet()
+            for (i in 0 until laneAlpha.size - 1) {
+                val a = laneAlpha[i]
+                val b = laneAlpha[i + 1]
+                val pairs = if (a.x == b.x) {
+                    listOf(-1, 1).map { dx -> GridPos(a.x + dx, a.y) to GridPos(b.x + dx, b.y) }
+                } else {
+                    listOf(-1, 1).map { dy -> GridPos(a.x, a.y + dy) to GridPos(b.x, b.y + dy) }
+                }
+                for ((aPrime, bPrime) in pairs) {
+                    if (aPrime.x in 0 until width && aPrime.y in 0 until height &&
+                        bPrime.x in 0 until width && bPrime.y in 0 until height &&
+                        aPrime !in protectedSet && bPrime !in protectedSet &&
+                        aPrime !in occupied && bPrime !in occupied &&
+                        aPrime !in alphaSet && bPrime !in alphaSet
+                    ) {
+                        candidates.add(UBendCandidate(true, i, aPrime, bPrime))
+                    }
+                }
+            }
+
+            val betaSet = laneBeta.toSet()
+            for (i in 0 until laneBeta.size - 1) {
+                val a = laneBeta[i]
+                val b = laneBeta[i + 1]
+                val pairs = if (a.x == b.x) {
+                    listOf(-1, 1).map { dx -> GridPos(a.x + dx, a.y) to GridPos(b.x + dx, b.y) }
+                } else {
+                    listOf(-1, 1).map { dy -> GridPos(a.x, a.y + dy) to GridPos(b.x, b.y + dy) }
+                }
+                for ((aPrime, bPrime) in pairs) {
+                    if (aPrime.x in 0 until width && aPrime.y in 0 until height &&
+                        bPrime.x in 0 until width && bPrime.y in 0 until height &&
+                        aPrime !in protectedSet && bPrime !in protectedSet &&
+                        aPrime !in occupied && bPrime !in occupied &&
+                        aPrime !in betaSet && bPrime !in betaSet
+                    ) {
+                        candidates.add(UBendCandidate(false, i, aPrime, bPrime))
+                    }
+                }
+            }
+
+            if (candidates.isNotEmpty()) {
+                val pick = candidates[random.nextInt(candidates.size)]
+                if (pick.isAlpha) {
+                    laneAlpha.addAll(pick.index + 1, listOf(pick.aPrime, pick.bPrime))
+                } else {
+                    laneBeta.addAll(pick.index + 1, listOf(pick.aPrime, pick.bPrime))
+                }
+                occupied.add(pick.aPrime)
+                occupied.add(pick.bPrime)
+                emptyCount -= 2
+                stallCount = 0
+            } else {
+                stallCount++
+            }
+        }
+
+        val finalAlphaSet = laneAlpha.toSet()
+        val finalBetaSet = laneBeta.toSet()
+        val intersections = (finalAlphaSet.intersect(finalBetaSet) - setOf(corePos, spawnerAlpha, spawnerBeta)).toSet()
 
         val tileList = mutableListOf<MapTile>()
         val candidateBuffPositions = mutableListOf<GridPos>()
@@ -177,15 +283,15 @@ object MapGenerator {
                     pos == spawnerBeta -> tileList.add(MapTile(pos, TileType.SPAWNER_BETA))
                     pos == mergeStart -> tileList.add(MapTile(pos, TileType.PATH_INTERSECTION))
                     pos in intersections -> tileList.add(MapTile(pos, TileType.PATH_MERGED))
-                    pos in alphaSet -> tileList.add(MapTile(pos, TileType.PATH_ALPHA))
-                    pos in betaSet -> tileList.add(MapTile(pos, TileType.PATH_BETA))
+                    pos in finalAlphaSet -> tileList.add(MapTile(pos, TileType.PATH_ALPHA))
+                    pos in finalBetaSet -> tileList.add(MapTile(pos, TileType.PATH_BETA))
                     else -> {
                         val adjacent = listOf(
                             GridPos(x + 1, y), GridPos(x - 1, y),
                             GridPos(x, y + 1), GridPos(x, y - 1)
                         )
-                        val touchesAlpha = adjacent.any { it in alphaSet }
-                        val touchesBeta = adjacent.any { it in betaSet }
+                        val touchesAlpha = adjacent.any { it in finalAlphaSet }
+                        val touchesBeta = adjacent.any { it in finalBetaSet }
 
                         if (touchesAlpha || touchesBeta) {
                             candidateBuffPositions.add(pos)
@@ -196,31 +302,28 @@ object MapGenerator {
             }
         }
 
-        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads (6 total) + 9 tactical empty pads (15 total buildable pads)
+        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads (6 total) selected from empty tiles adjacent to lanes
+        // Falling back to any empty tile if fewer than 6 adjacent exist.
+        val emptyTilePositions = tileList.filter { it.type == TileType.EMPTY }.map { it.pos }
         candidateBuffPositions.shuffle(random)
-        val greenPads = candidateBuffPositions.take(2).toSet()
-        val tealPads = candidateBuffPositions.drop(2).take(2).toSet()
-        val orangePads = candidateBuffPositions.drop(4).take(2).toSet()
-        val boostedPads = greenPads + tealPads + orangePads
 
-        val extraTacticalCandidates = if (candidateBuffPositions.size >= 15) {
-            candidateBuffPositions.drop(6).take(9)
+        val boosterTargetCount = minOf(6, emptyTilePositions.size)
+        val boosterCandidates = if (candidateBuffPositions.size >= boosterTargetCount) {
+            candidateBuffPositions.take(boosterTargetCount)
         } else {
-            val remainingAdjacent = candidateBuffPositions.drop(6)
-            val fallbackEmpty = tileList
-                .filter { it.type == TileType.EMPTY && it.pos !in boostedPads && it.pos !in remainingAdjacent }
-                .map { it.pos }
-                .shuffled(random)
-            (remainingAdjacent + fallbackEmpty).take(9)
+            val remaining = emptyTilePositions.filter { it !in candidateBuffPositions }.shuffled(random)
+            (candidateBuffPositions + remaining).take(boosterTargetCount)
         }
-        val allowedBuildableSet = boostedPads + extraTacticalCandidates.toSet()
+
+        val greenPads = boosterCandidates.take(minOf(2, boosterCandidates.size)).toSet()
+        val tealPads = boosterCandidates.drop(2).take(minOf(2, boosterCandidates.size - 2).coerceAtLeast(0)).toSet()
+        val orangePads = boosterCandidates.drop(4).take(minOf(2, boosterCandidates.size - 4).coerceAtLeast(0)).toSet()
 
         val finalTiles = tileList.map { tile ->
             when {
                 tile.pos in greenPads -> tile.copy(buff = TileBuff.AMPLIFIER)
                 tile.pos in tealPads -> tile.copy(buff = TileBuff.HIGH_GROUND)
                 tile.pos in orangePads -> tile.copy(buff = TileBuff.CONDUIT)
-                tile.type == TileType.EMPTY && tile.pos !in allowedBuildableSet -> tile.copy(isClearance = true)
                 else -> tile
             }
         }
@@ -235,6 +338,43 @@ object MapGenerator {
             laneBeta = laneBeta,
             intersectionPoints = intersections
         )
+    }
+
+    private fun trySingleTileDetour(
+        primaryLane: MutableList<GridPos>,
+        otherLaneSet: Set<GridPos>,
+        occupied: MutableSet<GridPos>,
+        width: Int,
+        height: Int,
+        protectedSet: Set<GridPos>
+    ): Boolean {
+        val laneSet = primaryLane.toSet()
+        for (i in 0 until primaryLane.size - 1) {
+            val a = primaryLane[i]
+            val b = primaryLane[i + 1]
+            val candidates = if (a.x == b.x) {
+                listOf(-1, 1).map { dx -> GridPos(a.x + dx, a.y) to GridPos(b.x + dx, b.y) }
+            } else {
+                listOf(-1, 1).map { dy -> GridPos(a.x, a.y + dy) to GridPos(b.x, b.y + dy) }
+            }
+            for ((p1, p2) in candidates) {
+                if (p1.x !in 0 until width || p1.y !in 0 until height) continue
+                if (p2.x !in 0 until width || p2.y !in 0 until height) continue
+                if (p1 in protectedSet || p2 in protectedSet) continue
+                if (p1 in laneSet || p2 in laneSet) continue
+
+                if (p1 in otherLaneSet && p2 !in occupied) {
+                    primaryLane.addAll(i + 1, listOf(p1, p2))
+                    occupied.add(p2)
+                    return true
+                } else if (p2 in otherLaneSet && p1 !in occupied) {
+                    primaryLane.addAll(i + 1, listOf(p1, p2))
+                    occupied.add(p1)
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun removeLoops(path: List<GridPos>): List<GridPos> {

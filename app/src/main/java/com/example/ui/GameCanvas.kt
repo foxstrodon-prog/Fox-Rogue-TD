@@ -42,25 +42,20 @@ fun GameCanvas(
     Canvas(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(level.seed) {
+            .pointerInput(level.seed, gridWidth, gridHeight) {
                 detectTapGestures { offset ->
-                    val boardAspect = gridWidth.toFloat() / gridHeight.toFloat()
-                    val viewAspect = size.width.toFloat() / size.height.toFloat()
-                    val (bw, bh) = if (viewAspect < boardAspect) {
-                        val w = size.width.toFloat()
-                        w to (w / boardAspect)
-                    } else {
-                        val h = size.height.toFloat()
-                        (h * boardAspect) to h
-                    }
-                    val ox = (size.width.toFloat() - bw) / 2f
-                    val oy = (size.height.toFloat() - bh) / 2f
-                    val cellW = bw / gridWidth
-                    val cellH = bh / gridHeight
+                    val cellSize = minOf(size.width.toFloat() / gridWidth.toFloat(), size.height.toFloat() / gridHeight.toFloat())
+                    val boardWidthPx = cellSize * gridWidth
+                    val boardHeightPx = cellSize * gridHeight
+                    val cellW = cellSize
+                    val cellH = cellSize
 
-                    val localX = offset.x - ox
-                    val localY = offset.y - oy
-                    if (localX in 0f..bw && localY in 0f..bh) {
+                    val boardOriginX = (size.width.toFloat() - boardWidthPx) / 2f
+                    val boardOriginY = (size.height.toFloat() - boardHeightPx) / 2f
+
+                    val localX = offset.x - boardOriginX
+                    val localY = offset.y - boardOriginY
+                    if (localX in 0f..boardWidthPx && localY in 0f..boardHeightPx) {
                         val gx = (localX / cellW).toInt().coerceIn(0, gridWidth - 1)
                         val gy = (localY / cellH).toInt().coerceIn(0, gridHeight - 1)
                         val clickedTile = level.tiles.firstOrNull { it.pos.x == gx && it.pos.y == gy }
@@ -71,22 +66,14 @@ fun GameCanvas(
                 }
             }
     ) {
-        val boardAspect = gridWidth.toFloat() / gridHeight.toFloat()
-        val viewAspect = size.width / size.height
-
-        val (boardWidthPx, boardHeightPx) = if (viewAspect < boardAspect) {
-            val bw = size.width
-            bw to (bw / boardAspect)
-        } else {
-            val bh = size.height
-            (bh * boardAspect) to bh
-        }
+        val cellSize = minOf(size.width / gridWidth.toFloat(), size.height / gridHeight.toFloat())
+        val boardWidthPx = cellSize * gridWidth
+        val boardHeightPx = cellSize * gridHeight
+        val cellW = cellSize
+        val cellH = cellSize
 
         val boardOriginX = (size.width - boardWidthPx) / 2f
         val boardOriginY = (size.height - boardHeightPx) / 2f
-
-        val cellW = boardWidthPx / gridWidth
-        val cellH = boardHeightPx / gridHeight
 
         val shakeX = if (state.screenShakeIntensity > 0f) (sin(System.currentTimeMillis() * 0.05f) * state.screenShakeIntensity * 12f).toFloat() else 0f
         val shakeY = if (state.screenShakeIntensity > 0f) (cos(System.currentTimeMillis() * 0.05f) * state.screenShakeIntensity * 12f).toFloat() else 0f

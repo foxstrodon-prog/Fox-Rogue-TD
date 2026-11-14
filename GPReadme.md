@@ -4,7 +4,21 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.021
+### 🚀 What's New in Version 0.0.1.022
+
+🗺️ **Every Non-Lane Tile Buildable, Dense Winding Lane Expansion, Geometry Dev Sliders, Square Grid Auto-Zoom & Affordability Dots**
+- **100% Buildable Board (Zero Inoperable Clearance Lockout):** Every tile without a lane, spawner, or core is now an open, buildable slot (`isBuildable == true`). All 6 Booster Pads (2 Green, 2 Teal, 2 Orange) are preserved and count toward available tower spots.
+- **Dense Winding Lane Expansion:** Instead of artificially locking out blank squares, procedural lanes wind dynamically across the grid to reach the target open spots (default 15 slots) while maintaining continuous Manhattan distance 1 tracking and corner coverage.
+- **Difficulty-Specific Open Slots & Map Geometry Controls:** Added dedicated Dev Menu sliders for Easy, Medium, and Hard target open slots, min/max lane overlap, and map grid columns & rows, complete with persistent settings and diff JSON export.
+- **Live Pre-Wave Map Preview:** Adjusting difficulty or geometry sliders before starting Wave 1 immediately regenerates the map for on-the-fly inspection.
+- **Strictly Square Grid Cells & Dynamic Auto-Zoom:** Cells are strictly 1:1 squares that automatically zoom and center to fill widescreen displays without distortion.
+- **Tower Affordability Indicators:** Subtle pulsing white center dots appear on open buildable tiles whenever you have enough Scrap to afford a new tower.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.021
 
 🛡️ **Synergy Singularity Economy Calibration, Deliberate Cadence Overhaul & Red-Team Engine Hardening**
 - **Synergy Singularity in Every Mode (EASY, MEDIUM & HARD):** Curated tactical maps to 15 high-agency buildable pads (6 Harmonic + 9 tactical lane pads) and calibrated difficulty-aware scrap income (`EASY 1.45x`, `MEDIUM 1.20x`, `HARD 1.05x`) so you can fill the entire board to Tier 2+ and forge the **Synergy Conduit** before the final wave in every mode.

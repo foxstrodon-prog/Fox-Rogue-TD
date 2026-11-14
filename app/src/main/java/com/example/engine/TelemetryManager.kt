@@ -249,7 +249,14 @@ class TelemetryManager @JvmOverloads constructor(
             heavyDamageMultiplier = prefs.getFloat("cfg_heavy_dmg", 1.0f),
             waveBonusMultiplier = prefs.getFloat("cfg_wave_bonus", 1.0f),
             enemyHpMultiplier = prefs.getFloat("cfg_enemy_hp", 1.0f),
-            buildCostMultiplier = prefs.getFloat("cfg_build_cost", 1.0f)
+            buildCostMultiplier = prefs.getFloat("cfg_build_cost", 1.0f),
+            easyTargetOpenSlots = prefs.getInt("cfg_easy_open_slots", 15),
+            mediumTargetOpenSlots = prefs.getInt("cfg_med_open_slots", 15),
+            hardTargetOpenSlots = prefs.getInt("cfg_hard_open_slots", 15),
+            minLaneOverlap = prefs.getInt("cfg_min_lane_overlap", 4),
+            maxLaneOverlap = prefs.getInt("cfg_max_lane_overlap", 12),
+            mapColumns = prefs.getInt("cfg_map_columns", 10),
+            mapRows = prefs.getInt("cfg_map_rows", 20)
         )
     }
 
@@ -263,6 +270,13 @@ class TelemetryManager @JvmOverloads constructor(
             .putFloat("cfg_wave_bonus", config.waveBonusMultiplier)
             .putFloat("cfg_enemy_hp", config.enemyHpMultiplier)
             .putFloat("cfg_build_cost", config.buildCostMultiplier)
+            .putInt("cfg_easy_open_slots", config.easyTargetOpenSlots)
+            .putInt("cfg_med_open_slots", config.mediumTargetOpenSlots)
+            .putInt("cfg_hard_open_slots", config.hardTargetOpenSlots)
+            .putInt("cfg_min_lane_overlap", config.minLaneOverlap)
+            .putInt("cfg_max_lane_overlap", config.maxLaneOverlap)
+            .putInt("cfg_map_columns", config.mapColumns)
+            .putInt("cfg_map_rows", config.mapRows)
             .apply()
     }
 

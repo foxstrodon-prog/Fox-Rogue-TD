@@ -287,6 +287,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun updateBalanceConfig(newConfig: DevBalanceConfig) {
+        val oldConfig = _uiState.value.balanceConfig
         if (newConfig.isGameplayModified()) devTunedThisRun = true
         telemetryManager.saveBalanceConfig(newConfig)
         soundManager.setMasterVolumeLevel(newConfig.masterVolume)
@@ -295,9 +296,11 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.setUpgradeVolumeLevel(newConfig.upgradeVolume)
         soundManager.setMutedState(newConfig.isMuted)
         _uiState.update { it.copy(balanceConfig = newConfig) }
+        regenerateMapIfPreWave1(oldConfig, newConfig, _uiState.value.difficulty)
     }
 
     fun resetBalanceConfigToDefaults() {
+        val oldConfig = _uiState.value.balanceConfig
         val defaultConfig = DevBalanceConfig()
         telemetryManager.saveBalanceConfig(defaultConfig)
         soundManager.setMasterVolumeLevel(defaultConfig.masterVolume)
@@ -315,6 +318,51 @@ class RogueTDViewModel @JvmOverloads constructor(
                 mapThemeSlot = defaultConfig.mapThemeSlot
             )
         }
+        regenerateMapIfPreWave1(oldConfig, defaultConfig, _uiState.value.difficulty)
+    }
+
+    private fun regenerateMapIfPreWave1(oldConfig: DevBalanceConfig, newConfig: DevBalanceConfig, difficulty: GameDifficulty) {
+        val state = _uiState.value
+        if (!state.isWaveActive && state.waveNumber == 1 && state.towers.isEmpty()) {
+            val geometryChanged = oldConfig.easyTargetOpenSlots != newConfig.easyTargetOpenSlots ||
+                oldConfig.mediumTargetOpenSlots != newConfig.mediumTargetOpenSlots ||
+                oldConfig.hardTargetOpenSlots != newConfig.hardTargetOpenSlots ||
+                oldConfig.minLaneOverlap != newConfig.minLaneOverlap ||
+                oldConfig.maxLaneOverlap != newConfig.maxLaneOverlap ||
+                oldConfig.mapColumns != newConfig.mapColumns ||
+                oldConfig.mapRows != newConfig.mapRows
+            if (geometryChanged) {
+                regeneratePreWave1Level(newConfig, difficulty)
+            }
+        }
+    }
+
+    private fun regeneratePreWave1Level(balance: DevBalanceConfig, difficulty: GameDifficulty) {
+        val seed = _uiState.value.seed
+        val level = MapGenerator.generate(
+            seed = seed,
+            width = balance.mapColumns,
+            height = balance.mapRows,
+            minLaneLength = balance.minLaneLength,
+            maxLaneLength = balance.maxLaneLength,
+            targetOpenSlots = balance.getTargetOpenSlotsForDifficulty(difficulty),
+            minLaneOverlap = balance.minLaneOverlap,
+            maxLaneOverlap = balance.maxLaneOverlap
+        )
+        val initialParticles = ArrayList<TrackParticle>(12)
+        for (i in 0 until 12) {
+            val lane = i % 2
+            val path = if (lane == 0) level.laneAlpha else level.laneBeta
+            val maxSeg = (path.size - 2).coerceAtLeast(0)
+            initialParticles.add(
+                TrackParticle(
+                    id = "tp_$i", laneIndex = lane, segmentIndex = (i * 2) % (maxSeg + 1),
+                    progress = (i * 0.15f) % 1.0f, speed = 0.8f + (i % 3) * 0.2f,
+                    color = if (lane == 0) 0xFF00F0FF else 0xFFFFB800, size = 2.5f + (i % 2) * 1.5f
+                )
+            )
+        }
+        _uiState.update { it.copy(level = level, trackParticles = initialParticles, selectedTile = null) }
     }
 
     fun resetTowerPerformance() {
@@ -450,7 +498,16 @@ class RogueTDViewModel @JvmOverloads constructor(
 
         val seed = System.currentTimeMillis()
         val balance = _uiState.value.balanceConfig
-        val level = MapGenerator.generate(seed = seed, minLaneLength = balance.minLaneLength, maxLaneLength = balance.maxLaneLength)
+        val level = MapGenerator.generate(
+            seed = seed,
+            width = balance.mapColumns,
+            height = balance.mapRows,
+            minLaneLength = balance.minLaneLength,
+            maxLaneLength = balance.maxLaneLength,
+            targetOpenSlots = balance.getTargetOpenSlotsForDifficulty(_uiState.value.difficulty),
+            minLaneOverlap = balance.minLaneOverlap,
+            maxLaneOverlap = balance.maxLaneOverlap
+        )
         val firstWave = WaveGenerator.generateWave(1, balance.enemiesPerRoundMultiplier, _uiState.value.difficulty)
 
         val initialParticles = ArrayList<TrackParticle>(12)
@@ -545,7 +602,14 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun confirmSingularityCollapse() = placementCoordinator.confirmSingularityCollapse(simulationCoordinator::computeActiveSynergies)
 
     fun setGameDifficulty(difficulty: GameDifficulty) {
-        if (!_uiState.value.isWaveActive) _uiState.update { it.copy(difficulty = difficulty) }
+        val oldDifficulty = _uiState.value.difficulty
+        if (!_uiState.value.isWaveActive) {
+            _uiState.update { it.copy(difficulty = difficulty) }
+            val state = _uiState.value
+            if (!state.isWaveActive && state.waveNumber == 1 && state.towers.isEmpty() && oldDifficulty != difficulty) {
+                regeneratePreWave1Level(state.balanceConfig, difficulty)
+            }
+        }
     }
 
     private fun recordRunCompletion(isVictory: Boolean, waves: Int) {

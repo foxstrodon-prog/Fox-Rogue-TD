@@ -367,6 +367,49 @@ class ExampleRobolectricTest {
   }
 
   @Test
+  fun `every empty tile is buildable with zero inoperable blank tiles`() {
+    val seeds = listOf(111L, 777L, 12345L, 54321L, 99999L)
+    for (seed in seeds) {
+      val level = MapGenerator.generate(seed = seed, targetOpenSlots = 15)
+      val emptyTiles = level.tiles.filter { it.type == TileType.EMPTY }
+      for (tile in emptyTiles) {
+        assertFalse("Tile at ${tile.pos} must not have isClearance set to true", tile.isClearance)
+        assertTrue("Tile at ${tile.pos} must be buildable", tile.isBuildable)
+      }
+      val buildableCount = level.tiles.count { it.isBuildable }
+      assertTrue("Buildable count ($buildableCount) should be in 14..16", buildableCount in 14..16)
+
+      // Verify Manhattan distance == 1 continuity for laneAlpha
+      for (i in 0 until level.laneAlpha.size - 1) {
+        val p1 = level.laneAlpha[i]
+        val p2 = level.laneAlpha[i + 1]
+        val dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y)
+        assertEquals("Lane Alpha consecutive step distance must be 1 at index $i", 1, dist)
+      }
+
+      // Verify Manhattan distance == 1 continuity for laneBeta
+      for (i in 0 until level.laneBeta.size - 1) {
+        val p1 = level.laneBeta[i]
+        val p2 = level.laneBeta[i + 1]
+        val dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y)
+        assertEquals("Lane Beta consecutive step distance must be 1 at index $i", 1, dist)
+      }
+
+      // Verify all 4 corners are touched by the lanes
+      val corners = setOf(
+        GridPos(0, 0),
+        GridPos(level.width - 1, 0),
+        GridPos(0, level.height - 1),
+        GridPos(level.width - 1, level.height - 1)
+      )
+      val lanePoints = (level.laneAlpha + level.laneBeta).toSet()
+      for (corner in corners) {
+        assertTrue("Corner $corner must be touched by lanes for seed $seed", corner in lanePoints)
+      }
+    }
+  }
+
+  @Test
   fun `score calculation and zero-score leaderboard omission test`() {
     val recordZero = com.example.model.RunRecord(
       id = "zero_run",
@@ -495,6 +538,25 @@ class ExampleRobolectricTest {
     assertTrue(diffJson.contains("\"range\": 4.5"))
     assertFalse(diffJson.contains("\"globalIncomeMultiplier\"")) // Unchanged must be omitted!
     assertFalse(diffJson.contains("\"customEnemies\"")) // Unchanged must be omitted!
+
+    // Verify map geometry & lane coverage fields in diff export
+    val mapGeomCfg = defaultCfg.copy(
+      easyTargetOpenSlots = 20,
+      mediumTargetOpenSlots = 18,
+      hardTargetOpenSlots = 12,
+      minLaneOverlap = 6,
+      maxLaneOverlap = 16,
+      mapColumns = 12,
+      mapRows = 24
+    )
+    val mapGeomDiff = mapGeomCfg.exportDiffJson()
+    assertTrue(mapGeomDiff.contains("\"easyTargetOpenSlots\": 20"))
+    assertTrue(mapGeomDiff.contains("\"mediumTargetOpenSlots\": 18"))
+    assertTrue(mapGeomDiff.contains("\"hardTargetOpenSlots\": 12"))
+    assertTrue(mapGeomDiff.contains("\"minLaneOverlap\": 6"))
+    assertTrue(mapGeomDiff.contains("\"maxLaneOverlap\": 16"))
+    assertTrue(mapGeomDiff.contains("\"mapColumns\": 12"))
+    assertTrue(mapGeomDiff.contains("\"mapRows\": 24"))
   }
 
   @Test
@@ -509,9 +571,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 021`() {
-    assertEquals("0.0.1.021", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(42, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 022`() {
+    assertEquals("0.0.1.022", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(43, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
