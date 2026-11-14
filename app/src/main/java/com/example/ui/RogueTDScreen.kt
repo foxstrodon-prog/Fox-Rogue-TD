@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import com.example.engine.AppUpdateState
 import com.example.engine.GeneratedLevel
 import com.example.engine.UpdateDownloadStatus
 import com.example.model.FloatingText
+import com.example.model.TileType
 import com.example.ui.dialog.EndRunConfirmDialog
 import com.example.ui.dialog.RunSummaryDialog
 import com.example.ui.dialog.TelemetryLeaderboardDialog
@@ -45,6 +47,17 @@ fun RogueTDScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val isSquircleOpen = state.selectedTower != null || (state.selectedTile != null && state.selectedTile?.type == TileType.EMPTY)
+    BackHandler(
+        enabled = state.activeCinematic == null && !state.isGameOver && !state.isVictory && !state.isPauseMenuOpen
+    ) {
+        if (isSquircleOpen) {
+            viewModel.selectTile(null)
+        } else {
+            viewModel.openPauseMenu()
+        }
+    }
 
     Box(
         modifier = modifier

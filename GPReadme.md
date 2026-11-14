@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.019
+### 🚀 What's New in Version 0.0.1.020
+
+🔒 **Accessibility Font-Scale Lock, Standardized Dev JSON Metadata & Two-Stage Soft Back Navigation**
+- **Universal UI Font-Scale Lock (`fontScale = 1.0f`):** Locked `LocalDensity` in `MyApplicationTheme` and `Configuration.fontScale` in `MainActivity` to `1.0f`. All tactical HUDs, floating squircles, and popup `Dialog(...)` sub-windows now maintain exact layout proportions regardless of Android system accessibility font-size settings.
+- **Standardized Dev Menu & Library JSON Exports:** Updated `DevBalanceConfig.exportDiffJson()` and `SoundManager.exportLibraryJson()` to always include top-level `"appName": "Dual Front TD"`, `"versionName"`, and `"versionCode"` metadata along with a structured `"deltas"` block containing all modified balance, audio, visual, and favorited parameters.
+- **Two-Stage Android Soft Back Arrow Navigation:** Added a context-aware `BackHandler` in `RogueTDScreen`: pressing Android's soft back arrow while squircles are on screen cleanly closes the squircles, and pressing it when no squircles are present opens the Pause Menu.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.019
 
 🏗️ **750-Line Modularity Overhaul, Domain Coordinators & Zero-Allocation Engine Hardening**
 - **750-Line Architectural Modularity Law (100% Compliance):** Restructured all 54 production Kotlin source files under `app/src/main/java/com/example/` so every single file strictly adheres to the `<= 750`-line architectural ceiling with high domain cohesion.

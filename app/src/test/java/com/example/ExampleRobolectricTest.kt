@@ -472,7 +472,10 @@ class ExampleRobolectricTest {
   fun `diff-only json export produces delta containing only modified parameters`() {
     val defaultCfg = com.example.model.DevBalanceConfig()
     val cleanDiff = defaultCfg.exportDiffJson()
-    assertEquals("{}", cleanDiff.trim())
+    assertTrue(cleanDiff.contains("\"appName\": \"Dual Front TD\""))
+    assertTrue(cleanDiff.contains("\"versionName\": \"${com.example.BuildConfig.VERSION_NAME}\""))
+    assertTrue(cleanDiff.contains("\"versionCode\": ${com.example.BuildConfig.VERSION_CODE}"))
+    assertTrue(cleanDiff.contains("\"deltas\": {}"))
 
     // Modify only startingScrap and Vulcan Gatling range
     val modifiedCfg = defaultCfg.copy(
@@ -483,6 +486,10 @@ class ExampleRobolectricTest {
     )
 
     val diffJson = modifiedCfg.exportDiffJson()
+    assertTrue(diffJson.contains("\"appName\": \"Dual Front TD\""))
+    assertTrue(diffJson.contains("\"versionName\": \"${com.example.BuildConfig.VERSION_NAME}\""))
+    assertTrue(diffJson.contains("\"versionCode\": ${com.example.BuildConfig.VERSION_CODE}"))
+    assertTrue(diffJson.contains("\"deltas\": {"))
     assertTrue(diffJson.contains("\"startingScrap\": 180"))
     assertTrue(diffJson.contains("\"customTowers\""))
     assertTrue(diffJson.contains("\"range\": 4.5"))
@@ -502,9 +509,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 019`() {
-    assertEquals("0.0.1.019", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(40, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 020`() {
+    assertEquals("0.0.1.020", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(41, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -959,7 +966,7 @@ class ExampleRobolectricTest {
   @Test
   fun `exportDiffJson serializes non-default audio and customization state`() {
     val baseline = com.example.model.DevBalanceConfig()
-    assertEquals("{}", baseline.exportDiffJson())
+    assertTrue(baseline.exportDiffJson().contains("\"deltas\": {}"))
 
     val tuned = baseline.copy(
       masterVolume = 0.45f,
@@ -975,6 +982,9 @@ class ExampleRobolectricTest {
       mapThemeSlot = 5
     )
     val diff = tuned.exportDiffJson()
+    assertTrue(diff.contains("\"appName\": \"Dual Front TD\""))
+    assertTrue(diff.contains("\"versionName\": \"${com.example.BuildConfig.VERSION_NAME}\""))
+    assertTrue(diff.contains("\"deltas\": {"))
     assertTrue(diff.contains("\"masterVolume\": 0.45"))
     assertTrue(diff.contains("\"musicVolume\": 0.6"))
     assertTrue(diff.contains("\"sfxVolume\": 0.9"))
@@ -1056,6 +1066,23 @@ class ExampleRobolectricTest {
     assertEquals(0.5f, soundManager.calculateEffectiveMusicVolume(), 0.001f)
 
     soundManager.release()
+  }
+
+  @Test
+  fun `verify MainActivity and SoundManager exportLibraryJson enforce fontScale 1_0f and metadata`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val soundManager = com.example.audio.SoundManager(context)
+    val libJson = soundManager.exportLibraryJson(context)
+    assertTrue(libJson.contains("\"appName\": \"Dual Front TD\""))
+    assertTrue(libJson.contains("\"versionName\": \"${com.example.BuildConfig.VERSION_NAME}\""))
+    assertTrue(libJson.contains("\"versionCode\": ${com.example.BuildConfig.VERSION_CODE}"))
+    assertTrue(libJson.contains("\"deltas\": ["))
+    soundManager.release()
+
+    val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup()
+    val activity = controller.get()
+    assertEquals(1.0f, activity.resources.configuration.fontScale, 0.001f)
+    controller.destroy()
   }
 }
 

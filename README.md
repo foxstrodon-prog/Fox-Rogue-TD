@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.019`):** [`apk/Dual-Front-TD-v0.0.1.019-debug.apk`](apk/Dual-Front-TD-v0.0.1.019-debug.apk)
+- **Latest Android APK (`v0.0.1.020`):** [`apk/Dual-Front-TD-v0.0.1.020-debug.apk`](apk/Dual-Front-TD-v0.0.1.020-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,9 +22,20 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.019
+## 🕹️ What's New in Version 0.0.1.020
 
-### 🏗️ 750-Line Modularity Overhaul, Domain Coordinators & Zero-Allocation Engine Hardening
+### 🔒 Accessibility Font-Scale Lock, Standardized Dev JSON Metadata & Two-Stage Soft Back Navigation
+- **Universal UI Font-Scale Lock (`fontScale = 1.0f`):** Locked `LocalDensity` in `MyApplicationTheme` (`Theme.kt`) and `Configuration.fontScale` in `MainActivity.attachBaseContext()` / `onConfigurationChanged()` to `1.0f`. All tactical HUDs, floating squircles, and popup `Dialog(...)` sub-windows now maintain exact layout proportions regardless of Android system accessibility font-size settings.
+- **Standardized Dev Menu & Library JSON Exports:** Updated `DevBalanceConfig.exportDiffJson()` and `SoundManager.exportLibraryJson()` to always include top-level `"appName": "Dual Front TD"`, `"versionName"`, and `"versionCode"` metadata along with a structured `"deltas"` block containing all modified balance, audio, visual, and favorited parameters.
+- **Two-Stage Android Soft Back Arrow Navigation:** Added a context-aware `BackHandler` in `RogueTDScreen.kt`:
+  - **Stage 1 (Squircles Present):** Pressing Android's soft back arrow while a tower or buildable empty tile is selected cleanly closes the floating squircle bar.
+  - **Stage 2 (No Squircles Present):** Pressing Android's soft back arrow when no squircles are open opens the Pause Menu instead of exiting the match.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.019
 - **750-Line Architectural Modularity Law (100% Compliance):** Restructured all 54 production Kotlin source files under `app/src/main/java/com/example/` so every single file strictly adheres to the `<= 750`-line architectural ceiling with high domain cohesion.
 - **God-ViewModel Decomposition & Domain Coordinators:** Reduced `RogueTDViewModel.kt` to 596 lines by extracting focused domain coordinators into `engine/coordinator/`:
   - `SimulationCoordinator.kt`: Virtual time scaling, combat simulation ticking, track particle stepping, status effect decay, and sound tick dispatch.

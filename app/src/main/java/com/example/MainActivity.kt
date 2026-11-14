@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -29,6 +30,12 @@ class MainActivity : ComponentActivity() {
 
   private var orientationEventListener: OrientationEventListener? = null
   private var lastOrientBucket: Float = 0f
+
+  override fun attachBaseContext(newBase: Context) {
+    val overrideConfig = Configuration(newBase.resources.configuration)
+    overrideConfig.fontScale = 1.0f
+    super.attachBaseContext(newBase.createConfigurationContext(overrideConfig))
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -151,7 +158,10 @@ class MainActivity : ComponentActivity() {
    * here we only re-apply the edge-to-edge system bar styling for the new orientation.
    */
   override fun onConfigurationChanged(newConfig: Configuration) {
+    newConfig.fontScale = 1.0f
     super.onConfigurationChanged(newConfig)
+    @Suppress("DEPRECATION")
+    resources.updateConfiguration(newConfig, resources.displayMetrics)
     enableEdgeToEdge()
     if (orientationEventListener == null || !orientationEventListener!!.canDetectOrientation()) {
       viewModel.updateDeviceRotation(0f)

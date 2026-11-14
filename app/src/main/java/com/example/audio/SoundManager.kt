@@ -260,8 +260,21 @@ class SoundManager(context: Context) {
     fun exportLibraryJson(context: Context): String {
         val sb = StringBuilder()
         sb.append("{\n")
-        sb.append("  \"version\": \"0.0.1.002\",\n")
+        sb.append("  \"appName\": \"Dual Front TD\",\n")
+        sb.append("  \"versionName\": \"${com.example.BuildConfig.VERSION_NAME}\",\n")
+        sb.append("  \"versionCode\": ${com.example.BuildConfig.VERSION_CODE},\n")
         sb.append("  \"exportedAtEpochMs\": ${System.currentTimeMillis()},\n")
+        val favoritedItems = assetLibrary.filter { it.isFavoriteHeart || it.isFavoriteStar }
+        sb.append("  \"deltas\": [\n")
+        favoritedItems.forEachIndexed { index, item ->
+            sb.append("    {\n")
+            sb.append("      \"id\": \"${item.id}\",\n")
+            sb.append("      \"name\": \"${item.name}\",\n")
+            sb.append("      \"heart\": ${item.isFavoriteHeart},\n")
+            sb.append("      \"star\": ${item.isFavoriteStar}\n")
+            sb.append("    }${if (index < favoritedItems.size - 1) "," else ""}\n")
+        }
+        sb.append("  ],\n")
         sb.append("  \"assets\": [\n")
         assetLibrary.forEachIndexed { index, item ->
             sb.append("    {\n")

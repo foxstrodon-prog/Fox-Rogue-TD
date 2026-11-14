@@ -427,10 +427,14 @@ data class DevBalanceConfig(
     val isBaseline: Boolean get() = !isGameplayModified()
 
     /**
-     * Generates a strict delta / diff-only JSON string containing ONLY values
-     * that differ from the stock baseline defaults.
+     * Generates a structured JSON string containing appName, versionName, versionCode,
+     * and a "deltas" object containing ONLY values that differ from the stock baseline defaults.
      */
-    fun exportDiffJson(): String {
+    fun exportDiffJson(
+        appName: String = "Dual Front TD",
+        versionName: String = com.example.BuildConfig.VERSION_NAME,
+        versionCode: Int = com.example.BuildConfig.VERSION_CODE
+    ): String {
         val diffMap = mutableMapOf<String, Any>()
         val default = DevBalanceConfig()
 
@@ -506,13 +510,21 @@ data class DevBalanceConfig(
             }
         }
         if (enemyDiffs.isNotEmpty()) diffMap["customEnemies"] = enemyDiffs
-        if (diffMap.isEmpty()) return "{}"
 
-        // Serialize to clean formatted JSON string
+        // Serialize to clean formatted JSON string with appName, versionName, versionCode, and deltas
         val sb = StringBuilder("{\n")
+        sb.append("  \"appName\": \"").append(appName).append("\",\n")
+        sb.append("  \"versionName\": \"").append(versionName).append("\",\n")
+        sb.append("  \"versionCode\": ").append(versionCode).append(",\n")
+        if (diffMap.isEmpty()) {
+            sb.append("  \"deltas\": {}\n")
+            sb.append("}")
+            return sb.toString()
+        }
+        sb.append("  \"deltas\": {\n")
         val entries = diffMap.entries.toList()
         entries.forEachIndexed { i, (k, v) ->
-            sb.append("  \"").append(k).append("\": ")
+            sb.append("    \"").append(k).append("\": ")
             when (v) {
                 is Number, is Boolean -> sb.append(v)
                 is String -> sb.append("\"").append(v).append("\"")
@@ -520,19 +532,19 @@ data class DevBalanceConfig(
                     sb.append("{\n")
                     val subEntries = v.entries.toList()
                     subEntries.forEachIndexed { j, sub ->
-                        sb.append("    \"").append(sub.key).append("\": ")
+                        sb.append("      \"").append(sub.key).append("\": ")
                         val subVal = sub.value
                         if (subVal is Map<*, *>) {
                             sb.append("{\n")
                             val leafEntries = subVal.entries.toList()
                             leafEntries.forEachIndexed { kLeaf, leaf ->
-                                sb.append("      \"").append(leaf.key).append("\": ")
+                                sb.append("        \"").append(leaf.key).append("\": ")
                                 if (leaf.value is String) sb.append("\"").append(leaf.value).append("\"")
                                 else sb.append(leaf.value)
                                 if (kLeaf < leafEntries.size - 1) sb.append(",")
                                 sb.append("\n")
                             }
-                            sb.append("    }")
+                            sb.append("      }")
                         } else if (subVal is String) {
                             sb.append("\"").append(subVal).append("\"")
                         } else {
@@ -541,13 +553,14 @@ data class DevBalanceConfig(
                         if (j < subEntries.size - 1) sb.append(",")
                         sb.append("\n")
                     }
-                    sb.append("  }")
+                    sb.append("    }")
                 }
                 else -> sb.append("\"").append(v.toString()).append("\"")
             }
             if (i < entries.size - 1) sb.append(",")
             sb.append("\n")
         }
+        sb.append("  }\n")
         sb.append("}")
         return sb.toString()
     }
