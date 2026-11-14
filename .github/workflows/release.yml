@@ -11,9 +11,14 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Version tag override (e.g., v0.0.0.007) - leave empty to auto-detect from app/build.gradle.kts'
+        description: 'Version tag override (e.g., v0.0.1.020) - leave empty to auto-detect from app/build.gradle.kts'
         required: false
         default: ''
+      publish_release:
+        description: 'Set to true ONLY when explicitly commanded to publish the release live (otherwise creates/updates a Draft Release)'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -24,7 +29,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Publish Release on Commit
+    name: Build APK & Stage Draft Release (Publish Only on Explicit Release Tag/Command)
     runs-on: ubuntu-24.04
 
     steps:
@@ -47,7 +52,7 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Determine Version Tag
+      - name: Determine Version Tag & Release Mode
         id: version_step
         run: |
           if [ -n "${{ github.event.inputs.version_tag }}" ]; then
@@ -66,8 +71,16 @@ jobs:
             RELEASE_TAG="${RAW_VER}"
           fi
 
+          # Draft by default on every branch push; publish live ONLY on explicit tag push (refs/tags/v*) or publish_release=true
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] || [[ "${{ github.event.inputs.publish_release }}" == "true" ]]; then
+            IS_DRAFT="false"
+          else
+            IS_DRAFT="true"
+          fi
+
           echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "Target Release Tag: ${RELEASE_TAG}"
+          echo "is_draft=${IS_DRAFT}" >> "$GITHUB_OUTPUT"
+          echo "Target Release Tag: ${RELEASE_TAG} (Draft Mode: ${IS_DRAFT})"
 
       - name: Restore Canonical Debug Keystore
         run: |
@@ -106,28 +119,47 @@ jobs:
           name: Dual-Front-TD-${{ steps.version_step.outputs.tag }}-assets
           path: dist/*
 
-      - name: Publish or Update GitHub Release
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      - name: Stage Draft Release or Publish on Command
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version_step.outputs.tag }}
+          IS_DRAFT: ${{ steps.version_step.outputs.is_draft }}
         run: |
           echo "Checking if GitHub Release $TAG already exists..."
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists. Updating release target and uploading latest assets with --clobber..."
-            gh release edit "$TAG" \
-              --target "$GITHUB_SHA" \
-              --title "Dual Front TD $TAG" \
-              --generate-notes || true
+            echo "Release $TAG exists. Uploading latest assets with --clobber..."
             gh release upload "$TAG" dist/* --clobber
+            if [ "$IS_DRAFT" = "false" ]; then
+              echo "Explicit release command/tag detected: publishing release $TAG live..."
+              gh release edit "$TAG" \
+                --target "$GITHUB_SHA" \
+                --title "Dual Front TD $TAG" \
+                --draft=false \
+                --latest || true
+            else
+              echo "Keeping release $TAG in current state (Draft/Staged) for commit $GITHUB_SHA."
+            fi
           else
-            echo "Creating new GitHub Release $TAG..."
-            gh release create "$TAG" dist/* \
-              --target "$GITHUB_SHA" \
-              --title "Dual Front TD $TAG" \
-              --generate-notes || {
-                echo "Release creation encountered existing tag or conflict; uploading assets with --clobber..."
-                gh release upload "$TAG" dist/* --clobber
-              }
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "Creating new DRAFT GitHub Release $TAG..."
+              gh release create "$TAG" dist/* \
+                --draft \
+                --target "$GITHUB_SHA" \
+                --title "Dual Front TD $TAG" \
+                --generate-notes || {
+                  echo "Draft release creation encountered conflict; uploading assets with --clobber..."
+                  gh release upload "$TAG" dist/* --clobber
+                }
+            else
+              echo "Explicit release command/tag detected: creating and publishing live GitHub Release $TAG..."
+              gh release create "$TAG" dist/* \
+                --target "$GITHUB_SHA" \
+                --title "Dual Front TD $TAG" \
+                --generate-notes || {
+                  echo "Release creation encountered existing tag or conflict; uploading assets with --clobber..."
+                  gh release upload "$TAG" dist/* --clobber
+                }
+            fi
           fi
-          echo "Successfully published or updated release $TAG for commit $GITHUB_SHA!"
+          echo "Successfully processed release $TAG (Draft: $IS_DRAFT) for commit $GITHUB_SHA!"
