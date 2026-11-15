@@ -17,8 +17,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.FastForward
@@ -355,11 +357,16 @@ fun MinimalTopHud(
 
                 // 5. Consolidated Synergies Indicator with Dropdown (Dynamic: Row in portrait, Column in landscape)
                 val activeSynergiesCount = state.activeGlobalSynergies.size
+                val capstoneTowers = state.towers.filter { it.isCapstone }
+                val maxConduitGen = capstoneTowers.maxOfOrNull { it.generation } ?: 0
+                val absorbedVaults = capstoneTowers.flatMap { it.synergyVault }
+                val absorbedSynergiesCount = absorbedVaults.sumOf { it.synergies.size }
+                val totalSynergiesCount = activeSynergiesCount + absorbedSynergiesCount
                 Box(modifier = counterRotateModifier) {
                     Surface(
-                        color = if (activeSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
+                        color = if (totalSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
                         shape = RoundedCornerShape(5.dp),
-                        border = if (activeSynergiesCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)) else null,
+                        border = if (totalSynergiesCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)) else null,
                         modifier = Modifier
                             .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                             .clip(RoundedCornerShape(5.dp))
@@ -374,8 +381,8 @@ fun MinimalTopHud(
                                 Text(text = "🌟", fontSize = 9.sp)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "($activeSynergiesCount)",
-                                    color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                                    text = "($totalSynergiesCount)",
+                                    color = if (totalSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
                                     fontWeight = FontWeight.Black,
                                     fontSize = 8.5.sp,
                                     maxLines = 1
@@ -389,8 +396,8 @@ fun MinimalTopHud(
                                 Text(text = "🌟", fontSize = 9.sp)
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    text = "($activeSynergiesCount)",
-                                    color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                                    text = "($totalSynergiesCount)",
+                                    color = if (totalSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
                                     fontWeight = FontWeight.Black,
                                     fontSize = 9.sp,
                                     maxLines = 1
@@ -406,7 +413,8 @@ fun MinimalTopHud(
                             modifier = Modifier
                                 .background(Color(0xFF0F172A).copy(alpha = 0.95f))
                                 .border(1.dp, Color(0xFFFFB800), RoundedCornerShape(6.dp))
-                                .widthIn(max = 240.dp)
+                                .widthIn(max = 260.dp)
+                                .heightIn(max = 320.dp)
                         ) {
                             DropdownMenuItem(
                                 text = {
@@ -458,6 +466,51 @@ fun MinimalTopHud(
                                     )
                                 }
                             }
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 6.dp),
+                                thickness = 1.dp,
+                                color = Color(0xFF1E293B)
+                            )
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                                Text(
+                                    text = "⚡ ABSORBED CONDUIT SYNERGIES (GEN $maxConduitGen • $absorbedSynergiesCount Banked)",
+                                    color = Color(0xFF00F0FF),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 10.5.sp,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                if (absorbedVaults.isEmpty()) {
+                                    Text(
+                                        text = "No absorbed conduit synergies yet. Reach Tier 3 on all towers and ascend into a Conduit to permanently bank synergies.",
+                                        color = Color(0xFF64748B),
+                                        fontSize = 9.sp,
+                                        lineHeight = 12.sp
+                                    )
+                                } else {
+                                    absorbedVaults.forEach { vault ->
+                                        vault.synergies.forEach { syn ->
+                                            Column(modifier = Modifier.padding(vertical = 3.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(text = syn.iconEmoji, fontSize = 11.sp)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "${syn.auraName} [Gen ${vault.generation}]",
+                                                        color = Color(syn.color),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "${syn.effectDescription} • [PERMANENT CORE BUFF]",
+                                                    color = Color(0xFF00FF9D),
+                                                    fontSize = 8.5.sp,
+                                                    lineHeight = 11.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -490,40 +543,93 @@ fun MinimalTopHud(
                                         enabled = true
                                     ) {}
                             ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Text(
-                                        text = "ACTIVE SYNERGIES ($activeSynergiesCount)",
-                                        color = Color(0xFFFFB800),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 11.5.sp,
-                                        modifier = Modifier.padding(bottom = 6.dp)
-                                    )
-                                    if (state.activeGlobalSynergies.isEmpty()) {
+                                Column(
+                                    modifier = Modifier
+                                        .padding(14.dp)
+                                        .heightIn(max = 340.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f, fill = false)
+                                            .verticalScroll(rememberScrollState())
+                                    ) {
                                         Text(
-                                            text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
-                                            color = Color(0xFF94A3B8),
-                                            fontSize = 9.5.sp,
-                                            lineHeight = 13.sp
+                                            text = "ACTIVE SYNERGIES ($activeSynergiesCount)",
+                                            color = Color(0xFFFFB800),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 11.5.sp,
+                                            modifier = Modifier.padding(bottom = 6.dp)
                                         )
-                                    } else {
-                                        state.activeGlobalSynergies.forEach { syn ->
-                                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(text = syn.iconEmoji, fontSize = 12.sp)
-                                                    Spacer(modifier = Modifier.width(4.dp))
+                                        if (state.activeGlobalSynergies.isEmpty()) {
+                                            Text(
+                                                text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 9.5.sp,
+                                                lineHeight = 13.sp
+                                            )
+                                        } else {
+                                            state.activeGlobalSynergies.forEach { syn ->
+                                                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(text = syn.iconEmoji, fontSize = 12.sp)
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = "${syn.auraName} (${syn.sourceCount}x)",
+                                                            color = Color(syn.color),
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 10.5.sp
+                                                        )
+                                                    }
                                                     Text(
-                                                        text = "${syn.auraName} (${syn.sourceCount}x)",
-                                                        color = Color(syn.color),
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 10.5.sp
+                                                        text = syn.effectDescription,
+                                                        color = Color(0xFFCBD5E1),
+                                                        fontSize = 9.sp,
+                                                        lineHeight = 12.sp
                                                     )
                                                 }
-                                                Text(
-                                                    text = syn.effectDescription,
-                                                    color = Color(0xFFCBD5E1),
-                                                    fontSize = 9.sp,
-                                                    lineHeight = 12.sp
-                                                )
+                                            }
+                                        }
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 6.dp),
+                                            thickness = 1.dp,
+                                            color = Color(0xFF1E293B)
+                                        )
+                                        Text(
+                                            text = "⚡ ABSORBED CONDUIT SYNERGIES (GEN $maxConduitGen • $absorbedSynergiesCount Banked)",
+                                            color = Color(0xFF00F0FF),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 10.5.sp,
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        )
+                                        if (absorbedVaults.isEmpty()) {
+                                            Text(
+                                                text = "No absorbed conduit synergies yet. Reach Tier 3 on all towers and ascend into a Conduit to permanently bank synergies.",
+                                                color = Color(0xFF64748B),
+                                                fontSize = 9.sp,
+                                                lineHeight = 12.sp
+                                            )
+                                        } else {
+                                            absorbedVaults.forEach { vault ->
+                                                vault.synergies.forEach { syn ->
+                                                    Column(modifier = Modifier.padding(vertical = 3.dp)) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Text(text = syn.iconEmoji, fontSize = 11.sp)
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text(
+                                                                text = "${syn.auraName} [Gen ${vault.generation}]",
+                                                                color = Color(syn.color),
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = "${syn.effectDescription} • [PERMANENT CORE BUFF]",
+                                                            color = Color(0xFF00FF9D),
+                                                            fontSize = 8.5.sp,
+                                                            lineHeight = 11.sp
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }

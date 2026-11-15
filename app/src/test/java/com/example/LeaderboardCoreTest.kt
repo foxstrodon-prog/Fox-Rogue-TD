@@ -37,6 +37,12 @@ class LeaderboardCoreTest {
     baseDir.deleteRecursively()
   }
 
+  @org.junit.After
+  fun tearDown() {
+    androidx.work.WorkManager.getInstance(context).cancelAllWork()
+    androidx.work.impl.WorkManagerImpl.getInstance(context)?.workDatabase?.close()
+  }
+
   @Test
   fun `PlayerIdentity creates persistent 36 char UUID and valid callsign`() {
     val uuid1 = PlayerIdentity.getOrCreateDeviceUuid(context)

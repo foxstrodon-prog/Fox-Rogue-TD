@@ -326,33 +326,56 @@ class TowerPlacementCoordinator(
         uiStateFlow.update { it.copy(towers = it.towers.toList()) }
     }
 
-    fun canInitiateSingularity(): Boolean {
+    fun getConduitAscensionCost(): Int {
+        val state = uiStateFlow.value
+        val currentMaxGen = state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
+        return 750 * (currentMaxGen + 1)
+    }
+
+    fun isSingularityGridReady(): Boolean {
         val state = uiStateFlow.value
         val level = state.level ?: return false
         val buildableTiles = level.tiles.filter { it.isBuildable }
         if (buildableTiles.isEmpty() || state.towers.size < buildableTiles.size) return false
-        return state.towers.all { it.tier >= 2 || it.finalFormCode != null }
+        return state.towers.all { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
+    }
+
+    fun canInitiateSingularity(): Boolean {
+        return isSingularityGridReady() && uiStateFlow.value.scrap >= getConduitAscensionCost()
     }
 
     fun getSingularityAnchorTower(): TowerInstance? {
         val state = uiStateFlow.value
         val selected = state.selectedTower
-        if (selected != null && (selected.tier >= 2 || selected.finalFormCode != null)) return selected
+        if (selected != null && (selected.tier >= 3 || selected.finalFormCode != null || selected.isCapstone)) return selected
         return state.towers.firstOrNull { it.isCapstone } ?: state.towers.minByOrNull { it.id }
     }
 
     fun requestSingularityCollapse() {
         val state = uiStateFlow.value
-        if (!canInitiateSingularity()) {
+        val cost = getConduitAscensionCost()
+        if (!isSingularityGridReady()) {
             val buildableTiles = state.level?.tiles?.filter { it.isBuildable } ?: emptyList()
-            val readyCount = state.towers.count { it.tier >= 2 || it.finalFormCode != null }
+            val readyCount = state.towers.count { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
             soundManager.play(SoundFx.INVALID)
             val anchor = state.selectedTower ?: state.towers.firstOrNull()
             if (anchor != null) {
                 addFloatingText(
                     anchor.gridPos.x.toFloat(), anchor.gridPos.y.toFloat(),
-                    "Grid Incomplete! Fill all tiles ($readyCount/${buildableTiles.size}) to Tier 2+!",
+                    "Grid Incomplete! Every tower must be Tier 3 ($readyCount/${buildableTiles.size})!",
                     0xFFFF3B30, false
+                )
+            }
+            return
+        }
+        if (state.scrap < cost) {
+            soundManager.play(SoundFx.INVALID)
+            val anchor = state.selectedTower ?: state.towers.firstOrNull()
+            if (anchor != null) {
+                addFloatingText(
+                    anchor.gridPos.x.toFloat(), anchor.gridPos.y.toFloat(),
+                    "Insufficient Scrap! Conduit Ascension requires ${cost}c!",
+                    0xFFFF2A55, false
                 )
             }
             return
@@ -374,15 +397,28 @@ class TowerPlacementCoordinator(
         val anchor = getSingularityAnchorTower() ?: return
         val sacrificed = state.towers.filter { it.id != anchor.id }
 
-        sacrificed.firstOrNull { it.isCapstone }?.let { prev ->
-            anchor.synergyVault.addAll(prev.synergyVault)
+        // Inherit vault and generation from previous Capstone if anchor is a new tower
+        sacrificed.filter { it.isCapstone }.forEach { prev ->
+            val existingGens = anchor.synergyVault.map { it.generation }.toSet()
+            prev.synergyVault.forEach { banked ->
+                if (banked.generation !in existingGens) {
+                    anchor.synergyVault.add(banked)
+                }
+            }
             anchor.generation = maxOf(anchor.generation, prev.generation)
         }
 
+        val ascensionCost = getConduitAscensionCost()
         val scrapBounty = maxOf(250, (sacrificed.sumOf { it.getInvestedScrapValue() } * 0.20f).toInt())
-        anchor.synergyVault.add(BankedSynergyVault(generation = anchor.generation + 1, synergies = computeSynergies(state.towers)))
+        val nextGen = anchor.generation + 1
+        anchor.synergyVault.add(BankedSynergyVault(generation = nextGen, synergies = computeSynergies(state.towers)))
         anchor.isCapstone = true
-        anchor.generation += 1
+        anchor.generation = nextGen
+        val ascendedAnchor = anchor.copy(
+            isCapstone = true,
+            generation = nextGen,
+            synergyVault = anchor.synergyVault.toMutableList()
+        )
 
         val newExplosions = state.explosions.toMutableList()
         sacrificed.forEach { st ->
@@ -394,12 +430,16 @@ class TowerPlacementCoordinator(
 
         uiStateFlow.update {
             it.copy(
-                towers = listOf(anchor), selectedTower = anchor, scrap = it.scrap + scrapBounty,
-                totalScrapEarned = it.totalScrapEarned + scrapBounty, explosions = newExplosions,
-                screenShakeIntensity = 1.0f, isSingularityWarningOpen = false
+                towers = listOf(ascendedAnchor),
+                selectedTower = ascendedAnchor,
+                scrap = (it.scrap - ascensionCost).coerceAtLeast(0) + scrapBounty,
+                totalScrapEarned = it.totalScrapEarned + scrapBounty,
+                explosions = newExplosions,
+                screenShakeIntensity = 1.0f,
+                isSingularityWarningOpen = false
             )
         }
-        addFloatingText(anchor.gridPos.x.toFloat(), anchor.gridPos.y.toFloat(), "+$scrapBounty SCRAP BOUNTY!", 0xFFFFD700, false)
-        addFloatingText(anchor.gridPos.x.toFloat(), anchor.gridPos.y.toFloat() - 0.7f, "★ GEN ${anchor.generation} CONDUIT ONLINE ★", 0xFF00F0FF, false)
+        addFloatingText(ascendedAnchor.gridPos.x.toFloat(), ascendedAnchor.gridPos.y.toFloat(), "+$scrapBounty SCRAP BOUNTY!", 0xFFFFD700, false)
+        addFloatingText(ascendedAnchor.gridPos.x.toFloat(), ascendedAnchor.gridPos.y.toFloat() - 0.7f, "★ GEN ${ascendedAnchor.generation} CONDUIT ONLINE ★", 0xFF00F0FF, false)
     }
 }

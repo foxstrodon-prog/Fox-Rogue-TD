@@ -315,8 +315,9 @@ fun RogueTDScreen(
             }
         }
 
-        // === MANUAL ROTATION SUGGESTION BUTTON (SEMICIRCLE EDGE TAB) ===
+        // === MANUAL ROTATION SUGGESTION BUTTONS (DUAL SEMICIRCLE EDGE TABS) ===
         if (state.isSystemAutoRotateLocked && state.hardwareTiltAngle != state.deviceRotationAngle) {
+            // Right-Edge Tab (Existing)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -326,12 +327,43 @@ fun RogueTDScreen(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { viewModel.confirmManualRotation() }
-                    .testTag("manual_rotate_button"),
+                    .testTag("manual_rotate_button_right"),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Surface(
                     modifier = Modifier.size(width = 24.dp, height = 40.dp),
                     shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 0.dp, bottomEnd = 0.dp),
+                    color = swapTabBackground,
+                    border = BorderStroke(1.dp, swapTabBorder),
+                    shadowElevation = 4.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.ScreenRotation,
+                            contentDescription = "Rotate Screen to Match Device Tilt",
+                            tint = Color(0xFF00F0FF),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            // Left-Edge Tab (New)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 2.dp, bottom = 48.dp)
+                    .size(48.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { viewModel.confirmManualRotation() }
+                    .testTag("manual_rotate_button_left"),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Surface(
+                    modifier = Modifier.size(width = 24.dp, height = 40.dp),
+                    shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp, topStart = 0.dp, bottomStart = 0.dp),
                     color = swapTabBackground,
                     border = BorderStroke(1.dp, swapTabBorder),
                     shadowElevation = 4.dp

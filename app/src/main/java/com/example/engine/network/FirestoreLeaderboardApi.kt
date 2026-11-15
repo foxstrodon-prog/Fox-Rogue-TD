@@ -21,9 +21,10 @@ import java.net.UnknownHostException
 class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
   private val projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
-  private val apiKey: String = "",
+  apiKey: String = com.example.BuildConfig.LEADERBOARD_API_KEY,
   collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION
 ) {
+  private val apiKey: String = apiKey.trim().removePrefix("key=").removeSurrounding("\"").trim()
   val canonicalCollection: String = normalizeCollection(collection)
   val alternateCollection: String = if (canonicalCollection == "leaderboards") "leaderboard" else "leaderboards"
   val collection: String get() = canonicalCollection
@@ -54,7 +55,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.022" }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.024" }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))

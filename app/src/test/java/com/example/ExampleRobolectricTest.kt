@@ -571,9 +571,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 023`() {
-    assertEquals("0.0.1.023", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(44, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 024`() {
+    assertEquals("0.0.1.024", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(45, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -1181,6 +1181,128 @@ class ExampleRobolectricTest {
     val updateManager = com.example.engine.AppUpdateManager(context)
     updateManager.performStartupApkHygiene()
     assertFalse("Corrupt APK must be deleted during hygiene check", corruptApk.exists())
+  }
+
+  @Test
+  fun `verify isSingularityGridReady requires 100 percent Tier 3 towers and rejects Tier 2`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val soundManager = com.example.audio.SoundManager(context)
+    val telemetryManager = com.example.engine.TelemetryManager(context)
+    val level = com.example.engine.MapGenerator.generate(seed = 42L)
+    val buildableTiles = level.tiles.filter { it.isBuildable }
+    val stateFlow = kotlinx.coroutines.flow.MutableStateFlow(
+      com.example.ui.GameUIState(level = level, scrap = 5000)
+    )
+    val coordinator = com.example.engine.coordinator.TowerPlacementCoordinator(
+      uiStateFlow = stateFlow,
+      soundManager = soundManager,
+      telemetryManager = telemetryManager,
+      nextId = { "${it}1" },
+      addFloatingText = { _, _, _, _, _ -> },
+      onSynergyDirty = {}
+    )
+
+    // Populate all buildable tiles with Tier 2 towers -> must reject
+    val tier2Towers = buildableTiles.mapIndexed { idx, tile ->
+      TowerInstance(id = "t_$idx", gridPos = tile.pos, tier = 2)
+    }
+    stateFlow.value = stateFlow.value.copy(towers = tier2Towers)
+    assertFalse("Tier 2 towers must not satisfy Singularity grid readiness", coordinator.isSingularityGridReady())
+
+    // Upgrade all but one to Tier 3 -> must still reject
+    val mixedTowers = tier2Towers.mapIndexed { idx, t ->
+      if (idx == 0) t else t.copy(tier = 3, isTier3GlobalActive = true)
+    }
+    stateFlow.value = stateFlow.value.copy(towers = mixedTowers)
+    assertFalse("Mixed Tier 2 and Tier 3 grid must not satisfy Singularity readiness", coordinator.isSingularityGridReady())
+
+    // Upgrade all to Tier 3 -> must succeed
+    val tier3Towers = tier2Towers.map { it.copy(tier = 3, isTier3GlobalActive = true) }
+    stateFlow.value = stateFlow.value.copy(towers = tier3Towers)
+    assertTrue("Full Tier 3 grid must satisfy Singularity readiness", coordinator.isSingularityGridReady())
+
+    soundManager.release()
+  }
+
+  @Test
+  fun `verify canInitiateSingularity checks scrap against getConduitAscensionCost`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val soundManager = com.example.audio.SoundManager(context)
+    val telemetryManager = com.example.engine.TelemetryManager(context)
+    val level = com.example.engine.MapGenerator.generate(seed = 42L)
+    val buildableTiles = level.tiles.filter { it.isBuildable }
+    val tier3Towers = buildableTiles.mapIndexed { idx, tile ->
+      TowerInstance(id = "t_$idx", gridPos = tile.pos, tier = 3, isTier3GlobalActive = true)
+    }
+    val stateFlow = kotlinx.coroutines.flow.MutableStateFlow(
+      com.example.ui.GameUIState(level = level, towers = tier3Towers, scrap = 749)
+    )
+    val coordinator = com.example.engine.coordinator.TowerPlacementCoordinator(
+      uiStateFlow = stateFlow,
+      soundManager = soundManager,
+      telemetryManager = telemetryManager,
+      nextId = { "${it}1" },
+      addFloatingText = { _, _, _, _, _ -> },
+      onSynergyDirty = {}
+    )
+
+    assertEquals(750, coordinator.getConduitAscensionCost())
+    assertTrue(coordinator.isSingularityGridReady())
+    assertFalse("Should not initiate Singularity when scrap < 750", coordinator.canInitiateSingularity())
+
+    stateFlow.value = stateFlow.value.copy(scrap = 750)
+    assertTrue("Should initiate Singularity when scrap >= 750 and all towers are Tier 3", coordinator.canInitiateSingularity())
+
+    // After ascending to Gen 1, cost scales to 1500
+    coordinator.confirmSingularityCollapse { emptyList() }
+    assertEquals(1, stateFlow.value.towers.size)
+    assertTrue(stateFlow.value.towers.first().isCapstone)
+    assertEquals(1, stateFlow.value.towers.first().generation)
+    assertEquals(1500, coordinator.getConduitAscensionCost())
+
+    soundManager.release()
+  }
+
+  @Test
+  fun `verify FirestoreLeaderboardApi sanitizes key prefix and sets X-Goog-Api-Key`() = kotlinx.coroutines.runBlocking {
+    var capturedUrl = ""
+    var capturedApiKeyHeader: String? = null
+    val mockClient = okhttp3.OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        val req = chain.request()
+        capturedUrl = req.url.toString()
+        capturedApiKeyHeader = req.header("X-Goog-Api-Key")
+        okhttp3.Response.Builder()
+          .request(req)
+          .protocol(okhttp3.Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body(okhttp3.ResponseBody.create(null, "{}"))
+          .build()
+      }
+      .build()
+
+    val api = com.example.engine.network.FirestoreLeaderboardApi(
+      client = mockClient,
+      projectId = "test-project",
+      apiKey = "key=TEST_SANITIZED_KEY_123",
+      collection = "leaderboards"
+    )
+    val submission = com.example.model.PendingSubmission(
+      runId = "run_key_test",
+      callsign = "FoxPilot",
+      score = 5000,
+      wavesCleared = 10,
+      scrapEarned = 400,
+      totalDamage = 25000L,
+      timestampMs = 1000L,
+      clientVersion = "0.0.1.024"
+    )
+    val res = api.submitScore(submission)
+    assertTrue(res is com.example.model.LeaderboardResult.Success)
+    assertTrue("URL must contain single key= parameter, got: $capturedUrl", capturedUrl.endsWith("&key=TEST_SANITIZED_KEY_123"))
+    assertFalse("URL must not contain duplicate key=key= prefix", capturedUrl.contains("key=key="))
+    assertEquals("TEST_SANITIZED_KEY_123", capturedApiKeyHeader)
   }
 }
 

@@ -26,12 +26,14 @@ fun SingularityWarningDialog(
     onDismiss: () -> Unit
 ) {
     if (!state.isSingularityWarningOpen) return
-    val anchor = state.selectedTower?.takeIf { it.tier >= 2 || it.finalFormCode != null }
+    val anchor = state.selectedTower?.takeIf { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
         ?: state.towers.firstOrNull { it.isCapstone }
         ?: state.towers.minByOrNull { it.id }
     val sacrificedCount = state.towers.count { it.id != anchor?.id }
     val totalInvested = state.towers.filter { it.id != anchor?.id }.sumOf { it.getInvestedScrapValue() }
     val scrapBounty = maxOf(250, (totalInvested * 0.20f).toInt())
+    val currentMaxGen = state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
+    val conduitCost = 750 * (currentMaxGen + 1)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -74,6 +76,12 @@ fun SingularityWarningDialog(
                             "• Sacrificing $sacrificedCount maxed defensive turrets",
                             color = Color.White,
                             fontSize = 11.sp
+                        )
+                        Text(
+                            "• Conduit Ascension Cost: -${conduitCost} Scrap",
+                            color = Color(0xFFFF2A55),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
                             "• Permanent Bank: ALL active auras stored into Capstone",
