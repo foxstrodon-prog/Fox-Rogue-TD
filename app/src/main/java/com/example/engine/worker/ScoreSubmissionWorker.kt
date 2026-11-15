@@ -17,7 +17,10 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
   params: WorkerParameters,
   private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
   private val store: LeaderboardStore = LeaderboardStore(context),
-  private val authRepo: AuthRepository = AuthRepository(context)
+  private val authRepo: AuthRepository = AuthRepository(
+    context = context,
+    apiKey = FirestoreLeaderboardApi.resolveDefaultApiKey()
+  )
 ) : CoroutineWorker(context, params) {
 
   override suspend fun doWork(): Result = withContext(Dispatchers.IO) {

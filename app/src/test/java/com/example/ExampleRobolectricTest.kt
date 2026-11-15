@@ -571,9 +571,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 024`() {
-    assertEquals("0.0.1.024", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(45, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 025`() {
+    assertEquals("0.0.1.025", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(46, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -1303,6 +1303,17 @@ class ExampleRobolectricTest {
     assertTrue("URL must contain single key= parameter, got: $capturedUrl", capturedUrl.endsWith("&key=TEST_SANITIZED_KEY_123"))
     assertFalse("URL must not contain duplicate key=key= prefix", capturedUrl.contains("key=key="))
     assertEquals("TEST_SANITIZED_KEY_123", capturedApiKeyHeader)
+  }
+
+  @Test
+  fun `verify FirestoreLeaderboardApi resolveDefaultApiKey and sanitizeApiKey strip key prefix and provide non-blank key`() {
+    val sanitized = com.example.engine.network.FirestoreLeaderboardApi.sanitizeApiKey("  key=\"MY_CLEAN_KEY_999\" ")
+    assertEquals("MY_CLEAN_KEY_999", sanitized)
+
+    val defaultKey = com.example.engine.network.FirestoreLeaderboardApi.resolveDefaultApiKey()
+    assertTrue("Default resolved API key must be non-blank", defaultKey.isNotBlank())
+    assertFalse("Default resolved API key must not contain key= prefix", defaultKey.startsWith("key="))
+    assertEquals(39, defaultKey.length)
   }
 }
 

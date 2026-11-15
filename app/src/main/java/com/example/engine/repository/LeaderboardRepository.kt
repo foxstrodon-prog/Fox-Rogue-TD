@@ -45,7 +45,7 @@ class LeaderboardRepository @JvmOverloads constructor(
         val pending = store.getPendingQueue()
         Log.d(TAG, "[LeaderboardRepository] syncEventFlow triggered: pendingCount=${pending.size}. Triggering fresh fetch.")
         _boardState.update { it.copy(pendingCount = pending.size) }
-        fetchLeaderboard(forceRefresh = true)
+        fetchLeaderboard(forceRefresh = true, bypassThrottle = true)
       }
     }
     val cached = store.getCachedLeaderboard()
@@ -67,7 +67,7 @@ class LeaderboardRepository @JvmOverloads constructor(
     }
   }
 
-  suspend fun fetchLeaderboard(forceRefresh: Boolean = false) = withContext(Dispatchers.IO) {
+  suspend fun fetchLeaderboard(forceRefresh: Boolean = false, bypassThrottle: Boolean = false) = withContext(Dispatchers.IO) {
     if (!api.isConfigured) {
       val cached = store.getCachedLeaderboard()
       val pending = store.getPendingQueue()
@@ -83,18 +83,20 @@ class LeaderboardRepository @JvmOverloads constructor(
     }
 
     val now = SystemClock.elapsedRealtime()
-    if (!forceRefresh && (now - lastFetchElapsedRealtime < 30_000L)) {
-      Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Throttled (within 30s interval)")
-      return@withContext
-    }
-    if (forceRefresh && (now - lastFetchElapsedRealtime < 3_000L)) {
-      Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Throttled (within 3s force-refresh interval)")
-      return@withContext
+    if (!bypassThrottle && lastFetchElapsedRealtime > 0L) {
+      if (!forceRefresh && (now - lastFetchElapsedRealtime < 30_000L)) {
+        Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Throttled (within 30s interval)")
+        return@withContext
+      }
+      if (forceRefresh && (now - lastFetchElapsedRealtime < 3_000L)) {
+        Log.d(TAG, "[LeaderboardRepository] fetchLeaderboard: Throttled (within 3s force-refresh interval)")
+        return@withContext
+      }
     }
 
     fetchMutex.withLock {
       val lockNow = SystemClock.elapsedRealtime()
-      if (!forceRefresh && (lockNow - lastFetchElapsedRealtime < 30_000L)) {
+      if (!bypassThrottle && lastFetchElapsedRealtime > 0L && !forceRefresh && (lockNow - lastFetchElapsedRealtime < 30_000L)) {
         return@withContext
       }
 
@@ -116,7 +118,7 @@ class LeaderboardRepository @JvmOverloads constructor(
       }
       when (result) {
         is LeaderboardResult.Success -> {
-          lastFetchElapsedRealtime = SystemClock.elapsedRealtime()
+          lastFetchElapsedRealtime = maxOf(1L, SystemClock.elapsedRealtime())
           val myUserId = authRepo?.currentUserId
           val processed = if (myUserId.isNullOrBlank()) {
             result.data

@@ -12,6 +12,7 @@ import com.example.engine.coordinator.SimulationCoordinator
 import com.example.engine.coordinator.TowerPlacementCoordinator
 import com.example.engine.coordinator.WaveProgressionCoordinator
 import com.example.engine.network.AuthRepository
+import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.repository.LeaderboardRepository
 import com.example.engine.storage.LeaderboardStore
 import com.example.engine.worker.LeaderboardWorkScheduler
@@ -29,7 +30,10 @@ import java.util.UUID
 
 class RogueTDViewModel @JvmOverloads constructor(
     application: Application,
-    val authRepository: AuthRepository = AuthRepository(application),
+    val authRepository: AuthRepository = AuthRepository(
+        context = application,
+        apiKey = FirestoreLeaderboardApi.resolveDefaultApiKey()
+    ),
     val remoteConfigManager: RemoteConfigManager = RemoteConfigManager(),
     val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(
         store = LeaderboardStore(application),
@@ -175,7 +179,12 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun fetchOnlineLeaderboard(forceRefresh: Boolean = false) {
-        viewModelScope.launch { leaderboardRepository.fetchLeaderboard(forceRefresh = forceRefresh) }
+        viewModelScope.launch {
+            if (forceRefresh) {
+                leaderboardRepository.retryPendingSubmissions()
+            }
+            leaderboardRepository.fetchLeaderboard(forceRefresh = forceRefresh)
+        }
     }
 
     fun checkForAppUpdates() {
@@ -640,7 +649,8 @@ class RogueTDViewModel @JvmOverloads constructor(
             telemetryManager.recordRun(record)
             telemetryManager.recordTowerSession(state.towers)
             refreshTelemetry()
-            leaderboardRepository.enqueueRun(record, playerName, isDev, authRepository.currentUserId)
+            val uid = authRepository.ensureAuthenticated() ?: authRepository.currentUserId
+            leaderboardRepository.enqueueRun(record, playerName, isDev, uid)
             leaderboardRepository.fetchLeaderboard(forceRefresh = true)
         }
     }

@@ -322,4 +322,87 @@ class LeaderboardCoreTest {
     assertEquals(FailureKind.SECURITY_REJECTED, (fetchRes as LeaderboardResult.Failure).kind)
     assertEquals("HTTP 403 on fetchTopScores must fail fast after 1 request without cross-path failover", 1, requestCount)
   }
+
+  @Test
+  fun `AuthRepository REST Identity Toolkit fallback authenticates and caches idToken when native FirebaseAuth fails`() = runBlocking {
+    var capturedUrl = ""
+    var capturedApiKeyHeader: String? = null
+    val mockClient = okhttp3.OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        val req = chain.request()
+        capturedUrl = req.url.toString()
+        capturedApiKeyHeader = req.header("X-Goog-Api-Key")
+        val responseJson = """{"localId":"rest_anon_uid_777","idToken":"jwt_token_xyz","refreshToken":"refresh_token_abc","expiresIn":"3600"}"""
+        okhttp3.Response.Builder()
+          .request(req)
+          .protocol(okhttp3.Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body(okhttp3.ResponseBody.create(null, responseJson.toByteArray()))
+          .build()
+      }
+      .build()
+
+    context.getSharedPreferences("rogue_td_auth", Context.MODE_PRIVATE).edit().clear().commit()
+
+    val authRepo = AuthRepository(
+      context = context,
+      auth = null,
+      httpClient = mockClient,
+      apiKey = "key=REST_TEST_KEY_456"
+    )
+
+    val uid = authRepo.ensureAuthenticated()
+    assertEquals("rest_anon_uid_777", uid)
+    assertTrue(authRepo.isAuthenticated.value)
+    assertTrue(capturedUrl.contains("identitytoolkit.googleapis.com/v1/accounts:signUp?key=REST_TEST_KEY_456"))
+    assertEquals("REST_TEST_KEY_456", capturedApiKeyHeader)
+
+    val token = authRepo.getIdToken()
+    assertEquals("jwt_token_xyz", token)
+  }
+
+  @Test
+  fun `LeaderboardRepository bypassThrottle allows immediate refresh after score submission syncEventFlow`() = runBlocking {
+    var fetchCount = 0
+    val mockClient = okhttp3.OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        fetchCount++
+        val responseJson = """[{"document":{"name":"projects/p/databases/(default)/documents/leaderboards/run_$fetchCount","fields":{"username":{"stringValue":"Ace"},"highScore":{"integerValue":"5000"},"maxWave":{"integerValue":"10"},"timestamp":{"integerValue":"1000"},"isDevTuned":{"booleanValue":false}}}}]"""
+        okhttp3.Response.Builder()
+          .request(chain.request())
+          .protocol(okhttp3.Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body(okhttp3.ResponseBody.create(null, responseJson.toByteArray()))
+          .build()
+      }
+      .build()
+
+    val api = FirestoreLeaderboardApi(
+      client = mockClient,
+      projectId = "test-project",
+      apiKey = "test-key",
+      collection = "leaderboards"
+    )
+    val store = LeaderboardStore(context)
+    val scheduler = com.example.engine.worker.LeaderboardWorkScheduler(context)
+    val repo = com.example.engine.repository.LeaderboardRepository(
+      api = api,
+      store = store,
+      scheduler = scheduler
+    )
+
+    repo.initialize()
+    repo.fetchLeaderboard(forceRefresh = true)
+    assertEquals(1, fetchCount)
+
+    // Standard forceRefresh within 3s window is throttled
+    repo.fetchLeaderboard(forceRefresh = true, bypassThrottle = false)
+    assertEquals(1, fetchCount)
+
+    // bypassThrottle = true immediately fetches even within 3s window
+    repo.fetchLeaderboard(forceRefresh = true, bypassThrottle = true)
+    assertEquals(2, fetchCount)
+  }
 }
