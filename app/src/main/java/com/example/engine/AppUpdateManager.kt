@@ -5,12 +5,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import com.example.BuildConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -418,5 +420,84 @@ class AppUpdateManager(
         val stripped = raw.trim().removePrefix("v").removePrefix("V")
         val mainVer = stripped.substringBefore("-").substringBefore("+")
         return mainVer.split(".").mapNotNull { it.toIntOrNull() }
+    }
+
+    /**
+     * Startup storage hygiene (Track 6 & Refinement A):
+     * Scans app-specific download/cache directories for leftover APK files.
+     * Deletes corrupted or obsolete/already-installed APKs (versionCode <= current).
+     * If a valid newer APK is found that was downloaded but not installed, returns it.
+     */
+    fun performStartupApkHygiene(): File? {
+        val candidateDirs = listOfNotNull(
+            context.externalCacheDir,
+            context.cacheDir,
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        )
+        var pendingNewerApk: File? = null
+        var highestPendingVersionCode = BuildConfig.VERSION_CODE.toLong()
+        val currentVersionCode = BuildConfig.VERSION_CODE.toLong()
+
+        for (dir in candidateDirs) {
+            if (!dir.exists() || !dir.isDirectory) continue
+            val apkFiles = dir.listFiles { file -> file.isFile && file.name.endsWith(".apk", ignoreCase = true) } ?: continue
+            for (apkFile in apkFiles) {
+                try {
+                    val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        context.packageManager.getPackageArchiveInfo(
+                            apkFile.absolutePath,
+                            PackageManager.PackageInfoFlags.of(0L)
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                    }
+
+                    if (archiveInfo == null) {
+                        // Corrupt or partial download - delete immediately
+                        apkFile.delete()
+                    } else {
+                        val apkVersionCode = PackageInfoCompat.getLongVersionCode(archiveInfo)
+                        if (apkVersionCode <= currentVersionCode) {
+                            // Already installed or obsolete - purge immediately
+                            apkFile.delete()
+                        } else {
+                            if (apkVersionCode > highestPendingVersionCode) {
+                                highestPendingVersionCode = apkVersionCode
+                                pendingNewerApk = apkFile
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    apkFile.delete()
+                }
+            }
+        }
+
+        if (pendingNewerApk != null) {
+            val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageArchiveInfo(pendingNewerApk.absolutePath, PackageManager.PackageInfoFlags.of(0L))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageArchiveInfo(pendingNewerApk.absolutePath, 0)
+            }
+            val versionName = archiveInfo?.versionName ?: "Newer"
+            _updateState.update {
+                it.copy(
+                    status = UpdateDownloadStatus.READY_TO_INSTALL,
+                    progressPercent = 100,
+                    downloadedApkFile = pendingNewerApk,
+                    updateInfo = UpdateInfo(
+                        isUpdateAvailable = true,
+                        latestVersion = versionName,
+                        currentVersion = BuildConfig.VERSION_NAME,
+                        releaseTitle = "v$versionName (Downloaded)",
+                        releaseNotes = "An update was already downloaded and is ready to install."
+                    )
+                )
+            }
+        }
+
+        return pendingNewerApk
     }
 }

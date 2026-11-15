@@ -571,9 +571,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 022`() {
-    assertEquals("0.0.1.022", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(43, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 023`() {
+    assertEquals("0.0.1.023", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(44, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -1148,6 +1148,39 @@ class ExampleRobolectricTest {
     activity.onConfigurationChanged(mutatedConfig)
     assertEquals(1.0f, activity.resources.configuration.fontScale, 0.001f)
     controller.destroy()
+  }
+
+  @Test
+  fun `verify MapGenerator ensures teleportation pads of the same color are never adjacent and maintain distance`() {
+    for (seed in 1L..20L) {
+      val level = com.example.engine.MapGenerator.generate(seed = seed)
+      val padPairs = arrayOf(
+        com.example.model.TileBuff.AMPLIFIER,
+        com.example.model.TileBuff.HIGH_GROUND,
+        com.example.model.TileBuff.CONDUIT
+      )
+      for (buff in padPairs) {
+        val pads = level.tiles.filter { it.buff == buff }
+        if (pads.size == 2) {
+          val p1 = pads[0].pos
+          val p2 = pads[1].pos
+          val manhattan = kotlin.math.abs(p1.x - p2.x) + kotlin.math.abs(p1.y - p2.y)
+          assertTrue("Pads of buff $buff for seed $seed must not be adjacent (Manhattan: $manhattan)", manhattan > 1)
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `verify AppUpdateManager performStartupApkHygiene deletes corrupt or obsolete apks`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val cacheDir = context.externalCacheDir ?: context.cacheDir
+    val corruptApk = java.io.File(cacheDir, "corrupt_test.apk").apply { writeText("not an apk") }
+    assertTrue(corruptApk.exists())
+
+    val updateManager = com.example.engine.AppUpdateManager(context)
+    updateManager.performStartupApkHygiene()
+    assertFalse("Corrupt APK must be deleted during hygiene check", corruptApk.exists())
   }
 }
 

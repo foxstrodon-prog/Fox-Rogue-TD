@@ -302,22 +302,36 @@ object MapGenerator {
             }
         }
 
-        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads (6 total) selected from empty tiles adjacent to lanes
-        // Falling back to any empty tile if fewer than 6 adjacent exist.
+        // Guarantee 2 Green, 2 Teal, 2 Orange boosted pads (6 total) selected from empty tiles adjacent to lanes.
+        // Track 3.1: Enforce minimum separation distance (Manhattan >= 4) between pads of the same color.
         val emptyTilePositions = tileList.filter { it.type == TileType.EMPTY }.map { it.pos }
-        candidateBuffPositions.shuffle(random)
+        val pool = (candidateBuffPositions.shuffled(random) + emptyTilePositions.filter { it !in candidateBuffPositions }.shuffled(random)).distinct().toMutableList()
 
-        val boosterTargetCount = minOf(6, emptyTilePositions.size)
-        val boosterCandidates = if (candidateBuffPositions.size >= boosterTargetCount) {
-            candidateBuffPositions.take(boosterTargetCount)
-        } else {
-            val remaining = emptyTilePositions.filter { it !in candidateBuffPositions }.shuffled(random)
-            (candidateBuffPositions + remaining).take(boosterTargetCount)
+        fun selectSeparatedPair(): Pair<GridPos, GridPos>? {
+            if (pool.size < 2) return null
+            val p1 = pool.removeAt(0)
+            val farCandidates = pool.filter { (kotlin.math.abs(it.x - p1.x) + kotlin.math.abs(it.y - p1.y)) >= 4 }
+            val p2 = if (farCandidates.isNotEmpty()) {
+                val chosen = farCandidates.random(random)
+                pool.remove(chosen)
+                chosen
+            } else {
+                val nonAdjacent = pool.filter { (kotlin.math.abs(it.x - p1.x) + kotlin.math.abs(it.y - p1.y)) > 1 }
+                val fallbackPool = if (nonAdjacent.isNotEmpty()) nonAdjacent else pool
+                val chosen = fallbackPool.maxByOrNull { kotlin.math.abs(it.x - p1.x) + kotlin.math.abs(it.y - p1.y) } ?: pool.first()
+                pool.remove(chosen)
+                chosen
+            }
+            return Pair(p1, p2)
         }
 
-        val greenPads = boosterCandidates.take(minOf(2, boosterCandidates.size)).toSet()
-        val tealPads = boosterCandidates.drop(2).take(minOf(2, boosterCandidates.size - 2).coerceAtLeast(0)).toSet()
-        val orangePads = boosterCandidates.drop(4).take(minOf(2, boosterCandidates.size - 4).coerceAtLeast(0)).toSet()
+        val greenPair = selectSeparatedPair()
+        val tealPair = selectSeparatedPair()
+        val orangePair = selectSeparatedPair()
+
+        val greenPads = listOfNotNull(greenPair?.first, greenPair?.second).toSet()
+        val tealPads = listOfNotNull(tealPair?.first, tealPair?.second).toSet()
+        val orangePads = listOfNotNull(orangePair?.first, orangePair?.second).toSet()
 
         val finalTiles = tileList.map { tile ->
             when {

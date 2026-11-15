@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+    applyFullscreenImmersiveMode()
 
     // Screen keep-awake management tied directly to active game loop state
     lifecycleScope.launch {
@@ -113,8 +114,15 @@ class MainActivity : ComponentActivity() {
     }
   }
 
+  private fun applyFullscreenImmersiveMode() {
+    val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+    windowInsetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+  }
+
   override fun onResume() {
     super.onResume()
+    applyFullscreenImmersiveMode()
     viewModel.soundManager.resumeAudio()
   }
 
@@ -133,6 +141,7 @@ class MainActivity : ComponentActivity() {
         viewModel.soundManager.suspendAllAudio()
       }
     } else {
+      applyFullscreenImmersiveMode()
       viewModel.soundManager.resumeAudio()
     }
   }
@@ -163,6 +172,7 @@ class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
     resources.updateConfiguration(newConfig, resources.displayMetrics)
     enableEdgeToEdge()
+    applyFullscreenImmersiveMode()
     if (orientationEventListener == null || !orientationEventListener!!.canDetectOrientation()) {
       viewModel.updateDeviceRotation(0f)
     }

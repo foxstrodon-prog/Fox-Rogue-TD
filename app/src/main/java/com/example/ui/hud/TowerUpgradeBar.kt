@@ -10,8 +10,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -358,6 +362,8 @@ fun FloatingSquircleUpgradeBar(
         label = "squircle_counter_rotation"
     )
 
+    var showSynergyOverviewDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = modifier
             .padding(bottom = 32.dp)
@@ -505,41 +511,31 @@ fun FloatingSquircleUpgradeBar(
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
 
-                        if (tower.isCapstone) {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = itemWidth, height = itemHeight)
-                                    .graphicsLayer { rotationZ = animatedRotation }
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                                    .border(2.dp, Color(0xFFFFD700), RoundedCornerShape(14.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("★ CONDUIT ★", color = Color(0xFFFFD700), fontSize = 10.sp, fontWeight = FontWeight.Black)
-                                    Text("GEN ${tower.generation}", color = Color(0xFF00F0FF), fontSize = 9.sp, fontWeight = FontWeight.Black)
-                                    Text("${tower.synergyVault.sumOf { it.synergies.size }} Banked", color = Color(0xFF94A3B8), fontSize = 7.sp)
-                                    Text("${state.towers.size}/${buildableTiles.size} Full", color = Color(0xFFFF9100), fontSize = 6.5.sp)
-                                }
-                            }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = itemWidth, height = itemHeight)
-                                    .graphicsLayer { rotationZ = animatedRotation }
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                                    .border(1.5.dp, Color(0xFFFFD700), RoundedCornerShape(14.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("★", color = Color(0xFFFFD700), fontSize = 16.sp, fontWeight = FontWeight.Black)
-                                    Text("Apex Max", color = Color(0xFFFFD700), fontSize = 9.sp, fontWeight = FontWeight.Black)
-                                    Text(tower.finalFormCode ?: "Ascended", color = Color(0xFF38BDF8), fontSize = 7.sp)
-                                    Text("• Fully Ascended", color = Color(0xFF94A3B8), fontSize = 6.5.sp)
-                                }
-                            }
-                        }
+                        // Track 5.1 & Refinement E: Suppress the static base tower card entirely when maxed.
+                        // Display a high-interest Synergy Resonance progression card instead:
+                        val matchingAura = state.activeGlobalSynergies.firstOrNull()
+
+                        val synTitle = "Synergy"
+                        val synSubtitle = matchingAura?.auraName?.take(9) ?: "Resonance"
+                        val b1 = if (matchingAura != null) "${matchingAura.iconEmoji} ${matchingAura.sourceCount}x Active" else "★ Apex Link"
+                        val b2 = if (matchingAura != null) "+${matchingAura.sourceCount * 15}% Aura" else "Global Surge"
+                        val synColor = matchingAura?.let { Color(it.color) } ?: Color(0xFFFFB800)
+
+                        SquircleActionButton(
+                            title = synTitle,
+                            subtitle = synSubtitle,
+                            cost = 0,
+                            themeColor = synColor,
+                            canAfford = true,
+                            isUnlocked = true,
+                            bullet1 = b1,
+                            bullet2 = b2,
+                            itemWidth = itemWidth,
+                            itemHeight = itemHeight,
+                            rotationAngle = animatedRotation,
+                            onClick = { showSynergyOverviewDialog = true },
+                            modifier = Modifier.testTag("synergy_resonance_button")
+                        )
 
                         SingularityGateSquircle(
                             tower = tower,
@@ -618,6 +614,85 @@ fun FloatingSquircleUpgradeBar(
                         },
                         modifier = Modifier.testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
                     )
+                }
+            }
+        }
+    }
+
+    if (showSynergyOverviewDialog) {
+        Dialog(
+            onDismissRequest = { showSynergyOverviewDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) { showSynergyOverviewDialog = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    color = Color(0xFF0F172A).copy(alpha = 0.98f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFFB800)),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .widthIn(min = 300.dp, max = 380.dp)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            enabled = true
+                        ) {}
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "SYNERGY RESONANCE OVERVIEW",
+                            color = Color(0xFFFFB800),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        if (state.activeGlobalSynergies.isEmpty()) {
+                            Text(
+                                text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            )
+                        } else {
+                            state.activeGlobalSynergies.forEach { syn ->
+                                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(text = syn.iconEmoji, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "${syn.auraName} (${syn.sourceCount}x)",
+                                            color = Color(syn.color),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Text(
+                                        text = syn.effectDescription,
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 9.sp,
+                                        lineHeight = 12.sp
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { showSynergyOverviewDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("CLOSE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

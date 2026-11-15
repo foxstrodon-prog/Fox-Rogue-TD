@@ -5,6 +5,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -19,10 +22,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.engine.AppUpdateState
 import com.example.engine.GeneratedLevel
@@ -60,11 +66,15 @@ fun RogueTDScreen(
         }
     }
 
+    val density = LocalDensity.current
+    var hudOffsetY by remember { mutableFloatStateOf(0f) }
+    val maxUpOffsetPx = remember(density) { with(density) { (-48).dp.toPx() } }
+    val maxDownOffsetPx = remember(density) { with(density) { 76.dp.toPx() } }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF070B13))
-            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         // === FULL SCREEN MAP CANVAS (Static locked map coordinate system) ===
         Box(modifier = Modifier.fillMaxSize()) {
@@ -86,17 +96,27 @@ fun RogueTDScreen(
             onDeployWave = { viewModel.deployWave() },
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onOpenPauseMenu = { viewModel.openPauseMenu() },
-            modifier = if (isLandscape) {
-                Modifier
-                    .align(Alignment.TopStart)
-                    .widthIn(max = 560.dp)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            } else {
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 5.dp)
-            }
+            modifier = Modifier
+                .offset { IntOffset(0, hudOffsetY.roundToInt()) }
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta ->
+                        hudOffsetY = (hudOffsetY + delta).coerceIn(maxUpOffsetPx, maxDownOffsetPx)
+                    }
+                )
+                .then(
+                    if (isLandscape) {
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .widthIn(max = 560.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    } else {
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    }
+                )
         )
 
         // === IN-APP GITHUB APK AUTO-UPDATER BANNER ===
@@ -231,73 +251,99 @@ fun RogueTDScreen(
             }
         }
 
-        // === DUAL ONE-HANDED TELEPORTATION PAD SWAP BUTTONS ===
-        val swapButtonColor = Color(0xFF00E5FF).copy(alpha = 0.28f)
-        val swapBorderColor = Color(0xFF00F0FF).copy(alpha = 0.65f)
+        // === DUAL ONE-HANDED TELEPORTATION PAD SWAP BUTTONS (TRACK 4 & REFINEMENT D) ===
+        val swapTabBackground = Color(0xFF070B14).copy(alpha = 0.65f)
+        val swapTabBorder = Color(0xFF00F0FF).copy(alpha = 0.5f)
 
-        Surface(
+        // Left edge tab (semicircle facing inward to the right) with 48x48 hit-box
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 6.dp)
-                .size(46.dp)
-                .clickable { viewModel.swapBoosterPads() },
-            shape = CircleShape,
-            color = swapButtonColor,
-            border = BorderStroke(1.5.dp, swapBorderColor),
-            shadowElevation = 4.dp
+                .padding(start = 2.dp)
+                .size(48.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { viewModel.swapBoosterPads() },
+            contentAlignment = Alignment.CenterStart
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.SwapHoriz,
-                    contentDescription = "Swap Teleportation Pads Left",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        Surface(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 6.dp)
-                .size(46.dp)
-                .clickable { viewModel.swapBoosterPads() },
-            shape = CircleShape,
-            color = swapButtonColor,
-            border = BorderStroke(1.5.dp, swapBorderColor),
-            shadowElevation = 4.dp
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Filled.SwapHoriz,
-                    contentDescription = "Swap Teleportation Pads Right",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        // === MANUAL ROTATION SUGGESTION BUTTON ===
-        if (state.isSystemAutoRotateLocked && state.hardwareTiltAngle != state.deviceRotationAngle) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 28.dp)
-                    .size(44.dp)
-                    .clickable { viewModel.confirmManualRotation() }
-                    .testTag("manual_rotate_button"),
-                shape = CircleShape,
-                color = Color(0xFF0F172A).copy(alpha = 0.90f),
-                border = BorderStroke(1.5.dp, Color(0xFF00F0FF)),
-                shadowElevation = 6.dp
+                modifier = Modifier.size(width = 24.dp, height = 40.dp),
+                shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp, topStart = 0.dp, bottomStart = 0.dp),
+                color = swapTabBackground,
+                border = BorderStroke(1.dp, swapTabBorder),
+                shadowElevation = 4.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Filled.ScreenRotation,
-                        contentDescription = "Rotate Screen to Match Device Tilt",
+                        imageVector = Icons.Filled.SwapHoriz,
+                        contentDescription = "Swap Teleportation Pads Left",
                         tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(14.dp)
                     )
+                }
+            }
+        }
+
+        // Right edge tab (semicircle facing inward to the left) with 48x48 hit-box
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 2.dp)
+                .size(48.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { viewModel.swapBoosterPads() },
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Surface(
+                modifier = Modifier.size(width = 24.dp, height = 40.dp),
+                shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 0.dp, bottomEnd = 0.dp),
+                color = swapTabBackground,
+                border = BorderStroke(1.dp, swapTabBorder),
+                shadowElevation = 4.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.SwapHoriz,
+                        contentDescription = "Swap Teleportation Pads Right",
+                        tint = Color(0xFF00F0FF),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+
+        // === MANUAL ROTATION SUGGESTION BUTTON (SEMICIRCLE EDGE TAB) ===
+        if (state.isSystemAutoRotateLocked && state.hardwareTiltAngle != state.deviceRotationAngle) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 2.dp, bottom = 48.dp)
+                    .size(48.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { viewModel.confirmManualRotation() }
+                    .testTag("manual_rotate_button"),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Surface(
+                    modifier = Modifier.size(width = 24.dp, height = 40.dp),
+                    shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 0.dp, bottomEnd = 0.dp),
+                    color = swapTabBackground,
+                    border = BorderStroke(1.dp, swapTabBorder),
+                    shadowElevation = 4.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.ScreenRotation,
+                            contentDescription = "Rotate Screen to Match Device Tilt",
+                            tint = Color(0xFF00F0FF),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
         }

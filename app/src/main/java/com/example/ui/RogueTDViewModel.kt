@@ -144,10 +144,14 @@ class RogueTDViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             appUpdateManager.updateState.collect { updateState ->
                 _uiState.update { prev ->
-                    val shouldOpenModal = if (updateState.status == UpdateDownloadStatus.AVAILABLE && !updateDismissedForSession) true else prev.showUpdateModal
+                    val shouldOpenModal = if ((updateState.status == UpdateDownloadStatus.AVAILABLE || updateState.status == UpdateDownloadStatus.READY_TO_INSTALL) && !updateDismissedForSession) true else prev.showUpdateModal
                     prev.copy(updateUIState = updateState, showUpdateModal = shouldOpenModal)
                 }
             }
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            appUpdateManager.performStartupApkHygiene()
         }
     }
 

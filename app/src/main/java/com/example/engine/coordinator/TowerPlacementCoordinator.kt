@@ -250,6 +250,8 @@ class TowerPlacementCoordinator(
 
         val padPairs = arrayOf(TileBuff.AMPLIFIER, TileBuff.HIGH_GROUND, TileBuff.CONDUIT)
         var swappedAny = false
+        val newBeams = uiStateFlow.value.laserBeams.toMutableList()
+        val newExplosions = uiStateFlow.value.explosions.toMutableList()
 
         for (buffType in padPairs) {
             val pads = level.tiles.filter { it.buff == buffType }
@@ -274,6 +276,28 @@ class TowerPlacementCoordinator(
                     swappedAny = true
                     addFloatingText(pad1.x.toFloat(), pad1.y.toFloat(), "⇄ TELEPORT", 0xFF00F0FF, false)
                 }
+
+                if (tower1 != null || tower2 != null) {
+                    val buffColor = when (buffType) {
+                        TileBuff.AMPLIFIER -> 0xFF00FF9D // Green
+                        TileBuff.HIGH_GROUND -> 0xFF00F0FF // Teal
+                        TileBuff.CONDUIT -> 0xFFFFB800 // Orange
+                        else -> 0xFF00F0FF
+                    }
+                    newBeams.add(
+                        LaserBeam(
+                            id = nextId("teleport_beam_"),
+                            startX = pad1.x.toFloat(),
+                            startY = pad1.y.toFloat(),
+                            endX = pad2.x.toFloat(),
+                            endY = pad2.y.toFloat(),
+                            color = buffColor,
+                            lifeMs = 500L
+                        )
+                    )
+                    newExplosions.add(ExplosionEffect(id = nextId("teleport_exp1_"), x = pad1.x.toFloat(), y = pad1.y.toFloat(), maxRadius = 1.2f, color = buffColor, lifeMs = 400L, maxLifeMs = 400L))
+                    newExplosions.add(ExplosionEffect(id = nextId("teleport_exp2_"), x = pad2.x.toFloat(), y = pad2.y.toFloat(), maxRadius = 1.2f, color = buffColor, lifeMs = 400L, maxLifeMs = 400L))
+                }
             }
         }
 
@@ -281,7 +305,7 @@ class TowerPlacementCoordinator(
             lastBoosterSwapTimeMs = now
             soundManager.playPlacement()
             onSynergyDirty()
-            uiStateFlow.update { it.copy(towers = currentTowers) }
+            uiStateFlow.update { it.copy(towers = currentTowers, laserBeams = newBeams, explosions = newExplosions) }
         }
     }
 

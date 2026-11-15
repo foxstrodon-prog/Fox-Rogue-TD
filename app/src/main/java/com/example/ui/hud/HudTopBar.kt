@@ -1,5 +1,11 @@
 package com.example.ui.hud
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.text.format.DateFormat
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -18,38 +24,97 @@ import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.GameUIState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 /**
- * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD.
- * Features an orientation-resilient capsule container, 25% higher transparency margins,
- * 6-digit scrap credit headroom, and an integrated teleportation pad tracker (PADS: 0/6).
- * Counter-rotates internal icons and text when the device turns to landscape (Track 1).
+ * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.023).
+ * Sequential layout order:
+ * [1. Time Handle] | [2. Current Round] | [3. Core HP] | [4. Scrap Credits] |
+ * [5. Synergies] | [6. Energy/Pads] | [7. Auto Wave] | [8. Begin Wave] | [9. Battery Widget]
  */
 @Composable
 fun MinimalTopHud(
     state: GameUIState,
     onDeployWave: () -> Unit,
     onToggleAutoWave: () -> Unit,
-    onOpenPauseMenu: () -> Unit,
+    onOpenPauseMenu: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var showSynergyDropdown by remember { mutableStateOf(false) }
     var showPadsDropdown by remember { mutableStateOf(false) }
+
+    // Live phone clock & anti-jitter ticking colon
+    var currentHours by remember { mutableStateOf("") }
+    var currentMinutes by remember { mutableStateOf("") }
+    var colonAlpha by remember { mutableFloatStateOf(1.0f) }
+
+    LaunchedEffect(context) {
+        while (isActive) {
+            val now = Calendar.getInstance()
+            val is24h = DateFormat.is24HourFormat(context)
+            val pattern = if (is24h) "HH mm" else "h mm"
+            val formatted = SimpleDateFormat(pattern, Locale.getDefault()).format(now.time)
+            val parts = formatted.split(" ")
+            currentHours = parts.getOrElse(0) { "" }
+            currentMinutes = parts.getOrElse(1) { "" }
+            colonAlpha = if (colonAlpha > 0.5f) 0.15f else 1.0f
+            delay(1000L)
+        }
+    }
+
+    // Live battery level and charging monitoring
+    var batteryLevel by remember { mutableIntStateOf(100) }
+    var isCharging by remember { mutableStateOf(false) }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                intent?.let {
+                    val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    if (level >= 0 && scale > 0) {
+                        batteryLevel = (level * 100) / scale
+                    }
+                    val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                    isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+                }
+            }
+        }
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val initialSticky = context.registerReceiver(receiver, filter)
+        initialSticky?.let {
+            val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            if (level >= 0 && scale > 0) {
+                batteryLevel = (level * 100) / scale
+            }
+            val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+            isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        }
+        onDispose {
+            try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
+        }
+    }
 
     // Energetic tactical pulse for wave launch readiness
     val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
@@ -79,13 +144,13 @@ fun MinimalTopHud(
     val counterRotateModifier = Modifier.graphicsLayer { rotationZ = animatedRotation }
 
     Surface(
-        color = Color(0xFF070B14).copy(alpha = 0.50f), // +25% transparency margin over previous 0.65f
+        color = Color(0xFF070B14).copy(alpha = 0.50f),
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.6f)),
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -93,11 +158,60 @@ fun MinimalTopHud(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Wave badge (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
+                // 1. Time Handle (Drag handle on far left of Bullet HUD)
+                Surface(
+                    color = Color(0xFF161F30).copy(alpha = 0.75f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                    modifier = counterRotateModifier
+                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = currentHours,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = if (isRotated) 8.sp else 9.sp,
+                                style = TextStyle(fontFeatureSettings = "tnum")
+                            )
+                            Text(
+                                text = ":",
+                                color = Color.White.copy(alpha = colonAlpha),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = if (isRotated) 8.sp else 9.sp,
+                                style = TextStyle(fontFeatureSettings = "tnum")
+                            )
+                            Text(
+                                text = currentMinutes,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = if (isRotated) 8.sp else 9.sp,
+                                style = TextStyle(fontFeatureSettings = "tnum")
+                            )
+                        }
+                        Text(
+                            text = "≡",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 6.5.sp,
+                            lineHeight = 7.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // 2. Wave badge (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 if (isRotated) {
                     Column(
                         modifier = counterRotateModifier
-                            .size(width = 28.dp, height = 38.dp),
+                            .defaultMinSize(minWidth = 36.dp, minHeight = 44.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -137,12 +251,12 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Core HP (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
+                // 3. Core HP (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
-                        .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
+                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                 ) {
                     if (isRotated) {
                         Column(
@@ -167,7 +281,7 @@ fun MinimalTopHud(
                         }
                     } else {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -188,12 +302,12 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Credits / Scrap (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
+                // 4. Credits / Scrap (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 Surface(
                     color = Color(0xFF161F30).copy(alpha = 0.70f),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
-                        .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
+                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                 ) {
                     if (isRotated) {
                         Column(
@@ -218,7 +332,7 @@ fun MinimalTopHud(
                         }
                     } else {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -239,7 +353,7 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Consolidated Synergies Indicator with Dropdown (Dynamic: Row in portrait, Column in landscape)
+                // 5. Consolidated Synergies Indicator with Dropdown (Dynamic: Row in portrait, Column in landscape)
                 val activeSynergiesCount = state.activeGlobalSynergies.size
                 Box(modifier = counterRotateModifier) {
                     Surface(
@@ -247,23 +361,23 @@ fun MinimalTopHud(
                         shape = RoundedCornerShape(5.dp),
                         border = if (activeSynergiesCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)) else null,
                         modifier = Modifier
-                            .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
+                            .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                             .clip(RoundedCornerShape(5.dp))
                             .clickable { showSynergyDropdown = !showSynergyDropdown }
                     ) {
                         if (isRotated) {
                             Column(
-                                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(text = "🌟", fontSize = 8.5.sp)
-                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(text = "🌟", fontSize = 9.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "($activeSynergiesCount)",
                                     color = if (activeSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 8.sp,
+                                    fontSize = 8.5.sp,
                                     maxLines = 1
                                 )
                             }
@@ -428,7 +542,7 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Teleportation Pads Dropdown Capsule (Dynamic: Row in portrait, Column in landscape)
+                // 6. Teleportation Pads Dropdown Capsule (Energy)
                 val padsCount = state.harmonicPadsCount
                 val isHarmonicActive = state.harmonicGridActive
                 Box(modifier = counterRotateModifier) {
@@ -441,23 +555,23 @@ fun MinimalTopHud(
                         else if (padsCount > 0) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
                         else null,
                         modifier = Modifier
-                            .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
+                            .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                             .clip(RoundedCornerShape(5.dp))
                             .clickable { showPadsDropdown = !showPadsDropdown }
                     ) {
                         if (isRotated) {
                             Column(
-                                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(text = "⚡", fontSize = 8.5.sp)
-                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(text = "⚡", fontSize = 9.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "($padsCount/6)",
                                     color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 7.5.sp,
+                                    fontSize = 8.sp,
                                     maxLines = 1
                                 )
                             }
@@ -600,7 +714,7 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Auto Wave Toggle (Tactile switch styling, stacks vertically when rotated)
+                // 7. Auto Wave Toggle (Dynamic: Row in portrait, Column in landscape)
                 val autoWaveActive = state.autoCallNextWave
                 Surface(
                     color = if (autoWaveActive) Color(0xFF003822).copy(alpha = 0.90f) else Color(0xFF161F30).copy(alpha = 0.75f),
@@ -610,13 +724,13 @@ fun MinimalTopHud(
                         if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF334155)
                     ),
                     modifier = counterRotateModifier
-                        .then(if (isRotated) Modifier.size(width = 28.dp, height = 38.dp) else Modifier)
+                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onToggleAutoWave() }
                 ) {
                     if (isRotated) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -624,9 +738,9 @@ fun MinimalTopHud(
                                 text = "AUTO",
                                 color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 7.sp
+                                fontSize = 8.sp
                             )
-                            Spacer(modifier = Modifier.height(1.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -636,12 +750,12 @@ fun MinimalTopHud(
                                         .clip(CircleShape)
                                         .background(if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF64748B))
                                 )
-                                Spacer(modifier = Modifier.width(1.5.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
                                 Text(
                                     text = if (autoWaveActive) "ON" else "OFF",
                                     color = if (autoWaveActive) Color(0xFF00FF9D) else Color(0xFF94A3B8),
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 7.sp
+                                    fontSize = 8.sp
                                 )
                             }
                         }
@@ -667,7 +781,7 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Launch Wave Button with energetic pulse & single arrow accent (Dynamic: Row in portrait, Column in landscape)
+                // 8. Launch Wave Button (Begin)
                 val isWaveReady = !state.isWaveActive
                 val launchContainerColor = if (isWaveReady) {
                     Color(0xFF00F0FF).copy(alpha = pulseGlow)
@@ -685,11 +799,11 @@ fun MinimalTopHud(
                         disabledContentColor = Color(0xFF64748B)
                     ),
                     border = if (isWaveReady) androidx.compose.foundation.BorderStroke(1.2.dp, Color.White.copy(alpha = pulseGlow)) else null,
-                    contentPadding = PaddingValues(horizontal = if (isRotated) 2.dp else 6.dp, vertical = 1.dp),
+                    contentPadding = PaddingValues(horizontal = if (isRotated) 3.dp else 6.dp, vertical = 1.dp),
                     shape = RoundedCornerShape(6.dp),
                     modifier = counterRotateModifier
                         .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                        .then(if (isRotated) Modifier.width(28.dp).height(38.dp) else Modifier.height(26.dp))
+                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier.height(26.dp))
                         .testTag("deploy_wave_button")
                 ) {
                     if (isRotated) {
@@ -729,19 +843,60 @@ fun MinimalTopHud(
                     }
                 }
 
-                // Gear Cog Button (Clean borderless floating icon, stationary circular control)
-                IconButton(
-                    onClick = onOpenPauseMenu,
-                    modifier = Modifier
-                        .size(26.dp)
-                        .testTag("pause_menu_button")
+                // 9. Battery Widget (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
+                val batteryColor = when {
+                    isCharging -> Color(0xFF00F0FF) // Charging Cyan
+                    batteryLevel <= 20 -> Color(0xFFFF2A55) // Critical Red
+                    else -> Color(0xFF00FF9D) // Healthy Green
+                }
+
+                Surface(
+                    color = Color(0xFF161F30).copy(alpha = 0.70f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, batteryColor.copy(alpha = 0.5f)),
+                    modifier = counterRotateModifier
+                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Game Settings & Controls",
-                        tint = Color(0xFFFFB800),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    if (isRotated) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 3.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = if (isCharging) "⚡" else "🔋",
+                                fontSize = 8.5.sp
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = "$batteryLevel%",
+                                color = batteryColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.sp,
+                                style = TextStyle(fontFeatureSettings = "tnum"),
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isCharging) "⚡" else "🔋",
+                                fontSize = 9.sp
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "$batteryLevel%",
+                                color = batteryColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                style = TextStyle(fontFeatureSettings = "tnum"),
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
         }
