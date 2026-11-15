@@ -92,12 +92,14 @@ jobs:
         env:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
+          LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
         run: ./gradlew testDebugUnitTest
 
       - name: Assemble Debug APK
         env:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
+          LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
         run: ./gradlew assembleDebug
 
       - name: Stage Release Binaries
