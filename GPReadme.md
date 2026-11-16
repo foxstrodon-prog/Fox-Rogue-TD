@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.030
+### 🚀 What's New in Version 0.0.1.031
+
+🔧 **Kotlin 2.4.21 Upgrade & Strict Leaderboard Credential Isolation**
+- **Kotlin 2.4.21 & Toolchain Alignment:** Upgraded Kotlin to `2.4.21`, unified Google Services plugin configuration via the Gradle version catalog, and removed legacy compiler metadata workarounds.
+- **Strict Leaderboard Credential Isolation:** Removed hardcoded project ID fallbacks and isolated placeholder API keys/project IDs (`API_KEY`, `your_firestore_api_key`, `your_firestore_project_id`) so leaderboard uplinks resolve cleanly from `google-services.json` and valid runtime configs.
+- **Verification Suite Expansion:** Added Robolectric regression coverage for placeholder filtering and `google-services.json` resource fallback (`167/167` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.030
 
 🏆 **The Leaderboard Fix & Firebase Infrastructure Modernization**
 - **Google Services & Firebase BoM Modernization:** Updated to Google Services Gradle plugin `4.6.0` and Firebase BoM `35.2.0`, fully unlocking `google-services.json` integration across Firebase SDKs.

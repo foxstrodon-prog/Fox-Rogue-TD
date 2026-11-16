@@ -1,9 +1,11 @@
 package com.example.engine.network
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import com.example.BuildConfig
 import com.example.model.FailureKind
 import com.example.model.LeaderboardResult
 import com.example.model.OnlineScoreEntry
@@ -26,16 +28,24 @@ import java.security.MessageDigest
 
 class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
-  projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
+  projectId: String = resolveProjectId(BuildConfig.LEADERBOARD_PROJECT_ID),
   apiKey: String = resolveDefaultApiKey(),
-  collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION,
+  collection: String = BuildConfig.LEADERBOARD_COLLECTION,
   context: Context? = null
 ) {
-  val projectId: String = resolveProjectId(projectId, context)
-  private val apiKey: String = sanitizeApiKey(apiKey).ifBlank {
-    context?.let { resolveDefaultApiKey(it) }.orEmpty()
-  }
-  private val androidPackageName: String = context?.packageName ?: com.example.BuildConfig.APPLICATION_ID
+  val projectId: String = projectId.trim()
+    .takeUnless(::isPlaceholderProjectId)
+    .orEmpty()
+    .ifBlank {
+      context?.let { resolveProjectId("", it) }.orEmpty()
+    }
+  private val apiKey: String = sanitizeApiKey(apiKey)
+    .takeUnless(::isPlaceholderApiKey)
+    .orEmpty()
+    .ifBlank {
+      context?.let { resolveDefaultApiKey(it) }.orEmpty()
+    }
+  private val androidPackageName: String = context?.packageName ?: BuildConfig.APPLICATION_ID
   private val androidCertSha1: String? = resolveSigningCertSha1(context)
   val canonicalCollection: String = normalizeCollection(collection)
   val alternateCollection: String = if (canonicalCollection == "leaderboards") "leaderboard" else "leaderboards"
@@ -72,7 +82,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { com.example.BuildConfig.VERSION_NAME }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { BuildConfig.VERSION_NAME }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
@@ -563,78 +573,72 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       return raw.trim().removePrefix("key=").removeSurrounding("\"").trim()
     }
 
-    @android.annotation.SuppressLint("DiscouragedApi")
+    private fun isPlaceholderApiKey(key: String): Boolean =
+      key.equals("API_KEY", ignoreCase = true) ||
+        key.equals("your_firestore_api_key", ignoreCase = true)
+
+    private fun isPlaceholderProjectId(projectId: String): Boolean =
+      projectId.equals("your_firestore_project_id", ignoreCase = true)
+
+    @SuppressLint("DiscouragedApi")
     @JvmOverloads
-    fun resolveDefaultApiKey(context: Context? = null): String {
-      val fromBuildConfig = sanitizeApiKey(com.example.BuildConfig.LEADERBOARD_API_KEY)
-      if (fromBuildConfig.isNotBlank() &&
-          !fromBuildConfig.equals("API_KEY", ignoreCase = true) &&
-          !fromBuildConfig.equals("your_firestore_api_key", ignoreCase = true)
-      ) return fromBuildConfig
+    fun resolveDefaultApiKey(context: Context? = null): String =
+      resolveDefaultApiKey(context = context, buildConfigApiKey = BuildConfig.LEADERBOARD_API_KEY)
+
+    internal fun resolveDefaultApiKey(context: Context?, buildConfigApiKey: String): String {
+      val fromBuildConfig = sanitizeApiKey(buildConfigApiKey)
+      if (fromBuildConfig.isNotBlank() && !isPlaceholderApiKey(fromBuildConfig)) return fromBuildConfig
 
       val fromFirebaseApp = runCatching {
         FirebaseApp.getInstance().options.apiKey
       }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
-      if (fromFirebaseApp.isNotBlank() &&
-          !fromFirebaseApp.equals("API_KEY", ignoreCase = true) &&
-          !fromFirebaseApp.equals("your_firestore_api_key", ignoreCase = true)
-      ) return fromFirebaseApp
+      if (fromFirebaseApp.isNotBlank() && !isPlaceholderApiKey(fromFirebaseApp)) return fromFirebaseApp
 
       if (context != null) {
         val fromOptions = runCatching {
           FirebaseOptions.fromResource(context)?.apiKey
         }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
-        if (fromOptions.isNotBlank() &&
-            !fromOptions.equals("API_KEY", ignoreCase = true) &&
-            !fromOptions.equals("your_firestore_api_key", ignoreCase = true)
-        ) return fromOptions
+        if (fromOptions.isNotBlank() && !isPlaceholderApiKey(fromOptions)) return fromOptions
 
         val resId = runCatching {
           context.resources.getIdentifier("google_api_key", "string", context.packageName)
         }.getOrDefault(0)
         if (resId != 0) {
           val fromRes = runCatching { context.getString(resId) }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
-          if (fromRes.isNotBlank() &&
-              !fromRes.equals("API_KEY", ignoreCase = true) &&
-              !fromRes.equals("your_firestore_api_key", ignoreCase = true)
-          ) return fromRes
+          if (fromRes.isNotBlank() && !isPlaceholderApiKey(fromRes)) return fromRes
         }
       }
-
-      if (fromBuildConfig.isNotBlank()) return fromBuildConfig
 
       return ""
     }
 
-    @android.annotation.SuppressLint("DiscouragedApi")
+    @SuppressLint("DiscouragedApi")
     @JvmOverloads
     fun resolveProjectId(explicitProjectId: String = "", context: Context? = null): String {
       val trimmed = explicitProjectId.trim()
-      if (trimmed.isNotBlank() &&
-          !trimmed.equals("your_firestore_project_id", ignoreCase = true)
-      ) return trimmed
+      if (trimmed.isNotBlank() && !isPlaceholderProjectId(trimmed)) return trimmed
 
       val fromFirebaseApp = runCatching {
         FirebaseApp.getInstance().options.projectId
       }.getOrNull()?.trim().orEmpty()
-      if (fromFirebaseApp.isNotBlank()) return fromFirebaseApp
+      if (fromFirebaseApp.isNotBlank() && !isPlaceholderProjectId(fromFirebaseApp)) return fromFirebaseApp
 
       if (context != null) {
         val fromOptions = runCatching {
           FirebaseOptions.fromResource(context)?.projectId
         }.getOrNull()?.trim().orEmpty()
-        if (fromOptions.isNotBlank()) return fromOptions
+        if (fromOptions.isNotBlank() && !isPlaceholderProjectId(fromOptions)) return fromOptions
 
         val resId = runCatching {
           context.resources.getIdentifier("project_id", "string", context.packageName)
         }.getOrDefault(0)
         if (resId != 0) {
           val fromRes = runCatching { context.getString(resId) }.getOrNull()?.trim().orEmpty()
-          if (fromRes.isNotBlank()) return fromRes
+          if (fromRes.isNotBlank() && !isPlaceholderProjectId(fromRes)) return fromRes
         }
       }
 
-      return if (trimmed.isNotBlank()) trimmed else "roguetddualfront"
+      return ""
     }
 
     fun resolveSigningCertSha1(context: Context?): String? {

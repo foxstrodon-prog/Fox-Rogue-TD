@@ -32,7 +32,7 @@ import com.example.ui.hud.components.*
 import kotlin.math.roundToInt
 
 /**
- * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.030).
+ * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.031).
  * Sequential layout order:
  * [1. Time Handle] | [2. Current Round] | [3. Core HP] | [4. Scrap Credits] |
  * [5. Synergies] | [6. Energy/Pads] | [7. Auto Wave] | [8. Begin Wave] | [9. Battery Widget]

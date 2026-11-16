@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.030`):** [`apk/Dual-Front-TD-v0.0.1.030-debug.apk`](apk/Dual-Front-TD-v0.0.1.030-debug.apk)
+- **Latest Android APK (`v0.0.1.031`):** [`apk/Dual-Front-TD-v0.0.1.031-debug.apk`](apk/Dual-Front-TD-v0.0.1.031-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,22 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.030
+## 🕹️ What's New in Version 0.0.1.031
+
+### 🔧 Kotlin 2.4.21 Upgrade & Strict Leaderboard Credential Isolation
+- **Kotlin 2.4.21 & Plugin Catalog Alignment:**
+  - Upgraded Kotlin to `2.4.21` (`gradle/libs.versions.toml`), unified `com.google.gms.google-services` (`4.6.0`) via version catalog aliases across root and app Gradle scripts, and removed the legacy `-Xskip-metadata-version-check` compiler flag.
+- **Strict Placeholder & Fallback Isolation (`FirestoreLeaderboardApi.kt`, `app/build.gradle.kts`):**
+  - Removed hardcoded project ID fallbacks in `BuildConfig` and `FirestoreLeaderboardApi.resolveProjectId()`, relying cleanly on environment/local overrides or `google-services.json` (`FirebaseApp.options`, `FirebaseOptions.fromResource`, and `@string/project_id` / `@string/google_api_key`).
+  - Added dedicated `isPlaceholderApiKey()` and `isPlaceholderProjectId()` guards so placeholder tokens (`API_KEY`, `your_firestore_api_key`, `your_firestore_project_id`) never shadow real credentials or falsely mark an unconfigured client as ready.
+- **Expanded Verification Suite:**
+  - Added unit tests in `ExampleRobolectricTest.kt` verifying placeholder rejection, unconfigured `isConfigured` states, and `google-services.json` context fallback resolution (`167/167` tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.030
 
 ### 🏆 The Leaderboard Fix & Firebase Infrastructure Upgrade
 - **Google Services & Firebase BoM Modernization:**
@@ -378,11 +393,11 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 🛠️ Tech Stack
 
-- **Language:** Kotlin 2.2.10
+- **Language:** Kotlin 2.4.21
 - **UI Framework:** Jetpack Compose & Material 3
 - **Architecture:** MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
 - **Graphics:** Hardware-accelerated Compose Canvas with custom coordinate transform matrices
-- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (150/150 passing)
+- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (167/167 passing)
 - **Target Platform:** Android (Target SDK 36, Android 16 ready, 16 KB page-size compatible) + Windows Companion Runner
 
 ---
@@ -401,5 +416,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.030-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.031-debug.apk`)
 - Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)

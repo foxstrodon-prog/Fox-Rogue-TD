@@ -5,12 +5,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.engine.MapGenerator
 import com.example.engine.TowerUpgradeManager
 import com.example.engine.WaveGenerator
+import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.model.GridPos
 import com.example.model.TileType
 import com.example.model.TowerInstance
 import com.example.model.TowerType
 import com.example.model.EnemyInstance
 import com.example.model.EnemyType
+import com.google.firebase.FirebaseApp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -19,6 +21,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -571,9 +574,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 030`() {
-    assertEquals("0.0.1.030", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(51, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 031`() {
+    assertEquals("0.0.1.031", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(52, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -1319,14 +1322,60 @@ class ExampleRobolectricTest {
 
   @Test
   fun `verify FirestoreLeaderboardApi resolveProjectId and resolveDefaultApiKey dynamically read google-services config`() {
-    val context = org.robolectric.RuntimeEnvironment.getApplication()
-    val projectId = com.example.engine.network.FirestoreLeaderboardApi.resolveProjectId("", context)
+    val context = RuntimeEnvironment.getApplication()
+    val projectId = FirestoreLeaderboardApi.resolveProjectId("", context)
     assertTrue("Resolved project ID must not be blank", projectId.isNotBlank())
     assertEquals("roguetddualfront", projectId)
 
+    val defaultKey = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
+    assertTrue("Resolved API key must not be blank", defaultKey.isNotBlank())
+    assertEquals(39, defaultKey.length)
+
     // Verify key=API_KEY or API_KEY is stripped and sanitized properly
-    val sanitizedPlaceholder = com.example.engine.network.FirestoreLeaderboardApi.sanitizeApiKey("key=API_KEY")
+    val sanitizedPlaceholder = FirestoreLeaderboardApi.sanitizeApiKey("key=API_KEY")
     assertEquals("API_KEY", sanitizedPlaceholder)
+  }
+
+  @Test
+  fun `verify FirestoreLeaderboardApi rejects placeholder keys and project IDs and falls back to context`() {
+    val context = RuntimeEnvironment.getApplication()
+    val expectedKey = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
+    val expectedProjectId = FirestoreLeaderboardApi.resolveProjectId("", context)
+
+    // Placeholder API key and project ID in constructor fall back to context google-services resources
+    val fallbackApi = FirestoreLeaderboardApi(
+      projectId = "your_firestore_project_id",
+      apiKey = "key=API_KEY",
+      context = context
+    )
+    assertTrue("Constructor with context must resolve real credentials instead of placeholders", fallbackApi.isConfigured)
+    assertEquals(expectedProjectId, fallbackApi.projectId)
+
+    // Explicit blank or placeholder credentials without context remain unconfigured even if FirebaseApp is initialized
+    assertFalse(FirestoreLeaderboardApi(projectId = "", apiKey = "test-key").isConfigured)
+    assertFalse(FirestoreLeaderboardApi(projectId = "your_firestore_project_id", apiKey = "test-key").isConfigured)
+    assertFalse(FirestoreLeaderboardApi(projectId = "test-project", apiKey = "API_KEY").isConfigured)
+    assertFalse(FirestoreLeaderboardApi(projectId = "test-project", apiKey = "your_firestore_api_key").isConfigured)
+    assertFalse(FirestoreLeaderboardApi(projectId = "", apiKey = "").isConfigured)
+
+    // Verify resolveDefaultApiKey and resolveProjectId return "" when FirebaseApp is uninitialized and only placeholders exist
+    val hadFirebaseApp = FirebaseApp.getApps(context).isNotEmpty()
+    FirebaseApp.clearInstancesForTest()
+    try {
+      assertEquals("", FirestoreLeaderboardApi.resolveDefaultApiKey(null, "API_KEY"))
+      assertEquals("", FirestoreLeaderboardApi.resolveDefaultApiKey(null, "your_firestore_api_key"))
+      assertEquals("", FirestoreLeaderboardApi.resolveDefaultApiKey(null, ""))
+      assertEquals("", FirestoreLeaderboardApi.resolveProjectId("your_firestore_project_id", null))
+      assertEquals("", FirestoreLeaderboardApi.resolveProjectId("", null))
+
+      // Even with FirebaseApp uninitialized, passing context resolves real key & projectId from resources
+      assertEquals(expectedKey, FirestoreLeaderboardApi.resolveDefaultApiKey(context, "key=API_KEY"))
+      assertEquals(expectedProjectId, FirestoreLeaderboardApi.resolveProjectId("your_firestore_project_id", context))
+    } finally {
+      if (hadFirebaseApp) {
+        FirebaseApp.initializeApp(context)
+      }
+    }
   }
 }
 

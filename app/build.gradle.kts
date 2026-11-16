@@ -7,7 +7,7 @@ plugins {
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
-  id("com.google.gms.google-services")
+  alias(libs.plugins.google.services)
 }
 
 // Global-leaderboard backend settings (Firestore REST). Read from environment variables first, then
@@ -27,12 +27,12 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 51
-    versionName = "0.0.1.030"
+    versionCode = 52
+    versionName = "0.0.1.031"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID", "roguetddualfront")}\"")
+    buildConfigField("String", "LEADERBOARD_PROJECT_ID", "\"${leaderboardSetting("LEADERBOARD_PROJECT_ID", "")}\"")
     buildConfigField("String", "LEADERBOARD_COLLECTION", "\"${leaderboardSetting("LEADERBOARD_COLLECTION", "leaderboards")}\"")
     buildConfigField("String", "LEADERBOARD_API_KEY", "\"${leaderboardSetting("LEADERBOARD_API_KEY", "")}\"")
   }
@@ -79,11 +79,6 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
-  }
-  tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions {
-      freeCompilerArgs.add("-Xskip-metadata-version-check")
-    }
   }
   buildFeatures {
     compose = true
@@ -170,5 +165,5 @@ tasks.register<Copy>("stageDebugApk") {
   dependsOn("assembleDebug")
   from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
   into(rootProject.layout.projectDirectory.dir("apk"))
-  rename { "Dual-Front-TD-v0.0.1.030-debug.apk" }
+  rename { "Dual-Front-TD-v0.0.1.031-debug.apk" }
 }
