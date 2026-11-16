@@ -1165,6 +1165,192 @@ class LeaderboardCoreTest {
     assertNull(vm.uiState.value.lastRunRecord)
   }
 
+  @Test
+  fun `AuthRepository serializes concurrent REST authentication across separate instances`() = runBlocking {
+    var signUpCalls = 0
+    val mockClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        if (chain.request().url.toString().contains("identitytoolkit")) {
+          signUpCalls++
+          Thread.sleep(60)
+          Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body("""{"localId":"shared_uid_1","idToken":"shared_tok_1","refreshToken":"shared_ref_1","expiresIn":"3600"}""".toResponseBody(null))
+            .build()
+        } else {
+          Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body("[]".toResponseBody(null))
+            .build()
+        }
+      }
+      .build()
+
+    val repoA = AuthRepository(context = context, auth = null, httpClient = mockClient, apiKey = "k")
+    val repoB = AuthRepository(context = context, auth = null, httpClient = mockClient, apiKey = "k")
+
+    val (uidA, tokenB) = coroutineScope {
+      val d1 = async(Dispatchers.IO) { repoA.ensureAuthenticated() }
+      val d2 = async(Dispatchers.IO) { repoB.getIdToken() }
+      d1.await() to d2.await()
+    }
+
+    assertEquals("shared_uid_1", uidA)
+    assertEquals("shared_tok_1", tokenB)
+    assertEquals("shared_uid_1", repoB.currentUserId)
+    assertEquals("Separate AuthRepository instances must share lock and mint only 1 anonymous account", 1, signUpCalls)
+  }
+
+  @Test
+  fun `ScoreSubmissionWorker surfaces specific Identity Toolkit UNCONFIGURED and NETWORK errors instead of generic no-token`() = runBlocking {
+    val store = LeaderboardStore(context)
+    val api = FirestoreLeaderboardApi(projectId = "test-project", apiKey = "test-key")
+
+    // 1. ADMIN_ONLY_OPERATION (Anonymous Auth disabled in Console) -> UNCONFIGURED + Result.failure()
+    store.enqueuePending(
+      PendingSubmission(
+        runId = "run-auth-disabled",
+        callsign = "Pilot",
+        score = 2000,
+        wavesCleared = 5,
+        scrapEarned = 120,
+        totalDamage = 3000L,
+        timestampMs = System.currentTimeMillis(),
+        clientVersion = "0.0.1.028"
+      )
+    )
+    val adminOnlyClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(400)
+          .message("Bad Request")
+          .body("""{"error":{"code":400,"message":"ADMIN_ONLY_OPERATION"}}""".toResponseBody(null))
+          .build()
+      }
+      .build()
+    val events = mutableListOf<LeaderboardRepository.SubmissionEvent>()
+    val collectJob = launch { LeaderboardRepository.syncEventFlow.collect { events.add(it) } }
+    delay(50)
+
+    val authDisabled = AuthRepository(context, auth = null, httpClient = adminOnlyClient, apiKey = "test-key")
+    val res1 = buildWorker(api, store, authDisabled).doWork()
+    assertTrue("UNCONFIGURED auth failure must fail fast", res1 is ListenableWorker.Result.Failure)
+    delay(80)
+    val ev1 = events.filterIsInstance<LeaderboardRepository.SubmissionEvent.Failed>()
+      .lastOrNull { it.runId == "run-auth-disabled" }
+    assertNotNull(ev1)
+    assertEquals(FailureKind.UNCONFIGURED, ev1!!.kind)
+    assertTrue(ev1.message.contains("Anonymous Auth is disabled", ignoreCase = true))
+
+    // 2. UnknownHostException (offline) -> NETWORK_UNAVAILABLE + Result.retry()
+    val offlineClient = OkHttpClient.Builder()
+      .addInterceptor { throw UnknownHostException("offline") }
+      .build()
+    val authOffline = AuthRepository(context, auth = null, httpClient = offlineClient, apiKey = "test-key")
+    val res2 = buildWorker(api, store, authOffline).doWork()
+    assertTrue("Offline auth failure must request WorkManager retry", res2 is ListenableWorker.Result.Retry)
+    delay(80)
+    collectJob.cancel()
+
+    val ev2 = events.filterIsInstance<LeaderboardRepository.SubmissionEvent.Failed>()
+      .lastOrNull { it.runId == "run-auth-disabled" }
+    assertNotNull(ev2)
+    assertEquals(FailureKind.NETWORK_UNAVAILABLE, ev2!!.kind)
+    assertTrue(ev2.message.contains("Network unavailable", ignoreCase = true))
+  }
+
+  @Test
+  fun `AuthRepository recovers via REST Identity Toolkit when stale native user fails non-transiently and preserves native user when offline`() = runBlocking {
+    val mockClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body("""{"localId":"recovered_rest_uid","idToken":"recovered_rest_tok","refreshToken":"recovered_ref","expiresIn":"3600"}""".toResponseBody(null))
+          .build()
+      }
+      .build()
+
+    // 1. Stale native user fails non-transiently -> signs out, retries native sign-in (also fails), then recovers via REST cleanly
+    var signedOut = false
+    val staleNativeClient = object : AuthRepository.NativeAuthClient {
+      override val hasCurrentUser: Boolean get() = !signedOut
+      override val currentUid: String? get() = if (signedOut) null else "stale_native_uid"
+      override fun getIdToken(forceRefresh: Boolean): String? {
+        throw com.google.firebase.auth.FirebaseAuthInvalidUserException("ERROR_USER_NOT_FOUND", "User deleted")
+      }
+      override fun signInAnonymously(): String? {
+        throw IllegalStateException("GMS unavailable")
+      }
+      override fun signOut() {
+        signedOut = true
+      }
+    }
+
+    val authRepo = AuthRepository(
+      context = context,
+      nativeClient = staleNativeClient,
+      httpClient = mockClient,
+      apiKey = "test-key"
+    )
+    val uid = authRepo.ensureAuthenticated()
+    val token = authRepo.getIdToken()
+    assertTrue("Stale native user must be signed out before REST recovery", signedOut)
+    assertEquals("recovered_rest_uid", uid)
+    assertEquals("recovered_rest_tok", token)
+    assertEquals("recovered_rest_uid", authRepo.currentUserId)
+    assertNull(authRepo.lastAuthFailure)
+
+    // 2. Active native user failing with network error -> preserves native UID and does NOT mint conflicting REST user
+    var offlineSignedOut = false
+    var restCalls = 0
+    val countingClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        restCalls++
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body("""{"localId":"unexpected_rest_uid","idToken":"unexpected_tok","refreshToken":"r","expiresIn":"3600"}""".toResponseBody(null))
+          .build()
+      }
+      .build()
+    val offlineNativeClient = object : AuthRepository.NativeAuthClient {
+      override val hasCurrentUser: Boolean get() = !offlineSignedOut
+      override val currentUid: String? get() = if (offlineSignedOut) null else "valid_native_uid"
+      override fun getIdToken(forceRefresh: Boolean): String? {
+        throw java.util.concurrent.ExecutionException(UnknownHostException("offline"))
+      }
+      override fun signInAnonymously(): String? = null
+      override fun signOut() {
+        offlineSignedOut = true
+      }
+    }
+
+    val offlineAuthRepo = AuthRepository(
+      context = context,
+      nativeClient = offlineNativeClient,
+      httpClient = countingClient,
+      apiKey = "test-key"
+    )
+    assertEquals("valid_native_uid", offlineAuthRepo.ensureAuthenticated())
+    assertNull(offlineAuthRepo.getIdToken())
+    assertFalse("Offline error must NOT sign out valid native user", offlineSignedOut)
+    assertEquals("Offline native getIdToken failure must NOT mint conflicting REST UID", 0, restCalls)
+    assertEquals(FailureKind.NETWORK_UNAVAILABLE, offlineAuthRepo.lastAuthFailure?.kind)
+  }
+
   private fun buildWorker(
     api: FirestoreLeaderboardApi,
     store: LeaderboardStore,

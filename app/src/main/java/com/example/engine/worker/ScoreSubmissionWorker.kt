@@ -51,12 +51,14 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
     if (!api.isConfigured) {
       val msg = "Leaderboard project ID or API key is not configured"
       Log.w(TAG, "[ScoreSubmissionWorker] $msg. Aborting submission.")
-      LeaderboardRepository.notifySubmissionFailed(
-        runId = pendingList.first().runId,
-        kind = FailureKind.UNCONFIGURED,
-        message = msg,
-        dropped = false
-      )
+      for (item in pendingList) {
+        LeaderboardRepository.notifySubmissionFailed(
+          runId = item.runId,
+          kind = FailureKind.UNCONFIGURED,
+          message = msg,
+          dropped = false
+        )
+      }
       return@withContext Result.failure()
     }
 
@@ -66,15 +68,19 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
     Log.d(TAG, "[ScoreSubmissionWorker] Authenticated user context: uid=$effectiveUserId, hasIdToken=${!idToken.isNullOrBlank()}")
 
     if (idToken.isNullOrBlank() || effectiveUserId.isBlank()) {
-      val msg = "Anonymous authentication unavailable (no Firebase ID token)"
-      Log.w(TAG, "[ScoreSubmissionWorker] $msg. Requesting retry.")
-      LeaderboardRepository.notifySubmissionFailed(
-        runId = pendingList.first().runId,
-        kind = FailureKind.SECURITY_REJECTED,
-        message = msg,
-        dropped = false
-      )
-      return@withContext Result.retry()
+      val authFailure = authRepo.lastAuthFailure
+      val failureKind = authFailure?.kind ?: FailureKind.SECURITY_REJECTED
+      val msg = authFailure?.message ?: "Anonymous authentication unavailable (no Firebase ID token)"
+      Log.w(TAG, "[ScoreSubmissionWorker] Auth unavailable (kind=$failureKind): $msg")
+      for (item in pendingList) {
+        LeaderboardRepository.notifySubmissionFailed(
+          runId = item.runId,
+          kind = failureKind,
+          message = msg,
+          dropped = false
+        )
+      }
+      return@withContext if (failureKind == FailureKind.UNCONFIGURED) Result.failure() else Result.retry()
     }
 
     for (item in pendingList) {

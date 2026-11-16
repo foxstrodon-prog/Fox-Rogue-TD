@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.027`):** [`apk/Dual-Front-TD-v0.0.1.027-debug.apk`](apk/Dual-Front-TD-v0.0.1.027-debug.apk)
+- **Latest Android APK (`v0.0.1.028`):** [`apk/Dual-Front-TD-v0.0.1.028-debug.apk`](apk/Dual-Front-TD-v0.0.1.028-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,25 +22,23 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.027
+## 🕹️ What's New in Version 0.0.1.028
 
-### 🔐 Leaderboard Auth & Submission Hardening & Run-Scoped Banner UX
-- **Serialized Auth & Stale Token Cleanup (`AuthRepository.kt`):**
-  - Added `authMutex` serialization across `ensureAuthenticated()` and `getIdToken()` so concurrent startup and post-run score uploads never mint duplicate anonymous accounts.
-  - Cleared cached REST ID/refresh tokens and reset authentication state on HTTP `400–403` refresh failures.
-- **Firestore Security Rule Parity & Log Redaction (`FirestoreLeaderboardApi.kt`):**
-  - Fixed `sanitizeCallsign()` truncation order (`take(16).trim()` before the `>= 3` char check) so space-padded callsigns never violate Firestore's `username.size() >= 3` security rule.
-  - Redacted `?key=` / `&key=` query parameters from outgoing debug Logcat URLs and switched `resolveSigningCertSha1()` to prefer `apkContentsSigners` over rotated certificate history.
-- **Run-Scoped Submission Banner & Queue Management (`LeaderboardRepository.kt`, `RunSummaryDialogs.kt`, `TelemetryLeaderboardDialog.kt`):**
-  - Replaced misleading global-queue/board status inference with an explicit per-run `RunSubmissionState` (`PENDING`, `SUBMITTED`, `LOCAL_ONLY`, `EXCLUDED_DEV_TUNED`, `NONE`) and `RunSummarySubmissionBanner` so older queued runs or stale async callbacks cannot clobber the active match's banner.
-  - Guarded `LeaderboardRepository.initialize()` with `AtomicBoolean` against duplicate `syncEventFlow` collectors, and added `runSessionId` + `isCurrentRun` guards in `RogueTDViewModel` so slow background auth still queues ended runs without hijacking a newly started match.
-  - Added a **Clear Queue** action in `TelemetryLeaderboardDialog` when pending submissions exist, and aligned `RunSummaryDialog` final score and waves cleared directly with `lastRunRecord` and `confirmEndRun()`.
-- **Background Sync Retry Bounds (`ScoreSubmissionWorker.kt`, `LeaderboardWorkScheduler.kt`):**
-  - Switched automatic sync scheduling to `ExistingWorkPolicy.APPEND_OR_REPLACE` (reserving `REPLACE` for explicit manual retries with pending items) and bounded worker retries (`runAttemptCount > 10` abort, `>= 5` security rejections drop).
+### 🔑 Anonymous Auth Recovery, Cross-Instance Synchronization & Clear Error Diagnostics
+- **Process-Wide Auth Synchronization (`AuthRepository.kt`):**
+  - Replaced the per-instance `authMutex` with a shared process-wide `sharedAuthMutex` and synchronous `SharedPreferences` commits on `Dispatchers.IO`, preventing races between `RogueTDViewModel` and `ScoreSubmissionWorker` when creating or refreshing anonymous sessions.
+- **Stale Native Session Recovery & REST Fallback (`AuthRepository.kt`):**
+  - Verified ID token acquisition inside `ensureAuthenticated()` and detected stale, expired, or non-transiently failing native `FirebaseAuth` users: signs out the broken native session, clears matching cached UIDs, retries native anonymous sign-in, and falls back to REST Identity Toolkit so `currentUserId` and the Bearer `idToken` never mismatch.
+  - Preserved active native sessions on transient `NETWORK_UNAVAILABLE`, `TIMEOUT`, and `RATE_LIMITED` failures without minting conflicting REST accounts.
+- **Actionable Auth Error Classification (`AuthRepository.kt`, `ScoreSubmissionWorker.kt`):**
+  - Added structured `AuthFailure` parsing across both native `FirebaseAuthException` / `ExecutionException` causes and REST Identity Toolkit / Secure Token error responses (`ADMIN_ONLY_OPERATION`, `OPERATION_NOT_ALLOWED`, `API_KEY_ANDROID_APP_BLOCKED`, `API_KEY_SERVICE_BLOCKED`, `API_KEY_INVALID`, `CONFIGURATION_NOT_FOUND`, and network/timeout failures).
+  - Updated `ScoreSubmissionWorker` to propagate exact `AuthFailure` diagnostics across all pending runs (failing fast on `UNCONFIGURED` errors instead of masking every auth issue behind `"Anonymous authentication unavailable (no Firebase ID token)"`).
 
 ---
 
 ## 🕹️ Previous Releases
+
+### Version 0.0.1.027
 
 ### Version 0.0.1.026
 
