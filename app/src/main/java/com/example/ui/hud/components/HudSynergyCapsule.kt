@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,54 +34,46 @@ internal fun HudSynergyCapsule(
     absorbedVaults: List<BankedSynergyVault>,
     absorbedSynergiesCount: Int,
     isRotated: Boolean,
-    animatedRotation: Float,
-    counterRotateModifier: Modifier
+    animatedRotation: Float
 ) {
     var showSynergyDropdown by remember { mutableStateOf(false) }
     val activeSynergiesCount = activeGlobalSynergies.size
     val totalSynergiesCount = activeSynergiesCount
 
-    Box(modifier = counterRotateModifier) {
+    Box(modifier = Modifier.hudCapsuleContainer(isRotated, animatedRotation)) {
         Surface(
-            color = if (totalSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
-            shape = RoundedCornerShape(5.dp),
-            border = if (totalSynergiesCount > 0) BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)) else null,
+            color = if (totalSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.22f) else Color(0xFF161F30).copy(alpha = 0.78f),
+            shape = HUD_CAPSULE_SHAPE,
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (totalSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.7f) else Color(0xFF334155)
+            ),
             modifier = Modifier
-                .then(if (isRotated) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 44.dp) else Modifier)
-                .clip(RoundedCornerShape(5.dp))
+                .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
+                .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
+                .clip(HUD_CAPSULE_SHAPE)
                 .clickable { showSynergyDropdown = !showSynergyDropdown }
         ) {
-            if (isRotated) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(text = "🌟", fontSize = 9.sp)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "($totalSynergiesCount)",
-                        color = if (totalSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 8.5.sp,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "🌟", fontSize = 9.sp)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = "($totalSynergiesCount)",
-                        color = if (totalSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 9.sp,
-                        maxLines = 1
-                    )
-                }
+            Row(
+                modifier = Modifier.padding(horizontal = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AutoAwesome,
+                    contentDescription = "Active Synergies",
+                    tint = if (totalSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                    modifier = Modifier.size(10.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = "($totalSynergiesCount)",
+                    color = if (totalSynergiesCount > 0) Color(0xFFFFB800) else Color(0xFF94A3B8),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 8.5.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    maxLines = 1
+                )
             }
         }
 

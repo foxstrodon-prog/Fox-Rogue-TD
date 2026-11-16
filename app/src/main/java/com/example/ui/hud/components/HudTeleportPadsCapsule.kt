@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,56 +29,49 @@ internal fun HudTeleportPadsCapsule(
     isHarmonicActive: Boolean,
     harmonicDmgPct: Int,
     isRotated: Boolean,
-    animatedRotation: Float,
-    counterRotateModifier: Modifier
+    animatedRotation: Float
 ) {
     var showPadsDropdown by remember { mutableStateOf(false) }
+    val activeTint = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8)
 
-    Box(modifier = counterRotateModifier) {
+    Box(modifier = Modifier.hudCapsuleContainer(isRotated, animatedRotation)) {
         Surface(
             color = if (isHarmonicActive) Color(0xFFFFD700).copy(alpha = 0.25f)
             else if (padsCount > 0) Color(0xFF00E5FF).copy(alpha = 0.20f)
-            else Color(0xFF161F30).copy(alpha = 0.60f),
-            shape = RoundedCornerShape(5.dp),
-            border = if (isHarmonicActive) BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.8f))
-            else if (padsCount > 0) BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
-            else null,
+            else Color(0xFF161F30).copy(alpha = 0.78f),
+            shape = HUD_CAPSULE_SHAPE,
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (isHarmonicActive) Color(0xFFFFD700).copy(alpha = 0.8f)
+                else if (padsCount > 0) Color(0xFF00E5FF).copy(alpha = 0.6f)
+                else Color(0xFF334155)
+            ),
             modifier = Modifier
-                .then(if (isRotated) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 44.dp) else Modifier)
-                .clip(RoundedCornerShape(5.dp))
+                .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
+                .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
+                .clip(HUD_CAPSULE_SHAPE)
                 .clickable { showPadsDropdown = !showPadsDropdown }
         ) {
-            if (isRotated) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(text = "⚡", fontSize = 9.sp)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "($padsCount/6)",
-                        color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 8.sp,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "⚡", fontSize = 9.sp)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = "($padsCount/6)",
-                        color = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 9.sp,
-                        maxLines = 1
-                    )
-                }
+            Row(
+                modifier = Modifier.padding(horizontal = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Bolt,
+                    contentDescription = "Teleportation Pads",
+                    tint = activeTint,
+                    modifier = Modifier.size(10.dp)
+                )
+                Spacer(modifier = Modifier.width(1.dp))
+                Text(
+                    text = "($padsCount/6)",
+                    color = activeTint,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 8.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    maxLines = 1
+                )
             }
         }
 

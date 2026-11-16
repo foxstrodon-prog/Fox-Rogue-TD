@@ -2,6 +2,14 @@ package com.example.ui
 
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,7 +31,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -40,6 +47,7 @@ import com.example.ui.dialog.TelemetryLeaderboardDialog
 import com.example.ui.dialog.UpdateModalDialog
 import com.example.ui.hud.MinimalBottomDock
 import com.example.ui.hud.MinimalTopHud
+import com.example.ui.hud.components.EdgeBulletTipTab
 import com.example.ui.hud.components.SingularityWarningDialog
 import com.example.ui.menu.DevBalanceSettingsDialog
 import com.example.ui.menu.PauseMenuDialog
@@ -70,6 +78,27 @@ fun RogueTDScreen(
     var hudOffsetY by remember { mutableFloatStateOf(0f) }
     val maxUpOffsetPx = remember(density) { with(density) { (-48).dp.toPx() } }
     val maxDownOffsetPx = remember(density) { with(density) { 76.dp.toPx() } }
+
+    val normalizedRot = ((hudState.deviceRotationAngle % 360f + 360f) % 360f).toInt()
+    val isHudRotated = normalizedRot == 90 || normalizedRot == 270
+    val targetEdgeCounterRotation = when (normalizedRot) {
+        90 -> -90f
+        180 -> 180f
+        270 -> 90f
+        else -> 0f
+    }
+    val edgeCounterRotation by animateFloatAsState(
+        targetValue = targetEdgeCounterRotation,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "edge_tab_rotation"
+    )
+    val topBannerOffsetDp = (if (isHudRotated) 52.dp else 40.dp)
+    val dynamicBannerShiftPx = hudOffsetY.roundToInt().coerceAtLeast(0)
+    val hasUpdateBanner = hudState.updateUIState.status in listOf(
+        UpdateDownloadStatus.AVAILABLE,
+        UpdateDownloadStatus.DOWNLOADING,
+        UpdateDownloadStatus.READY_TO_INSTALL
+    )
 
     Box(
         modifier = modifier
@@ -109,18 +138,18 @@ fun RogueTDScreen(
                         Modifier
                             .align(Alignment.TopStart)
                             .widthIn(max = 560.dp)
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     } else {
                         Modifier
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     }
                 )
         )
 
         // === IN-APP GITHUB APK AUTO-UPDATER BANNER ===
-        if (hudState.updateUIState.status in listOf(UpdateDownloadStatus.AVAILABLE, UpdateDownloadStatus.DOWNLOADING, UpdateDownloadStatus.READY_TO_INSTALL)) {
+        if (hasUpdateBanner) {
             val hasRound1TopBanner = (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) ||
                 (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty())
             UpdateBanner(
@@ -134,7 +163,10 @@ fun RogueTDScreen(
                 },
                 modifier = Modifier
                     .align(if (isLandscape) Alignment.BottomStart else Alignment.TopCenter)
-                    .padding(if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp) else PaddingValues(top = if (hasRound1TopBanner) 84.dp else 46.dp))
+                    .padding(
+                        if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp)
+                        else PaddingValues(top = if (hasRound1TopBanner) topBannerOffsetDp + 30.dp else topBannerOffsetDp)
+                    )
             )
         }
 
@@ -165,30 +197,31 @@ fun RogueTDScreen(
         // === ROUND 1 TACTICAL HINT ===
         if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
             Surface(
-                color = Color(0xFF0F172A).copy(alpha = 0.88f),
-                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF0A101D).copy(alpha = 0.88f),
+                shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.dp, Color(0xFF00E676)),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 46.dp)
+                    .padding(top = topBannerOffsetDp)
+                    .offset { IntOffset(0, dynamicBannerShiftPx) }
                     .clickable { viewModel.dismissFirstTileHint() }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.TouchApp,
                         contentDescription = null,
                         tint = Color(0xFF00E676),
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(12.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "SELECT TILE TO BUILD (Tap highlighted boosted pad)",
+                        text = "SELECT TILE TO BUILD (Tap boosted pad)",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
+                        fontSize = 9.5.sp
                     )
                 }
             }
@@ -197,23 +230,31 @@ fun RogueTDScreen(
         // === ROUND 1 LAUNCH POINTER CALLOUT ===
         if (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty()) {
             Surface(
-                color = Color(0xFF0F172A).copy(alpha = 0.92f),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.2.dp, Color(0xFF00F0FF)),
+                color = Color(0xFF0A101D).copy(alpha = 0.90f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.85f)),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 46.dp)
+                    .padding(top = topBannerOffsetDp)
+                    .offset { IntOffset(0, dynamicBannerShiftPx) }
                     .clickable { viewModel.deployWave() }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = Color(0xFF00F0FF),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "▲ DEFENSES READY — TAP [▶ BEGIN] TO START",
+                        text = "DEFENSES READY — TAP [▶ BEGIN] TO START",
                         color = Color(0xFF00F0FF),
                         fontWeight = FontWeight.Black,
-                        fontSize = 9.5.sp
+                        fontSize = 9.sp
                     )
                 }
             }
@@ -245,133 +286,72 @@ fun RogueTDScreen(
             }
         }
 
-        // === DUAL ONE-HANDED TELEPORTATION PAD SWAP BUTTONS (TRACK 4 & REFINEMENT D) ===
-        val swapTabBackground = Color(0xFF070B14).copy(alpha = 0.65f)
-        val swapTabBorder = Color(0xFF00F0FF).copy(alpha = 0.5f)
+        // === DUAL ONE-HANDED TELEPORTATION PAD SWAP "BULLET TIPS" ===
+        EdgeBulletTipTab(
+            isLeftEdge = true,
+            icon = Icons.Filled.SwapHoriz,
+            contentDescription = "Swap Teleportation Pads Left",
+            counterRotation = edgeCounterRotation,
+            onClick = { viewModel.swapBoosterPads() },
+            modifier = Modifier.align(Alignment.CenterStart)
+        )
+        EdgeBulletTipTab(
+            isLeftEdge = false,
+            icon = Icons.Filled.SwapHoriz,
+            contentDescription = "Swap Teleportation Pads Right",
+            counterRotation = edgeCounterRotation,
+            onClick = { viewModel.swapBoosterPads() },
+            modifier = Modifier.align(Alignment.CenterEnd)
+        )
 
-        // Left edge tab (semicircle facing inward to the right) with 48x48 hit-box
-        Box(
+        // === MANUAL ROTATION SUGGESTION "BULLET TIPS" (SLIDE + FADE) ===
+        val showManualRotate = state.isSystemAutoRotateLocked && state.hardwareTiltAngle != state.deviceRotationAngle
+        AnimatedVisibility(
+            visible = showManualRotate,
+            enter = slideInHorizontally(
+                initialOffsetX = { it },
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { it },
+                animationSpec = tween(durationMillis = 180)
+            ) + fadeOut(animationSpec = tween(durationMillis = 150)),
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 2.dp)
-                .size(48.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { viewModel.swapBoosterPads() },
-            contentAlignment = Alignment.CenterStart
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 48.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(width = 24.dp, height = 40.dp),
-                shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp, topStart = 0.dp, bottomStart = 0.dp),
-                color = swapTabBackground,
-                border = BorderStroke(1.dp, swapTabBorder),
-                shadowElevation = 4.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.SwapHoriz,
-                        contentDescription = "Swap Teleportation Pads Left",
-                        tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            EdgeBulletTipTab(
+                isLeftEdge = false,
+                icon = Icons.Filled.ScreenRotation,
+                contentDescription = "Rotate Screen to Match Device Tilt",
+                counterRotation = edgeCounterRotation,
+                tag = "manual_rotate_button_right",
+                onClick = { viewModel.confirmManualRotation() }
+            )
         }
 
-        // Right edge tab (semicircle facing inward to the left) with 48x48 hit-box
-        Box(
+        AnimatedVisibility(
+            visible = showManualRotate,
+            enter = slideInHorizontally(
+                initialOffsetX = { -it },
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { -it },
+                animationSpec = tween(durationMillis = 180)
+            ) + fadeOut(animationSpec = tween(durationMillis = 150)),
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 2.dp)
-                .size(48.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { viewModel.swapBoosterPads() },
-            contentAlignment = Alignment.CenterEnd
+                .align(Alignment.BottomStart)
+                .padding(bottom = if (isLandscape && hasUpdateBanner) 64.dp else 48.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(width = 24.dp, height = 40.dp),
-                shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 0.dp, bottomEnd = 0.dp),
-                color = swapTabBackground,
-                border = BorderStroke(1.dp, swapTabBorder),
-                shadowElevation = 4.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.SwapHoriz,
-                        contentDescription = "Swap Teleportation Pads Right",
-                        tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-        }
-
-        // === MANUAL ROTATION SUGGESTION BUTTONS (DUAL SEMICIRCLE EDGE TABS) ===
-        if (state.isSystemAutoRotateLocked && state.hardwareTiltAngle != state.deviceRotationAngle) {
-            // Right-Edge Tab (Existing)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 2.dp, bottom = 48.dp)
-                    .size(48.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { viewModel.confirmManualRotation() }
-                    .testTag("manual_rotate_button_right"),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Surface(
-                    modifier = Modifier.size(width = 24.dp, height = 40.dp),
-                    shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp, topEnd = 0.dp, bottomEnd = 0.dp),
-                    color = swapTabBackground,
-                    border = BorderStroke(1.dp, swapTabBorder),
-                    shadowElevation = 4.dp
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Filled.ScreenRotation,
-                            contentDescription = "Rotate Screen to Match Device Tilt",
-                            tint = Color(0xFF00F0FF),
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-            }
-
-            // Left-Edge Tab (New)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 2.dp, bottom = 48.dp)
-                    .size(48.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { viewModel.confirmManualRotation() }
-                    .testTag("manual_rotate_button_left"),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Surface(
-                    modifier = Modifier.size(width = 24.dp, height = 40.dp),
-                    shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp, topStart = 0.dp, bottomStart = 0.dp),
-                    color = swapTabBackground,
-                    border = BorderStroke(1.dp, swapTabBorder),
-                    shadowElevation = 4.dp
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Filled.ScreenRotation,
-                            contentDescription = "Rotate Screen to Match Device Tilt",
-                            tint = Color(0xFF00F0FF),
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-            }
+            EdgeBulletTipTab(
+                isLeftEdge = true,
+                icon = Icons.Filled.ScreenRotation,
+                contentDescription = "Rotate Screen to Match Device Tilt",
+                counterRotation = edgeCounterRotation,
+                tag = "manual_rotate_button_left",
+                onClick = { viewModel.confirmManualRotation() }
+            )
         }
 
         // === GEAR / PAUSE MENU MODAL ===

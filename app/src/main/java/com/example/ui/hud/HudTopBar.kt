@@ -23,7 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,7 +32,7 @@ import com.example.ui.hud.components.*
 import kotlin.math.roundToInt
 
 /**
- * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.031).
+ * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.032).
  * Sequential layout order:
  * [1. Time Handle] | [2. Current Round] | [3. Core HP] | [4. Scrap Credits] |
  * [5. Synergies] | [6. Energy/Pads] | [7. Auto Wave] | [8. Begin Wave] | [9. Battery Widget]
@@ -59,7 +59,6 @@ fun MinimalTopHud(
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "hud_counter_rotation"
     )
-    val counterRotateModifier = Modifier.graphicsLayer { rotationZ = animatedRotation }
 
     val capstoneTowers = remember(state.towers) { state.towers.filter { it.isCapstone } }
     val maxConduitGen = remember(capstoneTowers) { capstoneTowers.maxOfOrNull { it.generation } ?: 0 }
@@ -67,176 +66,170 @@ fun MinimalTopHud(
     val absorbedSynergiesCount = remember(absorbedVaults) { absorbedVaults.sumOf { it.synergies.size } }
     val activeEnemyCount = maxOf(state.activeEnemyCount, state.enemies.size)
     val harmonicDmgPct = (state.harmonicGridDamageBoost * 100f).roundToInt()
+    val isBossWave = state.currentWaveData?.isBossWave == true
+    val waveAccent = if (isBossWave) Color(0xFFFF2A55) else Color(0xFF00F0FF)
 
     Surface(
-        color = Color(0xFF070B14).copy(alpha = 0.50f),
+        color = Color(0xFF070B14).copy(alpha = 0.62f),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.6f)),
+        border = BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.75f)),
         modifier = modifier
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 4.dp)
+                .then(if (isRotated) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
+            horizontalArrangement = if (isRotated) Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally) else Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            // 1. Time Handle / Pause Trigger
+            HudClockHandle(
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onOpenPauseMenu = onOpenPauseMenu
+            )
+
+            // 2. Wave Capsule
+            Surface(
+                color = Color(0xFF161F30).copy(alpha = 0.78f),
+                shape = HUD_CAPSULE_SHAPE,
+                border = BorderStroke(1.dp, waveAccent.copy(alpha = 0.45f)),
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (isRotated) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .hudCapsuleContainer(isRotated, animatedRotation)
+                    .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
+                    .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
             ) {
-                // 1. Time Handle / Pause Trigger
-                HudClockHandle(
-                    isRotated = isRotated,
-                    counterRotateModifier = counterRotateModifier,
-                    onOpenPauseMenu = onOpenPauseMenu
-                )
-
-                // 2. Wave badge
-                if (isRotated) {
-                    Column(
-                        modifier = counterRotateModifier.defaultMinSize(minWidth = 34.dp, minHeight = 44.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
-                            color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 8.5.sp,
-                            maxLines = 1
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = counterRotateModifier,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color(0xFF00F0FF))
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = if (state.currentWaveData?.isBossWave == true) "B-${state.waveNumber}" else "W-${state.waveNumber}",
-                            color = if (state.currentWaveData?.isBossWave == true) Color(0xFFFF2A55) else Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                // 3. Core HP
-                Surface(
-                    color = Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = counterRotateModifier
-                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 44.dp) else Modifier)
+                Row(
+                    modifier = Modifier.padding(horizontal = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    if (isRotated) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(imageVector = Icons.Filled.Favorite, contentDescription = "Core HP", tint = Color(0xFFFF2A55), modifier = Modifier.size(9.dp))
-                            Spacer(modifier = Modifier.height(1.dp))
-                            Text(text = "${state.coreHp}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 8.5.sp, maxLines = 1)
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(imageVector = Icons.Filled.Favorite, contentDescription = "Core HP", tint = Color(0xFFFF2A55), modifier = Modifier.size(10.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(text = "${state.coreHp}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.5.sp, maxLines = 1)
-                        }
-                    }
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(waveAccent)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = if (isBossWave) "B-${state.waveNumber}" else "W-${state.waveNumber}",
+                        color = if (isBossWave) waveAccent else Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 8.5.sp,
+                        style = TextStyle(fontFeatureSettings = "tnum"),
+                        maxLines = 1
+                    )
                 }
-
-                // 4. Credits / Scrap
-                Surface(
-                    color = Color(0xFF161F30).copy(alpha = 0.70f),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = counterRotateModifier
-                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 44.dp) else Modifier)
-                ) {
-                    if (isRotated) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(imageVector = Icons.Filled.Diamond, contentDescription = "Credits", tint = Color(0xFFFFD700), modifier = Modifier.size(9.dp))
-                            Spacer(modifier = Modifier.height(1.dp))
-                            Text(text = "${state.scrap}", color = Color(0xFFFFD700), fontWeight = FontWeight.Black, fontSize = 8.sp, maxLines = 1)
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(imageVector = Icons.Filled.Diamond, contentDescription = "Credits", tint = Color(0xFFFFD700), modifier = Modifier.size(10.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(text = "${state.scrap}", color = Color(0xFFFFD700), fontWeight = FontWeight.Black, fontSize = 9.5.sp, maxLines = 1)
-                        }
-                    }
-                }
-
-                // 5. Consolidated Synergies Indicator
-                HudSynergyCapsule(
-                    activeGlobalSynergies = state.activeGlobalSynergies,
-                    maxConduitGen = maxConduitGen,
-                    absorbedVaults = absorbedVaults,
-                    absorbedSynergiesCount = absorbedSynergiesCount,
-                    isRotated = isRotated,
-                    animatedRotation = animatedRotation,
-                    counterRotateModifier = counterRotateModifier
-                )
-
-                // 6. Teleportation Pads Dropdown Capsule
-                HudTeleportPadsCapsule(
-                    padsCount = state.harmonicPadsCount,
-                    isHarmonicActive = state.harmonicGridActive,
-                    harmonicDmgPct = harmonicDmgPct,
-                    isRotated = isRotated,
-                    animatedRotation = animatedRotation,
-                    counterRotateModifier = counterRotateModifier
-                )
-
-                // 7. Auto Wave Toggle
-                HudAutoWaveToggle(
-                    autoWaveActive = state.autoCallNextWave,
-                    isRotated = isRotated,
-                    counterRotateModifier = counterRotateModifier,
-                    onToggleAutoWave = onToggleAutoWave
-                )
-
-                // 8. Launch Wave Button
-                HudLaunchWaveButton(
-                    isWaveActive = state.isWaveActive,
-                    enemyCount = activeEnemyCount,
-                    isRotated = isRotated,
-                    counterRotateModifier = counterRotateModifier,
-                    onDeployWave = onDeployWave
-                )
-
-                // 9. Battery Widget
-                HudBatteryWidget(
-                    isRotated = isRotated,
-                    counterRotateModifier = counterRotateModifier
-                )
             }
+
+            // 3. Core HP Capsule
+            Surface(
+                color = Color(0xFF161F30).copy(alpha = 0.78f),
+                shape = HUD_CAPSULE_SHAPE,
+                border = BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.4f)),
+                modifier = Modifier
+                    .hudCapsuleContainer(isRotated, animatedRotation)
+                    .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
+                    .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = "Core HP",
+                        tint = Color(0xFFFF2A55),
+                        modifier = Modifier.size(9.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${state.coreHp}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp,
+                        style = TextStyle(fontFeatureSettings = "tnum"),
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // 4. Credits / Scrap Capsule
+            Surface(
+                color = Color(0xFF161F30).copy(alpha = 0.78f),
+                shape = HUD_CAPSULE_SHAPE,
+                border = BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.4f)),
+                modifier = Modifier
+                    .hudCapsuleContainer(isRotated, animatedRotation)
+                    .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
+                    .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Diamond,
+                        contentDescription = "Credits",
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(9.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${state.scrap}",
+                        color = Color(0xFFFFD700),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 8.5.sp,
+                        style = TextStyle(fontFeatureSettings = "tnum"),
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // 5. Consolidated Synergies Indicator
+            HudSynergyCapsule(
+                activeGlobalSynergies = state.activeGlobalSynergies,
+                maxConduitGen = maxConduitGen,
+                absorbedVaults = absorbedVaults,
+                absorbedSynergiesCount = absorbedSynergiesCount,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation
+            )
+
+            // 6. Teleportation Pads Dropdown Capsule
+            HudTeleportPadsCapsule(
+                padsCount = state.harmonicPadsCount,
+                isHarmonicActive = state.harmonicGridActive,
+                harmonicDmgPct = harmonicDmgPct,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation
+            )
+
+            // 7. Auto Wave Toggle
+            HudAutoWaveToggle(
+                autoWaveActive = state.autoCallNextWave,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onToggleAutoWave = onToggleAutoWave
+            )
+
+            // 8. Launch Wave Button
+            HudLaunchWaveButton(
+                isWaveActive = state.isWaveActive,
+                enemyCount = activeEnemyCount,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onDeployWave = onDeployWave
+            )
+
+            // 9. Standalone Battery Cell Widget
+            HudBatteryWidget(
+                isRotated = isRotated,
+                animatedRotation = animatedRotation
+            )
         }
     }
 }

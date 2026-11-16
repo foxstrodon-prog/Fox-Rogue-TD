@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.031`):** [`apk/Dual-Front-TD-v0.0.1.031-debug.apk`](apk/Dual-Front-TD-v0.0.1.031-debug.apk)
+- **Latest Android APK (`v0.0.1.032`):** [`apk/Dual-Front-TD-v0.0.1.032-debug.apk`](apk/Dual-Front-TD-v0.0.1.032-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,28 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.031
+## 🕹️ What's New in Version 0.0.1.032
+
+### 🎯 Minimalist "Bullet HUD" & Control Modernization
+- **Standalone Canvas Battery Cell (`HudStatusWidgets.kt`):**
+  - Replaced emoji prefixes with a custom Canvas-drawn battery cell outline + terminal nub, centered tabular charge percentage (`tnum`), and a conditional green charging sweep/pulse animation when plugged in.
+- **Unified Top HUD Capsules & `BEGIN` Glow Fix (`HudTopBar.kt`, `HudStatusWidgets.kt`, `HudSynergyCapsule.kt`, `HudTeleportPadsCapsule.kt`):**
+  - Standardized all 9 top HUD capsules to uniform `28.dp` portrait height (`36.dp` rotated) with consistent `8.dp` squircle corners, wrapped the Wave badge in a matching capsule, and added layout-bound swapping (`hudCapsuleContainer`) so `90°`/`270°` counter-rotated capsules never overlap or clip.
+  - Streamlined `HudAutoWaveToggle` to a compact `"AUTO"` pill with glowing-dot vs hollow-ring state feedback, and replaced the Material3 `Button` in `HudLaunchWaveButton` with a clipped `Surface` to eliminate the oversized `48.dp` glow artifact.
+- **Edge "Bullet Tip" Tabs & Non-Blocking Callouts (`EdgeBulletTipTab.kt`, `RogueTDScreen.kt`):**
+  - Extracted reusable edge-bleeding `EdgeBulletTipTab` composables with `48.dp` touch targets, counter-rotated icons, and smooth horizontal `AnimatedVisibility` slide/fade transitions for manual rotation hints.
+  - Compacted and repositioned the Round-1 Ready callout dynamically right beneath the trimmed top HUD so upper buildable tiles remain unobstructed.
+- **Dark-Glass Singularity Modal & Upgrader Polish (`SingularityWarningDialog.kt`, `TowerUpgradeBar.kt`, `TargetPriorityMenu.kt`):**
+  - Redesigned `SingularityWarningDialog` with translucent dark-glass styling, tabular telemetry rows, squircle buttons, and full `deviceRotationAngle` counter-rotation support.
+  - Upgraded `SquircleActionButton`, `SingularityGateSquircle`, and `TargetPriorityMenu` with crisp vector iconography and `tnum` pricing, and removed ~465 lines of dead legacy drawer code from `TargetPriorityMenu.kt`.
+- **Verification Suite (`BulletHudModernization032Test.kt`, `ExampleRobolectricTest.kt`):**
+  - Added 5 Robolectric Compose UI regression tests covering portrait and `90°`/`270°` rotated HUD rendering, Singularity modal confirmation, `EdgeBulletTipTab`, and `FloatingSquircleUpgradeBar` controls (`172/172` tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.031
 
 ### 🔧 Kotlin 2.4.21 Upgrade & Strict Leaderboard Credential Isolation
 - **Kotlin 2.4.21 & Plugin Catalog Alignment:**

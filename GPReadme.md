@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.031
+### 🚀 What's New in Version 0.0.1.032
+
+🎯 **Minimalist "Bullet HUD", Edge Bullet Tips & Tactical UI Modernization**
+- **Custom Canvas Battery Cell & Uniform Bullet HUD:** Replaced battery emojis with a standalone Canvas battery outline, centered tabular percentage, and green charging sweep; harmonized all 9 top HUD capsules across portrait and `90°`/`270°` counter-rotated grips; streamlined `AUTO` toggle and fixed the `BEGIN` button glow bounds.
+- **Edge-Bleeding "Bullet Tip" Controls & Clearer Board Callouts:** Redesigned side swap and manual rotation tabs as sleek edge-bleeding bullet tips with smooth slide/fade transitions, and tucked the Round-1 Ready banner cleanly below the compact top HUD.
+- **Dark-Glass Singularity & Upgrade UI:** Overhauled `SingularityWarningDialog` with dark-glass tabular telemetry, counter-rotation support, and squircle buttons, alongside vector iconography and cleaner dark-glass styling across `TowerUpgradeBar` and `TargetPriorityMenu` (`172/172` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.031
 
 🔧 **Kotlin 2.4.21 Upgrade & Strict Leaderboard Credential Isolation**
 - **Kotlin 2.4.21 & Toolchain Alignment:** Upgraded Kotlin to `2.4.21`, unified Google Services plugin configuration via the Gradle version catalog, and removed legacy compiler metadata workarounds.

@@ -10,12 +10,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Diamond
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -204,22 +206,22 @@ fun SquircleActionButton(
                 scaleX = scale.value
                 scaleY = scale.value
             }
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(13.dp))
             .background(
                 when {
-                    !isUnlocked -> Color(0xFF090D16).copy(alpha = 0.88f)
-                    canAfford -> Color(0xFF0F172A).copy(alpha = 0.95f)
-                    else -> Color(0xFF080C14).copy(alpha = 0.92f)
+                    !isUnlocked -> Color(0xFF080C16).copy(alpha = 0.88f)
+                    canAfford -> Color(0xFF0A101D).copy(alpha = 0.94f)
+                    else -> Color(0xFF070B13).copy(alpha = 0.90f)
                 }
             )
             .border(
-                1.5.dp,
+                1.2.dp,
                 when {
-                    !isUnlocked -> Color(0xFF334155).copy(alpha = 0.6f)
-                    canAfford -> themeColor
+                    !isUnlocked -> Color(0xFF334155).copy(alpha = 0.65f)
+                    canAfford -> themeColor.copy(alpha = 0.92f)
                     else -> themeColor.copy(alpha = 0.35f)
                 },
-                RoundedCornerShape(14.dp)
+                RoundedCornerShape(13.dp)
             )
             .clickable(enabled = (canAfford && isUnlocked) || allowClickWhenLocked) {
                 coroutineScope.launch {
@@ -228,7 +230,7 @@ fun SquircleActionButton(
                 }
                 onClick()
             }
-            .padding(horizontal = 4.dp, vertical = 3.dp),
+            .padding(horizontal = 5.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -242,7 +244,7 @@ fun SquircleActionButton(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (iconComposable != null) {
-                    Box(modifier = Modifier.size(15.dp), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
                         iconComposable()
                     }
                 }
@@ -252,25 +254,43 @@ fun SquircleActionButton(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Start
                     ) {
-                        Text(text = "🔒", fontSize = 9.sp)
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = "Locked",
+                            tint = if (cost != null && cost > 0) Color(0xFF94A3B8) else Color(0xFFFF2A55),
+                            modifier = Modifier.size(9.dp)
+                        )
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = if (cost != null && cost > 0) "${cost}c" else "LOCK",
                             color = if (cost != null && cost > 0) Color(0xFF94A3B8) else Color(0xFFFF2A55),
-                            fontSize = 8.5.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Black,
+                            style = TextStyle(fontFeatureSettings = "tnum"),
                             maxLines = 1
                         )
                     }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "🪙", fontSize = 7.5.sp)
-                        Spacer(modifier = Modifier.width(1.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(Color(0xFF161F30).copy(alpha = 0.85f))
+                            .padding(horizontal = 3.dp, vertical = 1.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Diamond,
+                            contentDescription = null,
+                            tint = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
+                            modifier = Modifier.size(7.5.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = displayPrice,
                             color = if (canAfford) Color(0xFFFFD700) else Color(0xFFFF2A55),
                             fontSize = 7.5.sp,
                             fontWeight = FontWeight.Black,
+                            style = TextStyle(fontFeatureSettings = "tnum"),
                             maxLines = 1
                         )
                     }
@@ -597,8 +617,16 @@ private fun SingularityGateSquircle(
 
     if (isSingularityGateReady && canAfford) {
         SquircleActionButton(
-            title = "★ CONDUIT ★",
+            title = "CONDUIT",
             subtitle = "GEN $nextGen",
+            iconComposable = {
+                Icon(
+                    imageVector = Icons.Filled.AutoAwesome,
+                    contentDescription = "Singularity Ready",
+                    tint = Color(0xFFFFD700),
+                    modifier = Modifier.size(13.dp)
+                )
+            },
             cost = conduitCost,
             themeColor = Color(0xFFFFD700),
             canAfford = true,
@@ -616,6 +644,14 @@ private fun SingularityGateSquircle(
         SquircleActionButton(
             title = "CONDUIT",
             subtitle = if (currentMaxGen > 0 || tower.isCapstone) "GEN $nextGen" else "ASCENSION",
+            iconComposable = {
+                Icon(
+                    imageVector = Icons.Filled.AutoAwesome,
+                    contentDescription = null,
+                    tint = anticipationColor,
+                    modifier = Modifier.size(12.dp)
+                )
+            },
             cost = conduitCost,
             themeColor = anticipationColor,
             canAfford = canAfford,
