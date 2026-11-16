@@ -24,7 +24,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 🕹️ What's New in Version 0.0.1.027
 
-### 🔐 Leaderboard Auth & Submission Hardening, Run-Scoped Banner UX & Red-Team Remediation
+### 🔐 Leaderboard Auth & Submission Hardening & Run-Scoped Banner UX
 - **Serialized Auth & Stale Token Cleanup (`AuthRepository.kt`):**
   - Added `authMutex` serialization across `ensureAuthenticated()` and `getIdToken()` so concurrent startup and post-run score uploads never mint duplicate anonymous accounts.
   - Cleared cached REST ID/refresh tokens and reset authentication state on HTTP `400–403` refresh failures.
@@ -35,9 +35,8 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Replaced misleading global-queue/board status inference with an explicit per-run `RunSubmissionState` (`PENDING`, `SUBMITTED`, `LOCAL_ONLY`, `EXCLUDED_DEV_TUNED`, `NONE`) and `RunSummarySubmissionBanner` so older queued runs or stale async callbacks cannot clobber the active match's banner.
   - Guarded `LeaderboardRepository.initialize()` with `AtomicBoolean` against duplicate `syncEventFlow` collectors, and added `runSessionId` + `isCurrentRun` guards in `RogueTDViewModel` so slow background auth still queues ended runs without hijacking a newly started match.
   - Added a **Clear Queue** action in `TelemetryLeaderboardDialog` when pending submissions exist, and aligned `RunSummaryDialog` final score and waves cleared directly with `lastRunRecord` and `confirmEndRun()`.
-- **WorkManager Retry Bounds & Gradle 9.9.0 (`ScoreSubmissionWorker.kt`, `LeaderboardWorkScheduler.kt`):**
+- **Background Sync Retry Bounds (`ScoreSubmissionWorker.kt`, `LeaderboardWorkScheduler.kt`):**
   - Switched automatic sync scheduling to `ExistingWorkPolicy.APPEND_OR_REPLACE` (reserving `REPLACE` for explicit manual retries with pending items) and bounded worker retries (`runAttemptCount > 10` abort, `>= 5` security rejections drop).
-  - Upgraded Gradle Wrapper to `9.9.0` and expanded the Robolectric/Compose test suite to **150/150 passing** (including new `RunSummaryDialogTest.kt` and `LeaderboardCoreTest.kt` regression cases).
 
 ---
 
@@ -45,7 +44,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ### Version 0.0.1.026
 
-### 🛡️ Red-Team Combat Attribution, Tier-3 Aura Sync, 52-Tower Balance & HUD/DevMenu Fixes
+### 🛡️ Combat Attribution, Tier-3 Aura Sync, 52-Tower Balance & HUD/DevMenu Fixes
 - **Projectile Damage & Kill Attribution (`CombatSimulationEngine.kt`, `SimulationCoordinator.kt`):**
   - Fixed projectile towers (`GATLING`, `MORTAR`, `STELLAR`) so hit and AoE splash damage and kills properly credit `totalDamage` and `kills` on the originating `TowerInstance` for MVP tracking and telemetry.
   - Preserved wave-completion floating text notifications and skipped post-mortem tower fire on core-breach ticks, ensuring `recordRunCompletion` fires once after final state is committed.
@@ -55,15 +54,15 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **52-Tower Balance & Range/Fire-Rate Isolation (`TowerBalanceConfig.kt`, `GameModels.kt`):**
   - Aligned `DEFAULT_TOWER_BALANCES` with `ALL_52_DESCRIPTORS`, isolated tier-specific `findCustomTowerBalance()` overrides, prevented double-applied `towerRngMul` in `getEffectiveCombatRange()`, and stopped legacy `finalFormCode` towers from double-stacking global fire-rate buffs.
 - **HUD, Upgrade Bar & Dev Menu Fixes (`HudTopBar.kt`, `TowerUpgradeBar.kt`, `DevMenuDrawer.kt`):**
-  - Wired the `MinimalTopHud` pause button and deduplicated absorbed synergy counts, prevented double-firing build callbacks in `FloatingSquircleUpgradeBar`, synchronized fractional upgrade cost rounding (`roundToInt`) between UI and coordinator, and preserved Dev Menu `PROBES` state across tab switches (`RedTeamRemediation026Test.kt`).
+  - Wired the `MinimalTopHud` pause button and deduplicated absorbed synergy counts, prevented double-firing build callbacks in `FloatingSquircleUpgradeBar`, synchronized fractional upgrade cost rounding (`roundToInt`) between UI and coordinator, and preserved Dev Menu `PROBES` state across tab switches.
 
 ---
 
 ### Version 0.0.1.025
 
-### 🌐 Global Leaderboard Restoration & GitGuardian-Safe API Key Pipeline
-- **GitGuardian-Safe Dynamic API Key Resolution (`FirestoreLeaderboardApi.kt`, `app/build.gradle.kts`):**
-  - Restored live leaderboard connectivity by resolving the Firebase API key at runtime from `BuildConfig.LEADERBOARD_API_KEY`, `FirebaseApp.getInstance().options.apiKey`, or `FirebaseOptions.fromResource(context)` without committing raw secrets in source.
+### 🌐 Global Leaderboard Restoration & Auth Fallback
+- **Dynamic Runtime API Key Resolution (`FirestoreLeaderboardApi.kt`):**
+  - Restored live leaderboard connectivity by resolving the Firebase API key at runtime from `BuildConfig.LEADERBOARD_API_KEY`, `FirebaseApp.getInstance().options.apiKey`, or `FirebaseOptions.fromResource(context)`.
 - **REST Identity Toolkit Auth Fallback & Token Refresh (`AuthRepository.kt`, `ScoreSubmissionWorker.kt`):**
   - Added automated anonymous sign-up and token refresh against Google Identity Toolkit / Secure Token REST endpoints when native `FirebaseAuth` is unavailable, plus forced ID token refresh retries on HTTP `403`.
 - **Post-Upload Throttle Bypass (`LeaderboardRepository.kt`, `RogueTDViewModel.kt`):**
@@ -78,8 +77,8 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Added matching left- and right-edge manual rotation suggestion tabs whenever system auto-rotate is locked and hardware tilt differs from the HUD orientation.
 - **Strict Tier-3 Conduit Ascension Gating & Escalating Cost (`TowerPlacementCoordinator.kt`, `TowerUpgradeBar.kt`, `SingularityWarningDialog.kt`):**
   - Enforced 100% Tier-3 / Final Form readiness across all buildable tiles (`isSingularityGridReady()`) and escalating Conduit ascension scrap pricing (`750 * (currentMaxGen + 1)`).
-- **Absorbed Conduit Synergies HUD & CI Pipeline Wiring (`HudTopBar.kt`, `.github/workflows/release.yml`):**
-  - Displayed banked multi-generational Conduit vaults in the Top HUD Synergies dropdown/dialog, wired `LEADERBOARD_API_KEY` into the GitHub Actions release workflow, and pruned legacy APKs from `apk/`.
+- **Absorbed Conduit Synergies HUD (`HudTopBar.kt`):**
+  - Displayed banked multi-generational Conduit vaults in the Top HUD Synergies dropdown/dialog.
 
 ---
 
@@ -126,7 +125,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ### Version 0.0.1.021
 
-### 🛡️ Red-Team Architecture Remediation, Synergy Singularity Economy Calibration & Combat Cadence Overhaul
+### 🛡️ Architecture Hardening, Synergy Singularity Economy Calibration & Combat Cadence Overhaul
 - **Synergy Singularity Guaranteed Across EASY, MEDIUM & HARD:**
   - Curated procedural map generation (`MapGenerator.kt`) to a focused **15 tactical buildable pads** (6 boosted Harmonic pads + 9 lane-adjacent tactical pads) while converting surrounding non-lane terrain to scenic sector bedrock (`TileType.OBSTACLE`).
   - Added difficulty-aware economy scaling (`scrapIncomeMultiplier`: EASY `1.45x`, MEDIUM `1.20x`, HARD `1.05x`, INFINITE `1.00x`) across wave completion bonuses (`WaveGenerator.kt`) and enemy kill bounties (`SimulationCoordinator.kt`), guaranteeing players can fill 100% of buildable pads to Tier 2+ and forge the **Synergy Conduit** well before the final wave in every difficulty mode.
@@ -285,7 +284,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ## 🕹️ Previous Updates (Version 0.0.1.008)
 
 ### 🔐 Persistent Signing Certificate Parity & Conflict Resolution
-- **Canonical Keystore Auto-Restoration:** Hardened `app/build.gradle.kts` and GitHub Actions release workflow with an embedded canonical debug keystore decoder. Ensures all local developer builds, CI runners, and GitHub release binaries are signed with the exact same cryptographic key, permanently resolving "App not installed as package conflicts with an existing package" signature mismatches on in-app updates.
+- **Canonical Keystore Parity:** Aligned local and release APK signing with the same canonical debug keystore, preventing `"App not installed as package conflicts with an existing package"` signature mismatches on in-app updates.
 - **Self-Healing ADB Companion:** Enhanced `Dual-Front-TD-ADB.exe` with automatic signature conflict detection; cleanly uninstalls mismatched legacy certificates and installs new packages in a single seamless step.
 
 ### 🎮 Tactical Ergonomics & UI Rotation Fluidity (v0.0.1.007 / v0.0.1.006 Highlights)
@@ -295,12 +294,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **Tier 0 Compound Upgrade Naming:** Vector upgrade buttons now use unified compound naming and archetype theme colors (`Kinetic Offense`, `Void Defense`, `Siege Support`, `Stellar Offense`).
 - **Clean Settings Gear:** Removed the opaque container box behind the settings gear cog for a clean borderless floating icon.
 - **Tactical Map Expansion (+2 Rows: 10x18):** Expanded battlefield map height by 2 rows with synchronized spatial hash indexing for deeper choke-point positioning.
-
-### 🚀 CI/CD Pipeline & GitHub Actions Hardening
-- **Node.js 24 & Action Modernization:** Migrated `actions/setup-java` to `@v5` and `gradle/actions/setup-gradle` to `@v4` (targeting native Node.js 24 runners and resolving upstream Node 20 deprecation notices).
-- **Graceful Cache Resilience:** Upgraded Gradle cache integration to prevent build interruptions during transient GitHub Actions cache service outages or HTTP 400/503 responses.
-- **Idempotent Release Pipeline & Concurrency Guards:** Added workflow concurrency groups (`group: release-${{ github.ref_name }}`) and resilient release upload logic, eliminating parallel release creation collisions when pushing branches and tags simultaneously.
-- **Runner Pin Stability:** Pinned build runner environment to `ubuntu-24.04` LTS to ensure deterministic builds and avoid automated OS image shift warnings.
 
 ### 🎬 In-Game Feature Showcase Polish & Touch Lock
 - **Automated Feature Demonstrations:** In-game cinematics now execute real-time gameplay demonstrations (targeting reticles, booster pad teleportation maneuvers, and squircle upgrade bar inspections).
