@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.022`):** [`apk/Dual-Front-TD-v0.0.1.022-debug.apk`](apk/Dual-Front-TD-v0.0.1.022-debug.apk)
+- **Latest Android APK (`v0.0.1.027`):** [`apk/Dual-Front-TD-v0.0.1.027-debug.apk`](apk/Dual-Front-TD-v0.0.1.027-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,80 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.022
+## 🕹️ What's New in Version 0.0.1.027
+
+### 🔐 Leaderboard Auth & Submission Hardening, Run-Scoped Banner UX & Red-Team Remediation
+- **Serialized Auth & Stale Token Cleanup (`AuthRepository.kt`):**
+  - Added `authMutex` serialization across `ensureAuthenticated()` and `getIdToken()` so concurrent startup and post-run score uploads never mint duplicate anonymous accounts.
+  - Cleared cached REST ID/refresh tokens and reset authentication state on HTTP `400–403` refresh failures.
+- **Firestore Security Rule Parity & Log Redaction (`FirestoreLeaderboardApi.kt`):**
+  - Fixed `sanitizeCallsign()` truncation order (`take(16).trim()` before the `>= 3` char check) so space-padded callsigns never violate Firestore's `username.size() >= 3` security rule.
+  - Redacted `?key=` / `&key=` query parameters from outgoing debug Logcat URLs and switched `resolveSigningCertSha1()` to prefer `apkContentsSigners` over rotated certificate history.
+- **Run-Scoped Submission Banner & Queue Management (`LeaderboardRepository.kt`, `RunSummaryDialogs.kt`, `TelemetryLeaderboardDialog.kt`):**
+  - Replaced misleading global-queue/board status inference with an explicit per-run `RunSubmissionState` (`PENDING`, `SUBMITTED`, `LOCAL_ONLY`, `EXCLUDED_DEV_TUNED`, `NONE`) and `RunSummarySubmissionBanner` so older queued runs or stale async callbacks cannot clobber the active match's banner.
+  - Guarded `LeaderboardRepository.initialize()` with `AtomicBoolean` against duplicate `syncEventFlow` collectors, and added `runSessionId` + `isCurrentRun` guards in `RogueTDViewModel` so slow background auth still queues ended runs without hijacking a newly started match.
+  - Added a **Clear Queue** action in `TelemetryLeaderboardDialog` when pending submissions exist, and aligned `RunSummaryDialog` final score and waves cleared directly with `lastRunRecord` and `confirmEndRun()`.
+- **WorkManager Retry Bounds & Gradle 9.9.0 (`ScoreSubmissionWorker.kt`, `LeaderboardWorkScheduler.kt`):**
+  - Switched automatic sync scheduling to `ExistingWorkPolicy.APPEND_OR_REPLACE` (reserving `REPLACE` for explicit manual retries with pending items) and bounded worker retries (`runAttemptCount > 10` abort, `>= 5` security rejections drop).
+  - Upgraded Gradle Wrapper to `9.9.0` and expanded the Robolectric/Compose test suite to **150/150 passing** (including new `RunSummaryDialogTest.kt` and `LeaderboardCoreTest.kt` regression cases).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.026
+
+### 🛡️ Red-Team Combat Attribution, Tier-3 Aura Sync, 52-Tower Balance & HUD/DevMenu Fixes
+- **Projectile Damage & Kill Attribution (`CombatSimulationEngine.kt`, `SimulationCoordinator.kt`):**
+  - Fixed projectile towers (`GATLING`, `MORTAR`, `STELLAR`) so hit and AoE splash damage and kills properly credit `totalDamage` and `kills` on the originating `TowerInstance` for MVP tracking and telemetry.
+  - Preserved wave-completion floating text notifications and skipped post-mortem tower fire on core-breach ticks, ensuring `recordRunCompletion` fires once after final state is committed.
+- **Same-Tick Tier-3 Auras & Singularity Vault Parity (`TowerUpgradeManager.kt`, `TowerPlacementCoordinator.kt`):**
+  - Applied accumulated Tier-3 global slow (`globalSlowBonus`) and armor-ignore (`globalArmorIgnore`) modifiers on the same simulation tick, and separated live `FROST_SPIRE` slow state from permanent `ascensionFrostSlowBonus`.
+  - Fixed `confirmSingularityCollapse()` so anchor towers and multi-generational `synergyVault` entries are never double-counted across Conduit generations.
+- **52-Tower Balance & Range/Fire-Rate Isolation (`TowerBalanceConfig.kt`, `GameModels.kt`):**
+  - Aligned `DEFAULT_TOWER_BALANCES` with `ALL_52_DESCRIPTORS`, isolated tier-specific `findCustomTowerBalance()` overrides, prevented double-applied `towerRngMul` in `getEffectiveCombatRange()`, and stopped legacy `finalFormCode` towers from double-stacking global fire-rate buffs.
+- **HUD, Upgrade Bar & Dev Menu Fixes (`HudTopBar.kt`, `TowerUpgradeBar.kt`, `DevMenuDrawer.kt`):**
+  - Wired the `MinimalTopHud` pause button and deduplicated absorbed synergy counts, prevented double-firing build callbacks in `FloatingSquircleUpgradeBar`, synchronized fractional upgrade cost rounding (`roundToInt`) between UI and coordinator, and preserved Dev Menu `PROBES` state across tab switches (`RedTeamRemediation026Test.kt`).
+
+---
+
+### Version 0.0.1.025
+
+### 🌐 Global Leaderboard Restoration & GitGuardian-Safe API Key Pipeline
+- **GitGuardian-Safe Dynamic API Key Resolution (`FirestoreLeaderboardApi.kt`, `app/build.gradle.kts`):**
+  - Restored live leaderboard connectivity by resolving the Firebase API key at runtime from `BuildConfig.LEADERBOARD_API_KEY`, `FirebaseApp.getInstance().options.apiKey`, or `FirebaseOptions.fromResource(context)` without committing raw secrets in source.
+- **REST Identity Toolkit Auth Fallback & Token Refresh (`AuthRepository.kt`, `ScoreSubmissionWorker.kt`):**
+  - Added automated anonymous sign-up and token refresh against Google Identity Toolkit / Secure Token REST endpoints when native `FirebaseAuth` is unavailable, plus forced ID token refresh retries on HTTP `403`.
+- **Post-Upload Throttle Bypass (`LeaderboardRepository.kt`, `RogueTDViewModel.kt`):**
+  - Added `bypassThrottle = true` on `fetchLeaderboard()` so completed background `ScoreSubmissionWorker` uploads immediately refresh the Global Ranks board.
+
+---
+
+### Version 0.0.1.024
+
+### 🔄 Dual-Thumb Rotation Tabs, Strict Tier-3 Conduit Gating & Absorbed Vault HUD
+- **Dual-Thumb Manual Rotation Suggestion Tabs (`RogueTDScreen.kt`):**
+  - Added matching left- and right-edge manual rotation suggestion tabs whenever system auto-rotate is locked and hardware tilt differs from the HUD orientation.
+- **Strict Tier-3 Conduit Ascension Gating & Escalating Cost (`TowerPlacementCoordinator.kt`, `TowerUpgradeBar.kt`, `SingularityWarningDialog.kt`):**
+  - Enforced 100% Tier-3 / Final Form readiness across all buildable tiles (`isSingularityGridReady()`) and escalating Conduit ascension scrap pricing (`750 * (currentMaxGen + 1)`).
+- **Absorbed Conduit Synergies HUD & CI Pipeline Wiring (`HudTopBar.kt`, `.github/workflows/release.yml`):**
+  - Displayed banked multi-generational Conduit vaults in the Top HUD Synergies dropdown/dialog, wired `LEADERBOARD_API_KEY` into the GitHub Actions release workflow, and pruned legacy APKs from `apk/`.
+
+---
+
+### Version 0.0.1.023
+
+### 🖥️ Immersive Fullscreen, Draggable Bullet HUD, Frosted Edge Tabs & Updater Hygiene
+- **Immersive Fullscreen & Draggable Top HUD (`MainActivity.kt`, `HudTopBar.kt`, `RogueTDScreen.kt`):**
+  - Enabled transient swipe immersive fullscreen (`WindowInsetsControllerCompat`) and made `MinimalTopHud` vertically draggable with a live clock & battery indicator handle.
+- **Frosted Semicircle Edge Tabs & Landscape Ergonomics:**
+  - Converted left/right teleportation swap controls into compact frosted semicircle edge tabs with 48dp touch targets and tuned landscape button heights and `TowerUpgradeBar` spacing.
+- **Separated Booster Pads & Updater Storage Hygiene (`MapGenerator.kt`, `AppUpdateManager.kt`):**
+  - Enforced minimum Manhattan separation (`>= 4`) between same-color booster pad pairs and added `performStartupApkHygiene()` to delete corrupt/obsolete cached APKs on startup and surface already-downloaded updates.
+
+---
+
+### Version 0.0.1.022
 
 ### 🗺️ Every Non-Lane Tile Buildable, Dense Winding Lane Expansion, Geometry Dev Sliders, Square Grid Auto-Zoom & Affordability Dots
 - **100% Buildable Board (Zero Inoperable Clearance Lockout):**
@@ -286,7 +359,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **UI Framework:** Jetpack Compose & Material 3
 - **Architecture:** MVI / Unidirectional Data Flow with Android Architecture Components (`ViewModel`, `StateFlow`)
 - **Graphics:** Hardware-accelerated Compose Canvas with custom coordinate transform matrices
-- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (95/95 passing)
+- **Testing:** Robolectric, JUnit 4, AndroidX Test Runner (150/150 passing)
 - **Target Platform:** Android (Target SDK 36, Android 16 ready, 16 KB page-size compatible) + Windows Companion Runner
 
 ---
@@ -305,5 +378,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.008-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.027-debug.apk`)
 - Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)

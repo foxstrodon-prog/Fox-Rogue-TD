@@ -40,6 +40,21 @@ if [ -f "app/build.gradle.kts" ]; then
         echo "Please re-run ./gradlew assembleDebug and stage apk/Dual-Front-TD-v${VERSION}-debug.apk."
         exit 1
     fi
+
+    # 5. When staging a release APK, verify README.md references v${VERSION} and has no broken APK links
+    if [ -f "README.md" ] && git diff --cached --name-only --diff-filter=ACM | grep -q "apk/Dual-Front-TD-v${VERSION}-debug.apk"; then
+        if ! grep -q "v${VERSION}" README.md; then
+            echo "❌ [Pre-Commit Error] README.md does not mention current release version v${VERSION}."
+            echo "Please update README.md before committing the staged v${VERSION} APK."
+            exit 1
+        fi
+        while IFS= read -r apk_ref; do
+            if [ -n "$apk_ref" ] && [ ! -f "$apk_ref" ]; then
+                echo "❌ [Pre-Commit Error] README.md references missing APK: $apk_ref"
+                exit 1
+            fi
+        done < <(grep -oE 'apk/Dual-Front-TD-v[0-9.]+\-debug\.apk' README.md | sort -u || true)
+    fi
 fi
 
 echo "✅ [Pre-Commit] Version control checks passed cleanly."
