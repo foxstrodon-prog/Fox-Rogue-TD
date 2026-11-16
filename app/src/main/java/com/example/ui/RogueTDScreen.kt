@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -52,6 +51,8 @@ import com.example.ui.hud.MinimalBottomDock
 import com.example.ui.hud.MinimalTopHud
 import com.example.ui.hud.components.EdgeBulletTipTab
 import com.example.ui.hud.components.SingularityWarningDialog
+import com.example.ui.hud.components.hudCapsuleContainer
+import com.example.ui.hud.components.isQuarterTurnRotation
 import com.example.ui.menu.DevBalanceSettingsDialog
 import com.example.ui.menu.PauseMenuDialog
 
@@ -98,8 +99,13 @@ fun RogueTDScreen(
         label = "edge_tab_rotation"
     )
     val topBannerOffsetDp = (if (isHudRotated) 52.dp else 40.dp)
-    // Lowered Round-1 tile hint: ~3/4 screen height (flipped at 180° so it stays 3/4 down visually).
-    val lowerBannerVerticalBias = if (normalizedRot == 180) -0.5f else 0.5f
+    // Lowered Round-1 tile hint: ~3/4 visual screen depth across all four orientations.
+    val lowerBannerAlignment = when (normalizedRot) {
+        90 -> BiasAlignment(0.5f, 0f)
+        180 -> BiasAlignment(0f, -0.5f)
+        270 -> BiasAlignment(-0.5f, 0f)
+        else -> BiasAlignment(0f, 0.5f)
+    }
     val dynamicBannerShiftPx = hudOffsetY.roundToInt().coerceAtLeast(0)
     val hasUpdateBanner = hudState.updateUIState.status in listOf(
         UpdateDownloadStatus.AVAILABLE,
@@ -177,6 +183,7 @@ fun RogueTDScreen(
                             top = topSafeInsetDp + if (hasRound1TopBanner) topBannerOffsetDp + 30.dp else topBannerOffsetDp
                         )
                     )
+                    .then(if (!isLandscape) Modifier.offset { IntOffset(0, dynamicBannerShiftPx) } else Modifier)
             )
         }
 
@@ -209,7 +216,7 @@ fun RogueTDScreen(
             Round1TileHintBanner(
                 counterRotation = edgeCounterRotation,
                 onClick = { viewModel.dismissFirstTileHint() },
-                modifier = Modifier.align(BiasAlignment(0f, lowerBannerVerticalBias))
+                modifier = Modifier.align(lowerBannerAlignment)
             )
         }
 
@@ -561,8 +568,8 @@ fun UpdateBanner(
         border = BorderStroke(1.2.dp, Color(0xFF00F0FF)),
         modifier = modifier
             .padding(horizontal = 8.dp)
-            .graphicsLayer { rotationZ = counterRotation }
             .testTag("update_banner")
+            .hudCapsuleContainer(isQuarterTurnRotation(counterRotation), counterRotation)
             .clickable(enabled = !isDownloading) { onDownloadAndInstall() }
     ) {
         Row(

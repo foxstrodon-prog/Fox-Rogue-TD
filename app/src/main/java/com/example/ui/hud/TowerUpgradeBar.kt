@@ -397,7 +397,7 @@ fun FloatingSquircleUpgradeBar(
                 val tower = state.selectedTower
                 val sellValue = tower.getSellValue()
                 val prio = tower.targetPriority
-                val isRotated = counterAngle != 0f
+                val isRotated = counterAngle == -90f || counterAngle == 90f
 
                 when (tower.tier) {
                     0 -> {

@@ -55,6 +55,11 @@ internal val HUD_CAPSULE_SHAPE = RoundedCornerShape(8.dp)
 internal val HUD_CAPSULE_HEIGHT = 28.dp
 internal val HUD_ROTATED_CAPSULE_HEIGHT = 36.dp
 
+internal fun isQuarterTurnRotation(angle: Float): Boolean {
+    val normalized = ((angle % 360f) + 360f) % 360f
+    return normalized in 45f..135f || normalized in 225f..315f
+}
+
 /**
  * Wraps a counter-rotated HUD capsule so its measured Compose layout bounds match its rotated
  * visual footprint, preventing 90/270 degree overlap or vertical clipping in the top HUD row.

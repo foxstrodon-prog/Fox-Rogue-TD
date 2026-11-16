@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -72,6 +75,7 @@ internal fun HudTelemetryPopup(
     popupTag: String,
     onDismiss: () -> Unit,
     scrollable: Boolean = false,
+    safeInsets: WindowInsets = WindowInsets.safeDrawing,
     content: @Composable () -> Unit
 ) {
     val isRotated = deviceAngle == 90 || deviceAngle == 270
@@ -99,13 +103,16 @@ internal fun HudTelemetryPopup(
         else -> {
             alignment = Alignment.TopCenter
             enter = slideInVertically { -it / 3 } + fadeIn() + scaleIn(initialScale = 0.94f)
-            edgePadding = PaddingValues(top = 44.dp)
+            edgePadding = PaddingValues(top = 48.dp)
         }
     }
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
             modifier = Modifier
@@ -118,47 +125,53 @@ internal fun HudTelemetryPopup(
                 )
                 .testTag("${popupTag}_scrim")
         ) {
-            AnimatedVisibility(
-                visibleState = visibleState,
-                enter = enter,
-                exit = ExitTransition.None + fadeOut(),
+            Box(
                 modifier = Modifier
-                    .align(alignment)
-                    .padding(edgePadding)
+                    .fillMaxSize()
+                    .windowInsetsPadding(safeInsets)
             ) {
-                Surface(
-                    color = Color(0xFF0A101D).copy(alpha = 0.96f),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.2.dp, accentColor),
+                AnimatedVisibility(
+                    visibleState = visibleState,
+                    enter = enter,
+                    exit = ExitTransition.None + fadeOut(),
                     modifier = Modifier
-                        .hudCapsuleContainer(isRotated, animatedRotation)
-                        .widthIn(min = 260.dp, max = 340.dp)
-                        .testTag(popupTag)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {}
-                        )
+                        .align(alignment)
+                        .padding(edgePadding)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .then(if (scrollable) Modifier.heightIn(max = 280.dp) else Modifier)
-                                .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                        ) {
-                            content()
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = onDismiss,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(32.dp)
-                                .testTag("${popupTag}_close"),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("CLOSE", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                    Surface(
+                        color = Color(0xFF0A101D).copy(alpha = 0.96f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.2.dp, accentColor),
+                        modifier = Modifier
+                            .testTag(popupTag)
+                            .hudCapsuleContainer(isRotated, animatedRotation)
+                            .widthIn(min = 260.dp, max = 340.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {}
+                            )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .then(if (scrollable) Modifier.heightIn(max = 280.dp) else Modifier)
+                                    .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                            ) {
+                                content()
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Button(
+                                onClick = onDismiss,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(32.dp)
+                                    .testTag("${popupTag}_close"),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("CLOSE", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

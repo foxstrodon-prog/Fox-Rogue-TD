@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -45,16 +44,13 @@ fun TargetPriorityMenu(
     val pillShape = RoundedCornerShape(12.dp)
     val darkGlass = Color(0xFF0A101D).copy(alpha = 0.92f)
 
-    Column(
-        modifier = modifier.height(76.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    val pills: @Composable () -> Unit = {
         Box(
             modifier = Modifier
+                .testTag("target_priority_button")
+                .hudCapsuleContainer(isRotated, animatedRotation)
                 .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
                 .height(36.dp)
-                .graphicsLayer { rotationZ = animatedRotation }
                 .clip(pillShape)
                 .background(darkGlass)
                 .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.72f), pillShape)
@@ -67,8 +63,7 @@ fun TargetPriorityMenu(
                     }
                     onChangePriority(nextPrio)
                 }
-                .padding(horizontal = 4.dp)
-                .testTag("target_priority_button"),
+                .padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -97,15 +92,15 @@ fun TargetPriorityMenu(
 
         Box(
             modifier = Modifier
-                .widthIn(min = PRIORITY_PILL_MIN_WIDTH)
+                .testTag("sell_tower_button")
+                .hudCapsuleContainer(isRotated, animatedRotation)
+                .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
                 .height(36.dp)
-                .graphicsLayer { rotationZ = animatedRotation }
                 .clip(pillShape)
                 .background(darkGlass)
                 .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.72f), pillShape)
                 .clickable { onSellTower() }
-                .padding(horizontal = 4.dp)
-                .testTag("sell_tower_button"),
+                .padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -130,6 +125,24 @@ fun TargetPriorityMenu(
                     softWrap = false
                 )
             }
+        }
+    }
+
+    if (isRotated) {
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            pills()
+        }
+    } else {
+        Column(
+            modifier = modifier.height(76.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            pills()
         }
     }
 }

@@ -75,14 +75,16 @@ fun MinimalTopHud(
         border = BorderStroke(1.dp, Color(0xFF1E293B).copy(alpha = 0.75f)),
         modifier = modifier
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 4.dp)
-                .then(if (isRotated) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
-            horizontalArrangement = if (isRotated) Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally) else Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .widthIn(min = maxWidth)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                horizontalArrangement = if (isRotated) Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally) else Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // 1. Time Handle / Pause Trigger
             HudClockHandle(
                 isRotated = isRotated,
@@ -233,6 +235,7 @@ fun MinimalTopHud(
                 animatedRotation = animatedRotation,
                 onClick = onOpenPauseMenu
             )
+            }
         }
     }
 }

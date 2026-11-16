@@ -1,15 +1,20 @@
 package com.example
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
@@ -18,8 +23,14 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.example.audio.SoundManager
 import com.example.engine.AppUpdateState
 import com.example.engine.MapGenerator
@@ -51,7 +62,9 @@ import com.example.ui.hud.MinimalTopHud
 import com.example.ui.hud.SquircleActionButton
 import com.example.ui.hud.getArchetypeCardLabels
 import com.example.ui.hud.components.EdgeBulletTipTab
+import com.example.ui.hud.components.HudTelemetryPopup
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -132,7 +145,7 @@ class BulletHudModernization033Test {
     fun `round 1 banners and update banner render at 180 degree counter rotation`() {
         val info = UpdateInfo(isUpdateAvailable = true, latestVersion = "0.0.1.034", currentVersion = "0.0.1.033")
         composeRule.setContent {
-            androidx.compose.foundation.layout.Column {
+            Column {
                 Round1TileHintBanner(counterRotation = 180f, onClick = {})
                 Round1LaunchBanner(counterRotation = 180f, onClick = {})
                 UpdateBanner(
@@ -167,10 +180,10 @@ class BulletHudModernization033Test {
     }
 
     private inline fun withClearedViewModel(block: (RogueTDViewModel) -> Unit) {
-        val store = androidx.lifecycle.ViewModelStore()
-        val vm = androidx.lifecycle.ViewModelProvider(
+        val store = ViewModelStore()
+        val vm = ViewModelProvider(
             store,
-            androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(RuntimeEnvironment.getApplication())
+            ViewModelProvider.AndroidViewModelFactory.getInstance(RuntimeEnvironment.getApplication())
         )[RogueTDViewModel::class.java]
         try {
             block(vm)
@@ -661,6 +674,324 @@ class BulletHudModernization033Test {
 
             assertNull(vm.uiState.value.lastSelectedTowerId)
             assertTrue(vm.uiState.value.towers.isEmpty())
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // v0.0.1.034 Fix 1-6 regression coverage
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `Fix 1 - portrait UpdateBanner shifts downward below MinimalTopHud when dragged down`() {
+        withClearedViewModel { vm ->
+            composeRule.mainClock.autoAdvance = false
+            val info = UpdateInfo(isUpdateAvailable = true, latestVersion = "0.0.1.035", currentVersion = "0.0.1.034")
+            vm._uiState.update {
+                it.copy(
+                    updateUIState = AppUpdateState(status = UpdateDownloadStatus.AVAILABLE, updateInfo = info),
+                    showUpdateModal = false
+                )
+            }
+            composeRule.setContent { RogueTDScreen(viewModel = vm) }
+            composeRule.mainClock.advanceTimeByFrame()
+
+            val initialHudBounds = composeRule.onNodeWithTag("hud_pause_button").getUnclippedBoundsInRoot()
+            val initialBannerBounds = composeRule.onNodeWithTag("update_banner").getUnclippedBoundsInRoot()
+
+            composeRule.onNodeWithTag("hud_pause_button").performTouchInput {
+                swipeDown(startY = centerY, endY = centerY + 180f)
+            }
+            composeRule.mainClock.advanceTimeByFrame()
+
+            val shiftedHudBounds = composeRule.onNodeWithTag("hud_pause_button").getUnclippedBoundsInRoot()
+            val shiftedBannerBounds = composeRule.onNodeWithTag("update_banner").getUnclippedBoundsInRoot()
+
+            assertTrue(
+                "HUD should have moved downward (${shiftedHudBounds.top} > ${initialHudBounds.top})",
+                shiftedHudBounds.top > initialHudBounds.top
+            )
+            assertTrue(
+                "UpdateBanner should shift downward (${shiftedBannerBounds.top} > ${initialBannerBounds.top})",
+                shiftedBannerBounds.top > initialBannerBounds.top
+            )
+            assertTrue(
+                "Shifted UpdateBanner top (${shiftedBannerBounds.top}) must stay below MinimalTopHud (${shiftedHudBounds.bottom})",
+                shiftedBannerBounds.top >= shiftedHudBounds.bottom
+            )
+        }
+    }
+
+    @Test
+    fun `Fix 2 - all three banners swap measured layout dimensions at 90 and 270 degrees`() {
+        val info = UpdateInfo(isUpdateAvailable = true, latestVersion = "0.0.1.035", currentVersion = "0.0.1.034")
+        var rotation by mutableFloatStateOf(0f)
+        var hintSize = IntSize.Zero
+        var launchSize = IntSize.Zero
+        var updateSize = IntSize.Zero
+
+        composeRule.setContent {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Round1TileHintBanner(
+                    counterRotation = rotation,
+                    onClick = {},
+                    modifier = Modifier.onGloballyPositioned { hintSize = it.size }
+                )
+                Round1LaunchBanner(
+                    counterRotation = rotation,
+                    onClick = {},
+                    modifier = Modifier.onGloballyPositioned { launchSize = it.size }
+                )
+                UpdateBanner(
+                    updateState = AppUpdateState(status = UpdateDownloadStatus.AVAILABLE, updateInfo = info),
+                    onDownloadAndInstall = {},
+                    counterRotation = rotation,
+                    modifier = Modifier.onGloballyPositioned { updateSize = it.size }
+                )
+            }
+        }
+
+        val uprightHint = hintSize
+        val uprightLaunch = launchSize
+        val uprightUpdate = updateSize
+        assertTrue(uprightHint.width > uprightHint.height)
+        assertTrue(uprightLaunch.width > uprightLaunch.height)
+        assertTrue(uprightUpdate.width > uprightUpdate.height)
+
+        listOf(-90f, 90f).forEach { targetRot ->
+            composeRule.runOnIdle { rotation = targetRot }
+            composeRule.waitForIdle()
+            assertTrue("Hint layout height (${hintSize.height}) > width (${hintSize.width}) at $targetRot", hintSize.height > hintSize.width)
+            assertTrue("Launch layout height (${launchSize.height}) > width (${launchSize.width}) at $targetRot", launchSize.height > launchSize.width)
+            assertTrue("Update layout height (${updateSize.height}) > width (${updateSize.width}) at $targetRot", updateSize.height > updateSize.width)
+            assertEquals("Hint swapped width at $targetRot", uprightHint.height, hintSize.width)
+            assertEquals("Launch swapped width at $targetRot", uprightLaunch.height, launchSize.width)
+        }
+    }
+
+    @Test
+    fun `Fix 2 - Round1LaunchBanner and UpdateBanner stay on screen and clear MinimalTopHud at 90 and 270 degrees`() {
+        val info = UpdateInfo(isUpdateAvailable = true, latestVersion = "0.0.1.035", currentVersion = "0.0.1.034")
+        withClearedViewModel { vm ->
+            composeRule.mainClock.autoAdvance = false
+            val tower = TowerInstance(id = "t1", type = TowerType.GATLING, gridPos = GridPos(1, 1))
+            vm._uiState.update {
+                it.copy(
+                    deviceRotationAngle = 90f,
+                    hardwareTiltAngle = 90f,
+                    isWaveActive = false,
+                    waveNumber = 1,
+                    towers = listOf(tower),
+                    updateUIState = AppUpdateState(status = UpdateDownloadStatus.AVAILABLE, updateInfo = info),
+                    showUpdateModal = false
+                )
+            }
+            composeRule.setContent { RogueTDScreen(viewModel = vm) }
+
+            listOf(90f, 270f).forEach { angle ->
+                vm._uiState.update { it.copy(deviceRotationAngle = angle, hardwareTiltAngle = angle) }
+                composeRule.mainClock.advanceTimeByFrame()
+                composeRule.mainClock.advanceTimeBy(400)
+
+                val hudBottom = composeRule.onNodeWithTag("hud_pause_button").getBoundsInRoot().bottom
+                val launchBounds = composeRule.onNodeWithTag("round1_launch_banner").getBoundsInRoot()
+                val updateBounds = composeRule.onNodeWithTag("update_banner").getBoundsInRoot()
+
+                assertTrue("Round1LaunchBanner top (${launchBounds.top}) >= 0dp at $angle", launchBounds.top >= 0.dp)
+                assertTrue("Round1LaunchBanner top (${launchBounds.top}) clears HUD ($hudBottom) at $angle", launchBounds.top >= hudBottom)
+                assertTrue("Round1LaunchBanner height > width at $angle", (launchBounds.bottom - launchBounds.top) > (launchBounds.right - launchBounds.left))
+
+                assertTrue("UpdateBanner top (${updateBounds.top}) >= 0dp at $angle", updateBounds.top >= 0.dp)
+                assertTrue("UpdateBanner top (${updateBounds.top}) clears HUD ($hudBottom) at $angle", updateBounds.top >= hudBottom)
+                assertTrue("UpdateBanner height > width at $angle", (updateBounds.bottom - updateBounds.top) > (updateBounds.right - updateBounds.left))
+            }
+        }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(sdk = [35], qualifiers = "w360dp-h800dp-xxhdpi")
+    fun `Fix 3 - TargetPriorityMenu arranges side by side without overlap at 90 and 270 and stays stacked at 180`() {
+        val tower = TowerInstance(
+            id = "t1",
+            type = TowerType.GATLING,
+            gridPos = GridPos(1, 1),
+            tier = 0,
+            targetPriority = TargetPriority.STRONGEST
+        )
+        var angle by mutableFloatStateOf(90f)
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            Box(Modifier.fillMaxSize()) {
+                FloatingSquircleUpgradeBar(
+                    state = GameUIState(scrap = 500, selectedTower = tower, deviceRotationAngle = angle)
+                )
+            }
+        }
+
+        listOf(90f, 270f).forEach { rot ->
+            composeRule.runOnIdle { angle = rot }
+            composeRule.mainClock.advanceTimeByFrame()
+            composeRule.mainClock.advanceTimeBy(400)
+
+            composeRule.onNodeWithText("STRONGEST").assertIsDisplayed()
+            val prio = composeRule.onNodeWithTag("target_priority_button").getBoundsInRoot()
+            val sell = composeRule.onNodeWithTag("sell_tower_button").getBoundsInRoot()
+
+            assertTrue("Pills must sit side-by-side without horizontal overlap at $rot (prio=$prio, sell=$sell)", prio.right <= sell.left + 0.5.dp)
+            assertTrue("Priority pill left (${prio.left}) >= 0dp at $rot", prio.left >= 0.dp)
+            assertTrue("Sell pill right (${sell.right}) <= 360dp at $rot", sell.right <= 360.dp)
+        }
+
+        composeRule.runOnIdle { angle = 180f }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeBy(400)
+
+        val prio180 = composeRule.onNodeWithTag("target_priority_button").getBoundsInRoot()
+        val sell180 = composeRule.onNodeWithTag("sell_tower_button").getBoundsInRoot()
+        assertTrue("180deg pills must stack vertically without overlap (prio=$prio180, sell=$sell180)", prio180.bottom <= sell180.top + 0.5.dp)
+        assertTrue("180deg priority pill stays wider than tall", (prio180.right - prio180.left) > (prio180.bottom - prio180.top))
+    }
+
+    @Test
+    fun `Fix 4 - HudTelemetryPopup respects non-zero WindowInsets across all four rotation buckets`() {
+        val insets = WindowInsets(left = 24.dp, top = 32.dp, right = 20.dp, bottom = 28.dp)
+        var angle by mutableIntStateOf(0)
+        composeRule.setContent {
+            key(angle) {
+                val counterRot = when (angle) {
+                    90 -> -90f
+                    180 -> 180f
+                    270 -> 90f
+                    else -> 0f
+                }
+                HudTelemetryPopup(
+                    deviceAngle = angle,
+                    animatedRotation = counterRot,
+                    accentColor = Color(0xFF00F0FF),
+                    popupTag = "test_safe_popup",
+                    onDismiss = {},
+                    safeInsets = insets
+                ) {
+                    Text("TELEMETRY")
+                }
+            }
+        }
+
+        listOf(0, 90, 180, 270).forEach { targetAngle ->
+            composeRule.runOnIdle { angle = targetAngle }
+            composeRule.waitForIdle()
+
+            val popup = composeRule.onNodeWithTag("test_safe_popup").getBoundsInRoot()
+            val scrim = composeRule.onNodeWithTag("test_safe_popup_scrim").getBoundsInRoot()
+
+            when (targetAngle) {
+                0 -> assertTrue("0deg popup top clears 32dp top inset + 48dp HUD clearance (popup=$popup, scrim=$scrim)", (popup.top - scrim.top) >= 79.dp)
+                90 -> assertTrue("90deg popup left clears 24dp left inset + 12dp pad (popup=$popup, scrim=$scrim)", (popup.left - scrim.left) >= 35.dp)
+                180 -> assertTrue("180deg popup bottom clears 28dp bottom inset + 12dp pad (popup=$popup, scrim=$scrim)", (scrim.bottom - popup.bottom) >= 39.dp)
+                270 -> assertTrue("270deg popup right clears 20dp right inset + 12dp pad (popup=$popup, scrim=$scrim)", (scrim.right - popup.right) >= 31.dp)
+            }
+        }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(sdk = [35], qualifiers = "w360dp-h800dp-xxhdpi")
+    fun `Fix 5 - unrotated MinimalTopHud scrolls horizontally on 360dp screens without clipping or overlapping`() {
+        var angle by mutableFloatStateOf(0f)
+        var pauses = 0
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            MinimalTopHud(
+                state = GameUIState(
+                    scrap = 99999,
+                    waveNumber = 120,
+                    activeEnemyCount = 150,
+                    isWaveActive = true,
+                    deviceRotationAngle = angle
+                ),
+                onDeployWave = {},
+                onToggleAutoWave = {},
+                onOpenPauseMenu = { pauses++ }
+            )
+        }
+
+        listOf(0f, 180f).forEachIndexed { idx, targetAngle ->
+            composeRule.runOnIdle { angle = targetAngle }
+            composeRule.mainClock.advanceTimeByFrame()
+            composeRule.mainClock.advanceTimeBy(400)
+
+            val autoBounds = composeRule.onNodeWithTag("auto_wave_toggle").getBoundsInRoot()
+            val deployBounds = composeRule.onNodeWithTag("deploy_wave_button").getBoundsInRoot()
+            val batteryBounds = composeRule.onNodeWithTag("hud_battery_widget").getBoundsInRoot()
+
+            assertTrue("deploy_wave_button width > 0 at $targetAngle", (deployBounds.right - deployBounds.left) > 0.dp)
+            assertTrue("deploy_wave_button height > 0 at $targetAngle", (deployBounds.bottom - deployBounds.top) > 0.dp)
+            assertTrue("hud_battery_widget width > 0 at $targetAngle", (batteryBounds.right - batteryBounds.left) > 0.dp)
+            assertTrue("hud_battery_widget height > 0 at $targetAngle", (batteryBounds.bottom - batteryBounds.top) > 0.dp)
+            assertTrue("auto_wave_toggle must not overlap deploy_wave_button at $targetAngle", autoBounds.right <= deployBounds.left + 0.5.dp)
+            assertTrue("deploy_wave_button must not overlap hud_battery_widget at $targetAngle", deployBounds.right <= batteryBounds.left + 0.5.dp)
+
+            composeRule.onNodeWithTag("deploy_wave_button").performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithTag("hud_battery_widget").performScrollTo().assertIsDisplayed().performClick()
+            assertEquals(idx + 1, pauses)
+        }
+    }
+
+    @Test
+    fun `Fix 5 - unrotated MinimalTopHud preserves full-width SpaceBetween distribution on 480dp screens`() {
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            MinimalTopHud(
+                state = GameUIState(isWaveActive = true, deviceRotationAngle = 0f),
+                onDeployWave = {},
+                onToggleAutoWave = {}
+            )
+        }
+        composeRule.mainClock.advanceTimeByFrame()
+        val batteryBounds = composeRule.onNodeWithTag("hud_battery_widget").getBoundsInRoot()
+        assertTrue(
+            "Battery widget right edge (${batteryBounds.right}) should span near the 480dp right edge via SpaceBetween",
+            batteryBounds.right >= 440.dp
+        )
+    }
+
+    @Test
+    fun `Fix 6 - Round1TileHintBanner aligns to visual three-quarter depth at 90 180 and 270 degrees`() {
+        withClearedViewModel { vm ->
+            composeRule.mainClock.autoAdvance = false
+            vm._uiState.update {
+                it.copy(
+                    hasClickedFirstTile = false,
+                    waveNumber = 1,
+                    towers = emptyList()
+                )
+            }
+            composeRule.setContent { RogueTDScreen(viewModel = vm) }
+
+            listOf(90f, 180f, 270f).forEach { angle ->
+                vm._uiState.update { it.copy(deviceRotationAngle = angle, hardwareTiltAngle = angle) }
+                composeRule.mainClock.advanceTimeByFrame()
+                composeRule.mainClock.advanceTimeBy(400)
+
+                val bounds = composeRule.onNodeWithTag("round1_tile_hint_banner").getBoundsInRoot()
+                val centerX = (bounds.left + bounds.right) / 2f
+                val centerY = (bounds.top + bounds.bottom) / 2f
+
+                when (angle.toInt()) {
+                    90 -> {
+                        assertTrue("90deg hint centerX ($centerX) should be in right half (> 240dp)", centerX > 240.dp)
+                        assertTrue("90deg hint centerY ($centerY) should be vertically centered (~450dp)", abs(centerY.value - 450f) < 40f)
+                    }
+                    180 -> {
+                        assertTrue("180deg hint centerY ($centerY) should be in upper half (< 450dp)", centerY < 450.dp)
+                        assertTrue("180deg hint centerX ($centerX) should be horizontally centered (~240dp)", abs(centerX.value - 240f) < 40f)
+                    }
+                    270 -> {
+                        assertTrue("270deg hint centerX ($centerX) should be in left half (< 240dp)", centerX < 240.dp)
+                        assertTrue("270deg hint centerY ($centerY) should be vertically centered (~450dp)", abs(centerY.value - 450f) < 40f)
+                    }
+                }
+            }
         }
     }
 }

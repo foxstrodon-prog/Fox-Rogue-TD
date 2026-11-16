@@ -18,11 +18,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.hud.components.hudCapsuleContainer
+import com.example.ui.hud.components.isQuarterTurnRotation
 
 internal const val ROUND1_TILE_HINT_TEXT = "SELECT ANY TILE TO BUILD (Tap boosted pad)"
 internal const val ROUND1_LAUNCH_HINT_TEXT = "DEFENSES READY — TAP [▶ BEGIN] TO START"
@@ -42,8 +43,8 @@ internal fun Round1TileHintBanner(
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, Color(0xFF00E676)),
         modifier = modifier
-            .graphicsLayer { rotationZ = counterRotation }
             .testTag("round1_tile_hint_banner")
+            .hudCapsuleContainer(isQuarterTurnRotation(counterRotation), counterRotation)
             .clickable(onClick = onClick)
     ) {
         Row(
@@ -79,8 +80,8 @@ internal fun Round1LaunchBanner(
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.85f)),
         modifier = modifier
-            .graphicsLayer { rotationZ = counterRotation }
             .testTag("round1_launch_banner")
+            .hudCapsuleContainer(isQuarterTurnRotation(counterRotation), counterRotation)
             .clickable(onClick = onClick)
     ) {
         Row(
