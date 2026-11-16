@@ -26,11 +26,12 @@ import java.security.MessageDigest
 
 class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
-  private val projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
+  projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
   apiKey: String = resolveDefaultApiKey(),
   collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION,
   context: Context? = null
 ) {
+  val projectId: String = resolveProjectId(projectId, context)
   private val apiKey: String = sanitizeApiKey(apiKey).ifBlank {
     context?.let { resolveDefaultApiKey(it) }.orEmpty()
   }
@@ -562,24 +563,78 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       return raw.trim().removePrefix("key=").removeSurrounding("\"").trim()
     }
 
+    @android.annotation.SuppressLint("DiscouragedApi")
     @JvmOverloads
     fun resolveDefaultApiKey(context: Context? = null): String {
       val fromBuildConfig = sanitizeApiKey(com.example.BuildConfig.LEADERBOARD_API_KEY)
-      if (fromBuildConfig.isNotBlank()) return fromBuildConfig
+      if (fromBuildConfig.isNotBlank() &&
+          !fromBuildConfig.equals("API_KEY", ignoreCase = true) &&
+          !fromBuildConfig.equals("your_firestore_api_key", ignoreCase = true)
+      ) return fromBuildConfig
 
       val fromFirebaseApp = runCatching {
         FirebaseApp.getInstance().options.apiKey
       }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
-      if (fromFirebaseApp.isNotBlank()) return fromFirebaseApp
+      if (fromFirebaseApp.isNotBlank() &&
+          !fromFirebaseApp.equals("API_KEY", ignoreCase = true) &&
+          !fromFirebaseApp.equals("your_firestore_api_key", ignoreCase = true)
+      ) return fromFirebaseApp
 
       if (context != null) {
         val fromOptions = runCatching {
           FirebaseOptions.fromResource(context)?.apiKey
         }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
-        if (fromOptions.isNotBlank()) return fromOptions
+        if (fromOptions.isNotBlank() &&
+            !fromOptions.equals("API_KEY", ignoreCase = true) &&
+            !fromOptions.equals("your_firestore_api_key", ignoreCase = true)
+        ) return fromOptions
+
+        val resId = runCatching {
+          context.resources.getIdentifier("google_api_key", "string", context.packageName)
+        }.getOrDefault(0)
+        if (resId != 0) {
+          val fromRes = runCatching { context.getString(resId) }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
+          if (fromRes.isNotBlank() &&
+              !fromRes.equals("API_KEY", ignoreCase = true) &&
+              !fromRes.equals("your_firestore_api_key", ignoreCase = true)
+          ) return fromRes
+        }
       }
 
+      if (fromBuildConfig.isNotBlank()) return fromBuildConfig
+
       return ""
+    }
+
+    @android.annotation.SuppressLint("DiscouragedApi")
+    @JvmOverloads
+    fun resolveProjectId(explicitProjectId: String = "", context: Context? = null): String {
+      val trimmed = explicitProjectId.trim()
+      if (trimmed.isNotBlank() &&
+          !trimmed.equals("your_firestore_project_id", ignoreCase = true)
+      ) return trimmed
+
+      val fromFirebaseApp = runCatching {
+        FirebaseApp.getInstance().options.projectId
+      }.getOrNull()?.trim().orEmpty()
+      if (fromFirebaseApp.isNotBlank()) return fromFirebaseApp
+
+      if (context != null) {
+        val fromOptions = runCatching {
+          FirebaseOptions.fromResource(context)?.projectId
+        }.getOrNull()?.trim().orEmpty()
+        if (fromOptions.isNotBlank()) return fromOptions
+
+        val resId = runCatching {
+          context.resources.getIdentifier("project_id", "string", context.packageName)
+        }.getOrDefault(0)
+        if (resId != 0) {
+          val fromRes = runCatching { context.getString(resId) }.getOrNull()?.trim().orEmpty()
+          if (fromRes.isNotBlank()) return fromRes
+        }
+      }
+
+      return if (trimmed.isNotBlank()) trimmed else "roguetddualfront"
     }
 
     fun resolveSigningCertSha1(context: Context?): String? {

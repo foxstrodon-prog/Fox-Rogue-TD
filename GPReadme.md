@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.029
+### 🚀 What's New in Version 0.0.1.030
+
+🏆 **The Leaderboard Fix & Firebase Infrastructure Modernization**
+- **Google Services & Firebase BoM Modernization:** Updated to Google Services Gradle plugin `4.6.0` and Firebase BoM `35.2.0`, fully unlocking `google-services.json` integration across Firebase SDKs.
+- **Dynamic Leaderboard Resolution:** Enhanced `FirestoreLeaderboardApi` and `AuthRepository` to dynamically resolve backend project credentials and API keys directly from Firebase App options and generated resources.
+- **Robust Multi-Environment Compatibility:** Safeguarded leaderboard connections against credential masking in offline, testing, and team environments while ensuring smooth, reliable online score submission.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.029
 
 🛡️ **Full Codebase Hardening, Combat Fixes, Audio/Canvas Polish & Security Verification**
 - **100% Modularity & HUD Responsiveness:** Split oversized HUD and Dev Menu modules cleanly under 750 lines/file, restored landscape capsule scrolling and live active-enemy counts, fixed rotated dialog centering, and eliminated text-field clipping and banner overlaps.

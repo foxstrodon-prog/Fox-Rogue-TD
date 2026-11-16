@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.029`):** [`apk/Dual-Front-TD-v0.0.1.029-debug.apk`](apk/Dual-Front-TD-v0.0.1.029-debug.apk)
+- **Latest Android APK (`v0.0.1.030`):** [`apk/Dual-Front-TD-v0.0.1.030-debug.apk`](apk/Dual-Front-TD-v0.0.1.030-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,22 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.029
+## 🕹️ What's New in Version 0.0.1.030
+
+### 🏆 The Leaderboard Fix & Firebase Infrastructure Upgrade
+- **Google Services & Firebase BoM Modernization:**
+  - Integrated the Google Services Gradle plugin `4.6.0` (`com.google.gms.google-services`) and upgraded to Firebase Android BoM `35.2.0` (`com.google.firebase:firebase-bom`).
+  - Seamlessly reads and passes `google-services.json` configuration values to Firebase SDKs across Authentication and Analytics.
+- **Dynamic Leaderboard Configuration Resolution:**
+  - Hardened `FirestoreLeaderboardApi` and `AuthRepository` with dynamic project ID and API key discovery, prioritizing valid configurations from `google-services.json` (`FirebaseApp.options` and `@string/google_api_key`) and gracefully falling back to build-time or local parameters.
+  - Added robust placeholder isolation for `key=API_KEY` to guarantee offline and team-environment compatibility without shadowing authentic credentials.
+  - Configured Kotlin compiler compatibility flags (`-Xskip-metadata-version-check`) for seamless interoperability with modern Android dependencies.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.029
 
 ### 🛡️ Full Codebase Audit, Red-Team Security Hardening & Modularity Restoration
 - **Modularity Law Compliance (`<= 750` Lines/File):**
@@ -386,5 +401,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.029-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.030-debug.apk`)
 - Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)

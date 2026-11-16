@@ -1003,7 +1003,11 @@ class LeaderboardCoreTest {
     val unsafeField = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }
     val unsafe = unsafeField.get(null)
     val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
-    val defaultUserClass = Class.forName("com.google.firebase.auth.internal.zzad")
+    val defaultUserClass = (('a'..'z').map { "zz$it" } + ('a'..'z').flatMap { first -> ('a'..'z').map { second -> "zz$first$second" } })
+      .mapNotNull { name ->
+        runCatching { Class.forName("com.google.firebase.auth.internal.$name") }.getOrNull()
+      }
+      .first { FirebaseUser::class.java.isAssignableFrom(it) && !java.lang.reflect.Modifier.isAbstract(it.modifiers) }
     val fakeUser = allocateMethod.invoke(unsafe, defaultUserClass) as FirebaseUser
     val originalUser = userField.get(firebaseAuth)
     val nativeAuthRepo = AuthRepository(context, auth = firebaseAuth, httpClient = mockClient, apiKey = "k")

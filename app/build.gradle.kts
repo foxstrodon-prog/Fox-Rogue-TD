@@ -7,7 +7,7 @@ plugins {
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
+  id("com.google.gms.google-services")
 }
 
 // Global-leaderboard backend settings (Firestore REST). Read from environment variables first, then
@@ -27,8 +27,8 @@ android {
     applicationId = "com.aistudio.roguetd.xtkp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 50
-    versionName = "0.0.1.029"
+    versionCode = 51
+    versionName = "0.0.1.030"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -79,6 +79,11 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+  }
+  tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+      freeCompilerArgs.add("-Xskip-metadata-version-check")
+    }
   }
   buildFeatures {
     compose = true
@@ -165,5 +170,5 @@ tasks.register<Copy>("stageDebugApk") {
   dependsOn("assembleDebug")
   from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
   into(rootProject.layout.projectDirectory.dir("apk"))
-  rename { "Dual-Front-TD-v0.0.1.029-debug.apk" }
+  rename { "Dual-Front-TD-v0.0.1.030-debug.apk" }
 }
