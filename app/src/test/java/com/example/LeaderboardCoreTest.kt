@@ -31,6 +31,7 @@ import com.example.model.RunRecord
 import com.example.model.RunSubmissionState
 import com.example.ui.RogueTDViewModel
 import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Dispatchers
@@ -562,26 +563,43 @@ class LeaderboardCoreTest {
 
   @Test
   fun `AuthRepository resolves default apiKey and attempts REST auth when FirebaseAuth is null`() = runBlocking {
-    var restUrl = ""
-    val restClient = OkHttpClient.Builder()
-      .addInterceptor { chain ->
-        restUrl = chain.request().url.toString()
-        val body = """{"localId":"rest_default_key_uid","idToken":"tok_default_1","refreshToken":"ref_default_1","expiresIn":"3600"}"""
-        Response.Builder()
-          .request(chain.request())
-          .protocol(Protocol.HTTP_1_1)
-          .code(200)
-          .message("OK")
-          .body(body.toResponseBody(null))
+    val hadFirebaseApp = FirebaseApp.getApps(context).isNotEmpty()
+    FirebaseApp.clearInstancesForTest()
+    try {
+      FirebaseApp.initializeApp(
+        context,
+        FirebaseOptions.Builder()
+          .setProjectId("test-isolated-project")
+          .setApiKey("AIzaSy" + "0123456789".repeat(3) + "abc")
+          .setApplicationId("1:1234567890:android:abcdef0123456789")
           .build()
-      }
-      .build()
+      )
+      var restUrl = ""
+      val restClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+          restUrl = chain.request().url.toString()
+          val body = """{"localId":"rest_default_key_uid","idToken":"tok_default_1","refreshToken":"ref_default_1","expiresIn":"3600"}"""
+          Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body(body.toResponseBody(null))
+            .build()
+        }
+        .build()
 
-    val authRepo = AuthRepository(context = context, auth = null, httpClient = restClient)
-    val uid = authRepo.ensureAuthenticated()
-    assertEquals("rest_default_key_uid", uid)
-    assertTrue(restUrl.contains("identitytoolkit.googleapis.com/v1/accounts:signUp?key="))
-    assertTrue(authRepo.isAuthenticated.value)
+      val authRepo = AuthRepository(context = context, auth = null, httpClient = restClient)
+      val uid = authRepo.ensureAuthenticated()
+      assertEquals("rest_default_key_uid", uid)
+      assertTrue(restUrl.contains("identitytoolkit.googleapis.com/v1/accounts:signUp?key="))
+      assertTrue(authRepo.isAuthenticated.value)
+    } finally {
+      FirebaseApp.clearInstancesForTest()
+      if (hadFirebaseApp) {
+        runCatching { FirebaseApp.initializeApp(context) }
+      }
+    }
   }
 
   @Test
@@ -996,7 +1014,15 @@ class LeaderboardCoreTest {
     assertEquals("Bearer rest_bearer_token_11", capturedAuthHeader)
 
     // When native FirebaseAuth has an active currentUser, getCachedIdTokenIfValid must return null
-    val firebaseApp = FirebaseApp.getApps(context).firstOrNull() ?: FirebaseApp.initializeApp(context)!!
+    val hadFirebaseApp = FirebaseApp.getApps(context).isNotEmpty()
+    val firebaseApp = FirebaseApp.getApps(context).firstOrNull() ?: FirebaseApp.initializeApp(
+      context,
+      FirebaseOptions.Builder()
+        .setProjectId("test-isolated-project")
+        .setApiKey("AIzaSy" + "0123456789".repeat(3) + "abc")
+        .setApplicationId("1:1234567890:android:abcdef0123456789")
+        .build()
+    )
     val firebaseAuth = FirebaseAuth.getInstance(firebaseApp)
     val userField = FirebaseAuth::class.java.declaredFields.first { it.type == FirebaseUser::class.java }
     userField.isAccessible = true
@@ -1021,6 +1047,9 @@ class LeaderboardCoreTest {
       )
     } finally {
       userField.set(firebaseAuth, originalUser)
+      if (!hadFirebaseApp) {
+        FirebaseApp.clearInstancesForTest()
+      }
     }
   }
 
