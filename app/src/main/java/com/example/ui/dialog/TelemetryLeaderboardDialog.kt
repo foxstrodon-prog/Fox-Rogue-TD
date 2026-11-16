@@ -216,7 +216,7 @@ fun TelemetryLeaderboardDialog(
                                                     unfocusedContainerColor = Color(0xFF0F172A)
                                                 ),
                                                 textStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                                                modifier = Modifier.weight(1f).height(42.dp)
+                                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                                             )
                                             Button(
                                                 onClick = {
@@ -468,11 +468,14 @@ private fun LeaderboardStatusBanner(
         modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f).padding(end = 6.dp)
+            ) {
                 Icon(imageVector = icon, contentDescription = null, tint = borderColor, modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = text, color = borderColor, fontSize = 9.sp, fontWeight = FontWeight.Bold)

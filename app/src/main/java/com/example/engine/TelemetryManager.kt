@@ -21,6 +21,7 @@ class TelemetryManager @JvmOverloads constructor(
     private val analytics: FirebaseAnalytics? = runCatching { FirebaseAnalytics.getInstance(context) }.getOrNull()
 ) {
     private val prefs: SharedPreferences = context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE)
+    private val lock = Any()
 
     fun getActivePlayerName(): String {
         return PlayerIdentity.getPlayerCallsign(context)
@@ -30,7 +31,7 @@ class TelemetryManager @JvmOverloads constructor(
         PlayerIdentity.setPlayerCallsign(context, name)
     }
 
-    fun getLastRun(): RunRecord? {
+    fun getLastRun(): RunRecord? = synchronized(lock) {
         val jsonStr = prefs.getString("last_run_record", null) ?: return null
         return try {
             val obj = JSONObject(jsonStr)
@@ -54,7 +55,7 @@ class TelemetryManager @JvmOverloads constructor(
         }
     }
 
-    fun saveLastRun(record: RunRecord) {
+    fun saveLastRun(record: RunRecord) = synchronized(lock) {
         val obj = JSONObject().apply {
             put("id", record.id)
             put("seed", record.seed)
@@ -73,7 +74,7 @@ class TelemetryManager @JvmOverloads constructor(
         prefs.edit().putString("last_run_record", obj.toString()).apply()
     }
 
-    fun updateLastRunPlayerName(newName: String) {
+    fun updateLastRunPlayerName(newName: String) = synchronized(lock) {
         val trimmed = newName.trim().ifBlank { PlayerIdentity.getPlayerCallsign(context) }
         setActivePlayerName(trimmed)
 
@@ -94,7 +95,7 @@ class TelemetryManager @JvmOverloads constructor(
         }
     }
 
-    fun getLeaderboard(): List<RunRecord> {
+    fun getLeaderboard(): List<RunRecord> = synchronized(lock) {
         val jsonStr = prefs.getString("leaderboard_runs", "[]") ?: "[]"
         val list = mutableListOf<RunRecord>()
         try {
@@ -156,7 +157,7 @@ class TelemetryManager @JvmOverloads constructor(
         recordRun(record)
     }
 
-    fun recordRun(record: RunRecord) {
+    fun recordRun(record: RunRecord) = synchronized(lock) {
         // If no wave was started or score is 0, do not save to leaderboard
         if (record.score <= 0 && record.wavesCleared <= 0 && record.enemiesKilled <= 0) {
             return
@@ -188,19 +189,24 @@ class TelemetryManager @JvmOverloads constructor(
         saveLifetimeTelemetry(newLt)
     }
 
-    fun getLifetimeTelemetry(): LifetimeTelemetry {
-        return LifetimeTelemetry(
+    fun getLifetimeTelemetry(): LifetimeTelemetry = synchronized(lock) {
+        val totalDamage = if (prefs.contains("lt_total_damage_bits")) {
+            java.lang.Double.longBitsToDouble(prefs.getLong("lt_total_damage_bits", 0L))
+        } else {
+            prefs.getFloat("lt_total_damage", 0f).toDouble()
+        }
+        LifetimeTelemetry(
             totalRuns = prefs.getInt("lt_total_runs", 0),
             totalVictories = prefs.getInt("lt_total_victories", 0),
             totalHostilesKilled = prefs.getInt("lt_total_kills", 0),
             totalScrapMined = prefs.getLong("lt_total_scrap", 0L),
-            totalDamageOutput = prefs.getFloat("lt_total_damage", 0f).toDouble(),
+            totalDamageOutput = totalDamage,
             bestWaveEver = prefs.getInt("lt_best_wave", 0),
             mostUsedTower = prefs.getString("lt_mvp_tower", "None") ?: "None"
         )
     }
 
-    fun getLifetimeTelemetryForPlayer(playerName: String?): LifetimeTelemetry {
+    fun getLifetimeTelemetryForPlayer(playerName: String?): LifetimeTelemetry = synchronized(lock) {
         val targetName = playerName?.trim()?.ifBlank { null } ?: getActivePlayerName()
         val playerRuns = getLeaderboard().filter { it.playerName.equals(targetName, ignoreCase = true) }
         if (playerRuns.isEmpty()) {
@@ -234,6 +240,7 @@ class TelemetryManager @JvmOverloads constructor(
             .putInt("lt_total_victories", lt.totalVictories)
             .putInt("lt_total_kills", lt.totalHostilesKilled)
             .putLong("lt_total_scrap", lt.totalScrapMined)
+            .putLong("lt_total_damage_bits", java.lang.Double.doubleToRawLongBits(lt.totalDamageOutput))
             .putFloat("lt_total_damage", lt.totalDamageOutput.toFloat())
             .putInt("lt_best_wave", lt.bestWaveEver)
             .putString("lt_mvp_tower", lt.mostUsedTower)
@@ -280,7 +287,7 @@ class TelemetryManager @JvmOverloads constructor(
             .apply()
     }
 
-    fun getTowerPerformance(): List<TowerPerformanceRecord> {
+    private fun readPersistedTowerPerformanceMap(): MutableMap<String, TowerPerformanceRecord> {
         val jsonStr = prefs.getString("tower_performance_records", "[]") ?: "[]"
         val map = mutableMapOf<String, TowerPerformanceRecord>()
         try {
@@ -302,21 +309,27 @@ class TelemetryManager @JvmOverloads constructor(
                 }
             }
         } catch (_: Exception) {}
+        return map
+    }
 
+    fun getTowerPerformance(): List<TowerPerformanceRecord> = synchronized(lock) {
+        val map = readPersistedTowerPerformanceMap()
         val hasReset = prefs.getBoolean("has_reset_telemetry", false)
         if (map.isEmpty() && !hasReset) {
-            map["Vulcan Minigun"] = TowerPerformanceRecord("Vulcan Minigun", TowerClass.KINETIC_BALLISTIC, 24500.0, 142L, 4, 480L)
-            map["Twin Flak Cannon"] = TowerPerformanceRecord("Twin Flak Cannon", TowerClass.KINETIC_BALLISTIC, 18900.0, 98L, 3, 510L)
-            map["Frost Spire"] = TowerPerformanceRecord("Frost Spire", TowerClass.ELEMENTAL_VOID, 14200.0, 62L, 2, 420L)
-            map["Tesla Stormcoil"] = TowerPerformanceRecord("Tesla Stormcoil", TowerClass.ELEMENTAL_VOID, 31200.0, 184L, 3, 680L)
-            map["Hellfire Mortar"] = TowerPerformanceRecord("Hellfire Mortar", TowerClass.HEAVY_SIEGE, 42000.0, 215L, 2, 740L)
-            map["Titan Railgun"] = TowerPerformanceRecord("Titan Railgun", TowerClass.HEAVY_SIEGE, 38500.0, 89L, 2, 860L)
+            return listOf(
+                TowerPerformanceRecord("Hellfire Mortar", TowerClass.HEAVY_SIEGE, 42000.0, 215L, 2, 740L),
+                TowerPerformanceRecord("Titan Railgun", TowerClass.HEAVY_SIEGE, 38500.0, 89L, 2, 860L),
+                TowerPerformanceRecord("Tesla Stormcoil", TowerClass.ELEMENTAL_VOID, 31200.0, 184L, 3, 680L),
+                TowerPerformanceRecord("Vulcan Minigun", TowerClass.KINETIC_BALLISTIC, 24500.0, 142L, 4, 480L),
+                TowerPerformanceRecord("Twin Flak Cannon", TowerClass.KINETIC_BALLISTIC, 18900.0, 98L, 3, 510L),
+                TowerPerformanceRecord("Frost Spire", TowerClass.ELEMENTAL_VOID, 14200.0, 62L, 2, 420L)
+            )
         }
 
         return map.values.sortedByDescending { it.totalDamage }
     }
 
-    fun resetTowerPerformance() {
+    fun resetTowerPerformance() = synchronized(lock) {
         prefs.edit()
             .putString("tower_performance_records", "[]")
             .putBoolean("has_reset_telemetry", true)
@@ -327,9 +340,9 @@ class TelemetryManager @JvmOverloads constructor(
         recordTowerSession(towers)
     }
 
-    fun recordTowerSession(towers: List<TowerInstance>) {
+    fun recordTowerSession(towers: List<TowerInstance>) = synchronized(lock) {
         if (towers.isEmpty()) return
-        val existing = getTowerPerformance().associateBy { it.towerName }.toMutableMap()
+        val existing = readPersistedTowerPerformanceMap()
         for (t in towers) {
             val name = t.archetype?.displayName ?: t.type.displayName
             val prev = existing[name] ?: TowerPerformanceRecord(

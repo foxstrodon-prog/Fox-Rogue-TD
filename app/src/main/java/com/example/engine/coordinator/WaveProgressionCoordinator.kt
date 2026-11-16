@@ -20,6 +20,7 @@ class WaveProgressionCoordinator(
     private val telemetryManager: TelemetryManager,
     private val nextId: (String) -> String,
     private val addFloatingText: (Float, Float, String, Long, Boolean) -> Unit,
+    @Suppress("unused")
     private val onRecordRunCompletion: (Boolean, Int) -> Unit
 ) {
     private val pendingSpawns = ArrayList<EnemySpawnEntry>(64)
@@ -40,7 +41,7 @@ class WaveProgressionCoordinator(
      */
     fun deployWave() {
         val state = uiStateFlow.value
-        if (state.isWaveActive || state.isGameOver) return
+        if (state.isWaveActive || state.isGameOver || state.isVictory) return
 
         telemetryManager.logWaveStart(state.waveNumber)
 
@@ -157,7 +158,6 @@ class WaveProgressionCoordinator(
 
             if (currentWave >= state.difficulty.maxWave) {
                 isVictory = true
-                onRecordRunCompletion(true, currentWave)
                 emitFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 2f, "👑 ${state.difficulty.label} VICTORY ACHIEVED! 👑", 0xFFFFD700, false)
             } else {
                 currentWave++

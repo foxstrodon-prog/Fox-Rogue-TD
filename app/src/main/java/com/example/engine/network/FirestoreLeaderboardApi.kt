@@ -71,7 +71,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.028" }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { com.example.BuildConfig.VERSION_NAME }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
@@ -121,12 +121,13 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     requestBodyJson: JSONObject,
     idToken: String?
   ): AttemptOutcome<Unit> {
+    val encodedRunId = android.net.Uri.encode(runId)
     val keyParam = if (apiKey.isNotBlank()) "&key=$apiKey" else ""
-    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId$keyParam"
+    val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$encodedRunId$keyParam"
     val payloadString = requestBodyJson.toString()
     val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    val redactedUrl = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId"
+    val redactedUrl = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$encodedRunId"
     Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing submitScore -> URL: $redactedUrl | collection: $targetCollection | runId: $runId | payloadSize: ${payloadString.toByteArray().size} bytes | hasAuthToken: ${!idToken.isNullOrBlank()}")
 
     val requestBuilder = Request.Builder()

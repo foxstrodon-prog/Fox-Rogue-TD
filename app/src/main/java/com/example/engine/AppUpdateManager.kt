@@ -23,6 +23,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 
 data class UpdateInfo(
     val isUpdateAvailable: Boolean,
@@ -123,10 +124,12 @@ class AppUpdateManager(
                 .header("User-Agent", "RogueTD-DualFront-App/${BuildConfig.VERSION_NAME}")
                 .build()
 
-            val response = okHttpClient.newCall(request).execute()
+            val (isSuccessful, httpCode, bodyText) = okHttpClient.newCall(request).execute().use { response ->
+                Triple(response.isSuccessful, response.code, response.body?.string().orEmpty())
+            }
 
-            if (!response.isSuccessful) {
-                val errorMsg = "GitHub API error: HTTP ${response.code}"
+            if (!isSuccessful) {
+                val errorMsg = "GitHub API error: HTTP $httpCode"
                 _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = errorMsg) }
                 return@withContext UpdateInfo(
                     isUpdateAvailable = false,
@@ -135,7 +138,6 @@ class AppUpdateManager(
                 )
             }
 
-            val bodyText = response.body?.string().orEmpty()
             val json = JSONObject(bodyText)
 
             val rawTag = json.optString("tag_name", "").trim()
@@ -181,6 +183,8 @@ class AppUpdateManager(
             }
 
             info
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             val errorMsg = e.message ?: "Failed to check GitHub releases"
             _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = errorMsg) }
@@ -201,11 +205,22 @@ class AppUpdateManager(
             _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = "No APK download URL found") }
             return
         }
+        if (!apkUrl.startsWith("https://", ignoreCase = true)) {
+            _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = "Insecure APK download URL rejected") }
+            return
+        }
 
         try {
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            val targetFileName = updateInfo.apkFileName ?: "RogueTD-v${updateInfo.latestVersion}.apk"
-            val cacheTargetDir = context.externalCacheDir ?: context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+            val rawName = updateInfo.apkFileName ?: "RogueTD-v${updateInfo.latestVersion}.apk"
+            val targetFileName = File(rawName).name
+                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                .ifBlank { "RogueTD-update.apk" }
+            val cacheTargetDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.externalCacheDir
+            if (cacheTargetDir == null) {
+                _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = "No external download directory available") }
+                return
+            }
             val destFile = File(cacheTargetDir, targetFileName)
 
             if (destFile.exists()) {
@@ -274,12 +289,23 @@ class AppUpdateManager(
                                     val localUriStr = if (uriCol >= 0) cursor.getString(uriCol) else null
                                     val resolvedFile = localUriStr?.let { Uri.parse(it).path?.let { p -> File(p) } } ?: file
                                     val finalFile = if (resolvedFile.exists()) resolvedFile else file
-                                    _updateState.update {
-                                        it.copy(
-                                            status = UpdateDownloadStatus.READY_TO_INSTALL,
-                                            progressPercent = 100,
-                                            downloadedApkFile = finalFile
-                                        )
+                                    if (!verifyApkSignatureAndPackage(finalFile)) {
+                                        finalFile.delete()
+                                        _updateState.update {
+                                            it.copy(
+                                                status = UpdateDownloadStatus.FAILED,
+                                                downloadedApkFile = null,
+                                                errorMessage = "Downloaded APK failed package or signature verification"
+                                            )
+                                        }
+                                    } else {
+                                        _updateState.update {
+                                            it.copy(
+                                                status = UpdateDownloadStatus.READY_TO_INSTALL,
+                                                progressPercent = 100,
+                                                downloadedApkFile = finalFile
+                                            )
+                                        }
                                     }
                                     return@launch
                                 }
@@ -332,21 +358,34 @@ class AppUpdateManager(
                     val statusCol = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
                     val status = if (statusCol >= 0) cursor.getInt(statusCol) else 0
                     if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        progressPollingJob?.cancel()
                         val uriCol = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
                         val localUriStr = if (uriCol >= 0) cursor.getString(uriCol) else null
                         val fallbackFile = _updateState.value.downloadedApkFile
                         val resolvedFile = localUriStr?.let { Uri.parse(it).path?.let { p -> File(p) } } ?: fallbackFile
                         val finalFile = if (resolvedFile != null && resolvedFile.exists()) resolvedFile else fallbackFile
                         if (finalFile != null && finalFile.exists()) {
-                            _updateState.update {
-                                it.copy(
-                                    status = UpdateDownloadStatus.READY_TO_INSTALL,
-                                    progressPercent = 100,
-                                    downloadedApkFile = finalFile
-                                )
+                            if (!verifyApkSignatureAndPackage(finalFile)) {
+                                finalFile.delete()
+                                _updateState.update {
+                                    it.copy(
+                                        status = UpdateDownloadStatus.FAILED,
+                                        downloadedApkFile = null,
+                                        errorMessage = "Downloaded APK failed package or signature verification"
+                                    )
+                                }
+                            } else {
+                                _updateState.update {
+                                    it.copy(
+                                        status = UpdateDownloadStatus.READY_TO_INSTALL,
+                                        progressPercent = 100,
+                                        downloadedApkFile = finalFile
+                                    )
+                                }
                             }
                         }
                     } else if (status == DownloadManager.STATUS_FAILED) {
+                        progressPollingJob?.cancel()
                         _updateState.update {
                             it.copy(
                                 status = UpdateDownloadStatus.FAILED,
@@ -364,6 +403,17 @@ class AppUpdateManager(
      */
     fun installApk(file: File) {
         try {
+            if (!verifyApkSignatureAndPackage(file)) {
+                _updateState.update {
+                    it.copy(
+                        status = UpdateDownloadStatus.FAILED,
+                        downloadedApkFile = null,
+                        errorMessage = "APK package or signing certificate verification failed"
+                    )
+                }
+                return
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!context.packageManager.canRequestPackageInstalls()) {
                     val settingsIntent = Intent(
@@ -453,13 +503,13 @@ class AppUpdateManager(
                         context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
                     }
 
-                    if (archiveInfo == null) {
-                        // Corrupt or partial download - delete immediately
+                    if (archiveInfo == null || archiveInfo.packageName != context.packageName) {
+                        // Corrupt, partial, or mismatched-package download - delete immediately
                         apkFile.delete()
                     } else {
                         val apkVersionCode = PackageInfoCompat.getLongVersionCode(archiveInfo)
-                        if (apkVersionCode <= currentVersionCode) {
-                            // Already installed or obsolete - purge immediately
+                        if (apkVersionCode <= currentVersionCode || !verifyApkSignatureAndPackage(apkFile)) {
+                            // Already installed, obsolete, or untrusted signature - purge immediately
                             apkFile.delete()
                         } else {
                             if (apkVersionCode > highestPendingVersionCode) {
@@ -499,5 +549,60 @@ class AppUpdateManager(
         }
 
         return pendingNewerApk
+    }
+
+    internal fun verifyApkSignatureAndPackage(apkFile: File): Boolean {
+        if (!apkFile.exists() || !apkFile.isFile) return false
+        return try {
+            val pm = context.packageManager
+            val installedHashes = getInstalledSigningCertSha256Set()
+            if (installedHashes.isEmpty()) return false
+
+            val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNATURES)
+            } ?: return false
+
+            if (archiveInfo.packageName != context.packageName) return false
+
+            val archiveHashes = extractSigningCertSha256Set(archiveInfo)
+            archiveHashes.isNotEmpty() && archiveHashes.any { it in installedHashes }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun getInstalledSigningCertSha256Set(): Set<String> {
+        return try {
+            val pm = context.packageManager
+            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+            }
+            extractSigningCertSha256Set(info)
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun extractSigningCertSha256Set(info: android.content.pm.PackageInfo): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = info.signingInfo
+            signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() }
+                ?: signingInfo?.signingCertificateHistory
+        } else {
+            @Suppress("DEPRECATION")
+            info.signatures
+        } ?: return emptySet()
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        return signatures.mapTo(HashSet()) { sig ->
+            digest.reset()
+            digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) }
+        }
     }
 }

@@ -109,10 +109,10 @@ object WaveGenerator {
             waveNumber == 45 -> "Hyper-Velocity Ballistic Shred (Cinematic 5)"
             waveNumber == 50 -> "Apex Stellar Star vs Void Colossus (Cinematic 1)"
             waveNumber == 52 -> "Tier 1 to Apex Final Forms Gauntlet (Cinematic 6)"
-            waveNumber % 4 == 0 -> "Heavily Armored Converging Column"
-            waveNumber % 3 == 0 -> "Bifurcated High-Speed Blitz"
             waveNumber == 10 -> "CRITICAL THREAT: APEX TITAN & ESCORTS"
             waveNumber == 20 -> "EXTINCTION OVERLORD: TOTAL SIEGE"
+            waveNumber % 4 == 0 -> "Heavily Armored Converging Column"
+            waveNumber % 3 == 0 -> "Bifurcated High-Speed Blitz"
             waveNumber > 20 -> "Endless Void Dual-Front Scaling"
             else -> "Hostile Dual-Lane Convergence"
         }
@@ -162,7 +162,7 @@ object WaveGenerator {
                 val count = (12 * countMul).toInt().coerceAtLeast(4)
                 for (i in 0 until count) {
                     val lane = i % 2
-                    spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = if (i == 0) 300L else 750L, laneIndex = lane, hpScale = 0.9f))
+                    spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = if (i == 0) 300L else 750L, laneIndex = lane, hpScale = 0.9f * difficulty.hpScaleMultiplier, speedScale = baseSpeedScale))
                 }
             }
             2 -> {
@@ -170,27 +170,27 @@ object WaveGenerator {
                 val droneCount = (8 * countMul).toInt().coerceAtLeast(2)
                 val soldierCount = (6 * countMul).toInt().coerceAtLeast(2)
                 for (i in 0 until droneCount) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 650L, laneIndex = i % 2, hpScale = baseHpScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 650L, laneIndex = i % 2, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 }
                 for (i in 0 until soldierCount) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 900L, laneIndex = (i + 1) % 2, hpScale = baseHpScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 900L, laneIndex = (i + 1) % 2, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 }
             }
             3 -> {
                 // Wave 3: Speedsters flank on Beta, Drones on Alpha
                 val count = (8 * countMul).toInt().coerceAtLeast(2)
                 for (i in 0 until count) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 500L, laneIndex = 0, hpScale = baseHpScale))
-                    spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = 1, hpScale = baseHpScale, speedScale = 1.05f))
+                    spawnList.add(EnemySpawnEntry(EnemyType.DRONE, delayMs = 500L, laneIndex = 0, hpScale = baseHpScale, speedScale = baseSpeedScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = 1, hpScale = baseHpScale, speedScale = 1.05f * baseSpeedScale))
                 }
             }
             4 -> {
                 // Wave 4: Golems leading each lane
-                spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 400L, laneIndex = 0, hpScale = baseHpScale))
-                spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 500L, laneIndex = 1, hpScale = baseHpScale))
+                spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 400L, laneIndex = 0, hpScale = baseHpScale, speedScale = baseSpeedScale))
+                spawnList.add(EnemySpawnEntry(EnemyType.BRUISER, delayMs = 500L, laneIndex = 1, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 val soldierCount = (10 * countMul).toInt().coerceAtLeast(4)
                 for (i in 0 until soldierCount) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 700L, laneIndex = i % 2, hpScale = baseHpScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.SOLDIER, delayMs = 700L, laneIndex = i % 2, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 }
             }
             5 -> {
@@ -201,12 +201,13 @@ object WaveGenerator {
                         delayMs = 800L,
                         laneIndex = 0,
                         hpScale = baseHpScale * 1.5f,
+                        speedScale = baseSpeedScale,
                         isBoss = true
                     )
                 )
                 val count = (8 * countMul).toInt().coerceAtLeast(3)
                 for (i in 0 until count) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 650L, laneIndex = 1, hpScale = baseHpScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 650L, laneIndex = 1, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 }
                 spawnList.add(
                     EnemySpawnEntry(
@@ -214,6 +215,7 @@ object WaveGenerator {
                         delayMs = 1200L,
                         laneIndex = 1,
                         hpScale = baseHpScale * 2.5f,
+                        speedScale = baseSpeedScale,
                         isBoss = true
                     )
                 )
@@ -226,16 +228,17 @@ object WaveGenerator {
                         delayMs = 1500L,
                         laneIndex = 0,
                         hpScale = baseHpScale * 1.6f,
+                        speedScale = baseSpeedScale,
                         isBoss = true
                     )
                 )
                 val disruptorCount = (8 * countMul).toInt().coerceAtLeast(2)
                 val speedsterCount = (12 * countMul).toInt().coerceAtLeast(4)
                 for (i in 0 until disruptorCount) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.DISRUPTOR, delayMs = 700L, laneIndex = 1, hpScale = baseHpScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.DISRUPTOR, delayMs = 700L, laneIndex = 1, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 }
                 for (i in 0 until speedsterCount) {
-                    spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = i % 2, hpScale = baseHpScale))
+                    spawnList.add(EnemySpawnEntry(EnemyType.SPEEDSTER, delayMs = 600L, laneIndex = i % 2, hpScale = baseHpScale, speedScale = baseSpeedScale))
                 }
             }
             35 -> {

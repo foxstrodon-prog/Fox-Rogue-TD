@@ -63,8 +63,8 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
     }
 
     authRepo.ensureAuthenticated()
-    var idToken = authRepo.getIdToken()
-    var effectiveUserId = authRepo.currentUserId.orEmpty()
+    var (sessionUid, idToken) = authRepo.getAuthenticatedSession()
+    var effectiveUserId = sessionUid.orEmpty()
     Log.d(TAG, "[ScoreSubmissionWorker] Authenticated user context: uid=$effectiveUserId, hasIdToken=${!idToken.isNullOrBlank()}")
 
     if (idToken.isNullOrBlank() || effectiveUserId.isBlank()) {
@@ -83,18 +83,32 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
       return@withContext if (failureKind == FailureKind.UNCONFIGURED) Result.failure() else Result.retry()
     }
 
+    var needsRetry = false
+    var hasUnconfigured = false
+
     for (item in pendingList) {
       var itemWithUser = item.copy(userId = effectiveUserId)
       Log.d(TAG, "[ScoreSubmissionWorker] Submitting score for runId=${item.runId}, callsign=${item.callsign}, score=${item.score}, waves=${item.wavesCleared}, attempt=${item.attempts + 1}")
       var result = api.submitScore(itemWithUser, idToken = idToken)
       if (result is LeaderboardResult.Failure && result.kind == FailureKind.SECURITY_REJECTED) {
         Log.w(TAG, "[ScoreSubmissionWorker] Score submission returned SECURITY_REJECTED for runId=${item.runId}. Attempting forced token refresh.")
-        val refreshed = authRepo.getIdToken(forceRefresh = true)
-        if (!refreshed.isNullOrBlank()) {
-          idToken = refreshed
-          effectiveUserId = authRepo.currentUserId.orEmpty()
+        val (refreshedUid, refreshedToken) = authRepo.getAuthenticatedSession(forceRefresh = true)
+        if (!refreshedToken.isNullOrBlank() && !refreshedUid.isNullOrBlank()) {
+          idToken = refreshedToken
+          effectiveUserId = refreshedUid
           itemWithUser = item.copy(userId = effectiveUserId)
           result = api.submitScore(itemWithUser, idToken = idToken)
+        } else {
+          val refreshFailure = authRepo.lastAuthFailure
+          if (refreshFailure != null && (
+              refreshFailure.kind == FailureKind.NETWORK_UNAVAILABLE ||
+              refreshFailure.kind == FailureKind.TIMEOUT ||
+              refreshFailure.kind == FailureKind.RATE_LIMITED ||
+              refreshFailure.kind == FailureKind.SERVER_ERROR
+            )
+          ) {
+            result = LeaderboardResult.Failure(refreshFailure.kind, refreshFailure.message)
+          }
         }
       }
       when (result) {
@@ -115,20 +129,19 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
                 LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = true)
               } else {
                 LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = false)
-                return@withContext Result.retry()
+                needsRetry = true
               }
             }
             FailureKind.UNCONFIGURED -> {
               LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = false)
-              return@withContext Result.failure()
+              hasUnconfigured = true
             }
             FailureKind.RATE_LIMITED,
             FailureKind.TIMEOUT,
             FailureKind.SERVER_ERROR,
             FailureKind.NETWORK_UNAVAILABLE -> {
-              store.incrementAttempt(item.runId)
               LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = false)
-              return@withContext Result.retry()
+              needsRetry = true
             }
             FailureKind.MALFORMED_PAYLOAD -> {
               Log.e(TAG, "[ScoreSubmissionWorker] RunId=${item.runId} failed with MALFORMED_PAYLOAD. Dropping from queue.")
@@ -140,8 +153,14 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
       }
     }
 
-    Log.i(TAG, "[ScoreSubmissionWorker] All pending items processed successfully.")
-    Result.success()
+    return@withContext when {
+      hasUnconfigured && !needsRetry -> Result.failure()
+      needsRetry -> Result.retry()
+      else -> {
+        Log.i(TAG, "[ScoreSubmissionWorker] All pending items processed successfully.")
+        Result.success()
+      }
+    }
   }
 
   companion object {

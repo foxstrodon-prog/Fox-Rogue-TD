@@ -2,6 +2,7 @@ package com.example.ui.dialog
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -219,7 +220,10 @@ fun UpdateModalDialog(
 }
 
 @Composable
-internal fun RunSummarySubmissionBanner(state: GameUIState) {
+internal fun RunSummarySubmissionBanner(
+    state: GameUIState,
+    onRetryLeaderboard: () -> Unit = {}
+) {
     val isDevTuned = state.lastRunRecord?.isDevTuned == true || state.balanceConfig.isGameplayModified()
     if (isDevTuned || state.runSubmissionState == RunSubmissionState.EXCLUDED_DEV_TUNED) {
         Surface(
@@ -257,7 +261,7 @@ internal fun RunSummarySubmissionBanner(state: GameUIState) {
             color = Color(0xFFFF2A55).copy(alpha = 0.15f),
             shape = RoundedCornerShape(6.dp),
             border = BorderStroke(1.dp, Color(0xFFFF2A55)),
-            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
+            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry").clickable { onRetryLeaderboard() }
         ) {
             Text(
                 text = "UPLOAD FAILED: ${state.leaderboardSubmissionError}",
@@ -273,7 +277,7 @@ internal fun RunSummarySubmissionBanner(state: GameUIState) {
             color = Color(0xFF00F0FF).copy(alpha = 0.12f),
             shape = RoundedCornerShape(6.dp),
             border = BorderStroke(1.dp, Color(0xFF00F0FF)),
-            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
+            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry").clickable { onRetryLeaderboard() }
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -333,7 +337,7 @@ internal fun RunSummarySubmissionBanner(state: GameUIState) {
             color = Color(0xFFFF2A55).copy(alpha = 0.15f),
             shape = RoundedCornerShape(6.dp),
             border = BorderStroke(1.dp, Color(0xFFFF2A55)),
-            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
+            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry").clickable { onRetryLeaderboard() }
         ) {
             Text(
                 text = state.leaderboardErrorMessage ?: "UPLOAD FAILED",
@@ -352,9 +356,10 @@ fun RunSummaryDialog(
     state: GameUIState,
     onRestart: () -> Unit,
     onViewTelemetry: () -> Unit,
-    onSetPlayerName: (String) -> Unit
+    onSetPlayerName: (String) -> Unit,
+    onRetryLeaderboard: () -> Unit = {}
 ) {
-    var callsignInput by remember { mutableStateOf(state.activePlayerName) }
+    var callsignInput by remember(state.activePlayerName) { mutableStateOf(state.activePlayerName) }
     var nameSaved by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = { }) {
@@ -384,7 +389,7 @@ fun RunSummaryDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                RunSummarySubmissionBanner(state = state)
+                RunSummarySubmissionBanner(state = state, onRetryLeaderboard = onRetryLeaderboard)
 
                 Surface(
                     color = Color(0xFF131F33),
@@ -428,7 +433,7 @@ fun RunSummaryDialog(
                                     unfocusedContainerColor = Color(0xFF0F172A)
                                 ),
                                 textStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                                modifier = Modifier.weight(1f).height(46.dp).testTag("operative_name_input")
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("operative_name_input")
                             )
 
                             Button(

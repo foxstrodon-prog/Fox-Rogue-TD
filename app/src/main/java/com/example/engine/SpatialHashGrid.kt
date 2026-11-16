@@ -93,6 +93,7 @@ class SpatialHashGrid(
                 val bucket = buckets[rowOffset + cx]
                 for (i in bucket.indices) {
                     val enemy = bucket[i]
+                    if (enemy.isDead) continue
                     val dx = enemy.worldX - centerX
                     val dy = enemy.worldY - centerY
                     if ((dx * dx + dy * dy) <= radiusSq && predicate(enemy)) {
@@ -126,6 +127,7 @@ class SpatialHashGrid(
                 val bucket = buckets[rowOffset + cx]
                 for (i in bucket.indices) {
                     val enemy = bucket[i]
+                    if (enemy.isDead) continue
                     val dx = enemy.worldX - centerX
                     val dy = enemy.worldY - centerY
                     if ((dx * dx + dy * dy) <= radiusSq) {
@@ -167,6 +169,7 @@ class SpatialHashGrid(
                 val bucket = buckets[rowOffset + cx]
                 for (i in bucket.indices) {
                     val enemy = bucket[i]
+                    if (enemy.isDead) continue
                     val dx = enemy.worldX - centerX
                     val dy = enemy.worldY - centerY
                     if ((dx * dx + dy * dy) <= radiusSq) {

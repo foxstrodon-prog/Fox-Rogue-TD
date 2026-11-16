@@ -75,8 +75,9 @@ fun GameCanvas(
         val boardOriginX = (size.width - boardWidthPx) / 2f
         val boardOriginY = (size.height - boardHeightPx) / 2f
 
-        val shakeX = if (state.screenShakeIntensity > 0f) (sin(System.currentTimeMillis() * 0.05f) * state.screenShakeIntensity * 12f).toFloat() else 0f
-        val shakeY = if (state.screenShakeIntensity > 0f) (cos(System.currentTimeMillis() * 0.05f) * state.screenShakeIntensity * 12f).toFloat() else 0f
+        val shakePhase = (System.currentTimeMillis() % 100_000L).toFloat() * 0.05f
+        val shakeX = if (state.screenShakeIntensity > 0f) sin(shakePhase) * state.screenShakeIntensity * 12f else 0f
+        val shakeY = if (state.screenShakeIntensity > 0f) cos(shakePhase) * state.screenShakeIntensity * 12f else 0f
 
         drawRect(color = Color(0xFF070B13))
 

@@ -16,6 +16,7 @@ import com.example.model.RunSubmissionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +41,12 @@ class LeaderboardRepository @JvmOverloads constructor(
 
   private val fetchMutex = Mutex()
   private val initialized = AtomicBoolean(false)
+  @Volatile
   private var lastFetchElapsedRealtime: Long = 0L
+
+  fun close() {
+    scope.cancel()
+  }
 
   suspend fun initialize() = withContext(Dispatchers.IO) {
     if (initialized.compareAndSet(false, true)) {
@@ -150,63 +156,66 @@ class LeaderboardRepository @JvmOverloads constructor(
         )
       }
 
-      val idToken = authRepo?.getIdToken(forceRefresh = false)
-      var result = api.fetchTopScores(idToken = idToken)
-      if (result is LeaderboardResult.Failure &&
-          (result.kind == FailureKind.NETWORK_UNAVAILABLE || result.kind == FailureKind.TIMEOUT) &&
-          _boardState.value.entries.isEmpty()) {
-        Log.d(TAG, "[LeaderboardRepository] Cold-start network handshake pending, retrying in 1500ms...")
-        kotlinx.coroutines.delay(1500L)
-        result = api.fetchTopScores(idToken = idToken)
-      }
-      when (result) {
-        is LeaderboardResult.Success -> {
-          lastFetchElapsedRealtime = maxOf(1L, SystemClock.elapsedRealtime())
-          val myUserId = authRepo?.currentUserId
-          val processed = if (myUserId.isNullOrBlank()) {
-            result.data
-          } else {
-            result.data.map { entry ->
-              if (entry.userId == myUserId) entry.copy(isLocalPlayer = true) else entry
+      try {
+        val (myUserId, idToken) = authRepo?.getAuthenticatedSession() ?: (null to null)
+        var result = api.fetchTopScores(idToken = idToken)
+        if (result is LeaderboardResult.Failure &&
+            (result.kind == FailureKind.NETWORK_UNAVAILABLE || result.kind == FailureKind.TIMEOUT) &&
+            _boardState.value.entries.isEmpty()) {
+          Log.d(TAG, "[LeaderboardRepository] Cold-start network handshake pending, retrying in 1500ms...")
+          kotlinx.coroutines.delay(1500L)
+          result = api.fetchTopScores(idToken = idToken)
+        }
+        when (result) {
+          is LeaderboardResult.Success -> {
+            lastFetchElapsedRealtime = maxOf(1L, SystemClock.elapsedRealtime())
+            val processed = if (myUserId.isNullOrBlank()) {
+              result.data
+            } else {
+              result.data.map { entry ->
+                if (entry.userId == myUserId) entry.copy(isLocalPlayer = true) else entry
+              }
+            }
+            store.saveCachedLeaderboard(processed)
+            val pendingCount = store.getPendingQueue().size
+            Log.i(TAG, "[LeaderboardRepository] fetchLeaderboard: SUCCESS. Transitioning status=ONLINE. Fetched ${processed.size} entries. Pending count: $pendingCount")
+            _boardState.update {
+              it.copy(
+                entries = processed,
+                status = GlobalBoardStatus.ONLINE,
+                failureKind = null,
+                errorMessage = null,
+                isRefreshing = false,
+                pendingCount = pendingCount,
+                lastFetchMs = System.currentTimeMillis()
+              )
             }
           }
-          store.saveCachedLeaderboard(processed)
-          val pendingCount = store.getPendingQueue().size
-          Log.i(TAG, "[LeaderboardRepository] fetchLeaderboard: SUCCESS. Transitioning status=ONLINE. Fetched ${processed.size} entries. Pending count: $pendingCount")
-          _boardState.update {
-            it.copy(
-              entries = processed,
-              status = GlobalBoardStatus.ONLINE,
-              failureKind = null,
-              errorMessage = null,
-              isRefreshing = false,
-              pendingCount = pendingCount,
-              lastFetchMs = System.currentTimeMillis()
-            )
+          is LeaderboardResult.Failure -> {
+            val cached = store.getCachedLeaderboard()
+            val pendingCount = store.getPendingQueue().size
+            val status = if (cached.isNotEmpty()) {
+              GlobalBoardStatus.OFFLINE_CACHED
+            } else if (result.kind == FailureKind.UNCONFIGURED) {
+              GlobalBoardStatus.NOT_CONFIGURED
+            } else {
+              GlobalBoardStatus.ERROR
+            }
+            Log.w(TAG, "[LeaderboardRepository] fetchLeaderboard: FAILURE (kind=${result.kind}). Transitioning status=$status. Pending count: $pendingCount. Message: ${result.message}")
+            _boardState.update {
+              it.copy(
+                entries = if (cached.isNotEmpty()) cached else it.entries,
+                status = status,
+                failureKind = result.kind,
+                errorMessage = result.message,
+                isRefreshing = false,
+                pendingCount = pendingCount
+              )
+            }
           }
         }
-        is LeaderboardResult.Failure -> {
-          val cached = store.getCachedLeaderboard()
-          val pendingCount = store.getPendingQueue().size
-          val status = if (cached.isNotEmpty()) {
-            GlobalBoardStatus.OFFLINE_CACHED
-          } else if (result.kind == FailureKind.UNCONFIGURED) {
-            GlobalBoardStatus.NOT_CONFIGURED
-          } else {
-            GlobalBoardStatus.ERROR
-          }
-          Log.w(TAG, "[LeaderboardRepository] fetchLeaderboard: FAILURE (kind=${result.kind}). Transitioning status=$status. Pending count: $pendingCount. Message: ${result.message}")
-          _boardState.update {
-            it.copy(
-              entries = if (cached.isNotEmpty()) cached else it.entries,
-              status = status,
-              failureKind = result.kind,
-              errorMessage = result.message,
-              isRefreshing = false,
-              pendingCount = pendingCount
-            )
-          }
-        }
+      } finally {
+        _boardState.update { it.copy(isRefreshing = false) }
       }
     }
   }

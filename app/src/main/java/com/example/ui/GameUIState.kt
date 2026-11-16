@@ -94,7 +94,8 @@ data class GameUIState(
     val activeCinematic: ActiveCinematicState? = null,
     val difficulty: GameDifficulty = GameDifficulty.MEDIUM,
     val isSingularityWarningOpen: Boolean = false,
-    val telemetryInitialTab: Int = 0
+    val telemetryInitialTab: Int = 0,
+    val activeEnemyCount: Int = 0
 ) {
     /**
      * Extracts the high-frequency 60-120 FPS render state for [GameCanvas].
@@ -116,6 +117,7 @@ data class GameUIState(
      * preventing Jetpack Compose from recomposing HUD bars on pure physics/movement frames.
      */
     fun toHudState(): GameUIState = copy(
+        activeEnemyCount = enemies.size,
         enemies = emptyList(),
         projectiles = emptyList(),
         laserBeams = emptyList(),

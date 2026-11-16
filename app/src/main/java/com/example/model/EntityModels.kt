@@ -267,9 +267,15 @@ data class EnemyInstance(
     /** Per-tick transient: true while inside any friendly support aura (for rendering). */
     var isAuraBuffed: Boolean = false
 ) {
-    val isDead: Boolean get() = currentHp <= 0f
+    val isDead: Boolean get() = !currentHp.isFinite() || currentHp <= 0f
     val effectiveSpeed: Float
-        get() = (if (slowTimerMs > 0L) speed * maxOf(0.15f, slowFactor) else speed) * auraSpeedMul
+        get() {
+            val safeSpeed = if (speed.isFinite() && speed > 0f) speed else 1.0f
+            val safeSlow = if (slowFactor.isFinite()) slowFactor.coerceIn(0.15f, 1.0f) else 1.0f
+            val safeAura = if (auraSpeedMul.isFinite() && auraSpeedMul > 0f) auraSpeedMul else 1.0f
+            val result = (if (slowTimerMs > 0L) safeSpeed * safeSlow else safeSpeed) * safeAura
+            return if (result.isFinite() && result > 0f) result else safeSpeed
+        }
 }
 
 /**

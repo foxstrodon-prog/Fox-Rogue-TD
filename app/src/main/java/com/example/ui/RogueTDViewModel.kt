@@ -83,6 +83,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var devTunedThisRun: Boolean = false
     private var runSessionId: Long = 0L
     private var gameLoopJob: Job? = null
+    private var lastRecordRunJob: Job? = null
     private var updateDismissedForSession: Boolean = false
 
     // Domain Coordinators (Task D-01)
@@ -238,6 +239,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     override fun onCleared() {
         super.onCleared()
         appUpdateManager.unregisterReceiver()
+        leaderboardRepository.close()
         soundManager.release()
     }
 
@@ -282,13 +284,15 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun isInternalDialogActive(): Boolean {
         val s = _uiState.value
-        return s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.showEndRunConfirmDialog || s.showUpdateModal
+        return s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.showEndRunConfirmDialog || s.showUpdateModal || s.isGameOver || s.isVictory || s.isSingularityWarningOpen
     }
 
     fun openPauseMenu() {
+        val s = _uiState.value
+        if (s.isGameOver || s.isVictory || s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen) return
         soundManager.isPaused = true
-        val currentSpeed = _uiState.value.gameSpeed
-        val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else _uiState.value.prePauseSpeed
+        val currentSpeed = s.gameSpeed
+        val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else s.prePauseSpeed
         _uiState.update { it.copy(isPauseMenuOpen = true, prePauseSpeed = savedSpeed, gameSpeed = GameSpeed.PAUSED) }
     }
 
@@ -598,6 +602,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 val now = System.currentTimeMillis()
                 val deltaMs = (now - lastTime).coerceAtMost(50L)
                 lastTime = now
+                soundManager.updateTick(now, deltaMs)
 
                 val idx = frameCount % 30
                 frameTimes[idx] = deltaMs
@@ -615,7 +620,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
                 val speed = _uiState.value.gameSpeed.multiplier
                 val simDeltaSec = (deltaMs / 1000f) * (if (speed > 0f) speed else 1.0f)
-                if (speed > 0f && !_uiState.value.isGameOver && !isInternalDialogActive()) {
+                if (speed > 0f && !_uiState.value.isGameOver && !_uiState.value.isVictory && !isInternalDialogActive()) {
                     simulationCoordinator.tickSimulation(simDeltaSec, (deltaMs * speed).toLong(), now)
                 } else {
                     _uiState.update { it.copy(animTimeMs = now) }
@@ -683,7 +688,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
 
         val completionSessionId = runSessionId
-        viewModelScope.launch(Dispatchers.IO) {
+        lastRecordRunJob = viewModelScope.launch(Dispatchers.IO) {
             val latestCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
             val recordToSave = record.copy(playerName = latestCallsign)
             telemetryManager.recordRun(recordToSave)
@@ -709,7 +714,10 @@ class RogueTDViewModel @JvmOverloads constructor(
         val lastRunId = _uiState.value.lastRunRecord?.id
         val sanitizedCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
         if (!lastRunId.isNullOrBlank()) {
-            viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
+                lastRecordRunJob?.join()
+                telemetryManager.updateLastRunPlayerName(trimmed)
+                refreshTelemetry()
                 leaderboardRepository.updatePendingCallsign(lastRunId, sanitizedCallsign)
             }
         }

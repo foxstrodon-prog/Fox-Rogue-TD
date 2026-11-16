@@ -176,6 +176,9 @@ class AuthRepository private constructor(
                 if (!cachedUid.isNullOrBlank() && (!cachedToken.isNullOrBlank() || !cachedRefresh.isNullOrBlank())) {
                     val token = getIdTokenLocked(forceRefresh = false)
                     if (!token.isNullOrBlank()) {
+                        if (nativeClient != null) {
+                            nativeAuthBypassed = true
+                        }
                         _isAuthenticated.value = true
                         return@withLock prefs.getString(KEY_CACHED_UID, cachedUid)
                     }
@@ -211,6 +214,14 @@ class AuthRepository private constructor(
     suspend fun getIdToken(forceRefresh: Boolean = false): String? = withContext(Dispatchers.IO) {
         sharedAuthMutex.withLock {
             getIdTokenLocked(forceRefresh)
+        }
+    }
+
+    @JvmOverloads
+    suspend fun getAuthenticatedSession(forceRefresh: Boolean = false): Pair<String?, String?> = withContext(Dispatchers.IO) {
+        sharedAuthMutex.withLock {
+            val token = getIdTokenLocked(forceRefresh)
+            currentUserId to token
         }
     }
 
@@ -328,6 +339,8 @@ class AuthRepository private constructor(
                 if (refreshFailureKind == FailureKind.NETWORK_UNAVAILABLE ||
                     refreshFailureKind == FailureKind.TIMEOUT ||
                     refreshFailureKind == FailureKind.RATE_LIMITED ||
+                    refreshFailureKind == FailureKind.SERVER_ERROR ||
+                    refreshFailureKind == FailureKind.MALFORMED_PAYLOAD ||
                     refreshFailureKind == FailureKind.UNCONFIGURED
                 ) {
                     return null
@@ -485,7 +498,10 @@ class AuthRepository private constructor(
                     return null
                 }
                 val respStr = response.body?.string().orEmpty()
-                if (respStr.isBlank()) return null
+                if (respStr.isBlank()) {
+                    lastAuthFailure = AuthFailure(FailureKind.SERVER_ERROR, "Empty response from Firebase Auth token refresh")
+                    return null
+                }
                 val json = JSONObject(respStr)
                 val newIdToken = json.optString("id_token").ifBlank { json.optString("idToken") }
                 val newRefreshToken = json.optString("refresh_token").ifBlank { json.optString("refreshToken", refreshToken) }

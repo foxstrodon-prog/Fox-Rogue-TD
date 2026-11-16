@@ -2,8 +2,12 @@ package com.example
 
 import android.content.Context
 import android.content.res.Configuration
+import android.database.ContentObserver
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.WindowManager
@@ -22,6 +26,8 @@ import com.example.model.GameSpeed
 import com.example.ui.RogueTDScreen
 import com.example.ui.RogueTDViewModel
 import com.example.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -30,6 +36,22 @@ class MainActivity : ComponentActivity() {
 
   private var orientationEventListener: OrientationEventListener? = null
   private var lastOrientBucket: Float = 0f
+  @Volatile
+  private var cachedAutoRotateOn: Boolean = true
+  private var autoRotateObserver: ContentObserver? = null
+  private var isAutoRotateObserverRegistered: Boolean = false
+
+  private fun refreshAutoRotateSetting() {
+    cachedAutoRotateOn = try {
+      Settings.System.getInt(
+        contentResolver,
+        Settings.System.ACCELEROMETER_ROTATION,
+        1
+      ) == 1
+    } catch (_: Exception) {
+      true
+    }
+  }
 
   override fun attachBaseContext(newBase: Context) {
     val overrideConfig = Configuration(newBase.resources.configuration)
@@ -42,20 +64,31 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     applyFullscreenImmersiveMode()
 
+    refreshAutoRotateSetting()
+    autoRotateObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+      override fun onChange(selfChange: Boolean) {
+        refreshAutoRotateSetting()
+      }
+    }
+
     // Screen keep-awake management tied directly to active game loop state
     lifecycleScope.launch {
       repeatOnLifecycle(Lifecycle.State.STARTED) {
-        viewModel.uiState.collect { state ->
-          val isPlaying = state.gameSpeed != GameSpeed.PAUSED &&
-                  !state.isPauseMenuOpen &&
-                  !state.isGameOver &&
-                  !state.isVictory
-          if (isPlaying) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-          } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        viewModel.uiState
+          .map { state ->
+            state.gameSpeed != GameSpeed.PAUSED &&
+              !state.isPauseMenuOpen &&
+              !state.isGameOver &&
+              !state.isVictory
           }
-        }
+          .distinctUntilChanged()
+          .collect { isPlaying ->
+            if (isPlaying) {
+              window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+              window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+          }
       }
     }
 
@@ -78,17 +111,7 @@ class MainActivity : ComponentActivity() {
         lastOrientBucket = rawAngle
         val relativeAngle = (rawAngle - displayAngle + 360f) % 360f
 
-        val isAutoRotateOn = try {
-          android.provider.Settings.System.getInt(
-            contentResolver,
-            android.provider.Settings.System.ACCELEROMETER_ROTATION,
-            1
-          ) == 1
-        } catch (_: Exception) {
-          true
-        }
-
-        if (!isAutoRotateOn) {
+        if (!cachedAutoRotateOn) {
           viewModel.updateHardwareTiltAngle(relativeAngle)
         } else {
           viewModel.updateDeviceRotation(relativeAngle)
@@ -109,6 +132,19 @@ class MainActivity : ComponentActivity() {
 
   override fun onStart() {
     super.onStart()
+    refreshAutoRotateSetting()
+    if (!isAutoRotateObserverRegistered) {
+      autoRotateObserver?.let { obs ->
+        runCatching {
+          contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION),
+            false,
+            obs
+          )
+          isAutoRotateObserverRegistered = true
+        }
+      }
+    }
     if (orientationEventListener?.canDetectOrientation() == true) {
       orientationEventListener?.enable()
     }
@@ -122,6 +158,7 @@ class MainActivity : ComponentActivity() {
 
   override fun onResume() {
     super.onResume()
+    refreshAutoRotateSetting()
     applyFullscreenImmersiveMode()
     viewModel.soundManager.resumeAudio()
   }
@@ -148,6 +185,10 @@ class MainActivity : ComponentActivity() {
 
   override fun onStop() {
     super.onStop()
+    if (isAutoRotateObserverRegistered) {
+      autoRotateObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
+      isAutoRotateObserverRegistered = false
+    }
     orientationEventListener?.disable()
     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     viewModel.openPauseMenu()
@@ -156,6 +197,11 @@ class MainActivity : ComponentActivity() {
 
   override fun onDestroy() {
     super.onDestroy()
+    if (isAutoRotateObserverRegistered) {
+      autoRotateObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
+      isAutoRotateObserverRegistered = false
+    }
+    autoRotateObserver = null
     orientationEventListener?.disable()
     orientationEventListener = null
     viewModel.soundManager.suspendAllAudio()

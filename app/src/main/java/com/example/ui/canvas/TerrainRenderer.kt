@@ -74,6 +74,7 @@ fun DrawScope.drawTerrainTiles(
     }
     val canAffordNewTower = state.scrap >= minTowerCost
     val occupiedTowerPositions = state.towers.map { it.gridPos }.toSet()
+    val flowTimeF = (animFlowTime % 100_000L).toFloat()
 
     val tiles = level.tiles
     for (i in 0 until tiles.size) {
@@ -85,7 +86,7 @@ fun DrawScope.drawTerrainTiles(
 
         when (tile.type) {
             TileType.PATH_MERGED, TileType.PATH_INTERSECTION -> {
-                val pulse = (sin(animFlowTime * 0.005f) * 0.15f + 0.85f).toFloat()
+                val pulse = sin(flowTimeF * 0.005f) * 0.15f + 0.85f
                 drawCircle(
                     color = colorMerged.copy(alpha = 0.28f * pulse),
                     radius = cellW * 0.35f,
@@ -133,7 +134,7 @@ fun DrawScope.drawTerrainTiles(
                 drawCircle(color = Color.White, radius = cellW * 0.12f, center = Offset(centerX, centerY))
             }
             TileType.CORE -> {
-                val pulse = (sin(animFlowTime * 0.005f) * 0.15f + 0.85f).toFloat()
+                val pulse = sin(flowTimeF * 0.005f) * 0.15f + 0.85f
                 drawCircle(color = Color(0xFF00FF9D).copy(alpha = 0.25f * pulse), radius = cellW * 0.52f, center = Offset(centerX, centerY))
                 drawCircle(color = Color(0xFF00FF9D), radius = cellW * 0.35f * pulse, center = Offset(centerX, centerY), style = Stroke(width = 3f))
                 drawCircle(color = Color(0xFF00F0FF), radius = cellW * 0.22f, center = Offset(centerX, centerY), style = Stroke(width = 1.5f))
@@ -142,7 +143,7 @@ fun DrawScope.drawTerrainTiles(
             TileType.EMPTY -> {
                 if (tile.buff != TileBuff.NONE) {
                     val buffColor = Color(tile.buff.badgeColor)
-                    val pulse = (sin(animFlowTime * 0.006f) * 0.20f + 0.80f).toFloat()
+                    val pulse = sin(flowTimeF * 0.006f) * 0.20f + 0.80f
                     drawRoundRect(
                         color = buffColor.copy(alpha = 0.18f * pulse),
                         topLeft = Offset(tx + 2f, ty + 2f),
@@ -161,7 +162,7 @@ fun DrawScope.drawTerrainTiles(
                     drawCircle(color = Color.White, radius = cellW * 0.05f, center = Offset(centerX, centerY))
 
                     if (state.harmonicGridActive) {
-                        val harmonicPulse = (sin(animFlowTime * 0.010f) * 0.25f + 0.75f).toFloat()
+                        val harmonicPulse = sin(flowTimeF * 0.010f) * 0.25f + 0.75f
                         drawCircle(
                             color = Color(0xFFFFD700).copy(alpha = 0.70f * harmonicPulse),
                             radius = cellW * 0.34f,
@@ -179,7 +180,7 @@ fun DrawScope.drawTerrainTiles(
                     )
 
                     if (canAffordNewTower && tile.pos !in occupiedTowerPositions) {
-                        val dotPulse = (sin(animFlowTime * 0.005f) * 0.08f + 0.30f).toFloat()
+                        val dotPulse = sin(flowTimeF * 0.005f) * 0.08f + 0.30f
                         drawCircle(
                             color = Color.White.copy(alpha = dotPulse),
                             radius = cellW * 0.05f,
@@ -310,9 +311,10 @@ fun DrawScope.drawTacticalTutorialPointer(
     }
 
     if (targetTile != null) {
+        val flowTimeF = (animFlowTime % 100_000L).toFloat()
         val bx = (targetTile.pos.x + 0.5f) * cellW + shakeX
         val by = (targetTile.pos.y + 0.5f) * cellH + shakeY
-        val bounce = sin(animFlowTime * 0.008f) * 8f
+        val bounce = sin(flowTimeF * 0.008f) * 8f
         val arrowTipY = by - cellH * 0.40f + bounce
         val buffColor = Color(targetTile.buff.badgeColor)
 
@@ -329,7 +331,7 @@ fun DrawScope.drawTacticalTutorialPointer(
         drawPath(scratchPath, color = buffColor)
         drawPath(scratchPath, color = Color.White, style = Stroke(width = 2.0f))
 
-        val ringPulse = (sin(animFlowTime * 0.007f) * 0.25f + 0.75f).toFloat()
+        val ringPulse = sin(flowTimeF * 0.007f) * 0.25f + 0.75f
         drawCircle(
             color = buffColor.copy(alpha = 0.6f * ringPulse),
             radius = cellW * 0.42f,

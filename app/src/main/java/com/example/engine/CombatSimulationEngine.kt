@@ -122,7 +122,7 @@ class CombatSimulationEngine(
     private fun findEnemyById(enemies: List<EnemyInstance>, id: String): EnemyInstance? {
         for (i in enemies.indices) {
             val e = enemies[i]
-            if (e.id == id) return e
+            if (!e.isDead && e.id == id) return e
         }
         return null
     }
@@ -133,6 +133,21 @@ class CombatSimulationEngine(
             if (t.id == id) return t
         }
         return null
+    }
+
+    /**
+     * Returns a non-aliased double-buffered snapshot of [projectiles] so callers can safely clear
+     * reusable input scratch lists on subsequent frames.
+     */
+    fun snapshotProjectiles(projectiles: List<Projectile>): List<Projectile> {
+        if (projectiles.isEmpty()) return emptyList()
+        useProjBufferA = !useProjBufferA
+        val dst = if (useProjBufferA) scratchSurvivingProjectilesA else scratchSurvivingProjectilesB
+        dst.clear()
+        for (i in projectiles.indices) {
+            dst.add(projectiles[i])
+        }
+        return dst
     }
 
     /**
@@ -148,7 +163,7 @@ class CombatSimulationEngine(
         towers: List<TowerInstance> = emptyList()
     ): List<Projectile> {
         if (projectiles.isEmpty()) return emptyList()
-        if (!deltaSec.isFinite() || deltaSec <= 0f) return projectiles
+        if (!deltaSec.isFinite() || deltaSec <= 0f) return snapshotProjectiles(projectiles)
 
         useProjBufferA = !useProjBufferA
         val scratchSurvivingProjectiles = if (useProjBufferA) scratchSurvivingProjectilesA else scratchSurvivingProjectilesB
@@ -189,7 +204,9 @@ class CombatSimulationEngine(
                     spatialGrid.getPotentialCollisions(destX, destY, proj.splashRadius, scratchAoEList)
                     for (j in scratchAoEList.indices) {
                         val st = scratchAoEList[j]
-                        applyDamage(st, proj.damage, sourceTower, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
+                        if (!st.isDead) {
+                            applyDamage(st, proj.damage, sourceTower, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
+                        }
                     }
 
                     // Mortar Cluster Munitions
@@ -204,7 +221,9 @@ class CombatSimulationEngine(
                             spatialGrid.getPotentialCollisions(clusterX, clusterY, 0.9f, scratchAoEList)
                             for (j in scratchAoEList.indices) {
                                 val ct = scratchAoEList[j]
-                                applyDamage(ct, proj.damage * 0.45f, sourceTower, false, false, proj.sourceShape, proj.sourceAffinity)
+                                if (!ct.isDead) {
+                                    applyDamage(ct, proj.damage * 0.45f, sourceTower, false, false, proj.sourceShape, proj.sourceAffinity)
+                                }
                             }
                         }
                     }
@@ -218,7 +237,7 @@ class CombatSimulationEngine(
                             var bounceTarget: EnemyInstance? = null
                             for (j in scratchAoEList.indices) {
                                 val candidate = scratchAoEList[j]
-                                if (candidate.id != hitEnemy.id) {
+                                if (candidate.id != hitEnemy.id && !candidate.isDead) {
                                     bounceTarget = candidate
                                     break
                                 }
@@ -256,12 +275,12 @@ class CombatSimulationEngine(
         addExplosion: (x: Float, y: Float, radius: Float, color: Long, lifeMs: Long) -> Unit,
         applyDamage: (target: EnemyInstance, rawDamage: Float, sourceTower: TowerInstance?, isCrit: Boolean, armorPierce: Boolean, sourceShape: EnemyShape?, sourceAffinity: ElementAffinity?) -> Unit
     ) {
-        if (!enemy.worldX.isFinite() || !enemy.worldY.isFinite()) return
+        if (!enemy.worldX.isFinite() || !enemy.worldY.isFinite() || !enemy.maxHp.isFinite()) return
         addExplosion(enemy.worldX, enemy.worldY, 1.4f, 0xFF38BDF8, 250L)
         spatialGrid.getPotentialCollisions(enemy.worldX, enemy.worldY, 1.4f, scratchAoEList)
         for (i in scratchAoEList.indices) {
             val st = scratchAoEList[i]
-            if (st.id != enemy.id) {
+            if (st.id != enemy.id && !st.isDead) {
                 applyDamage(st, enemy.maxHp * 0.25f, null, false, true, null, null)
             }
         }

@@ -7,54 +7,8 @@ import android.media.SoundPool
 import com.example.model.TowerClass
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
-
-/** Procedurally synthesised sound effects. No bundled audio assets are required. */
-enum class SoundFx(val label: String, val minIntervalMs: Long) {
-    PLACE("Placement Thud", 40L),
-    UPGRADE("Upgrade Chime", 80L),
-    FIRE_KINETIC("Kinetic Fire (Default)", 65L),
-    FIRE_ELEMENTAL("Elemental Fire (Default)", 80L),
-    FIRE_SIEGE("Siege Fire (Default)", 110L),
-    FIRE_STELLAR("Stellar Cosmic Fire", 75L),
-    INVALID("Invalid Tap Buzz", 120L),
-    SELL("Salvage Scrap Return", 60L)
-}
-
-enum class SoundProfile(val label: String) {
-    CYBER_SYNTH("Cyber Synth (Default)"),
-    RETRO_8BIT("Retro 8-Bit Arcade"),
-    DEEP_ACOUSTIC("Heavy Acoustic Impact"),
-    SCI_FI_LASER("Sci-Fi Laser Grid")
-}
-
-/**
- * 5-Track Music Selection plus Rolling Cyclical Playlist and Mute.
- */
-enum class MusicTrack(val label: String) {
-    NONE("Mute Music"),
-    ROLLING_PLAYLIST("Rolling Playlist (Cycles 1-5)"),
-    CYBER_AMBIENT("Track 1: Sector Zero Synth"),
-    PULSE_ARPEGGIO("Track 2: Dual Front Pulse"),
-    DEEP_SPACE("Track 3: Sub-Void Drone"),
-    NEON_OVERDRIVE("Track 4: Neon Overdrive"),
-    CELESTIAL_BASTION("Track 5: Celestial Bastion")
-}
-
-/**
- * Procedural Asset Record for Sound and Skin Library.
- * Supports Heart/Star favorites and JSON delta export.
- */
-data class CustomAssetRecord(
-    val id: String,
-    val type: String, // "SKIN" or "SOUND"
-    val name: String,
-    val category: String,
-    var isFavoriteHeart: Boolean = false,
-    var isFavoriteStar: Boolean = false,
-    val unlockScore: Int = 0,
-    val metadata: String = ""
-)
 
 /**
  * Hybrid Audio Engine:
@@ -93,6 +47,10 @@ class SoundManager(context: Context) {
     // Concurrency / Voice limiting per turret archetype (4 classes)
     private val lastTurretFirePlayMs = LongArray(4)
     private val MIN_TURRET_FIRE_INTERVAL_MS = 65L
+    private val sfxLoadTargetMap = ConcurrentHashMap<Int, Triple<Int, Int, Int>>()
+
+    @Volatile
+    private var turretAssetsLoaded: Boolean = false
 
     // --- MediaPlayer Background Music Engine ---
     private var mediaPlayer: MediaPlayer? = null
@@ -118,15 +76,19 @@ class SoundManager(context: Context) {
     @Volatile
     var isMuted: Boolean = false
         set(value) {
+            val wasMuted = field
             field = value
-            updateMusicVolumeTarget()
+            updateMusicVolume()
+            if (!value && wasMuted && mediaPlayer == null && enabled && !isAudioSuspended && activeMusicTrack != MusicTrack.NONE) {
+                playTrack(activeMusicTrack)
+            }
         }
 
     @Volatile
     var masterVolume: Float = 0.7f
         set(value) {
             field = value.coerceIn(0f, 1f)
-            updateMusicVolumeTarget()
+            updateMusicVolume()
         }
 
     @Volatile
@@ -145,7 +107,7 @@ class SoundManager(context: Context) {
     var musicVolume: Float = 0.45f
         set(value) {
             field = value.coerceIn(0f, 1f)
-            updateMusicVolumeTarget()
+            updateMusicVolume()
         }
 
     @Volatile
@@ -199,6 +161,21 @@ class SoundManager(context: Context) {
             .setMaxStreams(24)
             .setAudioAttributes(attrs)
             .build()
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (status == 0) {
+                val target = sfxLoadTargetMap[sampleId]
+                if (target != null) {
+                    when (target.first) {
+                        0 -> genericLoaded[target.second] = true
+                        1 -> kineticLoaded[target.second] = true
+                        2 -> elementalLoaded[target.second] = true
+                        3 -> siegeLoaded[target.second] = true
+                        4 -> stellarLoaded[target.second] = true
+                        5 -> upgradeLoaded[target.second][target.third] = true
+                    }
+                }
+            }
+        }
 
         populateAssetLibrary()
         loadAllSfx(activeProfile)
@@ -301,26 +278,20 @@ class SoundManager(context: Context) {
     // SFX Loading & Voice Limiting
     // ---------------------------------------------------------------------------------------------
 
+    @Synchronized
     private fun loadAllSfx(profile: SoundProfile) {
-        val idToTarget = HashMap<Int, Triple<Int, Int, Int>>()
-
-        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
-            if (status == 0) {
-                val target = idToTarget[sampleId]
-                if (target != null) {
-                    when (target.first) {
-                        0 -> genericLoaded[target.second] = true
-                        1 -> kineticLoaded[target.second] = true
-                        2 -> elementalLoaded[target.second] = true
-                        3 -> siegeLoaded[target.second] = true
-                        4 -> stellarLoaded[target.second] = true
-                        5 -> upgradeLoaded[target.second][target.third] = true
-                    }
-                }
+        // Unload previous profile's generic SFX before loading new profile's assets
+        for (i in genericSoundIds.indices) {
+            val prevId = genericSoundIds[i]
+            genericLoaded[i] = false
+            if (prevId != 0) {
+                sfxLoadTargetMap.remove(prevId)
+                try { soundPool.unload(prevId) } catch (_: Exception) {}
+                genericSoundIds[i] = 0
             }
         }
 
-        // 1. Generic game SFX
+        // 1. Generic game SFX (profile-dependent)
         for (fx in SoundFx.values()) {
             try {
                 val filename = "sfx_${profile.name.lowercase()}_${fx.name.lowercase()}_v4.wav"
@@ -332,11 +303,14 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 genericSoundIds[fx.ordinal] = id
-                idToTarget[id] = Triple(0, fx.ordinal, 0)
+                sfxLoadTargetMap[id] = Triple(0, fx.ordinal, 0)
             } catch (_: Exception) {
                 genericSoundIds[fx.ordinal] = 0
             }
         }
+
+        if (turretAssetsLoaded) return
+        turretAssetsLoaded = true
 
         // 2. 5 Kinetic Gunfire Variants
         for (slot in 1..5) {
@@ -350,7 +324,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 kineticSoundIds[slot - 1] = id
-                idToTarget[id] = Triple(1, slot - 1, 0)
+                sfxLoadTargetMap[id] = Triple(1, slot - 1, 0)
             } catch (_: Exception) {
                 kineticSoundIds[slot - 1] = 0
             }
@@ -368,7 +342,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 elementalSoundIds[slot - 1] = id
-                idToTarget[id] = Triple(2, slot - 1, 0)
+                sfxLoadTargetMap[id] = Triple(2, slot - 1, 0)
             } catch (_: Exception) {
                 elementalSoundIds[slot - 1] = 0
             }
@@ -386,7 +360,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 siegeSoundIds[slot - 1] = id
-                idToTarget[id] = Triple(3, slot - 1, 0)
+                sfxLoadTargetMap[id] = Triple(3, slot - 1, 0)
             } catch (_: Exception) {
                 siegeSoundIds[slot - 1] = 0
             }
@@ -404,7 +378,7 @@ class SoundManager(context: Context) {
                 }
                 val id = soundPool.load(file.absolutePath, 1)
                 stellarSoundIds[slot - 1] = id
-                idToTarget[id] = Triple(4, slot - 1, 0)
+                sfxLoadTargetMap[id] = Triple(4, slot - 1, 0)
             } catch (_: Exception) {
                 stellarSoundIds[slot - 1] = 0
             }
@@ -430,7 +404,7 @@ class SoundManager(context: Context) {
                     }
                     val id = soundPool.load(file.absolutePath, 1)
                     upgradeSoundIds[c][slot - 1] = id
-                    idToTarget[id] = Triple(5, c, slot - 1)
+                    sfxLoadTargetMap[id] = Triple(5, c, slot - 1)
                 } catch (_: Exception) {
                     upgradeSoundIds[c][slot - 1] = 0
                 }
@@ -551,7 +525,9 @@ class SoundManager(context: Context) {
         } catch (_: Exception) {}
         if (activeMusicTrack != MusicTrack.NONE) {
             try {
-                if (mediaPlayer?.isPlaying == false) {
+                if (mediaPlayer == null) {
+                    playTrack(activeMusicTrack)
+                } else if (mediaPlayer?.isPlaying == false) {
                     val vol = calculateEffectiveMusicVolume()
                     currentMusicVolume = vol
                     targetMusicVolume = vol
@@ -683,6 +659,7 @@ class SoundManager(context: Context) {
 
     fun setMasterVolumeLevel(level: Float) {
         masterVolume = level
+        updateMusicVolume()
     }
 
     fun setSfxVolumeLevel(level: Float) {
@@ -695,14 +672,17 @@ class SoundManager(context: Context) {
 
     fun setMusicVolumeLevel(level: Float) {
         musicVolume = level
+        updateMusicVolume()
     }
 
     fun setMutedState(muted: Boolean) {
         isMuted = muted
+        updateMusicVolume()
     }
 
     fun toggleMute(): Boolean {
         isMuted = !isMuted
+        updateMusicVolume()
         return isMuted
     }
 

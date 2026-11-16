@@ -309,7 +309,23 @@ class TowerPlacementCoordinator(
             lastBoosterSwapTimeMs = now
             soundManager.playPlacement()
             onSynergyDirty()
-            uiStateFlow.update { it.copy(towers = currentTowers, laserBeams = newBeams, explosions = newExplosions) }
+            uiStateFlow.update { state ->
+                val updatedSelectedTower = state.selectedTower?.let { sel ->
+                    currentTowers.firstOrNull { it.id == sel.id } ?: sel
+                }
+                val updatedSelectedTile = if (updatedSelectedTower != null) {
+                    level.tiles.firstOrNull { tile -> tile.pos == updatedSelectedTower.gridPos } ?: state.selectedTile
+                } else {
+                    state.selectedTile
+                }
+                state.copy(
+                    towers = currentTowers,
+                    selectedTower = updatedSelectedTower,
+                    selectedTile = updatedSelectedTile,
+                    laserBeams = newBeams,
+                    explosions = newExplosions
+                )
+            }
         }
     }
 
@@ -326,8 +342,12 @@ class TowerPlacementCoordinator(
 
     fun changeSelectedTowerPriority(priority: TargetPriority) {
         val tower = uiStateFlow.value.selectedTower ?: return
-        tower.targetPriority = priority
-        uiStateFlow.update { it.copy(towers = it.towers.toList()) }
+        val updated = tower.copy(targetPriority = priority)
+        uiStateFlow.update { state ->
+            val nextTowers = state.towers.map { if (it.id == tower.id) updated else it }
+            val nextSelected = if (state.selectedTower?.id == tower.id) updated else state.selectedTower
+            state.copy(towers = nextTowers, selectedTower = nextSelected)
+        }
     }
 
     fun getConduitAscensionCost(): Int {

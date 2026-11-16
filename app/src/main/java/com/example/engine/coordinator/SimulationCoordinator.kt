@@ -92,7 +92,6 @@ class SimulationCoordinator(
 
     fun tickSimulation(deltaSec: Float, deltaMs: Long, nowMs: Long = System.currentTimeMillis()) {
         virtualSimTimeMs += deltaMs
-        soundManager.updateTick(nowMs, deltaMs)
         var state = uiStateFlow.value
         var level = state.level ?: return
         if (state.activeCinematic != null) {
@@ -286,6 +285,26 @@ class SimulationCoordinator(
                 towers = towers
             )
 
+            val hasCryoShatterburst = towers.any {
+                it.type == TowerType.CRYO && !it.isTier3 && it.isFinalForm && it.finalFormCode == "B.a"
+            }
+            if (hasCryoShatterburst) {
+                for (i in survivingEnemies.indices) {
+                    val enemy = survivingEnemies[i]
+                    if (enemy.isDead && enemy.slowTimerMs > 0) {
+                        combatEngine.processCryoShatterburst(
+                            enemy = enemy,
+                            addExplosion = { x, y, radius, color, lifeMs ->
+                                newExplosions.add(ExplosionEffect(nextId("exp_"), x, y, radius, color = color, lifeMs = lifeMs))
+                            },
+                            applyDamage = { target, dmg, tower, crit, pierce, shape, affinity ->
+                                frameDamageDealt += applyDamageToEnemy(target, dmg, tower, crit, pierce, shape, affinity, globalArmorIgnore)
+                            }
+                        )
+                    }
+                }
+            }
+
             val conduitIncomeBonus = 1.0f + (conduitTilesCount * 0.15f)
             val padEconomyBonus = 1.0f + (harmonicCount * 0.03f)
             val diffIncomeMul = state.difficulty.scrapIncomeMultiplier
@@ -297,22 +316,10 @@ class SimulationCoordinator(
                     val bounty = (enemy.type.scrapValue * diffIncomeMul * globalScrapBonus * state.balanceConfig.globalIncomeMultiplier * remoteConfigManager.scrapBountyMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
                     scrapGained += bounty
                     queueFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700, false)
-
-                    if (enemy.slowTimerMs > 0 && globalSlowBonus > 0f) {
-                        combatEngine.processCryoShatterburst(
-                            enemy = enemy,
-                            addExplosion = { x, y, radius, color, lifeMs ->
-                                newExplosions.add(ExplosionEffect(nextId("exp_"), x, y, radius, color = color, lifeMs = lifeMs))
-                            },
-                            applyDamage = { target, dmg, tower, crit, pierce, shape, affinity ->
-                                frameDamageDealt += applyDamageToEnemy(target, dmg, tower, crit, pierce, shape, affinity, globalArmorIgnore)
-                            }
-                        )
-                    }
                 } else remainingAlive.add(enemy)
             }
         } else {
-            survivingProjectiles = scratchProjectilesInput
+            survivingProjectiles = combatEngine.snapshotProjectiles(scratchProjectilesInput)
             for (i in survivingEnemies.indices) {
                 val enemy = survivingEnemies[i]
                 if (!enemy.isDead) remainingAlive.add(enemy)
@@ -321,7 +328,7 @@ class SimulationCoordinator(
 
         combatEngine.updateVisualEffects(newBeams, newArcs, newExplosions, deltaMs)
 
-        val waveEval = if (gameOver) {
+        val waveEval = if (gameOver || state.isVictory) {
             WaveCompletionEvaluation(
                 isWaveActive = false,
                 waveNumber = state.waveNumber,
@@ -332,6 +339,7 @@ class SimulationCoordinator(
         } else {
             waveCoordinator.evaluateWaveCompletion(state, level, towers, remainingAlive, newCoreHp, ::queueFloatingText)
         }
+        val triggeredNewVictory = !state.isVictory && waveEval.isVictory
         scrapGained += waveEval.bonusScrap
         newCoreHp = waveEval.updatedCoreHp
 
@@ -370,6 +378,8 @@ class SimulationCoordinator(
 
         if (triggeredNewBreachLoss) {
             onRecordRunCompletion(false, state.waveNumber - 1)
+        } else if (triggeredNewVictory) {
+            onRecordRunCompletion(true, waveEval.waveNumber)
         } else if (!waveEval.isWaveActive && state.autoCallNextWave && !gameOver && !waveEval.isVictory) {
             waveCoordinator.deployWave()
         }
@@ -423,7 +433,11 @@ class SimulationCoordinator(
             }
             TowerType.MORTAR -> {
                 val dist = hypot(target.worldX - towerX, target.worldY - towerY)
-                val splashRad = tower.type.splashRadius * (if (p1 >= 2) 1.6f else 1.0f)
+                val state = uiStateFlow.value
+                val baseSplash = state.balanceConfig.findCustomTowerBalance(tower)?.specialEffectValue?.takeIf { it > 0f }
+                    ?: tower.archetype?.splashRadius?.takeIf { it > 0f }
+                    ?: tower.type.splashRadius
+                val splashRad = baseSplash * (1.0f + state.globalMortarSplashBonus) * (if (p1 >= 2) 1.6f else 1.0f)
                 newProjectiles.add(Projectile(id = nextId("p_"), startX = towerX, startY = towerY, currentX = towerX, currentY = towerY, targetEnemyId = null, targetX = target.worldX, targetY = target.worldY, speed = 4.2f, damage = finalDmg, color = tower.type.color, isSplash = true, splashRadius = splashRad, isMortarArc = true, totalDistance = maxOf(0.1f, dist), isCrit = isCrit, hasClusterSplit = (p0 >= 1), sourceShape = tower.shape, sourceAffinity = tower.affinity, sourceTowerId = tower.id))
             }
             TowerType.LASER -> {
@@ -440,7 +454,11 @@ class SimulationCoordinator(
                 dealt += applyDamageToEnemy(target, finalDmg, tower, isCrit, true, globalArmorIgnore = globalArmorIgnore)
             }
             TowerType.VOID -> {
-                newExplosions.add(ExplosionEffect(nextId("exp_"), towerX, towerY, tower.type.splashRadius, color = tower.type.color))
+                val state = uiStateFlow.value
+                val voidRadius = (state.balanceConfig.findCustomTowerBalance(tower)?.specialEffectValue?.takeIf { it > 0f }
+                    ?: tower.archetype?.splashRadius?.takeIf { it > 0f }
+                    ?: tower.type.splashRadius) * (1.0f + state.globalMortarSplashBonus)
+                newExplosions.add(ExplosionEffect(nextId("exp_"), towerX, towerY, voidRadius, color = tower.type.color))
                 for (i in scratchInRangeEnemies.indices) {
                     val enemy = scratchInRangeEnemies[i]
                     dealt += applyDamageToEnemy(enemy, finalDmg, tower, isCrit, true, globalArmorIgnore = globalArmorIgnore)
@@ -448,7 +466,12 @@ class SimulationCoordinator(
                 }
             }
             TowerType.STELLAR -> {
-                newProjectiles.add(Projectile(id = nextId("p_"), startX = towerX, startY = towerY, currentX = towerX, currentY = towerY, targetEnemyId = target.id, targetX = target.worldX, targetY = target.worldY, speed = 6.0f, damage = finalDmg, isCrit = isCrit, color = 0xFFFFD700, sourceShape = EnemyShape.STAR, sourceAffinity = ElementAffinity.YELLOW, sourceTowerId = tower.id))
+                val state = uiStateFlow.value
+                val baseSplash = state.balanceConfig.findCustomTowerBalance(tower)?.specialEffectValue?.takeIf { it > 0f }
+                    ?: tower.archetype?.splashRadius?.takeIf { it > 0f }
+                    ?: tower.type.splashRadius
+                val splashRad = baseSplash * (1.0f + state.globalMortarSplashBonus)
+                newProjectiles.add(Projectile(id = nextId("p_"), startX = towerX, startY = towerY, currentX = towerX, currentY = towerY, targetEnemyId = target.id, targetX = target.worldX, targetY = target.worldY, speed = 6.0f, damage = finalDmg, isSplash = true, splashRadius = splashRad, isCrit = isCrit, color = tower.archetype?.color ?: 0xFFFFD700, sourceShape = tower.shape, sourceAffinity = tower.affinity, sourceTowerId = tower.id))
             }
         }
         return dealt

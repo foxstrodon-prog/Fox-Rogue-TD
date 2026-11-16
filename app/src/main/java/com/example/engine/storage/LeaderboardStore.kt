@@ -1,7 +1,9 @@
 package com.example.engine.storage
 
 import android.content.Context
+import android.util.Log
 import androidx.core.util.AtomicFile
+import com.example.BuildConfig
 import com.example.model.OnlineScoreEntry
 import com.example.model.PendingSubmission
 import kotlinx.coroutines.Dispatchers
@@ -22,10 +24,8 @@ class LeaderboardStore(context: Context) {
   private val pendingFile = File(baseDir, "pending_queue.json")
   private val submittedFile = File(baseDir, "submitted_ids.json")
 
-  private val mutex = Mutex()
-
   suspend fun getCachedLeaderboard(): List<OnlineScoreEntry> = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       if (!cacheFile.exists()) return@withContext emptyList()
       try {
         val atomicFile = AtomicFile(cacheFile)
@@ -50,13 +50,14 @@ class LeaderboardStore(context: Context) {
         }
         list
       } catch (e: Exception) {
+        Log.w(TAG, "Failed reading cached leaderboard", e)
         emptyList()
       }
     }
   }
 
   suspend fun saveCachedLeaderboard(entries: List<OnlineScoreEntry>) = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       try {
         val array = JSONArray()
         for (entry in entries) {
@@ -74,19 +75,20 @@ class LeaderboardStore(context: Context) {
           array.put(obj)
         }
         writeAtomic(cacheFile, array.toString())
-      } catch (_: Exception) {
+      } catch (e: Exception) {
+        Log.w(TAG, "Failed saving cached leaderboard", e)
       }
     }
   }
 
   suspend fun getPendingQueue(): List<PendingSubmission> = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       readPendingListInternal()
     }
   }
 
   suspend fun enqueuePending(submission: PendingSubmission) = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       val now = System.currentTimeMillis()
       val sevenDaysMs = 7L * 24 * 60 * 60 * 1000
       val current = readPendingListInternal()
@@ -103,20 +105,20 @@ class LeaderboardStore(context: Context) {
   }
 
   suspend fun removePending(runId: String) = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       val current = readPendingListInternal().filter { it.runId != runId }
       writePendingListInternal(current)
     }
   }
 
   suspend fun clearPendingQueue() = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       writePendingListInternal(emptyList())
     }
   }
 
   suspend fun updatePendingCallsign(runId: String, callsign: String): Boolean = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       var updated = false
       val current = readPendingListInternal().map {
         if (it.runId == runId) {
@@ -134,7 +136,7 @@ class LeaderboardStore(context: Context) {
   }
 
   suspend fun incrementAttempt(runId: String) = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       val now = System.currentTimeMillis()
       val current = readPendingListInternal().map {
         if (it.runId == runId) {
@@ -148,13 +150,13 @@ class LeaderboardStore(context: Context) {
   }
 
   suspend fun isAlreadySubmitted(runId: String): Boolean = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       readSubmittedIdsInternal().contains(runId)
     }
   }
 
   suspend fun recordSubmittedId(runId: String) = withContext(Dispatchers.IO) {
-    mutex.withLock {
+    sharedMutex.withLock {
       val ids = readSubmittedIdsInternal().toMutableList()
       ids.remove(runId)
       ids.add(0, runId)
@@ -163,7 +165,8 @@ class LeaderboardStore(context: Context) {
         val array = JSONArray()
         capped.forEach { array.put(it) }
         writeAtomic(submittedFile, array.toString())
-      } catch (_: Exception) {
+      } catch (e: Exception) {
+        Log.w(TAG, "Failed recording submitted id", e)
       }
     }
   }
@@ -186,7 +189,7 @@ class LeaderboardStore(context: Context) {
             scrapEarned = obj.optInt("scrapEarned", 0),
             totalDamage = obj.optLong("totalDamage", 0L),
             timestampMs = obj.optLong("timestampMs", 0L),
-            clientVersion = obj.optString("clientVersion", "0.0.0.008"),
+            clientVersion = obj.optString("clientVersion", BuildConfig.VERSION_NAME),
             attempts = obj.optInt("attempts", 0),
             lastAttemptMs = obj.optLong("lastAttemptMs", 0L),
             userId = obj.optString("userId", "")
@@ -194,7 +197,8 @@ class LeaderboardStore(context: Context) {
         )
       }
       list
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed reading pending submission queue", e)
       emptyList()
     }
   }
@@ -219,7 +223,8 @@ class LeaderboardStore(context: Context) {
         array.put(obj)
       }
       writeAtomic(pendingFile, array.toString())
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed writing pending submission queue", e)
     }
   }
 
@@ -234,7 +239,8 @@ class LeaderboardStore(context: Context) {
         list.add(array.optString(i))
       }
       list
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed reading submitted IDs", e)
       emptyList()
     }
   }
@@ -255,7 +261,9 @@ class LeaderboardStore(context: Context) {
   }
 
   companion object {
+    private const val TAG = "LeaderboardStore"
     private const val MAX_PENDING_QUEUE = 20
     private const val MAX_SUBMITTED_IDS = 100
+    private val sharedMutex = Mutex()
   }
 }

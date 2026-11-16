@@ -68,11 +68,13 @@ object DamageCalculator {
             else -> 1.00f
         }
 
-        // 3. Enemy armor reduction
-        val armorFactor = (1.0f - enemyArmor.coerceIn(0f, 0.90f))
-        val computed = baseDamage * shapeMultiplier * colorMultiplier * armorFactor
+        // 3. Enemy armor reduction (with strict NaN/Infinity guards)
+        val safeBase = if (baseDamage.isFinite() && baseDamage > 0f) baseDamage else 0f
+        val safeArmor = if (enemyArmor.isFinite()) enemyArmor.coerceIn(0f, 0.90f) else 0f
+        val armorFactor = 1.0f - safeArmor
+        val computed = safeBase * shapeMultiplier * colorMultiplier * armorFactor
 
-        out.finalDamage = computed.coerceAtLeast(1.0f)
+        out.finalDamage = if (computed.isFinite()) computed.coerceAtLeast(1.0f) else 1.0f
         out.shapeMultiplier = shapeMultiplier
         out.colorMultiplier = colorMultiplier
         out.isShapeMatch = isShapeMatch

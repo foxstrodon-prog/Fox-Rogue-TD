@@ -18,6 +18,16 @@ import kotlin.math.sin
 
 // Pre-computed cardinal angles in radians for zero-allocation CAD drafting ticks (Task D-03)
 private val CARDINAL_RADS = floatArrayOf(0f, (PI / 2.0).toFloat(), PI.toFloat(), (3.0 * PI / 2.0).toFloat())
+private val STROKE_1_5F = Stroke(width = 1.5f)
+private val STROKE_1_8F = Stroke(width = 1.8f)
+private val STROKE_2F = Stroke(width = 2.0f)
+private val STROKE_2_5F = Stroke(width = 2.5f)
+private val STROKE_3F = Stroke(width = 3.0f)
+private val STROKE_3_5F = Stroke(width = 3.5f)
+private val STROKE_2F_ROUND = Stroke(width = 2.0f, join = StrokeJoin.Round)
+private val STROKE_2_2F_ROUND = Stroke(width = 2.2f, join = StrokeJoin.Round)
+private val STROKE_2_5F_ROUND = Stroke(width = 2.5f, join = StrokeJoin.Round)
+private val STROKE_3_5F_ROUND = Stroke(width = 3.5f, join = StrokeJoin.Round)
 
 private fun buildStarPath(cx: Float, cy: Float, outerR: Float, innerR: Float, rotationRad: Float, outPath: Path) {
     outPath.reset()
@@ -90,7 +100,8 @@ fun DrawScope.drawTowers(
     scratchPath2: Path
 ) {
     val skinSlot = TurretSkinSlot.fromSlot(state.turretSkinSlot)
-    val auraPulse = (sin(animFlowTime * 0.008f) * 0.15f + 0.85f).toFloat()
+    val flowTimeF = (animFlowTime % 100_000L).toFloat()
+    val auraPulse = sin(flowTimeF * 0.008f) * 0.15f + 0.85f
     val apexAuraColor = Color(0xFFFFB800)
 
     for (idx in 0 until state.towers.size) {
@@ -116,8 +127,8 @@ fun DrawScope.drawTowers(
                 TowerVector.SUPPORT -> Color(0xFFFFD700)
                 null -> Color(0xFFFF2A55)
             }
-            drawCircle(ringColor.copy(alpha = 0.30f), cellW * 0.44f, center, style = Stroke(width = 3.5f))
-            drawCircle(ringColor, cellW * 0.41f, center, style = Stroke(width = 2.0f))
+            drawCircle(ringColor.copy(alpha = 0.30f), cellW * 0.44f, center, style = STROKE_3_5F)
+            drawCircle(ringColor, cellW * 0.41f, center, style = STROKE_2F)
         }
 
         val upgradeLevel = when {
@@ -137,25 +148,25 @@ fun DrawScope.drawTowers(
             when (effectiveClass) {
                 TowerClass.KINETIC_BALLISTIC -> {
                     drawCircle(apexAuraColor.copy(alpha = 0.22f * auraPulse), cellW * 0.50f, center)
-                    drawCircle(apexAuraColor, cellW * 0.45f, center, style = Stroke(width = 2.0f))
+                    drawCircle(apexAuraColor, cellW * 0.45f, center, style = STROKE_2F)
                 }
                 TowerClass.ELEMENTAL_VOID -> {
                     val hR = cellW * 0.54f * auraPulse
                     buildTrianglePath(Offset(tcx, tcy - hR), Offset(tcx + hR * 0.866f, tcy + hR * 0.5f), Offset(tcx - hR * 0.866f, tcy + hR * 0.5f), scratchPath1)
                     drawPath(scratchPath1, apexAuraColor.copy(alpha = 0.20f * auraPulse))
-                    drawPath(scratchPath1, apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+                    drawPath(scratchPath1, apexAuraColor, style = STROKE_2F_ROUND)
                 }
                 TowerClass.HEAVY_SIEGE -> {
                     val hS = cellW * 0.90f * auraPulse
                     val hTl = Offset(tcx - hS / 2f, tcy - hS / 2f)
                     drawRoundRect(apexAuraColor.copy(alpha = 0.20f * auraPulse), hTl, Size(hS, hS), CornerRadius(6f, 6f))
-                    drawRoundRect(apexAuraColor, hTl, Size(hS, hS), CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
+                    drawRoundRect(apexAuraColor, hTl, Size(hS, hS), CornerRadius(6f, 6f), style = STROKE_2F)
                 }
                 TowerClass.STELLAR_COSMIC -> {
                     val sR = cellW * 0.52f * auraPulse
                     buildStarPath(tcx, tcy, sR, sR * 0.48f, 0f, scratchPath1)
                     drawPath(scratchPath1, apexAuraColor.copy(alpha = 0.22f * auraPulse))
-                    drawPath(scratchPath1, apexAuraColor, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
+                    drawPath(scratchPath1, apexAuraColor, style = STROKE_2F_ROUND)
                 }
             }
         }
@@ -165,7 +176,7 @@ fun DrawScope.drawTowers(
                 when (effectiveClass) {
                     TowerClass.KINETIC_BALLISTIC -> {
                         drawCircle(Color(0xFF0F172A), cellW * 0.38f, center)
-                        drawCircle(borderColor, cellW * 0.38f, center, style = Stroke(width = 2.5f))
+                        drawCircle(borderColor, cellW * 0.38f, center, style = STROKE_2_5F)
                         if (upgradeLevel >= 2) {
                             val perp = aimRad + (PI / 2f).toFloat()
                             val wingLen = cellW * 0.22f
@@ -186,7 +197,7 @@ fun DrawScope.drawTowers(
                         val r = cellW * 0.44f
                         buildTrianglePath(Offset(tcx, tcy - r), Offset(tcx + r * 0.866f, tcy + r * 0.5f), Offset(tcx - r * 0.866f, tcy + r * 0.5f), scratchPath1)
                         drawPath(scratchPath1, Color(0xFF140D26))
-                        drawPath(scratchPath1, borderColor, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
+                        drawPath(scratchPath1, borderColor, style = STROKE_2_5F_ROUND)
                         if (upgradeLevel >= 2) {
                             val inR = cellW * 0.24f
                             buildTrianglePath(Offset(tcx, tcy + inR), Offset(tcx - inR * 0.866f, tcy - inR * 0.5f), Offset(tcx + inR * 0.866f, tcy - inR * 0.5f), scratchPath2)
@@ -198,7 +209,7 @@ fun DrawScope.drawTowers(
                         drawLine(towerColor, center, beamEnd, cellW * 0.09f, StrokeCap.Round)
                         drawLine(if (upgradeLevel == 4) apexAuraColor else Color.White, center, beamEnd, cellW * 0.04f, StrokeCap.Round)
                         val moteCount = if (upgradeLevel >= 3) 4 else 3
-                        val orbAngle = animFlowTime * 0.005f
+                        val orbAngle = flowTimeF * 0.005f
                         for (i in 0 until moteCount) {
                             val a = orbAngle + i * (2f * PI.toFloat() / moteCount)
                             drawCircle(if (upgradeLevel == 4 && i % 2 == 0) apexAuraColor else towerColor, cellW * 0.045f, Offset(tcx + cos(a) * cellW * 0.24f, tcy + sin(a) * cellW * 0.24f))
@@ -211,28 +222,28 @@ fun DrawScope.drawTowers(
                         val sqTl = Offset(tcx - sqR, tcy - sqR)
                         val sqSz = Size(sqR * 2f, sqR * 2f)
                         drawRoundRect(Color(0xFF0F1420), sqTl, sqSz, CornerRadius(6f, 6f))
-                        drawRoundRect(borderColor, sqTl, sqSz, CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
+                        drawRoundRect(borderColor, sqTl, sqSz, CornerRadius(6f, 6f), style = STROKE_2F)
                         val railLen = cellW * (if (upgradeLevel >= 3) 0.42f else 0.36f)
                         val railColor = if (upgradeLevel >= 3) towerColor else borderColor
                         drawDualRails(tcx, tcy, aimRad, cellW * 0.08f, railLen, railColor, cellW * 0.06f, StrokeCap.Round, if (upgradeLevel >= 2) vectorAccentColor else null, cellW * 0.04f)
                         val coreEnd = Offset(tcx + cos(aimRad) * (railLen * 0.95f), tcy + sin(aimRad) * (railLen * 0.95f))
                         drawLine(if (upgradeLevel == 4) apexAuraColor else Color.White, center, coreEnd, cellW * 0.035f, StrokeCap.Round)
                         drawCircle(Color(0xFF0F172A), cellW * 0.13f, center)
-                        drawCircle(borderColor, cellW * 0.13f, center, style = Stroke(width = 1.8f))
+                        drawCircle(borderColor, cellW * 0.13f, center, style = STROKE_1_8F)
                         drawCircle(Color.White, cellW * 0.06f, center)
                     }
                     TowerClass.STELLAR_COSMIC -> {
                         val starR = cellW * 0.40f
                         buildStarPath(tcx, tcy, starR, starR * 0.48f, aimRad, scratchPath1)
                         drawPath(scratchPath1, Color(0xFF1B1806))
-                        drawPath(scratchPath1, borderColor, style = Stroke(width = 2.2f, join = StrokeJoin.Round))
+                        drawPath(scratchPath1, borderColor, style = STROKE_2_2F_ROUND)
                         if (upgradeLevel >= 2) {
                             buildStarPath(tcx, tcy, starR * 0.65f, starR * 0.48f * 0.65f, aimRad, scratchPath2)
                             drawPath(scratchPath2, vectorAccentColor, style = Stroke(width = 1.6f, join = StrokeJoin.Round))
                         }
                         if (upgradeLevel >= 3) {
                             for (i in 0 until 5) {
-                                val orbAngle = animFlowTime * 0.005f + (i * 2f * PI / 5f).toFloat()
+                                val orbAngle = flowTimeF * 0.005f + (i * 2f * PI / 5f).toFloat()
                                 drawCircle(towerColor, cellW * 0.04f, Offset(tcx + cos(orbAngle) * cellW * 0.45f, tcy + sin(orbAngle) * cellW * 0.45f))
                             }
                         }
@@ -254,7 +265,7 @@ fun DrawScope.drawTowers(
                 when (effectiveClass) {
                     TowerClass.KINETIC_BALLISTIC -> {
                         drawCircle(Color(0xFF0A192F), cellW * 0.36f, center)
-                        drawCircle(cadColor, cellW * 0.36f, center, style = Stroke(width = 1.8f))
+                        drawCircle(cadColor, cellW * 0.36f, center, style = STROKE_1_8F)
                         for (k in 0 until 4) {
                             val r = CARDINAL_RADS[k]
                             drawLine(cadWhite, Offset(tcx + cos(r) * cellW * 0.33f, tcy + sin(r) * cellW * 0.33f), Offset(tcx + cos(r) * cellW * 0.38f, tcy + sin(r) * cellW * 0.38f), 1.5f)
@@ -281,11 +292,11 @@ fun DrawScope.drawTowers(
                         val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
                         buildTrianglePath(p1, p2, p3, scratchPath1)
                         drawPath(scratchPath1, Color(0xFF0A192F))
-                        drawPath(scratchPath1, cadColor, style = Stroke(width = 1.8f))
+                        drawPath(scratchPath1, cadColor, style = STROKE_1_8F)
                         drawCadCross(p1, cadWhite)
                         drawCadCross(p2, cadWhite)
                         drawCadCross(p3, cadWhite)
-                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor.copy(alpha = 0.5f), cellW * 0.22f, center, style = Stroke(width = 1.5f))
+                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor.copy(alpha = 0.5f), cellW * 0.22f, center, style = STROKE_1_5F)
                         val bEnd = Offset(tcx + cos(aimRad) * cellW * 0.35f, tcy + sin(aimRad) * cellW * 0.35f)
                         drawLine(cadColor, center, bEnd, cellW * 0.07f)
                         if (upgradeLevel >= 3) drawLine(towerColor, center, bEnd, cellW * 0.03f)
@@ -295,20 +306,20 @@ fun DrawScope.drawTowers(
                         val s = cellW * 0.72f
                         val tl = Offset(tcx - s / 2f, tcy - s / 2f)
                         drawRect(Color(0xFF0A192F), tl, Size(s, s))
-                        drawRect(cadColor, tl, Size(s, s), style = Stroke(width = 1.8f))
+                        drawRect(cadColor, tl, Size(s, s), style = STROKE_1_8F)
                         drawLine(cadColor.copy(alpha = 0.35f), tl, Offset(tl.x + s, tl.y + s), 1.0f)
                         drawLine(cadColor.copy(alpha = 0.35f), Offset(tl.x + s, tl.y), Offset(tl.x, tl.y + s), 1.0f)
                         drawDualRails(tcx, tcy, aimRad, cellW * 0.07f, cellW * 0.38f, cadWhite, 2.0f, StrokeCap.Butt, if (upgradeLevel >= 2) vectorAccentColor else null, 2.0f)
-                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = Stroke(width = 1.5f))
+                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = STROKE_1_5F)
                         drawCircle(if (upgradeLevel == 4) apexAuraColor else cadColor, cellW * 0.06f, center)
                     }
                     TowerClass.STELLAR_COSMIC -> {
                         val starR = cellW * 0.38f
                         buildStarPath(tcx, tcy, starR, starR * 0.45f, aimRad, scratchPath1)
                         drawPath(scratchPath1, Color(0xFF0A192F))
-                        drawPath(scratchPath1, cadColor, style = Stroke(width = 1.8f))
-                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor.copy(alpha = 0.5f), cellW * 0.22f, center, style = Stroke(width = 1.5f))
-                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = Stroke(width = 1.5f))
+                        drawPath(scratchPath1, cadColor, style = STROKE_1_8F)
+                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor.copy(alpha = 0.5f), cellW * 0.22f, center, style = STROKE_1_5F)
+                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = STROKE_1_5F)
                         drawLine(if (upgradeLevel == 4) apexAuraColor else cadWhite, center, Offset(tcx + cos(aimRad) * cellW * 0.38f, tcy + sin(aimRad) * cellW * 0.38f), 2.0f)
                         drawCircle(if (upgradeLevel == 4) apexAuraColor else cadColor, cellW * 0.06f, center)
                     }
@@ -323,7 +334,7 @@ fun DrawScope.drawTowers(
                 when (effectiveClass) {
                     TowerClass.KINETIC_BALLISTIC -> {
                         drawCircle(steelDark, cellW * 0.38f, center)
-                        drawCircle(steelPlate, cellW * 0.38f, center, style = Stroke(width = 3.5f))
+                        drawCircle(steelPlate, cellW * 0.38f, center, style = STROKE_3_5F)
                         val rOff = cellW * 0.26f
                         drawCircle(rivetColor, 2.5f, Offset(tcx - rOff, tcy - rOff))
                         drawCircle(rivetColor, 2.5f, Offset(tcx + rOff, tcy - rOff))
@@ -348,11 +359,11 @@ fun DrawScope.drawTowers(
                         val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
                         buildTrianglePath(p1, p2, p3, scratchPath1)
                         drawPath(scratchPath1, steelDark)
-                        drawPath(scratchPath1, steelPlate, style = Stroke(width = 3.5f, join = StrokeJoin.Round))
+                        drawPath(scratchPath1, steelPlate, style = STROKE_3_5F_ROUND)
                         drawCircle(rivetColor, 3.0f, p1)
                         drawCircle(rivetColor, 3.0f, p2)
                         drawCircle(rivetColor, 3.0f, p3)
-                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor, cellW * 0.18f, center, style = Stroke(width = 2.0f))
+                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor, cellW * 0.18f, center, style = STROKE_2F)
                         val bEnd = Offset(tcx + cos(aimRad) * cellW * 0.34f, tcy + sin(aimRad) * cellW * 0.34f)
                         drawLine(steelPlate, center, bEnd, cellW * 0.10f, StrokeCap.Square)
                         if (upgradeLevel >= 3) drawLine(towerColor, center, bEnd, cellW * 0.05f)
@@ -362,7 +373,7 @@ fun DrawScope.drawTowers(
                         val s = cellW * 0.76f
                         val tl = Offset(tcx - s / 2f, tcy - s / 2f)
                         drawRoundRect(steelDark, tl, Size(s, s), CornerRadius(4f, 4f))
-                        drawRoundRect(steelPlate, tl, Size(s, s), CornerRadius(4f, 4f), style = Stroke(width = 3.5f))
+                        drawRoundRect(steelPlate, tl, Size(s, s), CornerRadius(4f, 4f), style = STROKE_3_5F)
                         val cSize = cellW * 0.14f
                         drawFourCornerRects(tcx, tcy, s / 2f, cSize, steelPlate)
                         val rOff = s / 2f - cSize / 2f
@@ -371,7 +382,7 @@ fun DrawScope.drawTowers(
                         drawCircle(rivetColor, 2.0f, Offset(tcx - rOff, tcy + rOff))
                         drawCircle(rivetColor, 2.0f, Offset(tcx + rOff, tcy + rOff))
                         drawDualRails(tcx, tcy, aimRad, cellW * 0.09f, cellW * 0.40f, steelPlate, cellW * 0.08f, StrokeCap.Square, if (upgradeLevel >= 2) vectorAccentColor else null, 3.0f)
-                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.14f, center, style = Stroke(width = 2.0f))
+                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.14f, center, style = STROKE_2F)
                         drawCircle(if (upgradeLevel == 4) apexAuraColor else rivetColor, cellW * 0.08f, center)
                     }
                     TowerClass.STELLAR_COSMIC -> {
@@ -379,8 +390,8 @@ fun DrawScope.drawTowers(
                         buildStarPath(tcx, tcy, starR, starR * 0.46f, aimRad, scratchPath1)
                         drawPath(scratchPath1, steelDark)
                         drawPath(scratchPath1, steelPlate, style = Stroke(width = 3.0f, join = StrokeJoin.Round))
-                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor, cellW * 0.18f, center, style = Stroke(width = 2.0f))
-                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.14f, center, style = Stroke(width = 2.0f))
+                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor, cellW * 0.18f, center, style = STROKE_2F)
+                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.14f, center, style = STROKE_2F)
                         drawLine(steelPlate, center, Offset(tcx + cos(aimRad) * cellW * 0.40f, tcy + sin(aimRad) * cellW * 0.40f), cellW * 0.08f, StrokeCap.Square)
                         drawCircle(if (upgradeLevel == 4) apexAuraColor else rivetColor, cellW * 0.08f, center)
                     }
@@ -391,14 +402,14 @@ fun DrawScope.drawTowers(
                 val voidDark = Color(0xFF0D061A)
                 val voidRift = Color(0xFFA855F7)
                 val voidGlow = Color(0xFFD946EF)
-                drawCircle(voidRift.copy(alpha = 0.25f * auraPulse), cellW * 0.42f, center, style = Stroke(width = 2.0f))
+                drawCircle(voidRift.copy(alpha = 0.25f * auraPulse), cellW * 0.42f, center, style = STROKE_2F)
 
                 when (effectiveClass) {
                     TowerClass.KINETIC_BALLISTIC -> {
                         drawCircle(voidDark, cellW * 0.38f, center)
-                        drawCircle(voidRift, cellW * 0.38f, center, style = Stroke(width = 2.0f))
+                        drawCircle(voidRift, cellW * 0.38f, center, style = STROKE_2F)
                         if (upgradeLevel >= 2) {
-                            val sAngle = animFlowTime * 0.007f
+                            val sAngle = flowTimeF * 0.007f
                             drawCircle(vectorAccentColor, 3.5f, Offset(tcx + cos(sAngle) * cellW * 0.30f, tcy + sin(sAngle) * cellW * 0.30f))
                             drawCircle(vectorAccentColor, 3.5f, Offset(tcx - cos(sAngle) * cellW * 0.30f, tcy - sin(sAngle) * cellW * 0.30f))
                         }
@@ -415,11 +426,11 @@ fun DrawScope.drawTowers(
                         val p3 = Offset(tcx - r * 0.866f, tcy + r * 0.5f)
                         buildTrianglePath(p1, p2, p3, scratchPath1)
                         drawPath(scratchPath1, voidDark)
-                        drawPath(scratchPath1, voidRift, style = Stroke(width = 2.5f, join = StrokeJoin.Round))
+                        drawPath(scratchPath1, voidRift, style = STROKE_2_5F_ROUND)
                         drawCircle(voidGlow, cellW * 0.06f, p1)
                         drawCircle(voidGlow, cellW * 0.06f, p2)
                         drawCircle(voidGlow, cellW * 0.06f, p3)
-                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor, cellW * 0.20f, center, style = Stroke(width = 1.8f))
+                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor, cellW * 0.20f, center, style = STROKE_1_8F)
                         val bEnd = Offset(tcx + cos(aimRad) * cellW * 0.36f, tcy + sin(aimRad) * cellW * 0.36f)
                         drawLine(voidGlow, center, bEnd, cellW * 0.09f, StrokeCap.Round)
                         if (upgradeLevel >= 3) drawLine(towerColor, center, bEnd, cellW * 0.04f, StrokeCap.Round)
@@ -429,7 +440,7 @@ fun DrawScope.drawTowers(
                         val s = cellW * 0.74f
                         val tl = Offset(tcx - s / 2f, tcy - s / 2f)
                         drawRoundRect(voidDark, tl, Size(s, s), CornerRadius(6f, 6f))
-                        drawRoundRect(voidRift, tl, Size(s, s), CornerRadius(6f, 6f), style = Stroke(width = 2.0f))
+                        drawRoundRect(voidRift, tl, Size(s, s), CornerRadius(6f, 6f), style = STROKE_2F)
                         scratchPath2.reset()
                         scratchPath2.moveTo(tcx, tcy - s * 0.35f)
                         scratchPath2.lineTo(tcx + s * 0.35f, tcy)
@@ -438,16 +449,16 @@ fun DrawScope.drawTowers(
                         scratchPath2.close()
                         drawPath(scratchPath2, voidGlow.copy(alpha = 0.25f))
                         drawDualRails(tcx, tcy, aimRad, cellW * 0.08f, cellW * 0.38f, voidRift, cellW * 0.06f, StrokeCap.Round, if (upgradeLevel >= 2) vectorAccentColor else null, 2.5f)
-                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = Stroke(width = 1.8f))
+                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = STROKE_1_8F)
                         drawCircle(if (upgradeLevel == 4) apexAuraColor else Color.White, cellW * 0.07f, center)
                     }
                     TowerClass.STELLAR_COSMIC -> {
                         val starR = cellW * 0.40f
                         buildStarPath(tcx, tcy, starR, starR * 0.48f, aimRad, scratchPath1)
                         drawPath(scratchPath1, voidDark)
-                        drawPath(scratchPath1, voidRift, style = Stroke(width = 2.0f, join = StrokeJoin.Round))
-                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor.copy(alpha = 0.5f), cellW * 0.18f, center, style = Stroke(width = 1.5f))
-                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = Stroke(width = 1.8f))
+                        drawPath(scratchPath1, voidRift, style = STROKE_2F_ROUND)
+                        if (upgradeLevel >= 2) drawCircle(vectorAccentColor.copy(alpha = 0.5f), cellW * 0.18f, center, style = STROKE_1_5F)
+                        if (upgradeLevel >= 3) drawCircle(towerColor, cellW * 0.12f, center, style = STROKE_1_8F)
                         drawLine(voidGlow, center, Offset(tcx + cos(aimRad) * cellW * 0.38f, tcy + sin(aimRad) * cellW * 0.38f), cellW * 0.06f, StrokeCap.Round)
                         drawCircle(if (upgradeLevel == 4) apexAuraColor else Color.White, cellW * 0.07f, center)
                     }
@@ -463,7 +474,7 @@ fun DrawScope.drawTowers(
                 when (effectiveClass) {
                     TowerClass.KINETIC_BALLISTIC -> {
                         drawCircle(pixelDark, cellW * 0.36f, center)
-                        drawCircle(pixelYellow, cellW * 0.36f, center, style = Stroke(width = 2.0f))
+                        drawCircle(pixelYellow, cellW * 0.36f, center, style = STROKE_2F)
                         if (upgradeLevel >= 2) {
                             val p = aimRad + (PI / 2f).toFloat()
                             val wOff = cellW * 0.28f
@@ -486,7 +497,7 @@ fun DrawScope.drawTowers(
                         drawRect(pixelYellow, Offset(p1.x - pUnit / 2f, p1.y - pUnit / 2f), Size(pUnit, pUnit))
                         drawRect(pixelYellow, Offset(p2.x - pUnit / 2f, p2.y - pUnit / 2f), Size(pUnit, pUnit))
                         drawRect(pixelYellow, Offset(p3.x - pUnit / 2f, p3.y - pUnit / 2f), Size(pUnit, pUnit))
-                        if (upgradeLevel >= 2) drawRect(vectorAccentColor, Offset(tcx - pUnit * 1.5f, tcy - pUnit * 1.5f), Size(pUnit * 3f, pUnit * 3f), style = Stroke(width = 1.5f))
+                        if (upgradeLevel >= 2) drawRect(vectorAccentColor, Offset(tcx - pUnit * 1.5f, tcy - pUnit * 1.5f), Size(pUnit * 3f, pUnit * 3f), style = STROKE_1_5F)
                         val bEnd = Offset(tcx + cos(aimRad) * cellW * 0.34f, tcy + sin(aimRad) * cellW * 0.34f)
                         drawLine(pixelYellow, center, bEnd, cellW * 0.09f, StrokeCap.Square)
                         if (upgradeLevel >= 3) drawLine(towerColor, center, bEnd, cellW * 0.045f, StrokeCap.Square)
@@ -496,19 +507,19 @@ fun DrawScope.drawTowers(
                         val s = cellW * 0.72f
                         val tl = Offset(tcx - s / 2f, tcy - s / 2f)
                         drawRect(pixelDark, tl, Size(s, s))
-                        drawRect(pixelYellow, tl, Size(s, s), style = Stroke(width = 2.0f))
+                        drawRect(pixelYellow, tl, Size(s, s), style = STROKE_2F)
                         drawFourCornerRects(tcx, tcy, s / 2f, pUnit, pixelYellow)
                         drawDualRails(tcx, tcy, aimRad, cellW * 0.08f, cellW * 0.38f, pixelYellow, cellW * 0.08f, StrokeCap.Square, if (upgradeLevel >= 2) vectorAccentColor else null, 2.5f)
-                        if (upgradeLevel >= 3) drawRect(towerColor, Offset(tcx - pUnit * 1.2f, tcy - pUnit * 1.2f), Size(pUnit * 2.4f, pUnit * 2.4f), style = Stroke(width = 1.5f))
+                        if (upgradeLevel >= 3) drawRect(towerColor, Offset(tcx - pUnit * 1.2f, tcy - pUnit * 1.2f), Size(pUnit * 2.4f, pUnit * 2.4f), style = STROKE_1_5F)
                         drawRect(if (upgradeLevel == 4) apexAuraColor else Color.White, Offset(tcx - pUnit * 0.7f, tcy - pUnit * 0.7f), Size(pUnit * 1.4f, pUnit * 1.4f))
                     }
                     TowerClass.STELLAR_COSMIC -> {
                         val starR = cellW * 0.38f
                         buildStarPath(tcx, tcy, starR, starR * 0.45f, aimRad, scratchPath1)
                         drawPath(scratchPath1, pixelDark)
-                        drawPath(scratchPath1, pixelYellow, style = Stroke(width = 2.0f))
-                        if (upgradeLevel >= 2) drawRect(vectorAccentColor, Offset(tcx - pUnit, tcy - pUnit), Size(pUnit * 2f, pUnit * 2f), style = Stroke(width = 1.5f))
-                        if (upgradeLevel >= 3) drawRect(towerColor, Offset(tcx - pUnit * 1.2f, tcy - pUnit * 1.2f), Size(pUnit * 2.4f, pUnit * 2.4f), style = Stroke(width = 1.5f))
+                        drawPath(scratchPath1, pixelYellow, style = STROKE_2F)
+                        if (upgradeLevel >= 2) drawRect(vectorAccentColor, Offset(tcx - pUnit, tcy - pUnit), Size(pUnit * 2f, pUnit * 2f), style = STROKE_1_5F)
+                        if (upgradeLevel >= 3) drawRect(towerColor, Offset(tcx - pUnit * 1.2f, tcy - pUnit * 1.2f), Size(pUnit * 2.4f, pUnit * 2.4f), style = STROKE_1_5F)
                         drawLine(pixelYellow, center, Offset(tcx + cos(aimRad) * cellW * 0.36f, tcy + sin(aimRad) * cellW * 0.36f), cellW * 0.08f, StrokeCap.Square)
                         drawRect(if (upgradeLevel == 4) apexAuraColor else Color.White, Offset(tcx - pUnit * 0.7f, tcy - pUnit * 0.7f), Size(pUnit * 1.4f, pUnit * 1.4f))
                     }
@@ -587,7 +598,7 @@ fun DrawScope.drawCombatEntities(
         val py = (proj.currentY + 0.5f) * cellH + shakeY
         val projColor = Color(proj.color)
         if (proj.isMortarArc) {
-            val progress = (proj.traveledDistance / proj.totalDistance).coerceIn(0f, 1f)
+            val progress = if (proj.totalDistance > 0f) (proj.traveledDistance / proj.totalDistance).coerceIn(0f, 1f) else 1f
             val arcY = py - sin(progress * PI.toFloat()) * (cellH * 1.3f)
             drawCircle(Color.Black.copy(alpha = 0.35f), cellW * 0.12f, Offset(px, py))
             drawCircle(projColor, cellW * 0.16f, Offset(px, arcY))
@@ -610,13 +621,13 @@ fun DrawScope.drawCombatEntities(
         val strokeW = if (enemy.isBoss) 3.5f else 2.2f
 
         if (enemy.slowTimerMs > 0) drawCircle(Color(0xFF38BDF8).copy(alpha = 0.4f), enemyRadius * 1.4f, center)
-        if (enemy.shockTimerMs > 0) drawCircle(Color(0xFFB026FF).copy(alpha = 0.4f), enemyRadius * 1.35f, center, style = Stroke(width = 2f))
+        if (enemy.shockTimerMs > 0) drawCircle(Color(0xFFB026FF).copy(alpha = 0.4f), enemyRadius * 1.35f, center, style = STROKE_2F)
 
         when (enemy.type.shape) {
             EnemyShape.CIRCLE -> {
                 if (enemy.isBoss) {
                     drawCircle(fillColor, enemyRadius * 1.35f, center)
-                    drawCircle(affinityColor, enemyRadius * 1.15f, center, style = Stroke(width = 3.0f))
+                    drawCircle(affinityColor, enemyRadius * 1.15f, center, style = STROKE_3F)
                     drawCircle(enemyColor, enemyRadius, center)
                 } else {
                     drawCircle(fillColor, enemyRadius, center)
@@ -661,7 +672,7 @@ fun DrawScope.drawCombatEntities(
         val hpBarW = cellW * 0.70f * enemy.type.sizeRatio
         val hpBarH = 4.dp.toPx()
         val hpBarY = ecy - enemyRadius - 7.dp.toPx()
-        val hpRatio = (enemy.currentHp / enemy.maxHp).coerceIn(0f, 1f)
+        val hpRatio = if (enemy.maxHp > 0f) (enemy.currentHp / enemy.maxHp).coerceIn(0f, 1f) else 0f
         drawRoundRect(Color.Black.copy(alpha = 0.75f), Offset(ecx - hpBarW / 2, hpBarY), Size(hpBarW, hpBarH), CornerRadius(2f, 2f))
         val hpColor = when {
             hpRatio > 0.5f -> Color(0xFF00FF9D)
@@ -675,14 +686,14 @@ fun DrawScope.drawCombatEntities(
         val exp = state.explosions[i]
         val center = Offset((exp.x + 0.5f) * cellW + shakeX, (exp.y + 0.5f) * cellH + shakeY)
         val radiusPx = exp.currentRadius * cellW
-        val alpha = (exp.lifeMs.toFloat() / exp.maxLifeMs).coerceIn(0f, 1f)
+        val alpha = if (exp.maxLifeMs > 0L) (exp.lifeMs.toFloat() / exp.maxLifeMs).coerceIn(0f, 1f) else 0f
         drawCircle(Color(exp.color).copy(alpha = 0.28f * alpha), radiusPx, center)
-        drawCircle(Color(exp.color).copy(alpha = 0.8f * alpha), radiusPx, center, style = Stroke(width = 3f))
+        drawCircle(Color(exp.color).copy(alpha = 0.8f * alpha), radiusPx, center, style = STROKE_3F)
     }
 
     for (i in 0 until state.floatingTexts.size) {
         val ft = state.floatingTexts[i]
-        val alpha = (ft.lifeMs.toFloat() / ft.maxLifeMs).coerceIn(0f, 1f)
+        val alpha = if (ft.maxLifeMs > 0L) (ft.lifeMs.toFloat() / ft.maxLifeMs).coerceIn(0f, 1f) else 0f
         drawCircle(
             Color(ft.color).copy(alpha = 0.25f * alpha),
             if (ft.isCrit) 16.dp.toPx() else 10.dp.toPx(),

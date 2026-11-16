@@ -121,6 +121,8 @@ fun RogueTDScreen(
 
         // === IN-APP GITHUB APK AUTO-UPDATER BANNER ===
         if (hudState.updateUIState.status in listOf(UpdateDownloadStatus.AVAILABLE, UpdateDownloadStatus.DOWNLOADING, UpdateDownloadStatus.READY_TO_INSTALL)) {
+            val hasRound1TopBanner = (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) ||
+                (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty())
             UpdateBanner(
                 updateState = hudState.updateUIState,
                 onDownloadAndInstall = {
@@ -132,7 +134,7 @@ fun RogueTDScreen(
                 },
                 modifier = Modifier
                     .align(if (isLandscape) Alignment.BottomStart else Alignment.TopCenter)
-                    .padding(if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp) else PaddingValues(top = 46.dp))
+                    .padding(if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp) else PaddingValues(top = if (hasRound1TopBanner) 84.dp else 46.dp))
             )
         }
 
@@ -384,7 +386,6 @@ fun RogueTDScreen(
                     viewModel.startNewRun()
                 },
                 onEndRun = {
-                    viewModel.closePauseMenu()
                     viewModel.requestEndRun()
                 },
                 onCheckForUpdates = { viewModel.checkForAppUpdates() },
@@ -423,7 +424,8 @@ fun RogueTDScreen(
                 state = state,
                 onRestart = { viewModel.startNewRun() },
                 onViewTelemetry = { viewModel.toggleTelemetryView(true, initialTab = 2) },
-                onSetPlayerName = { viewModel.setPlayerName(it) }
+                onSetPlayerName = { viewModel.setPlayerName(it) },
+                onRetryLeaderboard = { viewModel.fetchOnlineLeaderboard(true) }
             )
         }
 

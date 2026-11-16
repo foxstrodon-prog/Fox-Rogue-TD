@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.028`):** [`apk/Dual-Front-TD-v0.0.1.028-debug.apk`](apk/Dual-Front-TD-v0.0.1.028-debug.apk)
+- **Latest Android APK (`v0.0.1.029`):** [`apk/Dual-Front-TD-v0.0.1.029-debug.apk`](apk/Dual-Front-TD-v0.0.1.029-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,26 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.028
+## 🕹️ What's New in Version 0.0.1.029
+
+### 🛡️ Full Codebase Audit, Red-Team Security Hardening & Modularity Restoration
+- **Modularity Law Compliance (`<= 750` Lines/File):**
+  - Modularized `HudTopBar.kt` (extracting `HudSynergyCapsule.kt`, `HudTeleportPadsCapsule.kt`, and `HudStatusWidgets.kt`) and `DevMenuDrawer.kt` (extracting `DevEconomyTab.kt`, `DevProbesAndCinemaTabs.kt`, and `DevExportBalanceDialog.kt`) so 100% of production Kotlin files under `app/src/main/java/com/example/` stay at or under 750 lines.
+  - Restored horizontal scroll, 90°/270° rotated capsule layouts, centered rotated dialogs, and accurate `activeEnemyCount` telemetry on the top HUD.
+- **Engine, Simulation & Targeting Fixes (`CombatSimulationEngine.kt`, `SimulationCoordinator.kt`, `WaveGenerator.kt`, `TowerPlacementCoordinator.kt`):**
+  - Added strict `.isDead` filtering in `SpatialHashGrid` queries and `findEnemyById`, eliminated self-aliased projectile scratch list mutations on zero-delta steps, and added finite/zero-division guards across `DamageCalculator.kt`, `EntityModels.kt`, and `EntityRenderer.kt`.
+  - Gated Cryo Shatterburst strictly on Cryo Apex Form `B.a` in a dedicated pre-bounty pass, fixed Stellar weapon splash attributes, corrected Wave 10/20 Boss modifier precedence & scripted wave speed scaling, guarded post-victory `deployWave()` & ticks, deferred victory run recording until final state commit, and used immutable copy updates for tower target priority and booster swaps.
+- **UI, Canvas, Audio & Lifecycle Polish (`GameCanvas.kt`, `TerrainRenderer.kt`, `SoundManager.kt`, `RogueTDViewModel.kt`, `MainActivity.kt`, `RunSummaryDialogs.kt`, `TelemetryLeaderboardDialog.kt`):**
+  - Eliminated Float32 epoch-millisecond trig quantization freezes in screen shake and terrain/tower animations, hoisted fixed Canvas `Stroke` instances, fixed `OutlinedTextField` vertical clipping and banner overlap, wired retry click handlers on post-run banners, and serialized post-run callsign updates with async score submission.
+  - Recovered background music when unmuting from a muted start, applied volume/mute changes immediately even while paused, unloaded stale `SoundPool` generic SFX on profile switches, ran `soundManager.updateTick` unconditionally at unscaled wall-clock deltas, and cached auto-rotate settings via a `ContentObserver`.
+- **Red-Team Network, Auth, Update & Storage Hardening (`AuthRepository.kt`, `ScoreSubmissionWorker.kt`, `LeaderboardStore.kt`, `LeaderboardRepository.kt`, `TelemetryManager.kt`, `AppUpdateManager.kt`):**
+  - Added process-wide `LeaderboardStore` locking, atomic `(uid, idToken)` session snapshots via `AuthRepository.getAuthenticatedSession()`, 5xx/malformed refresh preservation, non-blocking worker queues, transient refresh failure protection, Double-bit damage persistence, isolated `TelemetryManager` synchronization & seed fallback, HTTPS enforcement, filename sanitization, and APK package/signing-certificate SHA-256 verification before install, plus backup exclusions for auth/identity preferences.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.028
 
 ### 🔑 Anonymous Auth Recovery, Cross-Instance Synchronization & Clear Error Diagnostics
 - **Process-Wide Auth Synchronization (`AuthRepository.kt`):**
@@ -34,11 +53,9 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Added structured `AuthFailure` parsing across both native `FirebaseAuthException` / `ExecutionException` causes and REST Identity Toolkit / Secure Token error responses (`ADMIN_ONLY_OPERATION`, `OPERATION_NOT_ALLOWED`, `API_KEY_ANDROID_APP_BLOCKED`, `API_KEY_SERVICE_BLOCKED`, `API_KEY_INVALID`, `CONFIGURATION_NOT_FOUND`, and network/timeout failures).
   - Updated `ScoreSubmissionWorker` to propagate exact `AuthFailure` diagnostics across all pending runs (failing fast on `UNCONFIGURED` errors instead of masking every auth issue behind `"Anonymous authentication unavailable (no Firebase ID token)"`).
 
----
-
-## 🕹️ Previous Releases
-
 ### Version 0.0.1.027
+- **Leaderboard Auth & Offline Queue Hardening (`AuthRepository.kt`, `FirestoreLeaderboardApi.kt`, `LeaderboardRepository.kt`, `ScoreSubmissionWorker.kt`):**
+  - Tightened pending run queue state transitions (`PENDING`, `SUBMITTED`, `LOCAL_ONLY`), callsign updates (`updatePendingCallsign`), WorkManager retry backoff/scheduling, and post-run status banner diagnostics (`RunSummaryDialogTest.kt`, `LeaderboardCoreTest.kt`).
 
 ### Version 0.0.1.026
 
@@ -369,5 +386,5 @@ Created by an indie developer who just loves tower defense games and wanted to b
 ```
 
 Build outputs:
-- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.027-debug.apk`)
+- Android APK: `app/build/outputs/apk/debug/app-debug.apk` (and staged under `apk/Dual-Front-TD-v0.0.1.029-debug.apk`)
 - Local ADB Runner: `apk/Dual-Front-TD-ADB.exe` (general ADB companion shell)

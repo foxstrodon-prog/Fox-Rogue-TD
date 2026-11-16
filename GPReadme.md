@@ -4,7 +4,49 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.022
+### 🚀 What's New in Version 0.0.1.029
+
+🛡️ **Full Codebase Hardening, Combat Fixes, Audio/Canvas Polish & Security Verification**
+- **100% Modularity & HUD Responsiveness:** Split oversized HUD and Dev Menu modules cleanly under 750 lines/file, restored landscape capsule scrolling and live active-enemy counts, fixed rotated dialog centering, and eliminated text-field clipping and banner overlaps.
+- **Precision Combat & Wave Progression:** Fixed dead-target spatial hash skips, projectile scratch aliasing, finite math guards, Cryo Apex B.a Shatterburst gating, Stellar splash munitions, Wave 10/20 boss modifiers, and post-victory wave guards.
+- **Smooth Canvas & Reliable Audio:** Eliminated long-session Float32 animation stutters, fixed background music recovery when unmuting, applied volume sliders while paused, and cleaned up `SoundPool` asset reloads.
+- **Resilient Leaderboards & Verified Updates:** Serialized callsign updates, added atomic auth session snapshots, prevented stuck offline queue head-of-line blocking, excluded auth secrets from cloud backups, and enforced HTTPS + signing-certificate verification on in-app APK updates.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.028
+
+🔑 **Anonymous Auth Recovery & Diagnostics**
+- Synchronized anonymous auth across `RogueTDViewModel` and background workers with shared mutex locking, automatic stale-session recovery, and clear error diagnostics.
+
+#### Version 0.0.1.027
+
+🏆 **Leaderboard Queue & Status Hardening**
+- Improved offline pending run queue state transitions (`PENDING`, `SUBMITTED`, `LOCAL_ONLY`), callsign updates, and post-run upload feedback.
+
+#### Version 0.0.1.026
+
+⚖️ **Combat Attribution, Tier-3 Aura Sync & 52-Tower Balance**
+- Credited projectile/AoE damage & kills to originating towers for MVP tracking, synchronized same-tick Tier-3 global auras and Conduit vaults, and aligned 52-tower balance overrides.
+
+#### Version 0.0.1.025
+
+🌐 **Global Leaderboard Restoration & Auth Fallback**
+- Added dynamic runtime Firebase API key resolution, Google Identity Toolkit REST anonymous auth fallback, and immediate post-upload scoreboard refresh.
+
+#### Version 0.0.1.024
+
+🔄 **Dual-Thumb Rotation Tabs & Strict Conduit Gating**
+- Added matching left/right manual rotation edge tabs, 100% Tier-3 Conduit ascension gating with escalating scrap pricing, and absorbed Conduit vaults in the HUD.
+
+#### Version 0.0.1.023
+
+🖥️ **Immersive Fullscreen, Draggable HUD & Updater Hygiene**
+- Enabled swipe immersive fullscreen, draggable bullet HUD with clock/battery handle, frosted edge swap tabs, separated booster pads, and startup APK cache hygiene.
+
+#### Version 0.0.1.022
 
 🗺️ **Every Non-Lane Tile Buildable, Dense Winding Lane Expansion, Geometry Dev Sliders, Square Grid Auto-Zoom & Affordability Dots**
 - **100% Buildable Board (Zero Inoperable Clearance Lockout):** Every tile without a lane, spawner, or core is now an open, buildable slot (`isBuildable == true`). All 6 Booster Pads (2 Green, 2 Teal, 2 Orange) are preserved and count toward available tower spots.
