@@ -668,7 +668,7 @@ private fun SingularityGateSquircle(
     }
 }
 
-private fun getArchetypeCardLabels(arch: TowerArchetype): Triple<String, String, String> = when (arch) {
+internal fun getArchetypeCardLabels(arch: TowerArchetype): Triple<String, String, String> = when (arch) {
     TowerArchetype.VULCAN_GATLING -> Triple("Vulcan", "Gatling", "Rotary DPS")
     TowerArchetype.FLAK_CANNON -> Triple("Twin Flak", "Cannon", "Shrapnel AoE")
     TowerArchetype.SNIPER_SENTRY -> Triple("Sniper", "Sentry", "Penetrator")
@@ -701,7 +701,7 @@ private fun getArchetypeCardLabels(arch: TowerArchetype): Triple<String, String,
     TowerArchetype.CELESTIAL_COMET -> Triple("Celestial", "Comet", "Meteor Storm")
     TowerArchetype.EVENT_HORIZON -> Triple("Event", "Horizon", "Time Warp")
     TowerArchetype.NEBULA_AEGIS -> Triple("Nebula", "Aegis", "Cosmic Shield")
-    TowerArchetype.BLACK_HOLE_SENTRY -> Triple("Singular.", "Bastion", "Micro Void")
+    TowerArchetype.BLACK_HOLE_SENTRY -> Triple("Singularity", "Bastion", "Micro Void")
     TowerArchetype.CHRONO_PYLON -> Triple("Chrono", "Pylon", "Time Haste")
     TowerArchetype.STARLIGHT_BEACON -> Triple("Starlight", "Beacon", "True Sight")
     TowerArchetype.ASTRAL_HARVESTER -> Triple("Astral", "Harvest", "Cosmic Siphon")

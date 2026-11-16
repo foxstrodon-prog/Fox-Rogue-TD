@@ -574,9 +574,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 032`() {
-    assertEquals("0.0.1.032", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(53, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 033`() {
+    assertEquals("0.0.1.033", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(54, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -635,42 +635,58 @@ class ExampleRobolectricTest {
   @Test
   fun `verify device rotation angle updates in ui state`() {
     val app = org.robolectric.RuntimeEnvironment.getApplication()
-    val vm = com.example.ui.RogueTDViewModel(app)
-    assertEquals(0f, vm.uiState.value.deviceRotationAngle)
-    vm.updateDeviceRotation(90f)
-    assertEquals(90f, vm.uiState.value.deviceRotationAngle)
-    vm.updateDeviceRotation(270f)
-    assertEquals(270f, vm.uiState.value.deviceRotationAngle)
-    vm.updateDeviceRotation(360f)
-    assertEquals(0f, vm.uiState.value.deviceRotationAngle)
-    vm.updateDeviceRotation(-90f)
-    assertEquals(270f, vm.uiState.value.deviceRotationAngle)
+    val vmStore = androidx.lifecycle.ViewModelStore()
+    val vm = androidx.lifecycle.ViewModelProvider(
+      vmStore,
+      androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+    )[com.example.ui.RogueTDViewModel::class.java]
+    try {
+      assertEquals(0f, vm.uiState.value.deviceRotationAngle)
+      vm.updateDeviceRotation(90f)
+      assertEquals(90f, vm.uiState.value.deviceRotationAngle)
+      vm.updateDeviceRotation(270f)
+      assertEquals(270f, vm.uiState.value.deviceRotationAngle)
+      vm.updateDeviceRotation(360f)
+      assertEquals(0f, vm.uiState.value.deviceRotationAngle)
+      vm.updateDeviceRotation(-90f)
+      assertEquals(270f, vm.uiState.value.deviceRotationAngle)
+    } finally {
+      vmStore.clear()
+    }
   }
 
   @Test
   fun `verify hardware tilt angle with rotation lock and manual confirm`() {
     val app = org.robolectric.RuntimeEnvironment.getApplication()
-    val vm = com.example.ui.RogueTDViewModel(app)
-    assertEquals(0f, vm.uiState.value.deviceRotationAngle)
-    assertEquals(0f, vm.uiState.value.hardwareTiltAngle)
-    assertFalse(vm.uiState.value.isSystemAutoRotateLocked)
+    val vmStore = androidx.lifecycle.ViewModelStore()
+    val vm = androidx.lifecycle.ViewModelProvider(
+      vmStore,
+      androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+    )[com.example.ui.RogueTDViewModel::class.java]
+    try {
+      assertEquals(0f, vm.uiState.value.deviceRotationAngle)
+      assertEquals(0f, vm.uiState.value.hardwareTiltAngle)
+      assertFalse(vm.uiState.value.isSystemAutoRotateLocked)
 
-    // When rotation lock is active and device tilts 90 deg:
-    vm.updateHardwareTiltAngle(90f)
-    assertEquals(90f, vm.uiState.value.hardwareTiltAngle)
-    assertEquals(0f, vm.uiState.value.deviceRotationAngle) // HUD did not auto-rotate
-    assertTrue(vm.uiState.value.isSystemAutoRotateLocked)
+      // When rotation lock is active and device tilts 90 deg:
+      vm.updateHardwareTiltAngle(90f)
+      assertEquals(90f, vm.uiState.value.hardwareTiltAngle)
+      assertEquals(0f, vm.uiState.value.deviceRotationAngle) // HUD did not auto-rotate
+      assertTrue(vm.uiState.value.isSystemAutoRotateLocked)
 
-    // Manual rotation confirmation syncs HUD angle
-    vm.confirmManualRotation()
-    assertEquals(90f, vm.uiState.value.deviceRotationAngle)
-    assertEquals(90f, vm.uiState.value.hardwareTiltAngle)
+      // Manual rotation confirmation syncs HUD angle
+      vm.confirmManualRotation()
+      assertEquals(90f, vm.uiState.value.deviceRotationAngle)
+      assertEquals(90f, vm.uiState.value.hardwareTiltAngle)
 
-    // When auto-rotate is toggled back on, updateDeviceRotation clears rotation lock
-    vm.updateDeviceRotation(180f)
-    assertEquals(180f, vm.uiState.value.deviceRotationAngle)
-    assertEquals(180f, vm.uiState.value.hardwareTiltAngle)
-    assertFalse(vm.uiState.value.isSystemAutoRotateLocked)
+      // When auto-rotate is toggled back on, updateDeviceRotation clears rotation lock
+      vm.updateDeviceRotation(180f)
+      assertEquals(180f, vm.uiState.value.deviceRotationAngle)
+      assertEquals(180f, vm.uiState.value.hardwareTiltAngle)
+      assertFalse(vm.uiState.value.isSystemAutoRotateLocked)
+    } finally {
+      vmStore.clear()
+    }
   }
 
   @Test
@@ -1151,6 +1167,7 @@ class ExampleRobolectricTest {
     activity.onConfigurationChanged(mutatedConfig)
     assertEquals(1.0f, activity.resources.configuration.fontScale, 0.001f)
     controller.destroy()
+    org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
   }
 
   @Test
@@ -1308,28 +1325,68 @@ class ExampleRobolectricTest {
     assertEquals("TEST_SANITIZED_KEY_123", capturedApiKeyHeader)
   }
 
+  /**
+   * CI-safe fixtures: `app/google-services.json` is git-ignored, so `R.string.project_id` / `google_api_key`
+   * do not exist on clean GitHub Actions checkouts. Every Firestore credential test therefore builds its own
+   * isolated [FirebaseApp] instead of relying on Robolectric resources.
+   */
+  private val testProjectId = "test-isolated-project"
+  private val testApiKey = "AIzaSy" + "0123456789".repeat(3) + "abc" // 39 chars like a real Firebase key
+
+  private fun <T> withIsolatedFirebaseApp(context: Context, block: () -> T): T {
+    val hadFirebaseApp = FirebaseApp.getApps(context).isNotEmpty()
+    FirebaseApp.clearInstancesForTest()
+    try {
+      val options = com.google.firebase.FirebaseOptions.Builder()
+        .setProjectId(testProjectId)
+        .setApiKey(testApiKey)
+        .setApplicationId("1:1234567890:android:abcdef0123456789")
+        .build()
+      FirebaseApp.initializeApp(context, options)
+      return block()
+    } finally {
+      FirebaseApp.clearInstancesForTest()
+      if (hadFirebaseApp) {
+        runCatching { FirebaseApp.initializeApp(context) }
+      }
+    }
+  }
+
   @Test
   fun `verify FirestoreLeaderboardApi resolveDefaultApiKey and sanitizeApiKey strip key prefix and provide non-blank key`() {
-    val sanitized = com.example.engine.network.FirestoreLeaderboardApi.sanitizeApiKey("  key=\"MY_CLEAN_KEY_999\" ")
+    val sanitized = FirestoreLeaderboardApi.sanitizeApiKey("  key=\"MY_CLEAN_KEY_999\" ")
     assertEquals("MY_CLEAN_KEY_999", sanitized)
 
-    val context = org.robolectric.RuntimeEnvironment.getApplication()
-    val defaultKey = com.example.engine.network.FirestoreLeaderboardApi.resolveDefaultApiKey(context)
-    assertTrue("Default resolved API key must be non-blank", defaultKey.isNotBlank())
-    assertFalse("Default resolved API key must not contain key= prefix", defaultKey.startsWith("key="))
-    assertEquals(39, defaultKey.length)
+    val context = RuntimeEnvironment.getApplication()
+    withIsolatedFirebaseApp(context) {
+      // Explicit BuildConfig key wins and is sanitized (no key= prefix, no quotes)
+      val fromBuildConfig = FirestoreLeaderboardApi.resolveDefaultApiKey(context, "key=\"EXPLICIT_BUILD_CONFIG_KEY\"")
+      assertEquals("EXPLICIT_BUILD_CONFIG_KEY", fromBuildConfig)
+
+      // Blank / placeholder BuildConfig keys fall back to the isolated FirebaseApp options
+      val fromFirebaseApp = FirestoreLeaderboardApi.resolveDefaultApiKey(context, "")
+      assertTrue("Resolved API key must be non-blank", fromFirebaseApp.isNotBlank())
+      assertFalse("Resolved API key must not contain key= prefix", fromFirebaseApp.startsWith("key="))
+      assertEquals(testApiKey, fromFirebaseApp)
+      assertEquals(39, fromFirebaseApp.length)
+    }
   }
 
   @Test
   fun `verify FirestoreLeaderboardApi resolveProjectId and resolveDefaultApiKey dynamically read google-services config`() {
     val context = RuntimeEnvironment.getApplication()
-    val projectId = FirestoreLeaderboardApi.resolveProjectId("", context)
-    assertTrue("Resolved project ID must not be blank", projectId.isNotBlank())
-    assertEquals("roguetddualfront", projectId)
+    withIsolatedFirebaseApp(context) {
+      val projectId = FirestoreLeaderboardApi.resolveProjectId("", context)
+      assertTrue("Resolved project ID must not be blank", projectId.isNotBlank())
+      assertEquals(testProjectId, projectId)
 
-    val defaultKey = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
-    assertTrue("Resolved API key must not be blank", defaultKey.isNotBlank())
-    assertEquals(39, defaultKey.length)
+      // Explicit project ID takes priority over FirebaseApp options
+      assertEquals("explicit-project", FirestoreLeaderboardApi.resolveProjectId("  explicit-project ", context))
+
+      val defaultKey = FirestoreLeaderboardApi.resolveDefaultApiKey(context, "")
+      assertTrue("Resolved API key must not be blank", defaultKey.isNotBlank())
+      assertEquals(39, defaultKey.length)
+    }
 
     // Verify key=API_KEY or API_KEY is stripped and sanitized properly
     val sanitizedPlaceholder = FirestoreLeaderboardApi.sanitizeApiKey("key=API_KEY")
@@ -1339,26 +1396,30 @@ class ExampleRobolectricTest {
   @Test
   fun `verify FirestoreLeaderboardApi rejects placeholder keys and project IDs and falls back to context`() {
     val context = RuntimeEnvironment.getApplication()
-    val expectedKey = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
-    val expectedProjectId = FirestoreLeaderboardApi.resolveProjectId("", context)
 
-    // Placeholder API key and project ID in constructor fall back to context google-services resources
-    val fallbackApi = FirestoreLeaderboardApi(
-      projectId = "your_firestore_project_id",
-      apiKey = "key=API_KEY",
-      context = context
-    )
-    assertTrue("Constructor with context must resolve real credentials instead of placeholders", fallbackApi.isConfigured)
-    assertEquals(expectedProjectId, fallbackApi.projectId)
+    withIsolatedFirebaseApp(context) {
+      // Placeholder API key and project ID in constructor fall back to the FirebaseApp options
+      val fallbackApi = FirestoreLeaderboardApi(
+        projectId = "your_firestore_project_id",
+        apiKey = "key=API_KEY",
+        context = context
+      )
+      assertTrue("Constructor with context must resolve real credentials instead of placeholders", fallbackApi.isConfigured)
+      assertEquals(testProjectId, fallbackApi.projectId)
 
-    // Explicit blank or placeholder credentials without context remain unconfigured even if FirebaseApp is initialized
-    assertFalse(FirestoreLeaderboardApi(projectId = "", apiKey = "test-key").isConfigured)
-    assertFalse(FirestoreLeaderboardApi(projectId = "your_firestore_project_id", apiKey = "test-key").isConfigured)
-    assertFalse(FirestoreLeaderboardApi(projectId = "test-project", apiKey = "API_KEY").isConfigured)
-    assertFalse(FirestoreLeaderboardApi(projectId = "test-project", apiKey = "your_firestore_api_key").isConfigured)
-    assertFalse(FirestoreLeaderboardApi(projectId = "", apiKey = "").isConfigured)
+      // Placeholder BuildConfig key resolves to the FirebaseApp key even with a context present
+      assertEquals(testApiKey, FirestoreLeaderboardApi.resolveDefaultApiKey(context, "key=API_KEY"))
+      assertEquals(testProjectId, FirestoreLeaderboardApi.resolveProjectId("your_firestore_project_id", context))
 
-    // Verify resolveDefaultApiKey and resolveProjectId return "" when FirebaseApp is uninitialized and only placeholders exist
+      // Explicit blank or placeholder credentials without context remain unconfigured even if FirebaseApp is initialized
+      assertFalse(FirestoreLeaderboardApi(projectId = "", apiKey = "test-key").isConfigured)
+      assertFalse(FirestoreLeaderboardApi(projectId = "your_firestore_project_id", apiKey = "test-key").isConfigured)
+      assertFalse(FirestoreLeaderboardApi(projectId = "test-project", apiKey = "API_KEY").isConfigured)
+      assertFalse(FirestoreLeaderboardApi(projectId = "test-project", apiKey = "your_firestore_api_key").isConfigured)
+      assertFalse(FirestoreLeaderboardApi(projectId = "", apiKey = "").isConfigured)
+    }
+
+    // With FirebaseApp uninitialized and no context, placeholders resolve to ""
     val hadFirebaseApp = FirebaseApp.getApps(context).isNotEmpty()
     FirebaseApp.clearInstancesForTest()
     try {
@@ -1367,13 +1428,9 @@ class ExampleRobolectricTest {
       assertEquals("", FirestoreLeaderboardApi.resolveDefaultApiKey(null, ""))
       assertEquals("", FirestoreLeaderboardApi.resolveProjectId("your_firestore_project_id", null))
       assertEquals("", FirestoreLeaderboardApi.resolveProjectId("", null))
-
-      // Even with FirebaseApp uninitialized, passing context resolves real key & projectId from resources
-      assertEquals(expectedKey, FirestoreLeaderboardApi.resolveDefaultApiKey(context, "key=API_KEY"))
-      assertEquals(expectedProjectId, FirestoreLeaderboardApi.resolveProjectId("your_firestore_project_id", context))
     } finally {
       if (hadFirebaseApp) {
-        FirebaseApp.initializeApp(context)
+        runCatching { FirebaseApp.initializeApp(context) }
       }
     }
   }

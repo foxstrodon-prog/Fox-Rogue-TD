@@ -25,7 +25,8 @@ class SimulationCoordinator(
     private val remoteConfigManager: RemoteConfigManager,
     private val cinematicController: CinematicController,
     private val nextId: (String) -> String,
-    private val onRecordRunCompletion: (Boolean, Int) -> Unit
+    private val onRecordRunCompletion: (Boolean, Int) -> Unit,
+    private val critRandom: Random = Random.Default
 ) {
     var virtualSimTimeMs: Long = 0L
         private set
@@ -264,7 +265,7 @@ class SimulationCoordinator(
                         tileBuff = tileBuff,
                         globalDamageBonus = synergyBonus + harmonicDmgBonus + globalDamageBonus
                     )
-                    val isCrit = Random.nextFloat() < globalCritRate
+                    val isCrit = critRandom.nextFloat() < globalCritRate
                     val finalDmg = if (isCrit) baseDmg * globalCritMul else baseDmg
 
                     frameDamageDealt += fireTowerWeapon(

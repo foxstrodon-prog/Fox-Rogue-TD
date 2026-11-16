@@ -38,6 +38,8 @@ data class GameUIState(
     val gameSpeed: GameSpeed = GameSpeed.NORMAL,
     val selectedTile: MapTile? = null,
     val selectedTower: TowerInstance? = null,
+    /** Id of the most recently selected/built/upgraded tower; survives squircle close, cleared only on sell / new run. */
+    val lastSelectedTowerId: String? = null,
     val isGameOver: Boolean = false,
     val isVictory: Boolean = false,
     val totalKills: Int = 0,

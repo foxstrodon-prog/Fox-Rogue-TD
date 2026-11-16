@@ -24,6 +24,25 @@ class TowerPlacementCoordinator(
 ) {
     private var lastBoosterSwapTimeMs: Long = 0L
 
+    /**
+     * Cheapest next upgrade cost for Tier 0 / Tier 1 towers, or null at Tier 2+ (no auto-close past Tier 1).
+     */
+    internal fun cheapestNextUpgradeCost(tower: TowerInstance): Int? = when (tower.tier) {
+        0 -> TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
+        1 -> {
+            val vec = tower.vector ?: TowerVector.OFFENSIVE
+            TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
+                .minOfOrNull { TowerUpgradeManager.getTier2Cost(it) }
+        }
+        else -> null
+    }
+
+    /** True when the tower is Tier 0/1 and [remainingScrap] cannot afford its cheapest next upgrade. */
+    private fun shouldAutoCloseSquircle(tower: TowerInstance, remainingScrap: Int): Boolean {
+        val next = cheapestNextUpgradeCost(tower) ?: return false
+        return remainingScrap < next
+    }
+
     fun selectTile(tile: MapTile?) {
         if (!uiStateFlow.value.hasClickedFirstTile && tile != null) {
             telemetryManager.logTutorialComplete()
@@ -38,6 +57,7 @@ class TowerPlacementCoordinator(
             it.copy(
                 selectedTile = effectiveSelectedTile,
                 selectedTower = tower,
+                lastSelectedTowerId = tower?.id ?: it.lastSelectedTowerId,
                 hasClickedFirstTile = if (tile != null) true else it.hasClickedFirstTile
             )
         }
@@ -65,7 +85,15 @@ class TowerPlacementCoordinator(
         onSynergyDirty()
 
         uiStateFlow.update {
-            it.copy(scrap = it.scrap - cost, towers = it.towers + newTower, selectedTower = newTower)
+            val remaining = it.scrap - cost
+            val autoClose = shouldAutoCloseSquircle(newTower, remaining)
+            it.copy(
+                scrap = remaining,
+                towers = it.towers + newTower,
+                selectedTower = if (autoClose) null else newTower,
+                selectedTile = if (autoClose) null else it.selectedTile,
+                lastSelectedTowerId = newTower.id
+            )
         }
         addFloatingText(tile.pos.x.toFloat(), tile.pos.y.toFloat(), "-$cost", 0xFFFFD700, false)
     }
@@ -91,7 +119,17 @@ class TowerPlacementCoordinator(
 
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
-        uiStateFlow.update { it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower) }
+        uiStateFlow.update {
+            val remaining = it.scrap - cost
+            val autoClose = shouldAutoCloseSquircle(tower, remaining)
+            it.copy(
+                scrap = remaining,
+                towers = it.towers.toList(),
+                selectedTower = if (autoClose) null else tower,
+                selectedTile = if (autoClose) null else it.selectedTile,
+                lastSelectedTowerId = tower.id
+            )
+        }
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "+${vector.displayName} ${tower.towerClass.displayName}!", 0xFF00FF9D, false)
     }
 
@@ -116,7 +154,7 @@ class TowerPlacementCoordinator(
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
         uiStateFlow.update {
-            it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, screenShakeIntensity = 0.4f)
+            it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, lastSelectedTowerId = tower.id, screenShakeIntensity = 0.4f)
         }
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "★ ${archetype.displayName}! ★", 0xFFFFB800, false)
     }
@@ -141,7 +179,7 @@ class TowerPlacementCoordinator(
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
         uiStateFlow.update {
-            it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, screenShakeIntensity = 0.8f)
+            it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, lastSelectedTowerId = tower.id, screenShakeIntensity = 0.8f)
         }
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "🌟 ${chosenAura.name} ONLINE! 🌟", 0xFFFFD700, false)
     }
@@ -163,7 +201,7 @@ class TowerPlacementCoordinator(
 
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
-        uiStateFlow.update { it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower) }
+        uiStateFlow.update { it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, lastSelectedTowerId = tower.id) }
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "+$name!", 0xFF00FF9D, false)
     }
 
@@ -185,7 +223,7 @@ class TowerPlacementCoordinator(
         soundManager.playTowerUpgrade(tower.towerClass, uiStateFlow.value.turretSkinSlot)
         onSynergyDirty()
         uiStateFlow.update {
-            it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, screenShakeIntensity = 0.5f)
+            it.copy(scrap = it.scrap - cost, towers = it.towers.toList(), selectedTower = tower, lastSelectedTowerId = tower.id, screenShakeIntensity = 0.5f)
         }
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "★ $name! ★", 0xFFFFB800, false)
     }
@@ -335,7 +373,7 @@ class TowerPlacementCoordinator(
         soundManager.play(SoundFx.SELL)
         onSynergyDirty()
         uiStateFlow.update {
-            it.copy(scrap = it.scrap + sellVal, towers = it.towers.filter { t -> t.id != tower.id }, selectedTower = null, selectedTile = null)
+            it.copy(scrap = it.scrap + sellVal, towers = it.towers.filter { t -> t.id != tower.id }, selectedTower = null, selectedTile = null, lastSelectedTowerId = if (it.lastSelectedTowerId == tower.id) null else it.lastSelectedTowerId)
         }
         addFloatingText(tower.gridPos.x.toFloat(), tower.gridPos.y.toFloat(), "+$sellVal", 0xFFFFD700, false)
     }
@@ -460,6 +498,7 @@ class TowerPlacementCoordinator(
             it.copy(
                 towers = listOf(ascendedAnchor),
                 selectedTower = ascendedAnchor,
+                lastSelectedTowerId = ascendedAnchor.id,
                 scrap = (it.scrap - ascensionCost).coerceAtLeast(0) + scrapBounty,
                 totalScrapEarned = it.totalScrapEarned + scrapBounty,
                 explosions = newExplosions,

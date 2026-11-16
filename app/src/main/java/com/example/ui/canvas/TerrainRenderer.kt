@@ -204,6 +204,15 @@ fun DrawScope.drawTerrainTiles(
     }
 }
 
+/**
+ * Resolves the tower whose Tier-3 synergy lines should be drawn: the currently selected tower, otherwise the
+ * last selected tower (persisting after the squircle dock closes). Null unless that tower is Tier 3+.
+ */
+internal fun resolveTier3SynergyTower(state: GameUIState): TowerInstance? {
+    val tower = state.selectedTower ?: state.towers.firstOrNull { it.id == state.lastSelectedTowerId }
+    return tower?.takeIf { it.isTier3 }
+}
+
 fun DrawScope.drawSelectedTowerOverlays(
     state: GameUIState,
     level: GeneratedLevel,
@@ -213,17 +222,18 @@ fun DrawScope.drawSelectedTowerOverlays(
     shakeY: Float,
     animFlowTime: Long
 ) {
-    val selTower = state.selectedTower ?: return
-    if (selTower.isTier3) {
-        val arch = selTower.archetype ?: mapTypeToArchetype(selTower.type)
+    // Tier-3 synergy lines persist for the last selected tower even after the squircle dock closes.
+    val synergyTower = resolveTier3SynergyTower(state)
+    if (synergyTower != null) {
+        val arch = synergyTower.archetype ?: mapTypeToArchetype(synergyTower.type)
         val auraColor = Color(arch.color)
-        val emitterX = (selTower.gridPos.x + 0.5f) * cellW + shakeX
-        val emitterY = (selTower.gridPos.y + 0.5f) * cellH + shakeY
+        val emitterX = (synergyTower.gridPos.x + 0.5f) * cellW + shakeX
+        val emitterY = (synergyTower.gridPos.y + 0.5f) * cellH + shakeY
         val auraPulsePhase = ((animFlowTime % 1200L) / 1200f)
 
         for (i in 0 until state.towers.size) {
             val other = state.towers[i]
-            if (other.id != selTower.id) {
+            if (other.id != synergyTower.id) {
                 val receiverX = (other.gridPos.x + 0.5f) * cellW + shakeX
                 val receiverY = (other.gridPos.y + 0.5f) * cellH + shakeY
                 drawLine(color = auraColor.copy(alpha = 0.35f), start = Offset(emitterX, emitterY), end = Offset(receiverX, receiverY), strokeWidth = 2.dp.toPx())
@@ -238,6 +248,7 @@ fun DrawScope.drawSelectedTowerOverlays(
         }
     }
 
+    val selTower = state.selectedTower ?: return
     var tileBuff = TileBuff.NONE
     for (i in 0 until level.tiles.size) {
         val t = level.tiles[i]

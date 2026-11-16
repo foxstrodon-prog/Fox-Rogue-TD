@@ -1,12 +1,8 @@
 package com.example.ui.hud.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.*
@@ -15,13 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 
 @Composable
 internal fun HudTeleportPadsCapsule(
@@ -29,9 +23,10 @@ internal fun HudTeleportPadsCapsule(
     isHarmonicActive: Boolean,
     harmonicDmgPct: Int,
     isRotated: Boolean,
-    animatedRotation: Float
+    animatedRotation: Float,
+    deviceAngle: Int = popupDeviceAngleFromCounterRotation(animatedRotation)
 ) {
-    var showPadsDropdown by remember { mutableStateOf(false) }
+    var showPadsPopup by remember { mutableStateOf(false) }
     val activeTint = if (isHarmonicActive) Color(0xFFFFD700) else if (padsCount > 0) Color(0xFF00E5FF) else Color(0xFF94A3B8)
 
     Box(modifier = Modifier.hudCapsuleContainer(isRotated, animatedRotation)) {
@@ -50,7 +45,8 @@ internal fun HudTeleportPadsCapsule(
                 .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
                 .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
                 .clip(HUD_CAPSULE_SHAPE)
-                .clickable { showPadsDropdown = !showPadsDropdown }
+                .clickable { showPadsPopup = !showPadsPopup }
+                .testTag("hud_teleport_pads_pill")
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 5.dp),
@@ -75,73 +71,19 @@ internal fun HudTeleportPadsCapsule(
             }
         }
 
-        if (!isRotated) {
-            DropdownMenu(
-                expanded = showPadsDropdown,
-                onDismissRequest = { showPadsDropdown = false },
-                modifier = Modifier
-                    .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                    .border(1.dp, if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF), RoundedCornerShape(6.dp))
-                    .widthIn(max = 250.dp)
+        if (showPadsPopup) {
+            HudTelemetryPopup(
+                deviceAngle = deviceAngle,
+                animatedRotation = animatedRotation,
+                accentColor = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00F0FF),
+                popupTag = "hud_teleport_pads_popup",
+                onDismiss = { showPadsPopup = false }
             ) {
-                DropdownMenuItem(
-                    text = {
-                        TeleportPadsBreakdownContent(
-                            padsCount = padsCount,
-                            isHarmonicActive = isHarmonicActive,
-                            harmonicDmgPct = harmonicDmgPct
-                        )
-                    },
-                    onClick = { showPadsDropdown = false }
+                TeleportPadsBreakdownContent(
+                    padsCount = padsCount,
+                    isHarmonicActive = isHarmonicActive,
+                    harmonicDmgPct = harmonicDmgPct
                 )
-            }
-        }
-    }
-
-    if (isRotated && showPadsDropdown) {
-        Dialog(
-            onDismissRequest = { showPadsDropdown = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showPadsDropdown = false },
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    color = Color(0xFF0F172A).copy(alpha = 0.98f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF00E5FF)),
-                    modifier = Modifier
-                        .graphicsLayer { rotationZ = animatedRotation }
-                        .widthIn(min = 300.dp, max = 340.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            enabled = true
-                        ) {}
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TeleportPadsBreakdownContent(
-                            padsCount = padsCount,
-                            isHarmonicActive = isHarmonicActive,
-                            harmonicDmgPct = harmonicDmgPct
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = { showPadsDropdown = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                            modifier = Modifier.fillMaxWidth().height(32.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("CLOSE", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
             }
         }
     }

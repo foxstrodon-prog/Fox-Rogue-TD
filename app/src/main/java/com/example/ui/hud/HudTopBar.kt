@@ -32,7 +32,7 @@ import com.example.ui.hud.components.*
 import kotlin.math.roundToInt
 
 /**
- * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.032).
+ * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.033).
  * Sequential layout order:
  * [1. Time Handle] | [2. Current Round] | [3. Core HP] | [4. Scrap Credits] |
  * [5. Synergies] | [6. Energy/Pads] | [7. Auto Wave] | [8. Begin Wave] | [9. Battery Widget]
@@ -196,7 +196,8 @@ fun MinimalTopHud(
                 absorbedVaults = absorbedVaults,
                 absorbedSynergiesCount = absorbedSynergiesCount,
                 isRotated = isRotated,
-                animatedRotation = animatedRotation
+                animatedRotation = animatedRotation,
+                deviceAngle = normalizedAngle
             )
 
             // 6. Teleportation Pads Dropdown Capsule
@@ -205,7 +206,8 @@ fun MinimalTopHud(
                 isHarmonicActive = state.harmonicGridActive,
                 harmonicDmgPct = harmonicDmgPct,
                 isRotated = isRotated,
-                animatedRotation = animatedRotation
+                animatedRotation = animatedRotation,
+                deviceAngle = normalizedAngle
             )
 
             // 7. Auto Wave Toggle
@@ -228,7 +230,8 @@ fun MinimalTopHud(
             // 9. Standalone Battery Cell Widget
             HudBatteryWidget(
                 isRotated = isRotated,
-                animatedRotation = animatedRotation
+                animatedRotation = animatedRotation,
+                onClick = onOpenPauseMenu
             )
         }
     }

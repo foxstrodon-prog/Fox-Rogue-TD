@@ -307,7 +307,8 @@ internal fun HudLaunchWaveButton(
 @Composable
 internal fun HudBatteryWidget(
     isRotated: Boolean,
-    animatedRotation: Float
+    animatedRotation: Float,
+    onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var batteryLevel by remember { mutableIntStateOf(100) }
@@ -379,6 +380,8 @@ internal fun HudBatteryWidget(
             .hudCapsuleContainer(isRotated, animatedRotation)
             .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
             .width(38.dp)
+            .clip(HUD_CAPSULE_SHAPE)
+            .clickable(onClick = onClick)
             .testTag("hud_battery_widget"),
         contentAlignment = Alignment.Center
     ) {

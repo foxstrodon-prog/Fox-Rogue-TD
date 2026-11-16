@@ -19,12 +19,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TargetPriority
 
+/** Minimum / maximum width of the priority + sell pills so full words (STRONGEST, WEAKEST) never clip. */
+internal val PRIORITY_PILL_MIN_WIDTH = 56.dp
+internal val PRIORITY_PILL_MAX_WIDTH = 72.dp
+
 /**
  * Compact Target Priority & Sell Flank Control used in FloatingSquircleUpgradeBar.
+ * The priority pill stacks a compact icon above a single-line, untruncated uppercase label.
  */
 @Composable
 fun TargetPriorityMenu(
@@ -46,7 +52,8 @@ fun TargetPriorityMenu(
     ) {
         Box(
             modifier = Modifier
-                .size(if (isRotated) 40.dp else 46.dp, 36.dp)
+                .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
+                .height(36.dp)
                 .graphicsLayer { rotationZ = animatedRotation }
                 .clip(pillShape)
                 .background(darkGlass)
@@ -60,97 +67,68 @@ fun TargetPriorityMenu(
                     }
                     onChangePriority(nextPrio)
                 }
-                .padding(horizontal = 3.dp)
+                .padding(horizontal = 4.dp)
                 .testTag("target_priority_button"),
             contentAlignment = Alignment.Center
         ) {
-            if (isRotated) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.MyLocation,
-                        contentDescription = "Target Priority",
-                        tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.height(1.dp))
-                    Text(
-                        text = priority.label.take(4).uppercase(),
-                        color = Color(0xFF00F0FF),
-                        fontSize = 6.5.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.MyLocation,
-                        contentDescription = "Target Priority",
-                        tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(10.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = priority.label.take(4).uppercase(),
-                        color = Color(0xFF00F0FF),
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MyLocation,
+                    contentDescription = "Target Priority",
+                    tint = Color(0xFF00F0FF),
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(modifier = Modifier.height(1.dp))
+                Text(
+                    text = priority.label.uppercase(),
+                    color = Color(0xFF00F0FF),
+                    fontSize = 7.sp,
+                    lineHeight = 8.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
 
         Box(
             modifier = Modifier
-                .size(if (isRotated) 40.dp else 46.dp, 36.dp)
+                .widthIn(min = PRIORITY_PILL_MIN_WIDTH)
+                .height(36.dp)
                 .graphicsLayer { rotationZ = animatedRotation }
                 .clip(pillShape)
                 .background(darkGlass)
                 .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.72f), pillShape)
                 .clickable { onSellTower() }
-                .padding(horizontal = 3.dp)
+                .padding(horizontal = 4.dp)
                 .testTag("sell_tower_button"),
             contentAlignment = Alignment.Center
         ) {
-            if (isRotated) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.DeleteOutline,
-                        contentDescription = "Sell Tower",
-                        tint = Color(0xFFFF2A55),
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.height(1.dp))
-                    Text(
-                        text = "+$sellValue",
-                        color = Color(0xFFFFD700),
-                        fontSize = 6.5.sp,
-                        fontWeight = FontWeight.Black,
-                        style = TextStyle(fontFeatureSettings = "tnum")
-                    )
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.DeleteOutline,
-                        contentDescription = "Sell Tower",
-                        tint = Color(0xFFFF2A55),
-                        modifier = Modifier.size(10.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = "+$sellValue",
-                        color = Color(0xFFFFD700),
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Black,
-                        style = TextStyle(fontFeatureSettings = "tnum")
-                    )
-                }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.DeleteOutline,
+                    contentDescription = "Sell Tower",
+                    tint = Color(0xFFFF2A55),
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(modifier = Modifier.height(1.dp))
+                Text(
+                    text = "+$sellValue",
+                    color = Color(0xFFFFD700),
+                    fontSize = 7.5.sp,
+                    lineHeight = 8.sp,
+                    fontWeight = FontWeight.Black,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
         }
     }

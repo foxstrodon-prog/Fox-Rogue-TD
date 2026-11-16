@@ -584,7 +584,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 globalMortarSplashBonus = 0f, globalSolarCritsEnabled = false, globalVoidShredEnabled = false,
                 globalDamageBonus = 1.0f, scrapBountyBonus = 1.0f, coreHp = 30, maxCoreHp = 30,
                 scrap = prev.balanceConfig.startingScrap, waveNumber = 1, currentWaveData = firstWave,
-                isWaveActive = false, gameSpeed = GameSpeed.NORMAL, selectedTile = null, selectedTower = null,
+                isWaveActive = false, gameSpeed = GameSpeed.NORMAL, selectedTile = null, selectedTower = null, lastSelectedTowerId = null,
                 isGameOver = false, isVictory = false, totalKills = 0, totalScrapEarned = prev.balanceConfig.startingScrap,
                 totalDamageDealt = 0f, screenShakeIntensity = 0f, autoCallNextWave = false, overchargeRemainingMs = 0L,
                 isTelemetryOpen = false, isSettingsOpen = false, isPauseMenuOpen = false, hasClickedFirstTile = false

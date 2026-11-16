@@ -1050,28 +1050,40 @@ class LeaderboardCoreTest {
     val api = FirestoreLeaderboardApi(client = okClient, projectId = "test-project", apiKey = "k")
     val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler, authRepo = authRepo)
 
-    val vm = RogueTDViewModel(
-      application = app,
-      authRepository = authRepo,
-      remoteConfigManager = RemoteConfigManager(null),
-      leaderboardRepository = repo
-    )
-    // Simulate a wave completed and end run confirmed
-    vm._uiState.value = vm._uiState.value.copy(waveNumber = 3, isWaveActive = false, totalKills = 12, totalDamageDealt = 1500f)
-    vm.confirmEndRun()
-    vm.setPlayerName("Ax")
-    delay(250)
+    val vmStore = androidx.lifecycle.ViewModelStore()
+    val vm = androidx.lifecycle.ViewModelProvider(
+      vmStore,
+      object : androidx.lifecycle.ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+          RogueTDViewModel(
+            application = app,
+            authRepository = authRepo,
+            remoteConfigManager = RemoteConfigManager(null),
+            leaderboardRepository = repo
+          ) as T
+      }
+    )[RogueTDViewModel::class.java]
+    try {
+      // Simulate a wave completed and end run confirmed
+      vm._uiState.value = vm._uiState.value.copy(waveNumber = 3, isWaveActive = false, totalKills = 12, totalDamageDealt = 1500f)
+      vm.confirmEndRun()
+      vm.setPlayerName("Ax")
+      delay(250)
 
-    val queueAfterShort = store.getPendingQueue()
-    assertEquals(1, queueAfterShort.size)
-    assertEquals("Commander", queueAfterShort.first().callsign)
+      val queueAfterShort = store.getPendingQueue()
+      assertEquals(1, queueAfterShort.size)
+      assertEquals("Commander", queueAfterShort.first().callsign)
 
-    vm.setPlayerName("Viper")
-    delay(150)
-    assertEquals("Viper", store.getPendingQueue().first().callsign)
+      vm.setPlayerName("Viper")
+      delay(150)
+      assertEquals("Viper", store.getPendingQueue().first().callsign)
 
-    vm.startNewRun()
-    assertEquals(RunSubmissionState.NONE, vm.uiState.value.runSubmissionState)
+      vm.startNewRun()
+      assertEquals(RunSubmissionState.NONE, vm.uiState.value.runSubmissionState)
+    } finally {
+      vmStore.clear()
+    }
   }
 
   @Test
@@ -1158,17 +1170,29 @@ class LeaderboardCoreTest {
     val api = FirestoreLeaderboardApi(projectId = "", apiKey = "")
     val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler, authRepo = authRepo)
 
-    val vm = RogueTDViewModel(
-      application = app,
-      authRepository = authRepo,
-      remoteConfigManager = RemoteConfigManager(null),
-      leaderboardRepository = repo
-    )
-    vm.confirmEndRun()
-    delay(150)
+    val vmStore = androidx.lifecycle.ViewModelStore()
+    val vm = androidx.lifecycle.ViewModelProvider(
+      vmStore,
+      object : androidx.lifecycle.ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+          RogueTDViewModel(
+            application = app,
+            authRepository = authRepo,
+            remoteConfigManager = RemoteConfigManager(null),
+            leaderboardRepository = repo
+          ) as T
+      }
+    )[RogueTDViewModel::class.java]
+    try {
+      vm.confirmEndRun()
+      delay(150)
 
-    assertTrue("Zero-activity pre-wave-1 end run must not enqueue a score", store.getPendingQueue().isEmpty())
-    assertNull(vm.uiState.value.lastRunRecord)
+      assertTrue("Zero-activity pre-wave-1 end run must not enqueue a score", store.getPendingQueue().isEmpty())
+      assertNull(vm.uiState.value.lastRunRecord)
+    } finally {
+      vmStore.clear()
+    }
   }
 
   @Test

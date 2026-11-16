@@ -1,14 +1,8 @@
 package com.example.ui.hud.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
@@ -17,13 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.model.BankedSynergyVault
 import com.example.model.GlobalAuraSynergy
 
@@ -34,9 +26,10 @@ internal fun HudSynergyCapsule(
     absorbedVaults: List<BankedSynergyVault>,
     absorbedSynergiesCount: Int,
     isRotated: Boolean,
-    animatedRotation: Float
+    animatedRotation: Float,
+    deviceAngle: Int = popupDeviceAngleFromCounterRotation(animatedRotation)
 ) {
-    var showSynergyDropdown by remember { mutableStateOf(false) }
+    var showSynergyPopup by remember { mutableStateOf(false) }
     val activeSynergiesCount = activeGlobalSynergies.size
     val totalSynergiesCount = activeSynergiesCount
 
@@ -52,7 +45,8 @@ internal fun HudSynergyCapsule(
                 .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
                 .defaultMinSize(minWidth = if (isRotated) 36.dp else 1.dp)
                 .clip(HUD_CAPSULE_SHAPE)
-                .clickable { showSynergyDropdown = !showSynergyDropdown }
+                .clickable { showSynergyPopup = !showSynergyPopup }
+                .testTag("hud_synergy_pill")
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 5.dp),
@@ -77,83 +71,21 @@ internal fun HudSynergyCapsule(
             }
         }
 
-        if (!isRotated) {
-            DropdownMenu(
-                expanded = showSynergyDropdown,
-                onDismissRequest = { showSynergyDropdown = false },
-                modifier = Modifier
-                    .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                    .border(1.dp, Color(0xFFFFB800), RoundedCornerShape(6.dp))
-                    .widthIn(max = 260.dp)
-                    .heightIn(max = 320.dp)
+        if (showSynergyPopup) {
+            HudTelemetryPopup(
+                deviceAngle = deviceAngle,
+                animatedRotation = animatedRotation,
+                accentColor = Color(0xFFFFD700),
+                popupTag = "hud_synergy_popup",
+                onDismiss = { showSynergyPopup = false },
+                scrollable = true
             ) {
-                DropdownMenuItem(
-                    text = {
-                        SynergyBreakdownContent(
-                            activeGlobalSynergies = activeGlobalSynergies,
-                            maxConduitGen = maxConduitGen,
-                            absorbedVaults = absorbedVaults,
-                            absorbedSynergiesCount = absorbedSynergiesCount
-                        )
-                    },
-                    onClick = { showSynergyDropdown = false }
+                SynergyBreakdownContent(
+                    activeGlobalSynergies = activeGlobalSynergies,
+                    maxConduitGen = maxConduitGen,
+                    absorbedVaults = absorbedVaults,
+                    absorbedSynergiesCount = absorbedSynergiesCount
                 )
-            }
-        }
-    }
-
-    if (isRotated && showSynergyDropdown) {
-        Dialog(
-            onDismissRequest = { showSynergyDropdown = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showSynergyDropdown = false },
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    color = Color(0xFF0F172A).copy(alpha = 0.98f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFFFB800)),
-                    modifier = Modifier
-                        .graphicsLayer { rotationZ = animatedRotation }
-                        .widthIn(min = 300.dp, max = 340.dp)
-                        .heightIn(max = 320.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            enabled = true
-                        ) {}
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            SynergyBreakdownContent(
-                                activeGlobalSynergies = activeGlobalSynergies,
-                                maxConduitGen = maxConduitGen,
-                                absorbedVaults = absorbedVaults,
-                                absorbedSynergiesCount = absorbedSynergiesCount
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = { showSynergyDropdown = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                            modifier = Modifier.fillMaxWidth().height(32.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("CLOSE", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
             }
         }
     }

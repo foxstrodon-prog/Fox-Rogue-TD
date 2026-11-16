@@ -96,7 +96,8 @@ class RedTeamRemediation026Test {
             remoteConfigManager = remoteConfig,
             cinematicController = CinematicController(host),
             nextId = nextId,
-            onRecordRunCompletion = onRecordRunCompletion
+            onRecordRunCompletion = onRecordRunCompletion,
+            critRandom = kotlin.random.Random(42L)
         )
         return stateFlow to coord
     }

@@ -25,12 +25,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -76,8 +79,10 @@ fun RogueTDScreen(
 
     val density = LocalDensity.current
     var hudOffsetY by remember { mutableFloatStateOf(0f) }
-    val maxUpOffsetPx = remember(density) { with(density) { (-48).dp.toPx() } }
     val maxDownOffsetPx = remember(density) { with(density) { 76.dp.toPx() } }
+    // Safe top baseline: display cutout (camera punch-hole / notch) unioned with the status bar.
+    val topSafeInsets = WindowInsets.displayCutout.union(WindowInsets.statusBars).only(WindowInsetsSides.Top)
+    val topSafeInsetDp = with(density) { topSafeInsets.getTop(density).toDp() }
 
     val normalizedRot = ((hudState.deviceRotationAngle % 360f + 360f) % 360f).toInt()
     val isHudRotated = normalizedRot == 90 || normalizedRot == 270
@@ -93,6 +98,8 @@ fun RogueTDScreen(
         label = "edge_tab_rotation"
     )
     val topBannerOffsetDp = (if (isHudRotated) 52.dp else 40.dp)
+    // Lowered Round-1 tile hint: ~3/4 screen height (flipped at 180° so it stays 3/4 down visually).
+    val lowerBannerVerticalBias = if (normalizedRot == 180) -0.5f else 0.5f
     val dynamicBannerShiftPx = hudOffsetY.roundToInt().coerceAtLeast(0)
     val hasUpdateBanner = hudState.updateUIState.status in listOf(
         UpdateDownloadStatus.AVAILABLE,
@@ -126,11 +133,11 @@ fun RogueTDScreen(
             onToggleAutoWave = { viewModel.toggleAutoWave() },
             onOpenPauseMenu = { viewModel.openPauseMenu() },
             modifier = Modifier
-                .offset { IntOffset(0, hudOffsetY.roundToInt()) }
+                .floatingTopHudPlacement(topSafeInsets) { hudOffsetY }
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { delta ->
-                        hudOffsetY = (hudOffsetY + delta).coerceIn(maxUpOffsetPx, maxDownOffsetPx)
+                        hudOffsetY = clampHudOffsetY(hudOffsetY, delta, maxDownOffsetPx)
                     }
                 )
                 .then(
@@ -150,10 +157,11 @@ fun RogueTDScreen(
 
         // === IN-APP GITHUB APK AUTO-UPDATER BANNER ===
         if (hasUpdateBanner) {
-            val hasRound1TopBanner = (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) ||
-                (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty())
+            // Tile hint now lives at ~3/4 height, so only the launch callout adds extra top padding.
+            val hasRound1TopBanner = !state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty()
             UpdateBanner(
                 updateState = hudState.updateUIState,
+                counterRotation = edgeCounterRotation,
                 onDownloadAndInstall = {
                     if (hudState.updateUIState.status == UpdateDownloadStatus.AVAILABLE) {
                         viewModel.openUpdateModal()
@@ -165,7 +173,9 @@ fun RogueTDScreen(
                     .align(if (isLandscape) Alignment.BottomStart else Alignment.TopCenter)
                     .padding(
                         if (isLandscape) PaddingValues(start = 12.dp, bottom = 12.dp)
-                        else PaddingValues(top = if (hasRound1TopBanner) topBannerOffsetDp + 30.dp else topBannerOffsetDp)
+                        else PaddingValues(
+                            top = topSafeInsetDp + if (hasRound1TopBanner) topBannerOffsetDp + 30.dp else topBannerOffsetDp
+                        )
                     )
             )
         }
@@ -194,70 +204,25 @@ fun RogueTDScreen(
             )
         }
 
-        // === ROUND 1 TACTICAL HINT ===
+        // === ROUND 1 TACTICAL HINT (lowered to ~3/4 height, clear of top HUD & bottom dock) ===
         if (!state.hasClickedFirstTile && state.waveNumber == 1 && state.towers.isEmpty()) {
-            Surface(
-                color = Color(0xFF0A101D).copy(alpha = 0.88f),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color(0xFF00E676)),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topBannerOffsetDp)
-                    .offset { IntOffset(0, dynamicBannerShiftPx) }
-                    .clickable { viewModel.dismissFirstTileHint() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.TouchApp,
-                        contentDescription = null,
-                        tint = Color(0xFF00E676),
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "SELECT TILE TO BUILD (Tap boosted pad)",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 9.5.sp
-                    )
-                }
-            }
+            Round1TileHintBanner(
+                counterRotation = edgeCounterRotation,
+                onClick = { viewModel.dismissFirstTileHint() },
+                modifier = Modifier.align(BiasAlignment(0f, lowerBannerVerticalBias))
+            )
         }
 
         // === ROUND 1 LAUNCH POINTER CALLOUT ===
         if (!state.isWaveActive && state.waveNumber == 1 && state.towers.isNotEmpty()) {
-            Surface(
-                color = Color(0xFF0A101D).copy(alpha = 0.90f),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.85f)),
+            Round1LaunchBanner(
+                counterRotation = edgeCounterRotation,
+                onClick = { viewModel.deployWave() },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = topBannerOffsetDp)
+                    .padding(top = topBannerOffsetDp + topSafeInsetDp)
                     .offset { IntOffset(0, dynamicBannerShiftPx) }
-                    .clickable { viewModel.deployWave() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = Color(0xFF00F0FF),
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "DEFENSES READY — TAP [▶ BEGIN] TO START",
-                        color = Color(0xFF00F0FF),
-                        fontWeight = FontWeight.Black,
-                        fontSize = 9.sp
-                    )
-                }
-            }
+            )
         }
 
         // === EXCESS CASH REMINDER BANNER ===
@@ -292,6 +257,7 @@ fun RogueTDScreen(
             icon = Icons.Filled.SwapHoriz,
             contentDescription = "Swap Teleportation Pads Left",
             counterRotation = edgeCounterRotation,
+            isPulsing = state.towers.isNotEmpty(),
             onClick = { viewModel.swapBoosterPads() },
             modifier = Modifier.align(Alignment.CenterStart)
         )
@@ -300,6 +266,7 @@ fun RogueTDScreen(
             icon = Icons.Filled.SwapHoriz,
             contentDescription = "Swap Teleportation Pads Right",
             counterRotation = edgeCounterRotation,
+            isPulsing = state.towers.isNotEmpty(),
             onClick = { viewModel.swapBoosterPads() },
             modifier = Modifier.align(Alignment.CenterEnd)
         )
@@ -326,6 +293,7 @@ fun RogueTDScreen(
                 contentDescription = "Rotate Screen to Match Device Tilt",
                 counterRotation = edgeCounterRotation,
                 tag = "manual_rotate_button_right",
+                isPulsing = true,
                 onClick = { viewModel.confirmManualRotation() }
             )
         }
@@ -350,6 +318,7 @@ fun RogueTDScreen(
                 contentDescription = "Rotate Screen to Match Device Tilt",
                 counterRotation = edgeCounterRotation,
                 tag = "manual_rotate_button_left",
+                isPulsing = true,
                 onClick = { viewModel.confirmManualRotation() }
             )
         }
@@ -510,6 +479,24 @@ fun RogueTDScreen(
     }
 }
 
+/**
+ * Clamps the draggable top-HUD vertical offset. The floor is strictly `0f` so the HUD can never be dragged
+ * above the safe top edge; it may only be pulled down to [maxDownPx].
+ */
+internal fun clampHudOffsetY(current: Float, delta: Float, maxDownPx: Float): Float =
+    (current + delta).coerceIn(0f, maxDownPx)
+
+/**
+ * Places the floating top HUD: safe-area (display cutout + status bar) padding is applied FIRST (outside),
+ * then the user's drag offset, so `offsetY = 0f` rests cleanly below camera punch-holes / notches.
+ */
+internal fun Modifier.floatingTopHudPlacement(
+    safeTopInsets: WindowInsets,
+    offsetYPx: () -> Float
+): Modifier = this
+    .windowInsetsPadding(safeTopInsets)
+    .offset { IntOffset(0, offsetYPx().roundToInt()) }
+
 @Composable
 fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?, rotationAngle: Float = 0f) {
     if (level == null || texts.isEmpty()) return
@@ -563,7 +550,8 @@ fun FloatingTextOverlay(texts: List<FloatingText>, level: GeneratedLevel?, rotat
 fun UpdateBanner(
     updateState: AppUpdateState,
     onDownloadAndInstall: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    counterRotation: Float = 0f
 ) {
     val info = updateState.updateInfo ?: return
     val isDownloading = updateState.status == UpdateDownloadStatus.DOWNLOADING
@@ -573,6 +561,8 @@ fun UpdateBanner(
         border = BorderStroke(1.2.dp, Color(0xFF00F0FF)),
         modifier = modifier
             .padding(horizontal = 8.dp)
+            .graphicsLayer { rotationZ = counterRotation }
+            .testTag("update_banner")
             .clickable(enabled = !isDownloading) { onDownloadAndInstall() }
     ) {
         Row(

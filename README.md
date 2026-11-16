@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.032`):** [`apk/Dual-Front-TD-v0.0.1.032-debug.apk`](apk/Dual-Front-TD-v0.0.1.032-debug.apk)
+- **Latest Android APK (`v0.0.1.033`):** [`apk/Dual-Front-TD-v0.0.1.033-debug.apk`](apk/Dual-Front-TD-v0.0.1.033-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,31 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.032
+## 🕹️ What's New in Version 0.0.1.033
+
+### 🛠️ HUD Hotfixes, Unified Telemetry Popups, QOL Auto-Close & CI Recovery (`versionCode = 54`)
+- **Clamped Top HUD & Safe Cutout Insets (`RogueTDScreen.kt`):**
+  - Strictly clamped upward drag offset to `>= 0f` and applied combined `displayCutout` + `statusBars` top safe padding before drag translation so `hudOffsetY = 0f` always sits cleanly below camera punch-holes/notches, with consistent portrait `UpdateBanner` spacing.
+- **Lowered Round-1 Tile Callout & 180° Banner Rotation (`RogueTDScreen.kt`, `Round1Banners.kt`):**
+  - Reworded the Round-1 hint to `"SELECT ANY TILE TO BUILD (Tap boosted pad)"`, relocated it to ~3/4 screen height (`BiasAlignment(0f, 0.5f)`) clear of center lanes and the bottom dock, removed unnecessary `hasRound1TopBanner` portrait padding, and applied smooth `edgeCounterRotation` (including `180°`) to Round-1 callouts and `UpdateBanner`.
+- **Battery Pause Shortcut & Unified Telemetry Popups (`HudStatusWidgets.kt`, `HudTopBar.kt`, `HudTelemetryPopup.kt`, `HudTeleportPadsCapsule.kt`, `HudSynergyCapsule.kt`):**
+  - Wired `HudBatteryWidget` taps directly to `onOpenPauseMenu` across both portrait and landscape HUD layouts alongside the dedicated Pause button.
+  - Unified Teleport Pads and Active Synergies popups onto dark-glass full-screen `Dialog` overlays with smooth `AnimatedVisibility`, edge-anchored alignment across all four orientations (`0°` Top, `90°` Left, `180°` Bottom, `270°` Right), and counter-rotated contents.
+- **Pulsing HUD Edge Tabs & Untruncated Squircle Labels (`EdgeBulletTipTab.kt`, `TargetPriorityMenu.kt`, `TowerUpgradeBar.kt`):**
+  - Restyled `EdgeBulletTipTab` to match the dark-glass HUD (`0xFF161F30` @ `0.86f`, `1.2.dp` border, `48.dp` target) with an optional `isPulsing` alpha/scale beacon for active teleport and manual-rotate tabs.
+  - Removed the `.take(4)` truncation on `TargetPriorityMenu` (so `"FIRST"` and `"STRONGEST"` render cleanly inside widened `56.dp–72.dp` stacked pills) and expanded `"Singular."` to full `"Singularity"` in `getArchetypeCardLabels`.
+- **Smart Squircle Auto-Close & Persistent Tier-3 Synergy Lines (`GameUIState.kt`, `RogueTDViewModel.kt`, `TowerPlacementCoordinator.kt`, `TerrainRenderer.kt`):**
+  - Added `lastSelectedTowerId` (preserved across close/deselect, cleared on sell or `startNewRun`) so Tier-3 global synergy lines remain visible after squircles close while range circles only render for actively selected towers.
+  - Auto-closes build/upgrade squircles after Tier 0 `buildTower` and Tier 1 `upgradeTowerToVector` when remaining scrap cannot afford the cheapest next upgrade, while keeping Tier 2+ upgrades and manual `selectTile` open.
+- **GitHub Actions Node 24 & Clean-Checkout CI Recovery (`.github/workflows/release.yml`, `ExampleRobolectricTest.kt`, `BulletHudModernization033Test.kt`, `RedTeamRemediation026Test.kt`, `LeaderboardCoreTest.kt`):**
+  - Upgraded GitHub Actions (`checkout@v5`, `setup-gradle@v5`, `upload-artifact@v6` alongside `setup-java@v5`) for Node 24 compatibility and refactored Firestore credential tests to use an isolated `FirebaseApp` so unit tests pass on clean CI checkouts without `app/google-services.json`.
+  - Added 34 new hotfix regression tests in `BulletHudModernization033Test.kt` and hardened deterministic test isolation (`206/206` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.032
 
 ### 🎯 Minimalist "Bullet HUD" & Control Modernization
 - **Standalone Canvas Battery Cell (`HudStatusWidgets.kt`):**

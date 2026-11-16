@@ -4,7 +4,19 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.032
+### 🚀 What's New in Version 0.0.1.033
+
+🛠️ **HUD Hotfixes, Unified Telemetry Popups, QOL Auto-Close & CI Recovery**
+- **Safe Cutout Insets & HUD Clamp:** Clamped top HUD drag cleanly at `>= 0f` below camera cutouts/status bars across portrait and landscape, relocated the Round-1 hint to `"SELECT ANY TILE TO BUILD (Tap boosted pad)"` at 3/4 screen height, and added `180°` counter-rotation to Round-1 and update banners.
+- **Battery Pause Shortcut & Orientation-Aware Telemetry:** Tapping the battery cell now opens the Pause Menu, and Teleport Pads / Active Synergies popups use a unified dark-glass overlay anchored cleanly at `0°`, `90°`, `180°`, and `270°`.
+- **Untruncated Squircles, Pulsing Tabs & Smart Auto-Close:** Restyled pulsing edge bullet-tip tabs, fixed clipped `"FIRST"` / `"STRONGEST"` and `"Singularity"` labels, preserved Tier-3 global synergy lines via `lastSelectedTowerId`, and auto-closed build/Tier-1 squircles when scrap is below the next upgrade cost.
+- **CI Recovery:** Upgraded workflow actions to Node 24 (`checkout@v5`, `setup-gradle@v5`, `upload-artifact@v6`) and isolated Firestore unit tests from `google-services.json` (`206/206` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.032
 
 🎯 **Minimalist "Bullet HUD", Edge Bullet Tips & Tactical UI Modernization**
 - **Custom Canvas Battery Cell & Uniform Bullet HUD:** Replaced battery emojis with a standalone Canvas battery outline, centered tabular percentage, and green charging sweep; harmonized all 9 top HUD capsules across portrait and `90°`/`270°` counter-rotated grips; streamlined `AUTO` toggle and fixed the `BEGIN` button glow bounds.
