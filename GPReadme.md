@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.033
+### 🚀 What's New in Version 0.0.1.035
+
+🔄 **Rotation Layout Polish, Safe-Drawing Popups & Narrow-Viewport HUD Scroll**
+- **Banner Rotation & HUD Drag Sync:** Synced portrait `UpdateBanner` with top-HUD downward dragging, swapped layout extents on counter-rotated Round-1 and update banners at `90°`/`270°` to prevent top clipping, and positioned the Round-1 tile hint at 3/4 visual screen depth across all four orientations.
+- **Target Priority & Safe-Area Popups:** Fixed `180°` target-priority orientation detection, arranged rotated priority/sell pills side-by-side without overlap on `360.dp` screens, and applied `WindowInsets.safeDrawing` clearance to telemetry popups.
+- **Narrow-Screen Top HUD Scroll:** Enabled horizontal scrolling on narrow portrait phones for `MinimalTopHud` while preserving full-width capsule spacing on wider displays (`214/214` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.033
 
 🛠️ **HUD Hotfixes, Unified Telemetry Popups, QOL Auto-Close & CI Recovery**
 - **Safe Cutout Insets & HUD Clamp:** Clamped top HUD drag cleanly at `>= 0f` below camera cutouts/status bars across portrait and landscape, relocated the Round-1 hint to `"SELECT ANY TILE TO BUILD (Tap boosted pad)"` at 3/4 screen height, and added `180°` counter-rotation to Round-1 and update banners.

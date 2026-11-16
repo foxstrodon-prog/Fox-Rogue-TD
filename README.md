@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.033`):** [`apk/Dual-Front-TD-v0.0.1.033-debug.apk`](apk/Dual-Front-TD-v0.0.1.033-debug.apk)
+- **Latest Android APK (`v0.0.1.035`):** [`apk/Dual-Front-TD-v0.0.1.035-debug.apk`](apk/Dual-Front-TD-v0.0.1.035-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,24 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.033
+## 🕹️ What's New in Version 0.0.1.035
+
+### 🔄 Rotation Layout Polish, Safe-Drawing Popups & Narrow-Viewport HUD Scroll (`versionCode = 56`, includes v0.0.1.034 HUD Fixes)
+- **Dynamic Banner Shift & Swapped Rotation Bounds (`RogueTDScreen.kt`, `Round1Banners.kt`, `HudStatusWidgets.kt`):**
+  - Applied `dynamicBannerShiftPx` vertical offset to portrait `UpdateBanner` so dragging `MinimalTopHud` down never covers it.
+  - Replaced raw `graphicsLayer` rotation on `Round1TileHintBanner`, `Round1LaunchBanner`, and `UpdateBanner` with `hudCapsuleContainer` (driven by `isQuarterTurnRotation`), swapping layout dimensions at `90°`/`270°` to prevent top-edge clipping and HUD overlap.
+  - Updated `Round1TileHintBanner` alignment to `BiasAlignment(0.5f, 0f)` at `90°`, `BiasAlignment(-0.5f, 0f)` at `270°`, and `BiasAlignment(0f, -0.5f)` at `180°` so the Round-1 hint stays at ~3/4 visual depth in every orientation.
+- **Rotated Target Priority & Safe-Area Telemetry Popups (`TargetPriorityMenu.kt`, `TowerUpgradeBar.kt`, `HudTelemetryPopup.kt`):**
+  - Fixed `FloatingSquircleUpgradeBar`'s `isRotated` check to quarter-turn angles only (`-90f` / `90f`) so `180°` stays vertically stacked, and arranged `TargetPriorityMenu` pills side-by-side via `hudCapsuleContainer` when rotated so priority (`STRONGEST`) and sell buttons never overlap and fit inside a `360.dp` dock.
+  - Added `WindowInsets.safeDrawing` padding (with `decorFitsSystemWindows = false`) inside `HudTelemetryPopup`'s scrim container and increased `0°` top clearance (`48.dp`) so popups clear notches, cutouts, system bars, and `MinimalTopHud`.
+- **Graceful Narrow-Screen Top HUD Scrolling (`HudTopBar.kt`):**
+  - Wrapped `MinimalTopHud`'s row in `BoxWithConstraints` + `horizontalScroll(rememberScrollState()).widthIn(min = maxWidth)`, preserving `Arrangement.SpaceBetween` on wide displays while preventing right-edge clipping of `HudLaunchWaveButton` and `HudBatteryWidget` on `360.dp` portrait phones (`214/214` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.033
 
 ### 🛠️ HUD Hotfixes, Unified Telemetry Popups, QOL Auto-Close & CI Recovery (`versionCode = 54`)
 - **Clamped Top HUD & Safe Cutout Insets (`RogueTDScreen.kt`):**
