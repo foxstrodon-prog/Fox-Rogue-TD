@@ -40,11 +40,11 @@ class RogueTDViewModel @JvmOverloads constructor(
         scheduler = LeaderboardWorkScheduler(application),
         authRepo = authRepository
     )
-) : AndroidViewModel(application) {
+) : AndroidViewModel(application), CinematicHost {
 
     private val telemetryManager = TelemetryManager(application)
     val appUpdateManager = AppUpdateManager(application, viewModelScope)
-    val soundManager = SoundManager(application)
+    override val soundManager = SoundManager(application)
     val cinematicController = CinematicController(this)
 
     private var nextEntityId: Long = 0L
@@ -67,6 +67,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             mapThemeSlot = initialConfig.mapThemeSlot
         )
     )
+    override val uiStateFlow: MutableStateFlow<GameUIState> get() = _uiState
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
 
     private var devTunedThisRun: Boolean = false
@@ -87,7 +88,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         uiStateFlow = _uiState, combatEngine = combatEngine, waveCoordinator = waveCoordinator,
         soundManager = soundManager, remoteConfigManager = remoteConfigManager,
         cinematicController = cinematicController, nextId = ::nextId,
-        addFloatingText = ::addFloatingText, onRecordRunCompletion = ::recordRunCompletion
+        onRecordRunCompletion = ::recordRunCompletion
     )
 
     val placementCoordinator = TowerPlacementCoordinator(
@@ -95,8 +96,8 @@ class RogueTDViewModel @JvmOverloads constructor(
         nextId = ::nextId, addFloatingText = ::addFloatingText, onSynergyDirty = ::markSynergyDirty
     )
 
-    internal fun markSynergyDirty() { simulationCoordinator.isSynergyCacheDirty = true }
-    internal fun clearPendingSpawns() { waveCoordinator.clearPendingSpawns() }
+    override fun markSynergyDirty() { simulationCoordinator.isSynergyCacheDirty = true }
+    override fun clearPendingSpawns() { waveCoordinator.clearPendingSpawns() }
     var currentFps: Int = 60; private set
     var frameJitterMs: Float = 0.5f; private set
     private val frameTimes = LongArray(30)
@@ -543,7 +544,8 @@ class RogueTDViewModel @JvmOverloads constructor(
                 projectiles = emptyList(), laserBeams = emptyList(), lightningArcs = emptyList(),
                 explosions = emptyList(), floatingTexts = emptyList(), trackParticles = initialParticles,
                 activeGlobalSynergies = emptyList(), isSynergyPanelExpanded = false, animTimeMs = 0L,
-                globalKineticSpeedBonus = 0f, globalFrostSlowBonus = 0f, globalTeslaArcsEnabled = false,
+                harmonicGridDamageBoost = remoteConfigManager.harmonicGridDamageBoost,
+                globalKineticSpeedBonus = 0f, ascensionFrostSlowBonus = 0f, globalFrostSlowBonus = 0f, globalTeslaArcsEnabled = false,
                 globalMortarSplashBonus = 0f, globalSolarCritsEnabled = false, globalVoidShredEnabled = false,
                 globalDamageBonus = 1.0f, scrapBountyBonus = 1.0f, coreHp = 30, maxCoreHp = 30,
                 scrap = prev.balanceConfig.startingScrap, waveNumber = 1, currentWaveData = firstWave,
@@ -593,7 +595,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     // === DELEGATIONS TO WAVE PROGRESSION & PLACEMENT COORDINATORS ===
-    fun deployWave() = waveCoordinator.deployWave()
+    override fun deployWave() = waveCoordinator.deployWave()
     fun spawnSandboxWave(enemyType: EnemyType, count: Int) = waveCoordinator.spawnSandboxWave(enemyType, count)
     fun selectTile(tile: MapTile?) = placementCoordinator.selectTile(tile)
     fun buildTower(tile: MapTile, towerClass: TowerClass = TowerClass.KINETIC_BALLISTIC) = placementCoordinator.buildTower(tile, towerClass)
@@ -605,7 +607,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToFinalForm(tower: TowerInstance, finalFormCode: String) = placementCoordinator.upgradeTowerToFinalForm(tower, finalFormCode)
     fun upgradeTowerPath(tower: TowerInstance, pathIndex: Int) = placementCoordinator.upgradeTowerPath(tower, pathIndex)
     fun ascendTower(tower: TowerInstance) = placementCoordinator.ascendTower(tower)
-    fun swapBoosterPads() = placementCoordinator.swapBoosterPads()
+    override fun swapBoosterPads() = placementCoordinator.swapBoosterPads()
     fun sellSelectedTower() = placementCoordinator.sellSelectedTower()
     fun changeSelectedTowerPriority(priority: TargetPriority) = placementCoordinator.changeSelectedTowerPriority(priority)
     fun canInitiateSingularity(): Boolean = placementCoordinator.canInitiateSingularity()
@@ -662,7 +664,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         else current.copy(gameSpeed = speed, prePauseSpeed = speed)
     }
 
-    internal fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean = false) {
+    override fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean) {
         _uiState.update { it.copy(floatingTexts = it.floatingTexts + FloatingText(id = nextId("ft_"), x = x, y = y, text = text, color = color, isCrit = isCrit)) }
     }
 

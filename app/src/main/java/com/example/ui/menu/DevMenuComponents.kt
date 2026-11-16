@@ -131,7 +131,7 @@ fun BalanceSliderCard(
 }
 
 @Composable
-fun Collapsible39TowerCard(
+fun Collapsible52TowerCard(
     descriptor: TowerBalanceDescriptor,
     balance: TowerUnitBalance,
     onBalanceChanged: (TowerUnitBalance) -> Unit,

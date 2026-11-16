@@ -19,6 +19,7 @@ data class GameUIState(
 
     // Global Ascension Boosts
     val globalKineticSpeedBonus: Float = 0f,
+    val ascensionFrostSlowBonus: Float = 0f,
     val globalFrostSlowBonus: Float = 0f,
     val globalTeslaArcsEnabled: Boolean = false,
     val globalMortarSplashBonus: Float = 0f,
@@ -61,6 +62,7 @@ data class GameUIState(
     val showEndRunConfirmDialog: Boolean = false,
     val harmonicGridActive: Boolean = false,
     val harmonicPadsCount: Int = 0,
+    val harmonicGridDamageBoost: Float = 0.20f,
     val activePlayerName: String = "Operative",
     val lastRunRecord: RunRecord? = null,
     val playerLifetimeTelemetry: LifetimeTelemetry = LifetimeTelemetry(),

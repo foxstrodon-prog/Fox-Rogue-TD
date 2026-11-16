@@ -230,7 +230,11 @@ class TowerPlacementCoordinator(
             val updated = state.copy(scrap = state.scrap - cost, towers = state.towers.toList(), screenShakeIntensity = 0.8f)
             when (tower.type) {
                 TowerType.GATLING -> updated.copy(globalKineticSpeedBonus = updated.globalKineticSpeedBonus + 0.22f)
-                TowerType.CRYO -> updated.copy(globalFrostSlowBonus = 0.15f, globalDamageBonus = updated.globalDamageBonus + 0.20f)
+                TowerType.CRYO -> updated.copy(
+                    ascensionFrostSlowBonus = maxOf(updated.ascensionFrostSlowBonus, 0.15f),
+                    globalFrostSlowBonus = maxOf(updated.globalFrostSlowBonus, 0.15f),
+                    globalDamageBonus = updated.globalDamageBonus + 0.20f
+                )
                 TowerType.TESLA -> updated.copy(globalTeslaArcsEnabled = true)
                 TowerType.MORTAR -> updated.copy(globalMortarSplashBonus = updated.globalMortarSplashBonus + 0.25f)
                 TowerType.LASER -> updated.copy(globalSolarCritsEnabled = true)
@@ -397,27 +401,31 @@ class TowerPlacementCoordinator(
         val anchor = getSingularityAnchorTower() ?: return
         val sacrificed = state.towers.filter { it.id != anchor.id }
 
+        val mergedVault = anchor.synergyVault.toMutableList()
+        var resolvedGen = anchor.generation
+
         // Inherit vault and generation from previous Capstone if anchor is a new tower
         sacrificed.filter { it.isCapstone }.forEach { prev ->
-            val existingGens = anchor.synergyVault.map { it.generation }.toSet()
+            val existingGens = mergedVault.map { it.generation }.toSet()
             prev.synergyVault.forEach { banked ->
                 if (banked.generation !in existingGens) {
-                    anchor.synergyVault.add(banked)
+                    mergedVault.add(banked)
                 }
             }
-            anchor.generation = maxOf(anchor.generation, prev.generation)
+            resolvedGen = maxOf(resolvedGen, prev.generation)
         }
 
         val ascensionCost = getConduitAscensionCost()
         val scrapBounty = maxOf(250, (sacrificed.sumOf { it.getInvestedScrapValue() } * 0.20f).toInt())
-        val nextGen = anchor.generation + 1
-        anchor.synergyVault.add(BankedSynergyVault(generation = nextGen, synergies = computeSynergies(state.towers)))
-        anchor.isCapstone = true
-        anchor.generation = nextGen
+        val nextGen = resolvedGen + 1
+        val sacrificedLiveOnly = sacrificed.map {
+            if (it.isCapstone) it.copy(isCapstone = false, synergyVault = mutableListOf()) else it
+        }
+        mergedVault.add(BankedSynergyVault(generation = nextGen, synergies = computeSynergies(sacrificedLiveOnly)))
         val ascendedAnchor = anchor.copy(
             isCapstone = true,
             generation = nextGen,
-            synergyVault = anchor.synergyVault.toMutableList()
+            synergyVault = mergedVault
         )
 
         val newExplosions = state.explosions.toMutableList()

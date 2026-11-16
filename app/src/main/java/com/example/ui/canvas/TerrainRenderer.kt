@@ -248,8 +248,7 @@ fun DrawScope.drawSelectedTowerOverlays(
     val effectiveRange = selTower.getEffectiveCombatRange(
         tileBuff = tileBuff,
         globalRangeBonus = state.globalRangeBonus,
-        balanceRange = selTower.archetype?.let { state.balanceConfig.customTowerConfigs[it.name]?.range }
-            ?: state.balanceConfig.customTowerConfigs[selTower.type.name]?.range
+        balanceRange = state.balanceConfig.findCustomTowerBalance(selTower)?.range
     )
     val pixelRadius = effectiveRange * cellW
     val tcx = (selTower.gridPos.x + 0.5f) * cellW + shakeX

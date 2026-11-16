@@ -139,21 +139,13 @@ fun RogueTDScreen(
         // === FLOATING SQUIRCLE UPGRADE ACTION BAR (TRACK 2) ===
         MinimalBottomDock(
             state = hudState,
-            onDeployWave = { viewModel.deployWave() },
-            onToggleAutoWave = { viewModel.toggleAutoWave() },
-            onBuildTower = { tile, type -> viewModel.buildTower(tile, type) },
             onBuildTowerClass = { tile, cls -> viewModel.buildTower(tile, cls) },
             onUpgradeToVector = { tower, vec -> viewModel.upgradeTowerToVector(tower, vec) },
             onUpgradeToArchetype = { tower, arch -> viewModel.upgradeTowerToArchetype(tower, arch) },
             onUpgradeToTier3Global = { tower, auraIdx -> viewModel.upgradeTowerToTier3Global(tower, auraIdx) },
-            onUpgradeToTier1 = { tower, branch -> viewModel.upgradeTowerToTier1(tower, branch) },
-            onUpgradeToFinalForm = { tower, code -> viewModel.upgradeTowerToFinalForm(tower, code) },
-            onUpgradePath = { tower, pathIdx -> viewModel.upgradeTowerPath(tower, pathIdx) },
-            onAscendTower = { viewModel.ascendTower(it) },
             onRequestSingularity = { viewModel.requestSingularityCollapse() },
             onSellTower = { viewModel.sellSelectedTower() },
             onChangePriority = { viewModel.changeSelectedTowerPriority(it) },
-            onDeselect = { viewModel.selectTile(null) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp)

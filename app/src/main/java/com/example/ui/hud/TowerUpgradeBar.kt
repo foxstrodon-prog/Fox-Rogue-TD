@@ -38,6 +38,7 @@ import com.example.model.*
 import com.example.ui.GameUIState
 import com.example.ui.hud.components.TargetPriorityMenu
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * Procedural Vector Tower Class Silhouette.
@@ -162,7 +163,6 @@ fun SquircleActionButton(
     subtitle: String? = null,
     titleColor: Color? = null,
     name: String = "",
-    iconText: String = "",
     iconComposable: (@Composable () -> Unit)? = null,
     cost: Int? = null,
     badgeText: String = "",
@@ -340,15 +340,14 @@ fun SquircleActionButton(
 @Composable
 fun FloatingSquircleUpgradeBar(
     state: GameUIState,
-    onBuildTowerClass: (MapTile, TowerClass) -> Unit = { _, _ -> },
-    onBuildTower: (MapTile, TowerType) -> Unit = { _, _ -> },
+    onBuildTowerClass: ((MapTile, TowerClass) -> Unit)? = null,
+    onBuildTower: ((MapTile, TowerType) -> Unit)? = null,
     onUpgradeToVector: (TowerInstance, TowerVector) -> Unit = { _, _ -> },
     onUpgradeToArchetype: (TowerInstance, TowerArchetype) -> Unit = { _, _ -> },
     onUpgradeToTier3Global: (TowerInstance, Int) -> Unit = { _, _ -> },
     onRequestSingularity: () -> Unit = {},
     onSellTower: () -> Unit = {},
     onChangePriority: (TargetPriority) -> Unit = {},
-    onDeselect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isActionActive = state.selectedTower != null || (state.selectedTile != null && state.selectedTile.isBuildable)
@@ -379,15 +378,6 @@ fun FloatingSquircleUpgradeBar(
                 val sellValue = tower.getSellValue()
                 val prio = tower.targetPriority
                 val isRotated = counterAngle != 0f
-
-                val level = state.level
-                val buildableTiles = level?.tiles?.filter { it.isBuildable } ?: emptyList()
-                val readyTier3Count = state.towers.count { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
-                val isBoardFull = buildableTiles.isNotEmpty() && state.towers.size >= buildableTiles.size
-                val areAllTowersTier3 = state.towers.isNotEmpty() && state.towers.all { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
-                val isSingularityGateReady = isBoardFull && areAllTowersTier3
-                val currentMaxGen = state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
-                val conduitCost = 750 * (currentMaxGen + 1)
 
                 when (tower.tier) {
                     0 -> {
@@ -469,27 +459,20 @@ fun FloatingSquircleUpgradeBar(
                         val canAfford = state.scrap >= cost
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
+                        val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
+                        val auraOptions = listOf(arch.primaryAura, arch.secondaryAura)
 
-                        for (idx in 0..2) {
-                            val subTitle = when (idx) {
-                                0 -> "Alpha"
-                                1 -> "Beta"
-                                else -> "Gamma"
-                            }
-                            val (b1, b2) = when (idx) {
-                                0 -> "Global Aura Buff" to "+50% Apex DMG"
-                                1 -> "Corona Shockwave" to "+50% Apex DMG"
-                                else -> "Overcharge Surge" to "+50% Apex DMG"
-                            }
+                        auraOptions.forEachIndexed { idx, aura ->
+                            val auraColor = if (idx == 0) Color(0xFFFFD700) else Color(0xFF00FF9D)
                             SquircleActionButton(
-                                title = "Apex",
-                                subtitle = subTitle,
+                                title = aura.name,
+                                subtitle = if (idx == 0) "Primary Aura" else "Secondary Aura",
                                 cost = cost,
-                                themeColor = Color(0xFFFFD700),
+                                themeColor = auraColor,
                                 canAfford = canAfford,
                                 isUnlocked = true,
-                                bullet1 = b1,
-                                bullet2 = b2,
+                                bullet1 = aura.shortBadge,
+                                bullet2 = "Global Aura",
                                 itemWidth = itemWidth,
                                 itemHeight = itemHeight,
                                 rotationAngle = animatedRotation,
@@ -502,6 +485,14 @@ fun FloatingSquircleUpgradeBar(
                     else -> {
                         val itemWidth = 84.dp
                         val itemHeight = 76.dp
+                        val level = state.level
+                        val buildableTiles = level?.tiles?.filter { it.isBuildable } ?: emptyList()
+                        val readyTier3Count = state.towers.count { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
+                        val isBoardFull = buildableTiles.isNotEmpty() && state.towers.size >= buildableTiles.size
+                        val areAllTowersTier3 = state.towers.isNotEmpty() && state.towers.all { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
+                        val isSingularityGateReady = isBoardFull && areAllTowersTier3
+                        val currentMaxGen = state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
+                        val conduitCost = 750 * (currentMaxGen + 1)
 
                         SingularityGateSquircle(
                             tower = tower,
@@ -537,7 +528,7 @@ fun FloatingSquircleUpgradeBar(
 
                 classes.forEach { towerClass ->
                     val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)
-                    val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).toInt()
+                    val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).roundToInt()
                     val canAfford = state.scrap >= cost
                     val (b1, b2) = when (towerClass) {
                         TowerClass.KINETIC_BALLISTIC -> "Ballistic Fire" to "Single-Target"
@@ -556,7 +547,6 @@ fun FloatingSquircleUpgradeBar(
                     SquircleActionButton(
                         title = cTitle,
                         subtitle = cSub,
-                        iconText = towerClass.shapeSymbol,
                         iconComposable = {
                             TowerClassSilhouette(
                                 towerClass = towerClass,
@@ -574,11 +564,10 @@ fun FloatingSquircleUpgradeBar(
                         itemHeight = itemHeight,
                         rotationAngle = animatedRotation,
                         onClick = {
-                            onBuildTowerClass(tile, towerClass)
-                            if (towerClass == TowerClass.KINETIC_BALLISTIC) {
-                                onBuildTower(tile, TowerType.GATLING)
-                            } else if (towerClass == TowerClass.STELLAR_COSMIC) {
-                                onBuildTower(tile, TowerType.STELLAR)
+                            if (onBuildTowerClass != null) {
+                                onBuildTowerClass(tile, towerClass)
+                            } else {
+                                onBuildTower?.invoke(tile, mapClassToType(towerClass))
                             }
                         },
                         modifier = Modifier.testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
@@ -688,21 +677,14 @@ private fun getArchetypeCardLabels(arch: TowerArchetype): Triple<String, String,
 @Composable
 fun MinimalBottomDock(
     state: GameUIState,
-    onDeployWave: () -> Unit,
-    onToggleAutoWave: () -> Unit,
-    onBuildTower: (MapTile, TowerType) -> Unit,
-    onBuildTowerClass: (MapTile, TowerClass) -> Unit = { _, _ -> },
+    onBuildTower: ((MapTile, TowerType) -> Unit)? = null,
+    onBuildTowerClass: ((MapTile, TowerClass) -> Unit)? = null,
     onUpgradeToVector: (TowerInstance, TowerVector) -> Unit = { _, _ -> },
     onUpgradeToArchetype: (TowerInstance, TowerArchetype) -> Unit = { _, _ -> },
     onUpgradeToTier3Global: (TowerInstance, Int) -> Unit = { _, _ -> },
-    onUpgradeToTier1: (TowerInstance, String) -> Unit = { _, _ -> },
-    onUpgradeToFinalForm: (TowerInstance, String) -> Unit = { _, _ -> },
-    onUpgradePath: (TowerInstance, Int) -> Unit = { _, _ -> },
-    onAscendTower: (TowerInstance) -> Unit = {},
     onRequestSingularity: () -> Unit = {},
     onSellTower: () -> Unit,
     onChangePriority: (TargetPriority) -> Unit,
-    onDeselect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     FloatingSquircleUpgradeBar(
@@ -715,7 +697,6 @@ fun MinimalBottomDock(
         onRequestSingularity = onRequestSingularity,
         onSellTower = onSellTower,
         onChangePriority = onChangePriority,
-        onDeselect = onDeselect,
         modifier = modifier
     )
 }

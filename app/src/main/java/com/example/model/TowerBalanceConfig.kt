@@ -254,5 +254,8 @@ data class TowerBalanceDescriptor(
     val defaultRange: Float,
     val defaultFireRate: Float,
     val defaultCost: Int,
-    val specialEffectValue: Float = 0f
+    val specialEffectValue: Float = 0f,
+    val towerClass: TowerClass? = null,
+    val vector: TowerVector? = null,
+    val archetype: TowerArchetype? = null
 )

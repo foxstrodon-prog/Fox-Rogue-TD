@@ -31,7 +31,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -46,9 +49,10 @@ import kotlinx.coroutines.isActive
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
- * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.023).
+ * Bullet-Notification Floating Top Tactical HUD for Fox-Rogue-TD (Release v0.0.1.026).
  * Sequential layout order:
  * [1. Time Handle] | [2. Current Round] | [3. Core HP] | [4. Scrap Credits] |
  * [5. Synergies] | [6. Energy/Pads] | [7. Auto Wave] | [8. Begin Wave] | [9. Battery Widget]
@@ -64,25 +68,6 @@ fun MinimalTopHud(
     val context = LocalContext.current
     var showSynergyDropdown by remember { mutableStateOf(false) }
     var showPadsDropdown by remember { mutableStateOf(false) }
-
-    // Live phone clock & anti-jitter ticking colon
-    var currentHours by remember { mutableStateOf("") }
-    var currentMinutes by remember { mutableStateOf("") }
-    var colonAlpha by remember { mutableFloatStateOf(1.0f) }
-
-    LaunchedEffect(context) {
-        while (isActive) {
-            val now = Calendar.getInstance()
-            val is24h = DateFormat.is24HourFormat(context)
-            val pattern = if (is24h) "HH mm" else "h mm"
-            val formatted = SimpleDateFormat(pattern, Locale.getDefault()).format(now.time)
-            val parts = formatted.split(" ")
-            currentHours = parts.getOrElse(0) { "" }
-            currentMinutes = parts.getOrElse(1) { "" }
-            colonAlpha = if (colonAlpha > 0.5f) 0.15f else 1.0f
-            delay(1000L)
-        }
-    }
 
     // Live battery level and charging monitoring
     var batteryLevel by remember { mutableIntStateOf(100) }
@@ -118,18 +103,6 @@ fun MinimalTopHud(
         }
     }
 
-    // Energetic tactical pulse for wave launch readiness
-    val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
-    val pulseGlow by infiniteTransition.animateFloat(
-        initialValue = 0.75f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "launch_pulse"
-    )
-
     // Shortest-path counter-rotation: at 270 deg (phone tilted right), rotate +90 deg instead of -270 deg
     val counterAngle = when (((state.deviceRotationAngle % 360f + 360f) % 360f).toInt()) {
         90 -> -90f
@@ -160,54 +133,12 @@ fun MinimalTopHud(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Time Handle (Drag handle on far left of Bullet HUD)
-                Surface(
-                    color = Color(0xFF161F30).copy(alpha = 0.75f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
-                    modifier = counterRotateModifier
-                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = currentHours,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = if (isRotated) 8.sp else 9.sp,
-                                style = TextStyle(fontFeatureSettings = "tnum")
-                            )
-                            Text(
-                                text = ":",
-                                color = Color.White.copy(alpha = colonAlpha),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = if (isRotated) 8.sp else 9.sp,
-                                style = TextStyle(fontFeatureSettings = "tnum")
-                            )
-                            Text(
-                                text = currentMinutes,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = if (isRotated) 8.sp else 9.sp,
-                                style = TextStyle(fontFeatureSettings = "tnum")
-                            )
-                        }
-                        Text(
-                            text = "≡",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 6.5.sp,
-                            lineHeight = 7.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                // 1. Time Handle / Pause Trigger (isolated 1Hz clock leaf)
+                HudClockHandle(
+                    isRotated = isRotated,
+                    counterRotateModifier = counterRotateModifier,
+                    onOpenPauseMenu = onOpenPauseMenu
+                )
 
                 // 2. Wave badge (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 if (isRotated) {
@@ -357,11 +288,12 @@ fun MinimalTopHud(
 
                 // 5. Consolidated Synergies Indicator with Dropdown (Dynamic: Row in portrait, Column in landscape)
                 val activeSynergiesCount = state.activeGlobalSynergies.size
-                val capstoneTowers = state.towers.filter { it.isCapstone }
-                val maxConduitGen = capstoneTowers.maxOfOrNull { it.generation } ?: 0
-                val absorbedVaults = capstoneTowers.flatMap { it.synergyVault }
-                val absorbedSynergiesCount = absorbedVaults.sumOf { it.synergies.size }
-                val totalSynergiesCount = activeSynergiesCount + absorbedSynergiesCount
+                val capstoneTowers = remember(state.towers) { state.towers.filter { it.isCapstone } }
+                val maxConduitGen = remember(capstoneTowers) { capstoneTowers.maxOfOrNull { it.generation } ?: 0 }
+                val absorbedVaults = remember(capstoneTowers) { capstoneTowers.flatMap { it.synergyVault } }
+                val absorbedSynergiesCount = remember(absorbedVaults) { absorbedVaults.sumOf { it.synergies.size } }
+                // activeGlobalSynergies already includes banked capstone synergies via computeActiveSynergies()
+                val totalSynergiesCount = activeSynergiesCount
                 Box(modifier = counterRotateModifier) {
                     Surface(
                         color = if (totalSynergiesCount > 0) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF161F30).copy(alpha = 0.60f),
@@ -651,6 +583,7 @@ fun MinimalTopHud(
                 // 6. Teleportation Pads Dropdown Capsule (Energy)
                 val padsCount = state.harmonicPadsCount
                 val isHarmonicActive = state.harmonicGridActive
+                val harmonicDmgPct = (state.harmonicGridDamageBoost * 100f).roundToInt()
                 Box(modifier = counterRotateModifier) {
                     Surface(
                         color = if (isHarmonicActive) Color(0xFFFFD700).copy(alpha = 0.25f)
@@ -730,7 +663,7 @@ fun MinimalTopHud(
                                             fontSize = 9.5.sp
                                         )
                                         Text(
-                                            text = "• 6/6 Harmonic Grid: +20% Tower Damage & +25% Bonus Scrap across all lanes",
+                                            text = "• 6/6 Harmonic Grid: +${harmonicDmgPct}% Tower Damage & +25% Bonus Scrap across all lanes",
                                             color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF94A3B8),
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 9.5.sp
@@ -793,7 +726,7 @@ fun MinimalTopHud(
                                         fontSize = 9.5.sp
                                     )
                                     Text(
-                                        text = "• 6/6 Harmonic Grid: +20% Tower Damage & +25% Bonus Scrap across all lanes",
+                                        text = "• 6/6 Harmonic Grid: +${harmonicDmgPct}% Tower Damage & +25% Bonus Scrap across all lanes",
                                         color = if (isHarmonicActive) Color(0xFFFFD700) else Color(0xFF94A3B8),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 9.5.sp
@@ -887,67 +820,14 @@ fun MinimalTopHud(
                     }
                 }
 
-                // 8. Launch Wave Button (Begin)
-                val isWaveReady = !state.isWaveActive
-                val launchContainerColor = if (isWaveReady) {
-                    Color(0xFF00F0FF).copy(alpha = pulseGlow)
-                } else {
-                    Color(0xFF1E293B).copy(alpha = 0.7f)
-                }
-
-                Button(
-                    onClick = onDeployWave,
-                    enabled = isWaveReady,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = launchContainerColor,
-                        disabledContainerColor = Color(0xFF1E293B).copy(alpha = 0.7f),
-                        contentColor = Color.Black,
-                        disabledContentColor = Color(0xFF64748B)
-                    ),
-                    border = if (isWaveReady) androidx.compose.foundation.BorderStroke(1.2.dp, Color.White.copy(alpha = pulseGlow)) else null,
-                    contentPadding = PaddingValues(horizontal = if (isRotated) 3.dp else 6.dp, vertical = 1.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = counterRotateModifier
-                        .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-                        .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier.height(26.dp))
-                        .testTag("deploy_wave_button")
-                ) {
-                    if (isRotated) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                text = if (state.isWaveActive) "${state.enemies.size} FOES" else "BEGIN",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 7.5.sp,
-                                maxLines = 1
-                            )
-                        }
-                    } else {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (state.isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(
-                                text = if (state.isWaveActive) "${state.enemies.size} FOES" else "BEGIN",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 8.5.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
+                // 8. Launch Wave Button (isolated 60Hz pulse leaf)
+                HudLaunchWaveButton(
+                    isWaveActive = state.isWaveActive,
+                    enemyCount = state.enemies.size,
+                    isRotated = isRotated,
+                    counterRotateModifier = counterRotateModifier,
+                    onDeployWave = onDeployWave
+                )
 
                 // 9. Battery Widget (Dynamic: Inline Row in portrait, Stacked Column in landscape/rotation)
                 val batteryColor = when {
@@ -1004,6 +884,189 @@ fun MinimalTopHud(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HudClockHandle(
+    isRotated: Boolean,
+    counterRotateModifier: Modifier,
+    onOpenPauseMenu: () -> Unit
+) {
+    val context = LocalContext.current
+    var currentHours by remember { mutableStateOf("") }
+    var currentMinutes by remember { mutableStateOf("") }
+    var colonAlpha by remember { mutableFloatStateOf(1.0f) }
+
+    LaunchedEffect(context) {
+        var cachedIs24h: Boolean? = null
+        var cachedFormatter: SimpleDateFormat? = null
+        while (isActive) {
+            val is24h = DateFormat.is24HourFormat(context)
+            if (cachedFormatter == null || cachedIs24h != is24h) {
+                cachedIs24h = is24h
+                cachedFormatter = SimpleDateFormat(if (is24h) "HH mm" else "h mm", Locale.getDefault())
+            }
+            val formatted = cachedFormatter.format(Calendar.getInstance().time)
+            val spaceIdx = formatted.indexOf(' ')
+            if (spaceIdx > 0) {
+                currentHours = formatted.substring(0, spaceIdx)
+                currentMinutes = formatted.substring(spaceIdx + 1)
+            }
+            colonAlpha = if (colonAlpha > 0.5f) 0.15f else 1.0f
+            delay(1000L)
+        }
+    }
+
+    Surface(
+        color = Color(0xFF161F30).copy(alpha = 0.75f),
+        shape = RoundedCornerShape(6.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+        modifier = counterRotateModifier
+            .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onOpenPauseMenu)
+            .testTag("hud_pause_button")
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = currentHours,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (isRotated) 8.sp else 9.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum")
+                )
+                Text(
+                    text = ":",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (isRotated) 8.sp else 9.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    modifier = Modifier.graphicsLayer { alpha = colonAlpha }
+                )
+                Text(
+                    text = currentMinutes,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (isRotated) 8.sp else 9.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum")
+                )
+            }
+            Text(
+                text = "≡",
+                color = Color(0xFF94A3B8),
+                fontSize = 6.5.sp,
+                lineHeight = 7.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun HudLaunchWaveButton(
+    isWaveActive: Boolean,
+    enemyCount: Int,
+    isRotated: Boolean,
+    counterRotateModifier: Modifier,
+    onDeployWave: () -> Unit
+) {
+    val isWaveReady = !isWaveActive
+    val pulseAlphaState = if (isWaveReady) {
+        val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
+        infiniteTransition.animateFloat(
+            initialValue = 0.75f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "launch_pulse"
+        )
+    } else {
+        null
+    }
+
+    Button(
+        onClick = onDeployWave,
+        enabled = isWaveReady,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            disabledContainerColor = Color(0xFF1E293B).copy(alpha = 0.7f),
+            contentColor = Color.Black,
+            disabledContentColor = Color(0xFF64748B)
+        ),
+        border = null,
+        contentPadding = PaddingValues(horizontal = if (isRotated) 3.dp else 6.dp, vertical = 1.dp),
+        shape = RoundedCornerShape(6.dp),
+        modifier = counterRotateModifier
+            .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+            .then(if (isRotated) Modifier.defaultMinSize(minWidth = 36.dp, minHeight = 44.dp) else Modifier.height(26.dp))
+            .then(
+                if (pulseAlphaState != null) {
+                    Modifier.drawBehind {
+                        val radiusPx = 6.dp.toPx()
+                        val cornerRadius = CornerRadius(radiusPx, radiusPx)
+                        val alpha = pulseAlphaState.value
+                        drawRoundRect(
+                            color = Color(0xFF00F0FF).copy(alpha = alpha),
+                            cornerRadius = cornerRadius
+                        )
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = alpha),
+                            cornerRadius = cornerRadius,
+                            style = Stroke(width = 1.2.dp.toPx())
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+            .testTag("deploy_wave_button")
+    ) {
+        if (isRotated) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = if (isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(10.dp)
+                )
+                Text(
+                    text = if (isWaveActive) "$enemyCount FOES" else "BEGIN",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 7.5.sp,
+                    maxLines = 1
+                )
+            }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = if (isWaveActive) "$enemyCount FOES" else "BEGIN",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 8.5.sp,
+                    maxLines = 1
+                )
             }
         }
     }

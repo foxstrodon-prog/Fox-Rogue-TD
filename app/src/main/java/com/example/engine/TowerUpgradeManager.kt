@@ -355,6 +355,126 @@ object TowerUpgradeManager {
         }
         return activeList
     }
+
+    data class GlobalAuraModifiers(
+        var fireRateBonus: Float = 0f,
+        var rangeBonus: Float = 0f,
+        var damageBonus: Float = 0f,
+        var slowBonus: Float = 0f,
+        var critRateBonus: Float = 0f,
+        var critMultiplierBonus: Float = 0f,
+        var armorIgnore: Float = 0f,
+        var scrapBonus: Float = 0f
+    ) {
+        fun reset() {
+            fireRateBonus = 0f
+            rangeBonus = 0f
+            damageBonus = 0f
+            slowBonus = 0f
+            critRateBonus = 0f
+            critMultiplierBonus = 0f
+            armorIgnore = 0f
+            scrapBonus = 0f
+        }
+    }
+
+    private val AURA_LOOKUP_BY_NAME: Map<String, Pair<TowerArchetype, Int>> = buildMap {
+        for (arch in TowerArchetype.values()) {
+            put(arch.primaryAura.name, arch to 0)
+            put(arch.secondaryAura.name, arch to 1)
+        }
+    }
+
+    fun accumulateTier3AuraModifiers(towers: List<TowerInstance>, out: GlobalAuraModifiers) {
+        out.reset()
+        for (i in towers.indices) {
+            val t = towers[i]
+            if (t.isTier3) {
+                val arch = t.archetype ?: mapTypeToArchetype(t.type)
+                applyArchetypeAura(arch, t.selectedAuraIndex, 1, out)
+            }
+            if (t.isCapstone && t.synergyVault.isNotEmpty()) {
+                for (vIdx in t.synergyVault.indices) {
+                    val vault = t.synergyVault[vIdx]
+                    for (sIdx in vault.synergies.indices) {
+                        val syn = vault.synergies[sIdx]
+                        val mapped = AURA_LOOKUP_BY_NAME[syn.auraName]
+                        if (mapped != null) {
+                            applyArchetypeAura(mapped.first, mapped.second, syn.sourceCount, out)
+                        }
+                    }
+                }
+            }
+        }
+        out.slowBonus = out.slowBonus.coerceIn(0f, 0.85f)
+        out.armorIgnore = out.armorIgnore.coerceIn(0f, 1.0f)
+    }
+
+    fun applyArchetypeAura(
+        archetype: TowerArchetype,
+        auraIndex: Int,
+        sourceCount: Int,
+        out: GlobalAuraModifiers
+    ) {
+        val count = sourceCount.coerceAtLeast(1)
+        val isPrimary = (auraIndex != 1)
+        when (archetype) {
+            TowerArchetype.VULCAN_GATLING -> if (isPrimary) out.fireRateBonus += 0.18f * count else out.fireRateBonus += 0.15f * count
+            TowerArchetype.FLAK_CANNON -> if (isPrimary) out.damageBonus += 0.12f * count else out.damageBonus += 0.15f * count
+            TowerArchetype.SNIPER_SENTRY -> if (isPrimary) out.damageBonus += 0.18f * count else out.critRateBonus += 0.10f * count
+            TowerArchetype.BARRICADE_TURRET -> if (isPrimary) out.slowBonus = maxOf(out.slowBonus, 0.12f) else out.damageBonus += 0.10f * count
+            TowerArchetype.MINE_DISPENSER -> if (isPrimary) out.damageBonus += 0.15f * count else out.slowBonus = maxOf(out.slowBonus, 0.20f)
+            TowerArchetype.RIOT_DISRUPTOR -> out.slowBonus = maxOf(out.slowBonus, 0.15f)
+            TowerArchetype.RADAR_SENTRY -> if (isPrimary) out.rangeBonus += 0.25f * count else out.critRateBonus += 0.20f * count
+            TowerArchetype.AMMO_SUPPLY_DEPOT -> if (isPrimary) out.scrapBonus += 0.15f * count else out.damageBonus += 0.15f * count
+            TowerArchetype.SALVAGE_CRUSHER -> if (isPrimary) out.scrapBonus += 0.35f * count else out.scrapBonus += 0.20f * count
+
+            TowerArchetype.SOLAR_DEATH_RAY -> if (isPrimary) {
+                out.critRateBonus += 0.25f * count
+                out.critMultiplierBonus = maxOf(out.critMultiplierBonus, 0.50f)
+            } else {
+                out.armorIgnore = 1.0f
+            }
+            TowerArchetype.INFERNO_CANNON -> if (isPrimary) out.damageBonus += 0.15f * count else out.damageBonus += 0.18f * count
+            TowerArchetype.PLASMA_PULSAR -> if (isPrimary) out.damageBonus += 0.20f * count else out.damageBonus += 0.25f * count
+            TowerArchetype.FROST_SPIRE -> if (isPrimary) out.slowBonus = maxOf(out.slowBonus, 0.18f) else out.damageBonus += 0.22f * count
+            TowerArchetype.TESLA_STORMCOIL -> if (isPrimary) out.damageBonus += 0.15f * count else out.fireRateBonus += 0.25f * count
+            TowerArchetype.GRAVITON_VOID -> out.slowBonus = maxOf(out.slowBonus, if (isPrimary) 0.20f else 0.25f)
+            TowerArchetype.DYNAMO_CONDUIT -> if (isPrimary) out.scrapBonus += 0.40f * count else out.scrapBonus += 0.25f * count
+            TowerArchetype.QUANTUM_BEACON -> if (isPrimary) out.rangeBonus += 0.25f * count else out.fireRateBonus += 0.20f * count
+            TowerArchetype.DARK_MATTER_FORGE -> if (isPrimary) {
+                out.armorIgnore = maxOf(out.armorIgnore, 0.40f)
+            } else {
+                out.armorIgnore = maxOf(out.armorIgnore, 0.25f)
+                out.damageBonus += 0.10f * count
+            }
+
+            TowerArchetype.HELLFIRE_MORTAR -> if (isPrimary) out.damageBonus += 0.25f * count else out.damageBonus += 0.22f * count
+            TowerArchetype.TITAN_RAILGUN -> if (isPrimary) out.damageBonus += 0.25f * count else out.armorIgnore = maxOf(out.armorIgnore, 0.50f)
+            TowerArchetype.ORBITAL_STRIKE_RELAY -> if (isPrimary) out.damageBonus += 0.22f * count else out.rangeBonus += 0.35f * count
+            TowerArchetype.EARTHQUAKE_STAMPER -> if (isPrimary) out.slowBonus = maxOf(out.slowBonus, 0.20f) else out.damageBonus += 0.12f * count
+            TowerArchetype.CRYO_FORTRESS -> out.slowBonus = maxOf(out.slowBonus, if (isPrimary) 0.22f else 0.20f)
+            TowerArchetype.SHOCKWAVE_BASTION -> if (isPrimary) out.slowBonus = maxOf(out.slowBonus, 0.18f) else out.armorIgnore = maxOf(out.armorIgnore, 0.50f)
+            TowerArchetype.NANITE_FORGE -> if (isPrimary) out.armorIgnore = maxOf(out.armorIgnore, 0.45f) else out.fireRateBonus += 0.15f * count
+            TowerArchetype.SIEGE_COMMAND_POST -> if (isPrimary) {
+                out.damageBonus += 0.25f * count
+            } else {
+                out.fireRateBonus += 0.20f * count
+                out.rangeBonus += 0.15f * count
+            }
+            TowerArchetype.WAR_CHEST_VAULT -> if (isPrimary) out.scrapBonus += 0.35f * count else out.scrapBonus += 0.30f * count
+
+            TowerArchetype.SUPERNOVA_PULSAR -> if (isPrimary) out.damageBonus += 0.25f * count else out.slowBonus = maxOf(out.slowBonus, 0.25f)
+            TowerArchetype.GRAVITON_LANCE -> out.slowBonus = maxOf(out.slowBonus, if (isPrimary) 0.20f else 0.25f)
+            TowerArchetype.CELESTIAL_COMET -> if (isPrimary) out.damageBonus += 0.22f * count else out.damageBonus += 0.25f * count
+            TowerArchetype.EVENT_HORIZON -> out.slowBonus = maxOf(out.slowBonus, if (isPrimary) 0.30f else 0.28f)
+            TowerArchetype.NEBULA_AEGIS -> if (isPrimary) out.fireRateBonus += 0.20f * count else out.slowBonus = maxOf(out.slowBonus, 0.15f)
+            TowerArchetype.BLACK_HOLE_SENTRY -> if (isPrimary) out.slowBonus = maxOf(out.slowBonus, 0.22f) else out.damageBonus += 0.25f * count
+            TowerArchetype.CHRONO_PYLON -> if (isPrimary) out.fireRateBonus += 0.25f * count else out.scrapBonus += 0.15f * count
+            TowerArchetype.STARLIGHT_BEACON -> if (isPrimary) out.critRateBonus += 0.25f * count else out.armorIgnore = maxOf(out.armorIgnore, 0.50f)
+            TowerArchetype.ASTRAL_HARVESTER -> if (isPrimary) out.scrapBonus += 0.40f * count else out.scrapBonus += 0.35f * count
+        }
+    }
 }
 
 val TowerType.ascensionGlobalBuff: String

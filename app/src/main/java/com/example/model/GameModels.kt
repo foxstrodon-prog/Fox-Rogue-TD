@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.TowerUpgradeManager
+
 enum class CinematicScenario(
     val id: String,
     val title: String,
@@ -236,6 +238,26 @@ data class DevBalanceConfig(
         return customTowerConfigs[type.name] ?: DEFAULT_TOWER_BALANCES[type.name]!!
     }
 
+    fun findCustomTowerBalance(tower: TowerInstance): TowerUnitBalance? {
+        val arch = tower.archetype
+        val ffCode = tower.finalFormCode
+        val b1 = tower.branchTier1
+        return when {
+            arch != null -> customTowerConfigs[arch.name]
+            ffCode != null -> customTowerConfigs["${tower.type.name}_$ffCode"]
+            b1 != null -> {
+                val classBaseType = mapClassToType(tower.towerClass)
+                customTowerConfigs["${tower.type.name}_$b1"]
+                    ?: if (classBaseType != tower.type) customTowerConfigs["${classBaseType.name}_$b1"] else null
+            }
+            else -> {
+                val classBaseType = mapClassToType(tower.towerClass)
+                customTowerConfigs[tower.type.name]
+                    ?: if (classBaseType != tower.type) customTowerConfigs[classBaseType.name] else null
+            }
+        }
+    }
+
     fun getEffectiveTowerBalance(
         type: TowerType,
         branchTier1: String? = null,
@@ -247,6 +269,12 @@ data class DevBalanceConfig(
         return getTowerBalance(type)
     }
 
+    fun getEffectiveTowerBalance(descriptor: TowerBalanceDescriptor): TowerUnitBalance {
+        customTowerConfigs[descriptor.key]?.let { return it }
+        DEFAULT_TOWER_BALANCES[descriptor.key]?.let { return it }
+        return getEffectiveTowerBalance(descriptor.family, descriptor.branchTier1, descriptor.finalFormCode)
+    }
+
     companion object {
         val DEFAULT_TOWER_BALANCES: Map<String, TowerUnitBalance> = buildMap {
             for (type in TowerType.values()) {
@@ -256,6 +284,7 @@ data class DevBalanceConfig(
                     type.chains > 0 -> type.chains.toFloat()
                     else -> 0f
                 }
+                val ownerClass = TowerClass.values().firstOrNull { mapClassToType(it) == type }
                 put(
                     type.name,
                     TowerUnitBalance(
@@ -263,11 +292,11 @@ data class DevBalanceConfig(
                         damage = type.baseDamage,
                         range = type.baseRange,
                         fireRate = type.baseFireRate,
-                        cost = type.baseCost,
+                        cost = ownerClass?.baseCost ?: type.baseCost,
                         specialEffectValue = specialVal
                     )
                 )
-                for (t1 in com.example.engine.TowerUpgradeManager.getTier1Options(type)) {
+                for (t1 in TowerUpgradeManager.getTier1Options(type)) {
                     put(
                         "${type.name}_${t1.branchKey}",
                         TowerUnitBalance(
@@ -275,12 +304,12 @@ data class DevBalanceConfig(
                             damage = type.baseDamage * t1.damageMultiplier,
                             range = type.baseRange * t1.rangeMultiplier,
                             fireRate = type.baseFireRate * t1.fireRateMultiplier,
-                            cost = t1.cost,
+                            cost = ownerClass?.let { TowerUpgradeManager.getTier1VectorCost(it) } ?: t1.cost,
                             specialEffectValue = specialVal
                         )
                     )
                 }
-                for (ff in com.example.engine.TowerUpgradeManager.get9FinalForms(type)) {
+                for (ff in TowerUpgradeManager.get9FinalForms(type)) {
                     put(
                         "${type.name}_${ff.code}",
                         TowerUnitBalance(
@@ -294,59 +323,101 @@ data class DevBalanceConfig(
                     )
                 }
             }
+            for (arch in TowerArchetype.values()) {
+                val specialVal = when {
+                    arch.isSplash -> arch.splashRadius
+                    arch.slowPercent > 0f -> arch.slowPercent
+                    arch.chains > 0 -> arch.chains.toFloat()
+                    else -> 0f
+                }
+                put(
+                    arch.name,
+                    TowerUnitBalance(
+                        customName = null,
+                        damage = arch.baseDamage,
+                        range = arch.baseRange,
+                        fireRate = arch.baseFireRate,
+                        cost = arch.baseCost,
+                        specialEffectValue = specialVal
+                    )
+                )
+            }
         }
 
         private val ALL_52_DESCRIPTORS: List<TowerBalanceDescriptor> = buildList {
-            val baseTypes = listOf(TowerType.GATLING, TowerType.CRYO, TowerType.TESLA, TowerType.STELLAR)
-            for (type in baseTypes) {
+            for (cls in TowerClass.values()) {
+                val baseType = mapClassToType(cls)
+                val baseSpecial = when {
+                    baseType.isSplash -> baseType.splashRadius
+                    baseType.slowPercent > 0f -> baseType.slowPercent
+                    baseType.chains > 0 -> baseType.chains.toFloat()
+                    else -> 0f
+                }
                 add(
                     TowerBalanceDescriptor(
-                        key = type.name,
-                        displayName = type.displayName,
+                        key = baseType.name,
+                        displayName = cls.displayName,
                         level = 1,
-                        family = type,
-                        defaultDamage = type.baseDamage,
-                        defaultRange = type.baseRange,
-                        defaultFireRate = type.baseFireRate,
-                        defaultCost = type.baseCost,
-                        specialEffectValue = when {
-                            type.isSplash -> type.splashRadius
-                            type.slowPercent > 0f -> type.slowPercent
-                            type.chains > 0 -> type.chains.toFloat()
-                            else -> 0f
-                        }
+                        family = baseType,
+                        defaultDamage = baseType.baseDamage,
+                        defaultRange = baseType.baseRange,
+                        defaultFireRate = baseType.baseFireRate,
+                        defaultCost = cls.baseCost,
+                        specialEffectValue = baseSpecial,
+                        towerClass = cls
                     )
                 )
-                for (opt in com.example.engine.TowerUpgradeManager.getTier1Options(type)) {
+                for (vec in TowerVector.values()) {
+                    val branchKey = when (vec) {
+                        TowerVector.OFFENSIVE -> "A"
+                        TowerVector.DEFENSIVE -> "B"
+                        TowerVector.SUPPORT -> "C"
+                    }
+                    val t1Opt = TowerUpgradeManager.getTier1Form(baseType, branchKey)
                     add(
                         TowerBalanceDescriptor(
-                            key = "${type.name}_${opt.branchKey}",
-                            displayName = "${type.displayName} - ${opt.subName}",
+                            key = "${baseType.name}_$branchKey",
+                            displayName = "${cls.displayName} - ${vec.displayName}",
                             level = 2,
-                            family = type,
-                            branchTier1 = opt.branchKey,
-                            defaultDamage = type.baseDamage * opt.damageMultiplier,
-                            defaultRange = type.baseRange * opt.rangeMultiplier,
-                            defaultFireRate = type.baseFireRate * opt.fireRateMultiplier,
-                            defaultCost = opt.cost,
-                            specialEffectValue = 0f
+                            family = baseType,
+                            branchTier1 = branchKey,
+                            defaultDamage = baseType.baseDamage * (t1Opt?.damageMultiplier ?: 1.0f),
+                            defaultRange = baseType.baseRange * (t1Opt?.rangeMultiplier ?: 1.0f),
+                            defaultFireRate = baseType.baseFireRate * (t1Opt?.fireRateMultiplier ?: 1.0f),
+                            defaultCost = TowerUpgradeManager.getTier1VectorCost(cls),
+                            specialEffectValue = baseSpecial,
+                            towerClass = cls,
+                            vector = vec
                         )
                     )
                 }
-                for (ff in com.example.engine.TowerUpgradeManager.get9FinalForms(type)) {
+                for (arch in TowerArchetype.values().filter { it.towerClass == cls }) {
+                    val branchKey = when (arch.vector) {
+                        TowerVector.OFFENSIVE -> "A"
+                        TowerVector.DEFENSIVE -> "B"
+                        TowerVector.SUPPORT -> "C"
+                    }
+                    val specialVal = when {
+                        arch.isSplash -> arch.splashRadius
+                        arch.slowPercent > 0f -> arch.slowPercent
+                        arch.chains > 0 -> arch.chains.toFloat()
+                        else -> 0f
+                    }
                     add(
                         TowerBalanceDescriptor(
-                            key = "${type.name}_${ff.code}",
-                            displayName = "${type.displayName} - ${ff.subName}",
+                            key = arch.name,
+                            displayName = "${cls.displayName} - ${arch.displayName}",
                             level = 3,
-                            family = type,
-                            branchTier1 = ff.code.substringBefore("."),
-                            finalFormCode = ff.code,
-                            defaultDamage = type.baseDamage * ff.damageMultiplier,
-                            defaultRange = type.baseRange * ff.rangeMultiplier,
-                            defaultFireRate = type.baseFireRate * ff.fireRateMultiplier,
-                            defaultCost = ff.cost,
-                            specialEffectValue = 0f
+                            family = mapArchetypeToType(arch),
+                            branchTier1 = branchKey,
+                            defaultDamage = arch.baseDamage,
+                            defaultRange = arch.baseRange,
+                            defaultFireRate = arch.baseFireRate,
+                            defaultCost = arch.baseCost,
+                            specialEffectValue = specialVal,
+                            towerClass = cls,
+                            vector = arch.vector,
+                            archetype = arch
                         )
                     )
                 }
@@ -354,7 +425,7 @@ data class DevBalanceConfig(
         }
 
         private val ALL_39_DESCRIPTORS: List<TowerBalanceDescriptor> =
-            ALL_52_DESCRIPTORS.filter { it.family != TowerType.STELLAR }
+            ALL_52_DESCRIPTORS.filter { it.towerClass != TowerClass.STELLAR_COSMIC }
 
         val STATIC_ENEMY_BALANCES: Map<EnemyType, EnemyUnitBalance> = EnemyType.values().associateWith { type ->
             EnemyUnitBalance(
@@ -404,16 +475,30 @@ data class DevBalanceConfig(
         if (enemiesPerRoundMultiplier != default.enemiesPerRoundMultiplier) return true
 
         if (customTowerConfigs.isNotEmpty()) {
-            val allDescriptors = getAll39TowerDescriptors()
+            val allDescriptors = getAll52TowerDescriptors()
+            val descriptorKeys = HashSet<String>(allDescriptors.size)
             for (desc in allDescriptors) {
-                val curr = getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
-                val defTower = default.getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
+                descriptorKeys.add(desc.key)
+                val curr = getEffectiveTowerBalance(desc)
+                val defTower = default.getEffectiveTowerBalance(desc)
                 if (curr.cost != defTower.cost ||
                     Math.abs(curr.damage - defTower.damage) > 0.01f ||
                     Math.abs(curr.fireRate - defTower.fireRate) > 0.01f ||
                     Math.abs(curr.range - defTower.range) > 0.01f ||
                     Math.abs(curr.specialEffectValue - defTower.specialEffectValue) > 0.01f) {
                     return true
+                }
+            }
+            for ((key, curr) in customTowerConfigs) {
+                if (key !in descriptorKeys) {
+                    val defTower = DEFAULT_TOWER_BALANCES[key] ?: return true
+                    if (curr.cost != defTower.cost ||
+                        Math.abs(curr.damage - defTower.damage) > 0.01f ||
+                        Math.abs(curr.fireRate - defTower.fireRate) > 0.01f ||
+                        Math.abs(curr.range - defTower.range) > 0.01f ||
+                        Math.abs(curr.specialEffectValue - defTower.specialEffectValue) > 0.01f) {
+                        return true
+                    }
                 }
             }
         }
@@ -485,12 +570,14 @@ data class DevBalanceConfig(
         if (turretSkinSlot != default.turretSkinSlot) diffMap["turretSkinSlot"] = turretSkinSlot
         if (mapThemeSlot != default.mapThemeSlot) diffMap["mapThemeSlot"] = mapThemeSlot
 
-        // Tower diffs across all 39 units (L1 Base, L2 Specializations, L3 Final Forms)
+        // Tower diffs across all 52 units (L1 Base, L2 Vectors, L3 Archetypes) + any custom keys
         val towerDiffs = mutableMapOf<String, Map<String, Any>>()
-        val allDescriptors = getAll39TowerDescriptors()
+        val allDescriptors = getAll52TowerDescriptors()
+        val seenKeys = HashSet<String>(allDescriptors.size)
         for (desc in allDescriptors) {
-            val curr = getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
-            val defTower = default.getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
+            seenKeys.add(desc.key)
+            val curr = getEffectiveTowerBalance(desc)
+            val defTower = default.getEffectiveTowerBalance(desc)
             val tDiff = mutableMapOf<String, Any>()
 
             if (!curr.customName.isNullOrBlank() && curr.customName != defTower.customName) {
@@ -506,6 +593,23 @@ data class DevBalanceConfig(
 
             if (tDiff.isNotEmpty()) {
                 towerDiffs[desc.key] = tDiff
+            }
+        }
+        for ((key, curr) in customTowerConfigs) {
+            if (key !in seenKeys) {
+                val defTower = DEFAULT_TOWER_BALANCES[key]
+                val tDiff = mutableMapOf<String, Any>()
+                if (!curr.customName.isNullOrBlank() && curr.customName != defTower?.customName) {
+                    tDiff["customName"] = curr.customName
+                }
+                if (defTower == null || Math.abs(curr.damage - defTower.damage) > 0.01f) tDiff["damage"] = curr.damage
+                if (defTower == null || Math.abs(curr.range - defTower.range) > 0.01f) tDiff["range"] = curr.range
+                if (defTower == null || Math.abs(curr.fireRate - defTower.fireRate) > 0.01f) tDiff["fireRate"] = curr.fireRate
+                if (defTower == null || curr.cost != defTower.cost) tDiff["cost"] = curr.cost
+                if (defTower == null || Math.abs(curr.specialEffectValue - defTower.specialEffectValue) > 0.01f) {
+                    tDiff["specialEffectValue"] = curr.specialEffectValue
+                }
+                if (tDiff.isNotEmpty()) towerDiffs[key] = tDiff
             }
         }
         if (towerDiffs.isNotEmpty()) diffMap["customTowers"] = towerDiffs
@@ -533,8 +637,8 @@ data class DevBalanceConfig(
 
         // Serialize to clean formatted JSON string with appName, versionName, versionCode, and deltas
         val sb = StringBuilder("{\n")
-        sb.append("  \"appName\": \"").append(appName).append("\",\n")
-        sb.append("  \"versionName\": \"").append(versionName).append("\",\n")
+        sb.append("  \"appName\": \"").append(jsonEscape(appName)).append("\",\n")
+        sb.append("  \"versionName\": \"").append(jsonEscape(versionName)).append("\",\n")
         sb.append("  \"versionCode\": ").append(versionCode).append(",\n")
         if (diffMap.isEmpty()) {
             sb.append("  \"deltas\": {}\n")
@@ -544,29 +648,30 @@ data class DevBalanceConfig(
         sb.append("  \"deltas\": {\n")
         val entries = diffMap.entries.toList()
         entries.forEachIndexed { i, (k, v) ->
-            sb.append("    \"").append(k).append("\": ")
+            sb.append("    \"").append(jsonEscape(k)).append("\": ")
             when (v) {
                 is Number, is Boolean -> sb.append(v)
-                is String -> sb.append("\"").append(v).append("\"")
+                is String -> sb.append("\"").append(jsonEscape(v)).append("\"")
                 is Map<*, *> -> {
                     sb.append("{\n")
                     val subEntries = v.entries.toList()
                     subEntries.forEachIndexed { j, sub ->
-                        sb.append("      \"").append(sub.key).append("\": ")
+                        sb.append("      \"").append(jsonEscape(sub.key.toString())).append("\": ")
                         val subVal = sub.value
                         if (subVal is Map<*, *>) {
                             sb.append("{\n")
                             val leafEntries = subVal.entries.toList()
                             leafEntries.forEachIndexed { kLeaf, leaf ->
-                                sb.append("        \"").append(leaf.key).append("\": ")
-                                if (leaf.value is String) sb.append("\"").append(leaf.value).append("\"")
-                                else sb.append(leaf.value)
+                                sb.append("        \"").append(jsonEscape(leaf.key.toString())).append("\": ")
+                                val leafVal = leaf.value
+                                if (leafVal is String) sb.append("\"").append(jsonEscape(leafVal)).append("\"")
+                                else sb.append(leafVal)
                                 if (kLeaf < leafEntries.size - 1) sb.append(",")
                                 sb.append("\n")
                             }
                             sb.append("      }")
                         } else if (subVal is String) {
-                            sb.append("\"").append(subVal).append("\"")
+                            sb.append("\"").append(jsonEscape(subVal)).append("\"")
                         } else {
                             sb.append(subVal)
                         }
@@ -575,7 +680,7 @@ data class DevBalanceConfig(
                     }
                     sb.append("    }")
                 }
-                else -> sb.append("\"").append(v.toString()).append("\"")
+                else -> sb.append("\"").append(jsonEscape(v.toString())).append("\"")
             }
             if (i < entries.size - 1) sb.append(",")
             sb.append("\n")
@@ -583,6 +688,19 @@ data class DevBalanceConfig(
         sb.append("  }\n")
         sb.append("}")
         return sb.toString()
+    }
+
+    private fun jsonEscape(value: String): String = buildString(value.length + 4) {
+        for (ch in value) {
+            when (ch) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> if (ch.code < 0x20) append("\\u%04x".format(ch.code)) else append(ch)
+            }
+        }
     }
 }
 

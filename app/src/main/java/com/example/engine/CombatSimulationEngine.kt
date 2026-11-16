@@ -127,6 +127,14 @@ class CombatSimulationEngine(
         return null
     }
 
+    private fun findTowerById(towers: List<TowerInstance>, id: String): TowerInstance? {
+        for (i in towers.indices) {
+            val t = towers[i]
+            if (t.id == id) return t
+        }
+        return null
+    }
+
     /**
      * Updates projectile physics, applies target tracking, resolves collisions, and accelerates
      * AoE munitions (Mortar, Hellfire, Cluster, Ricochet) through [SpatialHashGrid.getPotentialCollisions].
@@ -136,7 +144,8 @@ class CombatSimulationEngine(
         survivingEnemies: List<EnemyInstance>,
         deltaSec: Float,
         applyDamage: (target: EnemyInstance, rawDamage: Float, sourceTower: TowerInstance?, isCrit: Boolean, armorPierce: Boolean, sourceShape: EnemyShape?, sourceAffinity: ElementAffinity?) -> Unit,
-        addExplosion: (x: Float, y: Float, radius: Float, color: Long, lifeMs: Long) -> Unit
+        addExplosion: (x: Float, y: Float, radius: Float, color: Long, lifeMs: Long) -> Unit,
+        towers: List<TowerInstance> = emptyList()
     ): List<Projectile> {
         if (projectiles.isEmpty()) return emptyList()
         if (!deltaSec.isFinite() || deltaSec <= 0f) return projectiles
@@ -169,13 +178,18 @@ class CombatSimulationEngine(
             }
 
             if (dist <= step || dist < 0.25f) {
+                val sourceTower = if (proj.sourceTowerId != null && towers.isNotEmpty()) {
+                    findTowerById(towers, proj.sourceTowerId)
+                } else {
+                    null
+                }
                 if (proj.isSplash) {
                     addExplosion(destX, destY, proj.splashRadius, proj.color, 250L)
                     // AoE accelerated via SpatialHashGrid
                     spatialGrid.getPotentialCollisions(destX, destY, proj.splashRadius, scratchAoEList)
                     for (j in scratchAoEList.indices) {
                         val st = scratchAoEList[j]
-                        applyDamage(st, proj.damage, null, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
+                        applyDamage(st, proj.damage, sourceTower, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
                     }
 
                     // Mortar Cluster Munitions
@@ -190,14 +204,14 @@ class CombatSimulationEngine(
                             spatialGrid.getPotentialCollisions(clusterX, clusterY, 0.9f, scratchAoEList)
                             for (j in scratchAoEList.indices) {
                                 val ct = scratchAoEList[j]
-                                applyDamage(ct, proj.damage * 0.45f, null, false, false, proj.sourceShape, proj.sourceAffinity)
+                                applyDamage(ct, proj.damage * 0.45f, sourceTower, false, false, proj.sourceShape, proj.sourceAffinity)
                             }
                         }
                     }
                 } else {
                     val hitEnemy = if (proj.targetEnemyId != null) findEnemyById(survivingEnemies, proj.targetEnemyId) else null
                     if (hitEnemy != null) {
-                        applyDamage(hitEnemy, proj.damage, null, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
+                        applyDamage(hitEnemy, proj.damage, sourceTower, proj.isCrit, false, proj.sourceShape, proj.sourceAffinity)
                         // Gatling Ricochet
                         if (proj.hasClusterSplit) {
                             spatialGrid.getPotentialCollisions(hitEnemy.worldX, hitEnemy.worldY, 2.5f, scratchAoEList)
@@ -210,7 +224,7 @@ class CombatSimulationEngine(
                                 }
                             }
                             if (bounceTarget != null) {
-                                applyDamage(bounceTarget, proj.damage * 0.50f, null, false, false, proj.sourceShape, proj.sourceAffinity)
+                                applyDamage(bounceTarget, proj.damage * 0.50f, sourceTower, false, false, proj.sourceShape, proj.sourceAffinity)
                             }
                         }
                     }

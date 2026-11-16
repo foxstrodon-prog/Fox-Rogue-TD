@@ -112,7 +112,8 @@ class WaveProgressionCoordinator(
         level: GeneratedLevel,
         towers: List<TowerInstance>,
         remainingAlive: List<EnemyInstance>,
-        currentCoreHp: Int
+        currentCoreHp: Int,
+        emitFloatingText: (Float, Float, String, Long, Boolean) -> Unit = addFloatingText
     ): WaveCompletionEvaluation {
         var waveActive = state.isWaveActive
         var currentWave = state.waveNumber
@@ -152,12 +153,12 @@ class WaveProgressionCoordinator(
 
             val corePos = level.tiles.firstOrNull { it.type == TileType.CORE }?.pos ?: GridPos(level.width / 2, level.height - 1)
             val clearMessage = if (currentWave % 5 == 0) "★ Milestone Wave $currentWave Cleared! +$completionReward ★" else "Wave $currentWave Cleared! +$completionReward"
-            addFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 1f, clearMessage, if (currentWave % 5 == 0) 0xFFFFD700 else 0xFF00F0FF, false)
+            emitFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 1f, clearMessage, if (currentWave % 5 == 0) 0xFFFFD700 else 0xFF00F0FF, false)
 
             if (currentWave >= state.difficulty.maxWave) {
                 isVictory = true
                 onRecordRunCompletion(true, currentWave)
-                addFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 2f, "👑 ${state.difficulty.label} VICTORY ACHIEVED! 👑", 0xFFFFD700, false)
+                emitFloatingText(corePos.x.toFloat(), corePos.y.toFloat() - 2f, "👑 ${state.difficulty.label} VICTORY ACHIEVED! 👑", 0xFFFFD700, false)
             } else {
                 currentWave++
             }

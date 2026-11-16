@@ -90,7 +90,9 @@ data class TowerInstance(
         balanceRange: Float? = null
     ): Float {
         val baseRng = balanceRange ?: archetype?.baseRange ?: type.baseRange
-        val towerRngMul = if (archetype != null || vector != null || tier > 0) {
+        val towerRngMul = if (balanceRange != null) {
+            1.0f
+        } else if (archetype != null || vector != null || tier > 0) {
             when {
                 isTier3 -> 1.35f
                 isTier2 -> 1.20f
@@ -115,8 +117,7 @@ data class TowerInstance(
         val apexBonus = if (isFinalForm) 0.30f else 0.0f
         val arch = archetype
         val (baseDmg, tierDmgBonus) = if (arch != null) {
-            val customDmg = balanceConfig.customTowerConfigs[arch.name]?.damage
-                ?: balanceConfig.customTowerConfigs[type.name]?.damage
+            val customDmg = balanceConfig.findCustomTowerBalance(this)?.damage
             val resolvedBase = customDmg ?: arch.baseDamage
             val t3Mul = if (tier >= 3 || isTier3GlobalActive) 1.25f else 1.0f
             resolvedBase to t3Mul
@@ -149,8 +150,7 @@ data class TowerInstance(
         val tileSpdBonus = if (tileBuff == TileBuff.CONDUIT) 0.35f else 0.0f
         val arch = archetype
         val (baseSpd, tierSpdBonus) = if (arch != null) {
-            val customSpd = balanceConfig.customTowerConfigs[arch.name]?.fireRate
-                ?: balanceConfig.customTowerConfigs[type.name]?.fireRate
+            val customSpd = balanceConfig.findCustomTowerBalance(this)?.fireRate
             val resolvedBase = customSpd ?: arch.baseFireRate
             val t3Mul = if (tier >= 3 || isTier3GlobalActive) 1.20f else 1.0f
             resolvedBase to t3Mul
@@ -297,7 +297,8 @@ data class Projectile(
     val hasClusterSplit: Boolean = false,
     val towerClassIndex: Int = 0,
     val sourceShape: EnemyShape = EnemyShape.CIRCLE,
-    val sourceAffinity: ElementAffinity = ElementAffinity.RED
+    val sourceAffinity: ElementAffinity = ElementAffinity.RED,
+    val sourceTowerId: String? = null
 )
 
 data class LaserBeam(

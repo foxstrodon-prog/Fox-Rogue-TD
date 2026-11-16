@@ -1,16 +1,29 @@
 package com.example.ui
 
+import com.example.audio.SoundFx
+import com.example.audio.SoundManager
 import com.example.model.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+
+interface CinematicHost {
+    val uiStateFlow: MutableStateFlow<GameUIState>
+    val soundManager: SoundManager
+    fun clearPendingSpawns()
+    fun markSynergyDirty()
+    fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean = false)
+    fun swapBoosterPads()
+    fun deployWave()
+}
 
 /**
  * Controller for deterministic 30-second promotional and diagnostic gameplay showcases.
  * Extracted from RogueTDViewModel to preserve single responsibility and maintain the 750-line modularity threshold.
  */
-class CinematicController(private val vm: RogueTDViewModel) {
+class CinematicController(private val host: CinematicHost) {
 
     fun launchCinematic(scenario: CinematicScenario) {
-        val level = vm.uiState.value.level ?: return
+        val level = host.uiStateFlow.value.level ?: return
         val emptyTiles = level.tiles.filter { it.isBuildable }
         if (emptyTiles.size < 4) return
 
@@ -311,9 +324,9 @@ class CinematicController(private val vm: RogueTDViewModel) {
             }
         }
 
-        vm.clearPendingSpawns()
-        vm.markSynergyDirty()
-        vm._uiState.update {
+        host.clearPendingSpawns()
+        host.markSynergyDirty()
+        host.uiStateFlow.update {
             it.copy(
                 waveNumber = waveNum,
                 towers = towers,
@@ -327,7 +340,7 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 isSettingsOpen = false
             )
         }
-        vm.addFloatingText(8f, 4f, "🎬 START: ${scenario.title} (30s)", 0xFFFFD700)
+        host.addFloatingText(8f, 4f, "🎬 START: ${scenario.title} (30s)", 0xFFFFD700)
     }
 
     fun processFrame(cin: ActiveCinematicState, state: GameUIState): Boolean {
@@ -337,12 +350,12 @@ class CinematicController(private val vm: RogueTDViewModel) {
             return false
         }
         handleCinematicHumanGestures(cin, nextFrame, state)
-        vm._uiState.update { it.copy(activeCinematic = cin.copy(currentFrame = nextFrame)) }
+        host.uiStateFlow.update { it.copy(activeCinematic = cin.copy(currentFrame = nextFrame)) }
         return true
     }
 
     private fun evolveCinematicTowers(tier: Int) {
-        val currentTowers = vm.uiState.value.towers.map { tower ->
+        val currentTowers = host.uiStateFlow.value.towers.map { tower ->
             when (tier) {
                 1 -> tower.copy(
                     tier = 1,
@@ -365,10 +378,10 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 else -> tower
             }
         }
-        vm.markSynergyDirty()
-        vm._uiState.update { it.copy(towers = currentTowers) }
-        vm.soundManager.play(com.example.audio.SoundFx.UPGRADE)
-        vm.addFloatingText(8f, 5f, "★ EVOLUTION TIER $tier UNLOCKED ★", 0xFFFFB800)
+        host.markSynergyDirty()
+        host.uiStateFlow.update { it.copy(towers = currentTowers) }
+        host.soundManager.play(SoundFx.UPGRADE)
+        host.addFloatingText(8f, 5f, "★ EVOLUTION TIER $tier UNLOCKED ★", 0xFFFFB800)
     }
 
     private fun handleCinematicHumanGestures(cin: ActiveCinematicState, frame: Int, state: GameUIState) {
@@ -378,26 +391,26 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 when (frame) {
                     120 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 TOWER FOCUS", 0xFF00F0FF)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 TOWER FOCUS", 0xFF00F0FF)
                         }
                     }
                     480 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "🎯 PRIORITY: BOSS", 0xFFFFB800)
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "🎯 PRIORITY: BOSS", 0xFFFFB800)
                         }
                     }
                     900 -> {
-                        vm._uiState.update { it.copy(overchargeRemainingMs = 6000L) }
-                        vm.addFloatingText(8f, 6f, "⚡ OVERCHARGE ACTIVATED ⚡", 0xFFFFD700)
-                        vm.soundManager.play(com.example.audio.SoundFx.UPGRADE)
+                        host.uiStateFlow.update { it.copy(overchargeRemainingMs = 6000L) }
+                        host.addFloatingText(8f, 6f, "⚡ OVERCHARGE ACTIVATED ⚡", 0xFFFFD700)
+                        host.soundManager.play(SoundFx.UPGRADE)
                     }
                     1380 -> {
-                        vm.addFloatingText(8f, 6f, "★ APEX CORONA DETONATION ★", 0xFFFFD700)
+                        host.addFloatingText(8f, 6f, "★ APEX CORONA DETONATION ★", 0xFFFFD700)
                     }
                     1560 -> {
-                        vm._uiState.update { it.copy(selectedTower = null) }
-                        vm.addFloatingText(8f, 5f, "🏆 BOSS ELIMINATED", 0xFF00FF9D)
+                        host.uiStateFlow.update { it.copy(selectedTower = null) }
+                        host.addFloatingText(8f, 5f, "🏆 BOSS ELIMINATED", 0xFF00FF9D)
                     }
                 }
             }
@@ -406,62 +419,62 @@ class CinematicController(private val vm: RogueTDViewModel) {
                     150 -> {
                         val t = towers.getOrNull(1) ?: towers.firstOrNull()
                         t?.let {
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 FLAK FOCUS", 0xFF00F0FF)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 FLAK FOCUS", 0xFF00F0FF)
                         }
                     }
                     600 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 GATLING OVERCLOCK", 0xFFFFB800)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 GATLING OVERCLOCK", 0xFFFFB800)
                         }
                     }
                     1050 -> {
-                        vm.addFloatingText(8f, 6f, "💥 FULL-SCREEN SATURATION", 0xFF00FF9D)
+                        host.addFloatingText(8f, 6f, "💥 FULL-SCREEN SATURATION", 0xFF00FF9D)
                     }
                     1260 -> {
-                        vm._uiState.update { it.copy(selectedTower = null) }
+                        host.uiStateFlow.update { it.copy(selectedTower = null) }
                     }
                 }
             }
             CinematicScenario.CIN_03_BOOSTER_WARP -> {
                 if (frame == 60) {
                     towers.firstOrNull()?.let { t ->
-                        vm._uiState.update { it.copy(selectedTower = t) }
-                        vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 SELECT PAD 1", 0xFF00E5FF)
+                        host.uiStateFlow.update { it.copy(selectedTower = t) }
+                        host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 SELECT PAD 1", 0xFF00E5FF)
                     }
                 }
                 if (frame % 120 == 0) {
-                    vm.swapBoosterPads()
-                    val targetTower = vm.uiState.value.towers.firstOrNull()
+                    host.swapBoosterPads()
+                    val targetTower = host.uiStateFlow.value.towers.firstOrNull()
                     targetTower?.let { t ->
-                        vm._uiState.update { it.copy(selectedTower = t) }
+                        host.uiStateFlow.update { it.copy(selectedTower = t) }
                     }
                 }
                 if (frame == 900) {
-                    vm.addFloatingText(8f, 7f, "⚡ HARMONIC WARP CONDUIT", 0xFFFFD700)
+                    host.addFloatingText(8f, 7f, "⚡ HARMONIC WARP CONDUIT", 0xFFFFD700)
                 }
             }
             CinematicScenario.CIN_04_ELEMENTAL_CASCADE -> {
                 when (frame) {
                     180 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 CRYO LOCK", 0xFF00E5FF)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 CRYO LOCK", 0xFF00E5FF)
                         }
                     }
                     600 -> {
                         val t = towers.getOrNull(1) ?: towers.firstOrNull()
                         t?.let {
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 VOID SINGULARITY", 0xFFA855F7)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 VOID SINGULARITY", 0xFFA855F7)
                         }
                     }
                     1200 -> {
-                        vm.addFloatingText(8f, 6f, "❄️ CASCADE SHATTER ❄️", 0xFF00FF9D)
+                        host.addFloatingText(8f, 6f, "❄️ CASCADE SHATTER ❄️", 0xFF00FF9D)
                     }
                     1380 -> {
-                        vm._uiState.update { it.copy(selectedTower = null) }
+                        host.uiStateFlow.update { it.copy(selectedTower = null) }
                     }
                 }
             }
@@ -469,20 +482,20 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 when (frame) {
                     120 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 MINIGUN LOCK", 0xFFFFD700)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 MINIGUN LOCK", 0xFFFFD700)
                         }
                     }
                     480 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "⚡ OVERCLOCK MAX SPIN", 0xFFFF2A55)
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "⚡ OVERCLOCK MAX SPIN", 0xFFFF2A55)
                         }
                     }
                     960 -> {
-                        vm.addFloatingText(8f, 6f, "💥 ARMOR SHRED MELT", 0xFFFFB800)
+                        host.addFloatingText(8f, 6f, "💥 ARMOR SHRED MELT", 0xFFFFB800)
                     }
                     1320 -> {
-                        vm._uiState.update { it.copy(selectedTower = null) }
+                        host.uiStateFlow.update { it.copy(selectedTower = null) }
                     }
                 }
             }
@@ -490,30 +503,30 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 when (frame) {
                     60 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm._uiState.update { it.copy(selectedTower = t) }
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 SELECT TURRET", 0xFF00F0FF)
+                            host.uiStateFlow.update { it.copy(selectedTower = t) }
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 SELECT TURRET", 0xFF00F0FF)
                         }
                     }
                     240 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 UPGRADE -> TIER 2", 0xFFFFB800)
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 UPGRADE -> TIER 2", 0xFFFFB800)
                         }
                         evolveCinematicTowers(1)
                     }
                     600 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 UPGRADE -> TIER 3", 0xFFFFB800)
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 UPGRADE -> TIER 3", 0xFFFFB800)
                         }
                         evolveCinematicTowers(2)
                     }
                     1080 -> {
                         towers.firstOrNull()?.let { t ->
-                            vm.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 ASCEND -> APEX", 0xFFFFD700)
+                            host.addFloatingText(t.gridPos.x.toFloat(), t.gridPos.y.toFloat(), "👆 ASCEND -> APEX", 0xFFFFD700)
                         }
                         evolveCinematicTowers(3)
                     }
                     1470 -> {
-                        vm.addFloatingText(8f, 6f, "★ APEX TRANSCENDENCE ★", 0xFFFFD700)
+                        host.addFloatingText(8f, 6f, "★ APEX TRANSCENDENCE ★", 0xFFFFD700)
                     }
                 }
             }
@@ -521,7 +534,7 @@ class CinematicController(private val vm: RogueTDViewModel) {
     }
 
     fun stopCinematic() {
-        vm._uiState.update {
+        host.uiStateFlow.update {
             it.copy(
                 activeCinematic = null,
                 isWaveActive = false,
@@ -529,11 +542,11 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 projectiles = emptyList()
             )
         }
-        vm.addFloatingText(8f, 8f, "🎬 CINEMATIC COMPLETE (30s)", 0xFF00FF9D)
+        host.addFloatingText(8f, 8f, "🎬 CINEMATIC COMPLETE (30s)", 0xFF00FF9D)
     }
 
     fun jumpToSignatureWave(scenario: CinematicScenario) {
-        vm._uiState.update {
+        host.uiStateFlow.update {
             it.copy(
                 activeCinematic = null,
                 waveNumber = scenario.targetWave,
@@ -545,7 +558,7 @@ class CinematicController(private val vm: RogueTDViewModel) {
                 scrap = maxOf(it.scrap, 2000)
             )
         }
-        vm.deployWave()
-        vm.addFloatingText(8f, 6f, "⚔️ DEPLOYING WAVE ${scenario.targetWave}: ${scenario.title}", 0xFFFFD700)
+        host.deployWave()
+        host.addFloatingText(8f, 6f, "⚔️ DEPLOYING WAVE ${scenario.targetWave}: ${scenario.title}", 0xFFFFD700)
     }
 }

@@ -6,7 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
@@ -50,7 +53,9 @@ fun DevBalanceSettingsDialog(
     onPlaySignatureWave: (CinematicScenario) -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = ECONOMY, 1 = 39 TOWERS, 2 = ENEMIES, 3 = TELEMETRY & SANDBOX
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 = ECONOMY, 1 = 52 TOWERS, 2 = ENEMIES, 3 = PROBES, 4 = CINEMA
+    var selectedCreepType by remember { mutableStateOf(EnemyType.DRONE) }
+    var spawnCount by remember { mutableIntStateOf(5) }
     var showExportModal by remember { mutableStateOf(false) }
     var exportJsonText by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -127,36 +132,39 @@ fun DevBalanceSettingsDialog(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // 5 Navigation Tabs
-                    TabRow(
+                    ScrollableTabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = Color(0xFF131F37),
                         contentColor = Color(0xFFFFB800),
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        edgePadding = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
                     ) {
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            text = { Text("ECONOMY", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
+                            text = { Text("ECONOMY", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, maxLines = 1, softWrap = false) }
                         )
                         Tab(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
-                            text = { Text("52 TOWERS", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
+                            text = { Text("52 TOWERS", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, maxLines = 1, softWrap = false) }
                         )
                         Tab(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
-                            text = { Text("ENEMIES", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
+                            text = { Text("ENEMIES", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, maxLines = 1, softWrap = false) }
                         )
                         Tab(
                             selected = selectedTab == 3,
                             onClick = { selectedTab = 3 },
-                            text = { Text("PROBES", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
+                            text = { Text("PROBES", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, maxLines = 1, softWrap = false) }
                         )
                         Tab(
                             selected = selectedTab == 4,
                             onClick = { selectedTab = 4 },
-                            text = { Text("CINEMA (6)", fontWeight = FontWeight.Bold, fontSize = 8.5.sp) }
+                            text = { Text("CINEMA (6)", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, maxLines = 1, softWrap = false) }
                         )
                     }
 
@@ -186,7 +194,7 @@ fun DevBalanceSettingsDialog(
                                             subtitle = "Default 220 Credits for tactical round placement",
                                             value = config.startingScrap.toFloat(),
                                             range = 100f..600f,
-                                            steps = 9,
+                                            steps = 49,
                                             valueFormatter = { "${it.toInt()} C" },
                                             color = Color(0xFFFFD700),
                                             onValueChange = { onConfigChanged(config.copy(startingScrap = it.roundToInt())) }
@@ -196,7 +204,7 @@ fun DevBalanceSettingsDialog(
                                     item {
                                         BalanceSliderCard(
                                             title = "Overall Tower Fire Rate Multiplier",
-                                            subtitle = "Accelerates/slows all 39 towers firing speed",
+                                            subtitle = "Accelerates/slows all 52 towers firing speed",
                                             value = config.globalTowerFireRateMultiplier,
                                             range = 0.2f..3.0f,
                                             steps = 27,
@@ -396,8 +404,8 @@ fun DevBalanceSettingsDialog(
                                     }
 
                                     items(allDescriptors, key = { it.key }) { desc ->
-                                        val balance = config.getEffectiveTowerBalance(desc.family, desc.branchTier1, desc.finalFormCode)
-                                        Collapsible39TowerCard(
+                                        val balance = config.getEffectiveTowerBalance(desc)
+                                        Collapsible52TowerCard(
                                             descriptor = desc,
                                             balance = balance,
                                             onBalanceChanged = { updatedBalance ->
@@ -446,9 +454,6 @@ fun DevBalanceSettingsDialog(
                             }
 
                             3 -> {
-                                var selectedCreepType by remember { mutableStateOf(EnemyType.DRONE) }
-                                var spawnCount by remember { mutableStateOf(5) }
-
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -572,7 +577,7 @@ fun DevBalanceSettingsDialog(
                                                     value = spawnCount.toFloat(),
                                                     onValueChange = { spawnCount = it.roundToInt() },
                                                     valueRange = 1f..20f,
-                                                    steps = 19,
+                                                    steps = 18,
                                                     colors = SliderDefaults.colors(thumbColor = Color(0xFFA855F7), activeTrackColor = Color(0xFFA855F7))
                                                 )
 
@@ -762,12 +767,20 @@ fun DevBalanceSettingsDialog(
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.fillMaxWidth().height(160.dp)
                     ) {
-                        Text(
-                            text = exportJsonText,
-                            color = Color(0xFF00FF9D),
-                            fontSize = 8.5.sp,
-                            modifier = Modifier.padding(8.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(8.dp)
+                        ) {
+                            SelectionContainer {
+                                Text(
+                                    text = exportJsonText,
+                                    color = Color(0xFF00FF9D),
+                                    fontSize = 8.5.sp
+                                )
+                            }
+                        }
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
