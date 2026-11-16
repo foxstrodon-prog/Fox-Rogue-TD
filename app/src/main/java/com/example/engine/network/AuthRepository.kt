@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -23,11 +25,13 @@ class AuthRepository @JvmOverloads constructor(
     private val context: Context,
     private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull(),
     private val httpClient: OkHttpClient = OkHttpClientProvider.client,
-    apiKey: String = if (auth != null) FirestoreLeaderboardApi.resolveDefaultApiKey() else ""
+    apiKey: String = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
 ) {
     private val apiKey: String = FirestoreLeaderboardApi.sanitizeApiKey(apiKey)
+    private val androidCertSha1: String? = FirestoreLeaderboardApi.resolveSigningCertSha1(context)
     private val prefs: SharedPreferences =
         context.getSharedPreferences("rogue_td_auth", Context.MODE_PRIVATE)
+    private val authMutex = Mutex()
 
     private val _isAuthenticated = MutableStateFlow(
         auth?.currentUser != null || !prefs.getString(KEY_REST_ID_TOKEN, null).isNullOrBlank()
@@ -47,63 +51,85 @@ class AuthRepository @JvmOverloads constructor(
             ?: PlayerIdentity.getOrCreateDeviceUuid(context)
 
     suspend fun ensureAuthenticated(): String? = withContext(Dispatchers.IO) {
-        val existing = auth?.currentUser?.uid
-        if (existing != null) {
-            _isAuthenticated.value = true
-            prefs.edit().putString(KEY_CACHED_UID, existing).apply()
-            return@withContext existing
-        }
-
-        if (auth != null) {
-            try {
-                val task = auth.signInAnonymously()
-                val result = Tasks.await(task, 10, TimeUnit.SECONDS)
-                val newUid = result.user?.uid
-                if (newUid != null) {
-                    _isAuthenticated.value = true
-                    prefs.edit().putString(KEY_CACHED_UID, newUid).apply()
-                    Log.d(TAG, "Anonymous auth successful: uid=$newUid")
-                    return@withContext newUid
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Native anonymous sign-in failed: ${e.message}. Falling back to Identity Toolkit REST.")
-            }
-        }
-
-        if (apiKey.isNotBlank()) {
-            val cachedUid = prefs.getString(KEY_CACHED_UID, null)
-            val cachedRefresh = prefs.getString(KEY_REST_REFRESH_TOKEN, null)
-            if (!cachedUid.isNullOrBlank() && !cachedRefresh.isNullOrBlank()) {
-                val token = getIdToken(forceRefresh = false)
-                if (!token.isNullOrBlank()) {
-                    _isAuthenticated.value = true
-                    return@withContext prefs.getString(KEY_CACHED_UID, cachedUid)
-                }
-            }
-
-            val restUid = signInWithRestIdentityToolkit()
-            if (!restUid.isNullOrBlank()) {
+        authMutex.withLock {
+            val existing = auth?.currentUser?.uid
+            if (existing != null) {
                 _isAuthenticated.value = true
-                return@withContext restUid
+                prefs.edit().putString(KEY_CACHED_UID, existing).apply()
+                return@withLock existing
             }
-        }
 
-        val fallbackUid = prefs.getString(KEY_CACHED_UID, null)
-            ?: PlayerIdentity.getOrCreateDeviceUuid(context)
-        fallbackUid
+            if (auth != null) {
+                try {
+                    val task = auth.signInAnonymously()
+                    val result = Tasks.await(task, 10, TimeUnit.SECONDS)
+                    val newUid = result.user?.uid
+                    if (newUid != null) {
+                        _isAuthenticated.value = true
+                        prefs.edit().putString(KEY_CACHED_UID, newUid).apply()
+                        Log.d(TAG, "Anonymous auth successful: uid=$newUid")
+                        return@withLock newUid
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Native anonymous sign-in failed: ${e.message}. Falling back to Identity Toolkit REST.")
+                }
+            }
+
+            if (apiKey.isNotBlank()) {
+                val cachedUid = prefs.getString(KEY_CACHED_UID, null)
+                val cachedRefresh = prefs.getString(KEY_REST_REFRESH_TOKEN, null)
+                if (!cachedUid.isNullOrBlank() && !cachedRefresh.isNullOrBlank()) {
+                    val token = getIdTokenLocked(forceRefresh = false)
+                    if (!token.isNullOrBlank()) {
+                        _isAuthenticated.value = true
+                        return@withLock prefs.getString(KEY_CACHED_UID, cachedUid)
+                    }
+                }
+
+                val restUid = signInWithRestIdentityToolkit()
+                if (!restUid.isNullOrBlank()) {
+                    _isAuthenticated.value = true
+                    return@withLock restUid
+                }
+            }
+
+            val fallbackUid = prefs.getString(KEY_CACHED_UID, null)
+                ?: PlayerIdentity.getOrCreateDeviceUuid(context)
+            fallbackUid
+        }
+    }
+
+    fun getCachedIdTokenIfValid(): String? {
+        if (auth?.currentUser != null) return null
+        val cachedToken = prefs.getString(KEY_REST_ID_TOKEN, null)
+        val expiryMs = prefs.getLong(KEY_REST_TOKEN_EXPIRY_MS, 0L)
+        return if (!cachedToken.isNullOrBlank() && System.currentTimeMillis() < expiryMs) cachedToken else null
     }
 
     suspend fun getIdToken(forceRefresh: Boolean = false): String? = withContext(Dispatchers.IO) {
+        authMutex.withLock {
+            getIdTokenLocked(forceRefresh)
+        }
+    }
+
+    private suspend fun getIdTokenLocked(forceRefresh: Boolean): String? {
         val user = auth?.currentUser
         if (user != null) {
             try {
                 val task = user.getIdToken(forceRefresh)
                 val tokenResult = Tasks.await(task, 10, TimeUnit.SECONDS)
                 val token = tokenResult.token
-                if (!token.isNullOrBlank()) return@withContext token
+                if (!token.isNullOrBlank()) {
+                    _isAuthenticated.value = true
+                    prefs.edit().putString(KEY_CACHED_UID, user.uid).apply()
+                    return token
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Native getIdToken failed: ${e.message}.")
             }
+            // Do not mint a separate REST Identity Toolkit UID while native FirebaseAuth has an active user,
+            // otherwise currentUserId (auth.currentUser.uid) and the Bearer token's uid will mismatch (403).
+            return null
         }
 
         if (apiKey.isNotBlank()) {
@@ -112,23 +138,23 @@ class AuthRepository @JvmOverloads constructor(
             val expiryMs = prefs.getLong(KEY_REST_TOKEN_EXPIRY_MS, 0L)
 
             if (!forceRefresh && !cachedToken.isNullOrBlank() && System.currentTimeMillis() < expiryMs) {
-                return@withContext cachedToken
+                return cachedToken
             }
 
             if (!refreshToken.isNullOrBlank()) {
                 val refreshed = refreshRestIdToken(refreshToken)
                 if (!refreshed.isNullOrBlank()) {
-                    return@withContext refreshed
+                    return refreshed
                 }
             }
 
             val newUid = signInWithRestIdentityToolkit()
             if (!newUid.isNullOrBlank()) {
-                return@withContext prefs.getString(KEY_REST_ID_TOKEN, null)
+                return prefs.getString(KEY_REST_ID_TOKEN, null)
             }
         }
 
-        null
+        return null
     }
 
     private suspend fun signInWithRestIdentityToolkit(): String? {
@@ -140,8 +166,12 @@ class AuthRepository @JvmOverloads constructor(
         val request = Request.Builder()
             .url(url)
             .addHeader("X-Goog-Api-Key", apiKey)
-            .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
-            .addHeader("X-Android-Cert", FirestoreLeaderboardApi.ANDROID_CERT_SHA1)
+            .apply {
+                if (!androidCertSha1.isNullOrBlank()) {
+                    addHeader("X-Android-Package", context.packageName)
+                    addHeader("X-Android-Cert", androidCertSha1)
+                }
+            }
             .post(bodyJson.toRequestBody(mediaType))
             .build()
 
@@ -195,8 +225,12 @@ class AuthRepository @JvmOverloads constructor(
         val request = Request.Builder()
             .url(url)
             .addHeader("X-Goog-Api-Key", apiKey)
-            .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
-            .addHeader("X-Android-Cert", FirestoreLeaderboardApi.ANDROID_CERT_SHA1)
+            .apply {
+                if (!androidCertSha1.isNullOrBlank()) {
+                    addHeader("X-Android-Package", context.packageName)
+                    addHeader("X-Android-Cert", androidCertSha1)
+                }
+            }
             .post(bodyJson.toRequestBody(mediaType))
             .build()
 
@@ -205,6 +239,14 @@ class AuthRepository @JvmOverloads constructor(
                 if (!response.isSuccessful) {
                     val err = response.body?.string().orEmpty()
                     Log.w(TAG, "[AuthRepository] REST token refresh HTTP ${response.code}: $err")
+                    if (response.code in 400..403) {
+                        prefs.edit()
+                            .remove(KEY_REST_ID_TOKEN)
+                            .remove(KEY_REST_REFRESH_TOKEN)
+                            .remove(KEY_REST_TOKEN_EXPIRY_MS)
+                            .apply()
+                        _isAuthenticated.value = false
+                    }
                     return null
                 }
                 val respStr = response.body?.string().orEmpty()

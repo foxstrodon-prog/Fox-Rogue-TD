@@ -1,10 +1,15 @@
 package com.example.engine.network
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import com.example.model.FailureKind
 import com.example.model.LeaderboardResult
 import com.example.model.OnlineScoreEntry
 import com.example.model.PendingSubmission
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,30 +22,41 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.security.MessageDigest
 
 class FirestoreLeaderboardApi @JvmOverloads constructor(
   private val client: OkHttpClient = OkHttpClientProvider.client,
   private val projectId: String = com.example.BuildConfig.LEADERBOARD_PROJECT_ID,
   apiKey: String = resolveDefaultApiKey(),
-  collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION
+  collection: String = com.example.BuildConfig.LEADERBOARD_COLLECTION,
+  context: Context? = null
 ) {
-  private val apiKey: String = sanitizeApiKey(apiKey)
+  private val apiKey: String = sanitizeApiKey(apiKey).ifBlank {
+    context?.let { resolveDefaultApiKey(it) }.orEmpty()
+  }
+  private val androidPackageName: String = context?.packageName ?: com.example.BuildConfig.APPLICATION_ID
+  private val androidCertSha1: String? = resolveSigningCertSha1(context)
   val canonicalCollection: String = normalizeCollection(collection)
   val alternateCollection: String = if (canonicalCollection == "leaderboards") "leaderboard" else "leaderboards"
   val collection: String get() = canonicalCollection
 
   val isConfigured: Boolean
-    get() = projectId.isNotBlank()
+    get() = projectId.isNotBlank() && this.apiKey.isNotBlank()
 
   suspend fun submitScore(
     item: PendingSubmission,
     idToken: String? = null
   ): LeaderboardResult<Unit> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
-      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot submit score: projectId is unconfigured")
+      val missing = when {
+        projectId.isBlank() -> "project ID"
+        apiKey.isBlank() -> "API key"
+        else -> "configuration"
+      }
+      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot submit score: $missing is unconfigured")
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
-        "Leaderboard project ID is not configured"
+        "Leaderboard $missing is not configured"
       )
     }
 
@@ -55,7 +71,7 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       put("maxWave", JSONObject().put("integerValue", item.wavesCleared.coerceAtLeast(1).toString()))
       put("timestamp", JSONObject().put("integerValue", item.timestampMs.toString()))
       put("isDevTuned", JSONObject().put("booleanValue", false))
-      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.026" }))
+      put("clientVersion", JSONObject().put("stringValue", item.clientVersion.ifBlank { "0.0.1.027" }))
 
       // Legacy fields preserved for backward compatibility
       put("callsign", JSONObject().put("stringValue", sanitizedCallsign))
@@ -69,14 +85,16 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     }
 
     // Primary attempt on canonicalCollection
-    var result = executeSubmitScore(canonicalCollection, item.runId, requestBodyJson, idToken)
+    val primaryAttempt = executeSubmitScore(canonicalCollection, item.runId, requestBodyJson, idToken)
+    var result = primaryAttempt.result
 
-    // Cross-path failover to alternateCollection ONLY on 404 (UNCONFIGURED), never on 403 (SECURITY_REJECTED)
+    // Cross-path failover to alternateCollection ONLY on path/database UNCONFIGURED (404), never on 403 or API key/service errors
     if (result is LeaderboardResult.Failure &&
         result.kind == FailureKind.UNCONFIGURED &&
+        primaryAttempt.allowCollectionFailover &&
         canonicalCollection != alternateCollection) {
       Log.w(TAG, "[FirestoreLeaderboardApi] Primary submit on '$canonicalCollection' failed with ${result.kind}. Attempting cross-path failover to '$alternateCollection'")
-      val fallbackResult = executeSubmitScore(alternateCollection, item.runId, requestBodyJson, idToken)
+      val fallbackResult = executeSubmitScore(alternateCollection, item.runId, requestBodyJson, idToken).result
       if (fallbackResult is LeaderboardResult.Success) {
         Log.i(TAG, "[FirestoreLeaderboardApi] Cross-path failover to '$alternateCollection' succeeded for runId=${item.runId}")
         result = fallbackResult
@@ -86,24 +104,40 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     result
   }
 
+  private data class AttemptOutcome<T>(
+    val result: LeaderboardResult<T>,
+    val allowCollectionFailover: Boolean = false
+  )
+
+  private data class ParsedError(
+    val kind: FailureKind,
+    val message: String,
+    val allowCollectionFailover: Boolean = false
+  )
+
   private suspend fun executeSubmitScore(
     targetCollection: String,
     runId: String,
     requestBodyJson: JSONObject,
     idToken: String?
-  ): LeaderboardResult<Unit> {
+  ): AttemptOutcome<Unit> {
     val keyParam = if (apiKey.isNotBlank()) "&key=$apiKey" else ""
     val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId$keyParam"
     val payloadString = requestBodyJson.toString()
     val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing submitScore -> URL: $url | collection: $targetCollection | runId: $runId | payloadSize: ${payloadString.toByteArray().size} bytes | hasAuthToken: ${!idToken.isNullOrBlank()}")
+    val redactedUrl = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/$targetCollection?documentId=$runId"
+    Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing submitScore -> URL: $redactedUrl | collection: $targetCollection | runId: $runId | payloadSize: ${payloadString.toByteArray().size} bytes | hasAuthToken: ${!idToken.isNullOrBlank()}")
 
     val requestBuilder = Request.Builder()
       .url(url)
-      .apply { if (apiKey.isNotBlank()) addHeader("X-Goog-Api-Key", apiKey) }
-      .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
-      .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
+      .apply {
+        if (apiKey.isNotBlank()) addHeader("X-Goog-Api-Key", apiKey)
+        if (!androidCertSha1.isNullOrBlank()) {
+          addHeader("X-Android-Package", androidPackageName)
+          addHeader("X-Android-Cert", androidCertSha1)
+        }
+      }
 
     if (!idToken.isNullOrBlank()) {
       requestBuilder.addHeader("Authorization", "Bearer $idToken")
@@ -120,37 +154,43 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
         when (code) {
           200, 201 -> {
             Log.i(TAG, "[FirestoreLeaderboardApi] submitScore SUCCESS ($code) on collection: $targetCollection for runId: $runId")
-            LeaderboardResult.Success(Unit)
+            AttemptOutcome(LeaderboardResult.Success(Unit))
           }
           409 -> {
             Log.i(TAG, "[FirestoreLeaderboardApi] submitScore idempotent 409 (already exists) on collection: $targetCollection for runId: $runId")
-            LeaderboardResult.Success(Unit)
+            AttemptOutcome(LeaderboardResult.Success(Unit))
           }
           400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
             Log.e(TAG, "[FirestoreLeaderboardApi] submitScore HTTP $code error body on collection: $targetCollection: $errBody")
-            val (kind, msg) = parseFirestoreError(code, errBody)
-            LeaderboardResult.Failure(kind, msg)
+            val parsed = parseFirestoreError(code, errBody)
+            AttemptOutcome(LeaderboardResult.Failure(parsed.kind, parsed.message), parsed.allowCollectionFailover)
           }
           429 -> {
             Log.w(TAG, "[FirestoreLeaderboardApi] submitScore HTTP 429 Rate Limited on collection: $targetCollection")
-            LeaderboardResult.Failure(
-              FailureKind.RATE_LIMITED,
-              "Firestore rate limit reached (429)"
+            AttemptOutcome(
+              LeaderboardResult.Failure(
+                FailureKind.RATE_LIMITED,
+                "Firestore rate limit reached (429)"
+              )
             )
           }
           in 500..599 -> {
             val errBody = response.body?.string().orEmpty()
             Log.e(TAG, "[FirestoreLeaderboardApi] submitScore server error HTTP $code on collection: $targetCollection: $errBody")
-            LeaderboardResult.Failure(
-              FailureKind.SERVER_ERROR,
-              "Firestore server error ($code)"
+            AttemptOutcome(
+              LeaderboardResult.Failure(
+                FailureKind.SERVER_ERROR,
+                "Firestore server error ($code)"
+              )
             )
           }
           else -> {
-            LeaderboardResult.Failure(
-              FailureKind.SERVER_ERROR,
-              "Unexpected HTTP response code $code"
+            AttemptOutcome(
+              LeaderboardResult.Failure(
+                FailureKind.SERVER_ERROR,
+                "Unexpected HTTP response code $code"
+              )
             )
           }
         }
@@ -159,47 +199,59 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       throw e
     } catch (e: SocketTimeoutException) {
       Log.w(TAG, "[FirestoreLeaderboardApi] submitScore TIMEOUT on collection: $targetCollection: ${e.message}")
-      LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e))
     } catch (e: UnknownHostException) {
       Log.w(TAG, "[FirestoreLeaderboardApi] submitScore NETWORK_UNAVAILABLE (DNS) on collection: $targetCollection: ${e.message}")
-      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e))
     } catch (e: IOException) {
       Log.w(TAG, "[FirestoreLeaderboardApi] submitScore I/O exception on collection: $targetCollection: ${e.message}")
-      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e))
     } catch (e: Exception) {
       Log.e(TAG, "[FirestoreLeaderboardApi] submitScore unexpected exception on collection: $targetCollection: ${e.message}", e)
-      LeaderboardResult.Failure(FailureKind.SERVER_ERROR, "Unexpected error: ${e.message}", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.SERVER_ERROR, "Unexpected error: ${e.message}", e))
     }
   }
 
-  suspend fun fetchTopScores(limit: Int = 50): LeaderboardResult<List<OnlineScoreEntry>> = withContext(Dispatchers.IO) {
+  suspend fun fetchTopScores(
+    limit: Int = 50,
+    idToken: String? = null
+  ): LeaderboardResult<List<OnlineScoreEntry>> = withContext(Dispatchers.IO) {
     if (!isConfigured) {
-      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot fetch scores: projectId is unconfigured")
+      val missing = when {
+        projectId.isBlank() -> "project ID"
+        apiKey.isBlank() -> "API key"
+        else -> "configuration"
+      }
+      Log.w(TAG, "[FirestoreLeaderboardApi] Cannot fetch scores: $missing is unconfigured")
       return@withContext LeaderboardResult.Failure(
         FailureKind.UNCONFIGURED,
-        "Leaderboard project ID is not configured"
+        "Leaderboard $missing is not configured"
       )
     }
 
-    var result = executeRunQuery(canonicalCollection, limit, singleMetricOnly = false)
+    var primaryAttempt = executeRunQuery(canonicalCollection, limit, singleMetricOnly = false, idToken = idToken)
+    var result = primaryAttempt.result
 
     // Fallback within canonicalCollection if index is building or requires an index
     if (result is LeaderboardResult.Failure && result.kind == FailureKind.UNCONFIGURED &&
         result.message.contains("index", ignoreCase = true)) {
       Log.w(TAG, "[FirestoreLeaderboardApi] Composite query requires index on '$canonicalCollection', falling back to single-metric query")
-      result = executeRunQuery(canonicalCollection, limit, singleMetricOnly = true)
+      primaryAttempt = executeRunQuery(canonicalCollection, limit, singleMetricOnly = true, idToken = idToken)
+      result = primaryAttempt.result
     }
 
-    // Cross-path failover to alternateCollection ONLY on 404 (UNCONFIGURED), never on 403 (SECURITY_REJECTED)
+    // Cross-path failover to alternateCollection ONLY on path/database UNCONFIGURED (404), never on 403 or API key/service errors
     if (result is LeaderboardResult.Failure &&
         result.kind == FailureKind.UNCONFIGURED &&
+        primaryAttempt.allowCollectionFailover &&
         canonicalCollection != alternateCollection) {
       Log.w(TAG, "[FirestoreLeaderboardApi] Fetch on canonical collection '$canonicalCollection' failed with ${result.kind}. Attempting cross-path failover to '$alternateCollection'")
-      val altResult = executeRunQuery(alternateCollection, limit, singleMetricOnly = false)
+      val altAttempt = executeRunQuery(alternateCollection, limit, singleMetricOnly = false, idToken = idToken)
+      val altResult = altAttempt.result
       val finalAltResult = if (altResult is LeaderboardResult.Failure && altResult.kind == FailureKind.UNCONFIGURED &&
           altResult.message.contains("index", ignoreCase = true)) {
         Log.w(TAG, "[FirestoreLeaderboardApi] Composite query requires index on alternate '$alternateCollection', falling back to single-metric query")
-        executeRunQuery(alternateCollection, limit, singleMetricOnly = true)
+        executeRunQuery(alternateCollection, limit, singleMetricOnly = true, idToken = idToken).result
       } else {
         altResult
       }
@@ -216,8 +268,9 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
   private suspend fun executeRunQuery(
     targetCollection: String,
     limit: Int,
-    singleMetricOnly: Boolean
-  ): LeaderboardResult<List<OnlineScoreEntry>> {
+    singleMetricOnly: Boolean,
+    idToken: String? = null
+  ): AttemptOutcome<List<OnlineScoreEntry>> {
     val keyParam = if (apiKey.isNotBlank()) "?key=$apiKey" else ""
     val url = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery$keyParam"
 
@@ -262,13 +315,22 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     val payloadString = queryJson.toString()
     val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing runQuery -> URL: $url | collection: $targetCollection | singleMetric: $singleMetricOnly | limit: $limit | payloadSize: ${payloadString.toByteArray().size} bytes")
+    val redactedUrl = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents:runQuery"
+    Log.d(TAG, "[FirestoreLeaderboardApi] Outgoing runQuery -> URL: $redactedUrl | collection: $targetCollection | singleMetric: $singleMetricOnly | limit: $limit | payloadSize: ${payloadString.toByteArray().size} bytes")
 
-    val request = Request.Builder()
+    val requestBuilder = Request.Builder()
       .url(url)
-      .apply { if (apiKey.isNotBlank()) addHeader("X-Goog-Api-Key", apiKey) }
-      .addHeader("X-Android-Package", "com.aistudio.roguetd.xtkp")
-      .addHeader("X-Android-Cert", ANDROID_CERT_SHA1)
+      .apply {
+        if (apiKey.isNotBlank()) addHeader("X-Goog-Api-Key", apiKey)
+        if (!androidCertSha1.isNullOrBlank()) {
+          addHeader("X-Android-Package", androidPackageName)
+          addHeader("X-Android-Cert", androidCertSha1)
+        }
+        if (!idToken.isNullOrBlank()) {
+          addHeader("Authorization", "Bearer $idToken")
+        }
+      }
+    val request = requestBuilder
       .post(payloadString.toRequestBody(mediaType))
       .build()
 
@@ -281,38 +343,44 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
             val responseBody = response.body?.string().orEmpty()
             Log.d(TAG, "[FirestoreLeaderboardApi] runQuery 200 OK: responseBodyLength=${responseBody.length} bytes for collection: $targetCollection")
             if (responseBody.isBlank()) {
-              LeaderboardResult.Success(emptyList())
+              AttemptOutcome(LeaderboardResult.Success(emptyList()))
             } else {
               val results = parseQueryResults(responseBody)
               Log.i(TAG, "[FirestoreLeaderboardApi] Parsed ${results.size} entries from collection: $targetCollection")
-              LeaderboardResult.Success(results)
+              AttemptOutcome(LeaderboardResult.Success(results))
             }
           }
           400, 403, 404 -> {
             val errBody = response.body?.string().orEmpty()
             Log.e(TAG, "[FirestoreLeaderboardApi] runQuery HTTP $code error body on collection: $targetCollection: $errBody")
-            val (kind, msg) = parseFirestoreError(code, errBody)
-            LeaderboardResult.Failure(kind, msg)
+            val parsed = parseFirestoreError(code, errBody)
+            AttemptOutcome(LeaderboardResult.Failure(parsed.kind, parsed.message), parsed.allowCollectionFailover)
           }
           429 -> {
             Log.w(TAG, "[FirestoreLeaderboardApi] runQuery HTTP 429 Rate Limited on collection: $targetCollection")
-            LeaderboardResult.Failure(
-              FailureKind.RATE_LIMITED,
-              "Firestore rate limit reached (429)"
+            AttemptOutcome(
+              LeaderboardResult.Failure(
+                FailureKind.RATE_LIMITED,
+                "Firestore rate limit reached (429)"
+              )
             )
           }
           in 500..599 -> {
             val errBody = response.body?.string().orEmpty()
             Log.e(TAG, "[FirestoreLeaderboardApi] runQuery server error HTTP $code on collection: $targetCollection: $errBody")
-            LeaderboardResult.Failure(
-              FailureKind.SERVER_ERROR,
-              "Firestore server error ($code)"
+            AttemptOutcome(
+              LeaderboardResult.Failure(
+                FailureKind.SERVER_ERROR,
+                "Firestore server error ($code)"
+              )
             )
           }
           else -> {
-            LeaderboardResult.Failure(
-              FailureKind.SERVER_ERROR,
-              "Unexpected HTTP response code $code"
+            AttemptOutcome(
+              LeaderboardResult.Failure(
+                FailureKind.SERVER_ERROR,
+                "Unexpected HTTP response code $code"
+              )
             )
           }
         }
@@ -321,25 +389,29 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       throw e
     } catch (e: SocketTimeoutException) {
       Log.w(TAG, "[FirestoreLeaderboardApi] runQuery TIMEOUT on collection: $targetCollection: ${e.message}")
-      LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.TIMEOUT, "Connection timed out", e))
     } catch (e: UnknownHostException) {
       Log.w(TAG, "[FirestoreLeaderboardApi] runQuery NETWORK_UNAVAILABLE (DNS) on collection: $targetCollection: ${e.message}")
-      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network unavailable / DNS failed", e))
     } catch (e: IOException) {
       Log.w(TAG, "[FirestoreLeaderboardApi] runQuery I/O exception on collection: $targetCollection: ${e.message}")
-      LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.NETWORK_UNAVAILABLE, "Network I/O failed: ${e.message}", e))
     } catch (e: Exception) {
       Log.e(TAG, "[FirestoreLeaderboardApi] runQuery unexpected parse exception on collection: $targetCollection: ${e.message}", e)
-      LeaderboardResult.Failure(FailureKind.MALFORMED_PAYLOAD, "Failed to parse response: ${e.message}", e)
+      AttemptOutcome(LeaderboardResult.Failure(FailureKind.MALFORMED_PAYLOAD, "Failed to parse response: ${e.message}", e))
     }
   }
 
-  private fun parseFirestoreError(code: Int, body: String): Pair<FailureKind, String> {
+  private fun parseFirestoreError(code: Int, body: String): ParsedError {
     if (body.isBlank()) {
       return if (code == 404) {
-        FailureKind.UNCONFIGURED to "Cloud Firestore database not found in Firebase project ($projectId). Please create the (default) database in Firebase Console. Scores are cached locally."
+        ParsedError(
+          FailureKind.UNCONFIGURED,
+          "Cloud Firestore database not found in Firebase project ($projectId). Please create the (default) database in Firebase Console. Scores are cached locally.",
+          allowCollectionFailover = true
+        )
       } else {
-        FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+        ParsedError(FailureKind.SECURITY_REJECTED, "Request rejected by server ($code)")
       }
     }
     return try {
@@ -363,29 +435,59 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
       }
       when {
         code == 404 || status == "NOT_FOUND" || msg.contains("does not exist", ignoreCase = true) || msg.contains("add a Cloud Datastore or Cloud Firestore database", ignoreCase = true) -> {
-          FailureKind.UNCONFIGURED to "Cloud Firestore database not created in Firebase project ($projectId). Please visit Firebase Console -> Firestore Database and click 'Create database'. Scores are safely cached locally."
+          ParsedError(
+            FailureKind.UNCONFIGURED,
+            "Cloud Firestore database not created in Firebase project ($projectId). Please visit Firebase Console -> Firestore Database and click 'Create database'. Scores are safely cached locally.",
+            allowCollectionFailover = true
+          )
         }
         status == "FAILED_PRECONDITION" || msg.contains("requires an index", ignoreCase = true) || msg.contains("index is currently building", ignoreCase = true) -> {
-          FailureKind.UNCONFIGURED to "Firestore composite index is building in Firebase Console ($projectId). Falling back to single-metric leaderboard."
+          ParsedError(
+            FailureKind.UNCONFIGURED,
+            "Firestore composite index is building in Firebase Console ($projectId). Falling back to single-metric leaderboard.",
+            allowCollectionFailover = true
+          )
         }
         reason == "SERVICE_DISABLED" || msg.contains("Cloud Firestore API has not been used", ignoreCase = true) || msg.contains("is disabled", ignoreCase = true) -> {
-          FailureKind.UNCONFIGURED to "Cloud Firestore API not enabled in Firebase project ($projectId). Scores cached in offline queue."
+          ParsedError(
+            FailureKind.UNCONFIGURED,
+            "Cloud Firestore API not enabled in Firebase project ($projectId). Scores cached in offline queue.",
+            allowCollectionFailover = false
+          )
+        }
+        reason == "API_KEY_ANDROID_APP_BLOCKED" || msg.contains("Requests from this Android client application", ignoreCase = true) -> {
+          ParsedError(
+            FailureKind.UNCONFIGURED,
+            "Firebase API Key Android app restriction blocked ($androidPackageName). Check SHA-1 in Google Cloud Console.",
+            allowCollectionFailover = false
+          )
         }
         msg.contains("API key not valid", ignoreCase = true) || reason == "API_KEY_INVALID" -> {
-          FailureKind.UNCONFIGURED to "Firebase API Key invalid or expired ($code). Scores cached in offline queue."
+          ParsedError(
+            FailureKind.UNCONFIGURED,
+            "Firebase API Key invalid or expired ($code). Verify google-services.json or LEADERBOARD_API_KEY.",
+            allowCollectionFailover = false
+          )
         }
         status == "PERMISSION_DENIED" -> {
-          FailureKind.SECURITY_REJECTED to "Firestore Security Rules denied access. Ensure Anonymous Auth is enabled in Firebase Console. Scores cached in offline queue."
+          ParsedError(
+            FailureKind.SECURITY_REJECTED,
+            "Firestore Security Rules denied access. Ensure Anonymous Auth is enabled in Firebase Console. Scores cached in offline queue."
+          )
         }
         else -> {
-          FailureKind.SECURITY_REJECTED to (if (msg.isNotBlank()) msg else "Request rejected ($code)")
+          ParsedError(FailureKind.SECURITY_REJECTED, if (msg.isNotBlank()) msg else "Request rejected ($code)")
         }
       }
     } catch (_: Exception) {
       if (code == 404) {
-        FailureKind.UNCONFIGURED to "Cloud Firestore database not created in Firebase project ($projectId). Please create the (default) database in Firebase Console."
+        ParsedError(
+          FailureKind.UNCONFIGURED,
+          "Cloud Firestore database not created in Firebase project ($projectId). Please create the (default) database in Firebase Console.",
+          allowCollectionFailover = true
+        )
       } else {
-        FailureKind.SECURITY_REJECTED to "Request rejected by server ($code)"
+        ParsedError(FailureKind.SECURITY_REJECTED, "Request rejected by server ($code)")
       }
     }
   }
@@ -454,18 +556,49 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
 
   companion object {
     const val TAG = "FirestoreLeaderboardApi"
-    const val ANDROID_CERT_SHA1 = "174775252333dc2e8159f5ac6de1019661c3e897"
 
     fun sanitizeApiKey(raw: String): String {
       return raw.trim().removePrefix("key=").removeSurrounding("\"").trim()
     }
 
-    fun resolveDefaultApiKey(): String {
+    @JvmOverloads
+    fun resolveDefaultApiKey(context: Context? = null): String {
       val fromBuildConfig = sanitizeApiKey(com.example.BuildConfig.LEADERBOARD_API_KEY)
       if (fromBuildConfig.isNotBlank()) return fromBuildConfig
-      return listOf("w64KjM9f2R", "-14Joe96Xr", "8z4Ha_s0ec", "57AySazIA")
-        .joinToString("")
-        .reversed()
+
+      val fromFirebaseApp = runCatching {
+        FirebaseApp.getInstance().options.apiKey
+      }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
+      if (fromFirebaseApp.isNotBlank()) return fromFirebaseApp
+
+      if (context != null) {
+        val fromOptions = runCatching {
+          FirebaseOptions.fromResource(context)?.apiKey
+        }.getOrNull()?.let(::sanitizeApiKey).orEmpty()
+        if (fromOptions.isNotBlank()) return fromOptions
+      }
+
+      return ""
+    }
+
+    fun resolveSigningCertSha1(context: Context?): String? {
+      if (context == null) return null
+      return runCatching {
+        val pm = context.packageManager
+        val pkgName = context.packageName
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+          val info = pm.getPackageInfo(pkgName, PackageManager.GET_SIGNING_CERTIFICATES)
+          val signingInfo = info.signingInfo
+          signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() }
+            ?: signingInfo?.signingCertificateHistory
+        } else {
+          @Suppress("DEPRECATION")
+          pm.getPackageInfo(pkgName, PackageManager.GET_SIGNATURES).signatures
+        }
+        val certBytes = signatures?.firstOrNull()?.toByteArray() ?: return@runCatching null
+        val digest = MessageDigest.getInstance("SHA-1").digest(certBytes)
+        digest.joinToString("") { "%02x".format(it) }
+      }.getOrNull()
     }
 
     fun normalizeCollection(raw: String): String {
@@ -479,12 +612,11 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     }
 
     fun sanitizeCallsign(raw: String): String {
-      val cleaned = raw.trim().filter { it.isLetterOrDigit() || it == '_' || it == '-' || it == ' ' }
-      return when {
-        cleaned.length < 3 -> "Commander"
-        cleaned.length > 16 -> cleaned.take(16).trim()
-        else -> cleaned
-      }
+      val cleaned = raw.trim()
+        .filter { it.isLetterOrDigit() || it == '_' || it == '-' || it == ' ' }
+        .take(16)
+        .trim()
+      return if (cleaned.length < 3) "Commander" else cleaned
     }
   }
 }

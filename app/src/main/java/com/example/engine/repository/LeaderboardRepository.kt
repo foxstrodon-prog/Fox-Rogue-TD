@@ -12,6 +12,7 @@ import com.example.model.LeaderboardResult
 import com.example.model.LeaderboardUiState
 import com.example.model.PendingSubmission
 import com.example.model.RunRecord
+import com.example.model.RunSubmissionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 class LeaderboardRepository @JvmOverloads constructor(
   private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
@@ -37,15 +39,52 @@ class LeaderboardRepository @JvmOverloads constructor(
   val boardState: StateFlow<LeaderboardUiState> = _boardState.asStateFlow()
 
   private val fetchMutex = Mutex()
+  private val initialized = AtomicBoolean(false)
   private var lastFetchElapsedRealtime: Long = 0L
 
   suspend fun initialize() = withContext(Dispatchers.IO) {
-    scope.launch {
-      syncEventFlow.collect {
+    if (initialized.compareAndSet(false, true)) {
+      scope.launch {
+      syncEventFlow.collect { event ->
         val pending = store.getPendingQueue()
-        Log.d(TAG, "[LeaderboardRepository] syncEventFlow triggered: pendingCount=${pending.size}. Triggering fresh fetch.")
-        _boardState.update { it.copy(pendingCount = pending.size) }
-        fetchLeaderboard(forceRefresh = true, bypassThrottle = true)
+        when (event) {
+          is SubmissionEvent.Completed -> {
+            Log.d(TAG, "[LeaderboardRepository] Submission completed for runId=${event.runId}: pendingCount=${pending.size}. Triggering fresh fetch.")
+            _boardState.update { prev ->
+              val isCurrentRun = prev.lastRunId == event.runId
+              prev.copy(
+                pendingCount = pending.size,
+                lastSubmissionState = if (isCurrentRun) RunSubmissionState.SUBMITTED else prev.lastSubmissionState,
+                lastSubmissionError = if (isCurrentRun) null else prev.lastSubmissionError
+              )
+            }
+            fetchLeaderboard(forceRefresh = true, bypassThrottle = true)
+          }
+          is SubmissionEvent.Failed -> {
+            Log.w(TAG, "[LeaderboardRepository] Submission failed for runId=${event.runId}: kind=${event.kind}, dropped=${event.dropped}, msg=${event.message}")
+            _boardState.update { prev ->
+              val isCurrentRun = prev.lastRunId == event.runId
+              val nextSubmissionState = when {
+                !isCurrentRun -> prev.lastSubmissionState
+                event.dropped || event.kind == FailureKind.UNCONFIGURED -> RunSubmissionState.NONE
+                else -> RunSubmissionState.PENDING
+              }
+              prev.copy(
+                pendingCount = pending.size,
+                lastSubmissionState = nextSubmissionState,
+                lastSubmissionError = if (isCurrentRun) event.message else prev.lastSubmissionError,
+                failureKind = event.kind,
+                errorMessage = event.message,
+                status = if (event.kind == FailureKind.UNCONFIGURED && prev.entries.isEmpty()) {
+                  GlobalBoardStatus.NOT_CONFIGURED
+                } else {
+                  prev.status
+                }
+              )
+            }
+          }
+          }
+        }
       }
     }
     val cached = store.getCachedLeaderboard()
@@ -62,6 +101,7 @@ class LeaderboardRepository @JvmOverloads constructor(
       it.copy(
         entries = cached,
         status = initialStatus,
+        errorMessage = if (!api.isConfigured) "Leaderboard backend project ID or API key is not configured" else null,
         pendingCount = pending.size
       )
     }
@@ -76,6 +116,8 @@ class LeaderboardRepository @JvmOverloads constructor(
         it.copy(
           entries = cached,
           status = GlobalBoardStatus.NOT_CONFIGURED,
+          failureKind = FailureKind.UNCONFIGURED,
+          errorMessage = "Leaderboard backend project ID or API key is not configured",
           pendingCount = pending.size
         )
       }
@@ -108,13 +150,14 @@ class LeaderboardRepository @JvmOverloads constructor(
         )
       }
 
-      var result = api.fetchTopScores()
+      val idToken = authRepo?.getIdToken(forceRefresh = false)
+      var result = api.fetchTopScores(idToken = idToken)
       if (result is LeaderboardResult.Failure &&
           (result.kind == FailureKind.NETWORK_UNAVAILABLE || result.kind == FailureKind.TIMEOUT) &&
           _boardState.value.entries.isEmpty()) {
         Log.d(TAG, "[LeaderboardRepository] Cold-start network handshake pending, retrying in 1500ms...")
         kotlinx.coroutines.delay(1500L)
-        result = api.fetchTopScores()
+        result = api.fetchTopScores(idToken = idToken)
       }
       when (result) {
         is LeaderboardResult.Success -> {
@@ -135,6 +178,7 @@ class LeaderboardRepository @JvmOverloads constructor(
               entries = processed,
               status = GlobalBoardStatus.ONLINE,
               failureKind = null,
+              errorMessage = null,
               isRefreshing = false,
               pendingCount = pendingCount,
               lastFetchMs = System.currentTimeMillis()
@@ -157,6 +201,7 @@ class LeaderboardRepository @JvmOverloads constructor(
               entries = if (cached.isNotEmpty()) cached else it.entries,
               status = status,
               failureKind = result.kind,
+              errorMessage = result.message,
               isRefreshing = false,
               pendingCount = pendingCount
             )
@@ -166,19 +211,39 @@ class LeaderboardRepository @JvmOverloads constructor(
     }
   }
 
+  @JvmOverloads
   suspend fun enqueueRun(
     run: RunRecord,
     callsign: String,
     isDevTuned: Boolean,
-    userId: String? = null
+    userId: String? = null,
+    isCurrentRun: Boolean = true
   ) = withContext(Dispatchers.IO) {
     if (isDevTuned || run.isDevTuned) {
       Log.d(TAG, "[LeaderboardRepository] enqueueRun: Skipping dev tuned run ${run.id}")
+      if (isCurrentRun) {
+        _boardState.update {
+          it.copy(
+            lastRunId = run.id,
+            lastSubmissionState = RunSubmissionState.EXCLUDED_DEV_TUNED,
+            lastSubmissionError = null
+          )
+        }
+      }
       return@withContext
     }
 
     if (store.isAlreadySubmitted(run.id)) {
       Log.d(TAG, "[LeaderboardRepository] enqueueRun: Skipping already submitted run ${run.id}")
+      if (isCurrentRun) {
+        _boardState.update {
+          it.copy(
+            lastRunId = run.id,
+            lastSubmissionState = RunSubmissionState.SUBMITTED,
+            lastSubmissionError = null
+          )
+        }
+      }
       return@withContext
     }
 
@@ -198,23 +263,86 @@ class LeaderboardRepository @JvmOverloads constructor(
 
     store.enqueuePending(submission)
     val pendingCount = store.getPendingQueue().size
-    Log.d(TAG, "[LeaderboardRepository] enqueueRun: Enqueued runId=${run.id}, score=${run.score}, waves=${run.wavesCleared}. Pending count: $pendingCount")
-    _boardState.update { it.copy(pendingCount = pendingCount) }
 
-    scheduler.triggerImmediateSync()
+    if (!api.isConfigured) {
+      Log.d(TAG, "[LeaderboardRepository] enqueueRun: Backend unconfigured, cached locally without sync for ${run.id}")
+      _boardState.update {
+        it.copy(
+          pendingCount = pendingCount,
+          lastRunId = if (isCurrentRun) run.id else it.lastRunId,
+          lastSubmissionState = if (isCurrentRun) RunSubmissionState.LOCAL_ONLY else it.lastSubmissionState,
+          lastSubmissionError = if (isCurrentRun) "Leaderboard backend project ID or API key is not configured" else it.lastSubmissionError
+        )
+      }
+      return@withContext
+    }
+
+    Log.d(TAG, "[LeaderboardRepository] enqueueRun: Enqueued runId=${run.id}, score=${run.score}, waves=${run.wavesCleared}. Pending count: $pendingCount")
+    _boardState.update {
+      it.copy(
+        pendingCount = pendingCount,
+        lastRunId = if (isCurrentRun) run.id else it.lastRunId,
+        lastSubmissionState = if (isCurrentRun) RunSubmissionState.PENDING else it.lastSubmissionState,
+        lastSubmissionError = if (isCurrentRun) null else it.lastSubmissionError
+      )
+    }
+
+    scheduler.triggerImmediateSync(replaceExisting = false)
   }
 
-  fun retryPendingSubmissions() {
-    Log.d(TAG, "[LeaderboardRepository] retryPendingSubmissions: Triggering immediate WorkManager sync")
-    scheduler.triggerImmediateSync()
+  suspend fun updatePendingCallsign(runId: String, callsign: String) = withContext(Dispatchers.IO) {
+    if (store.updatePendingCallsign(runId, callsign)) {
+      Log.d(TAG, "[LeaderboardRepository] Updated pending callsign for runId=$runId")
+    }
+  }
+
+  suspend fun clearPendingQueue() = withContext(Dispatchers.IO) {
+    store.clearPendingQueue()
+    _boardState.update {
+      it.copy(
+        pendingCount = 0,
+        lastSubmissionState = if (it.lastSubmissionState == RunSubmissionState.PENDING) RunSubmissionState.NONE else it.lastSubmissionState,
+        lastSubmissionError = null
+      )
+    }
+    Log.i(TAG, "[LeaderboardRepository] Pending submission queue cleared")
+  }
+
+  fun retryPendingSubmissions(replaceExisting: Boolean = false) {
+    Log.d(TAG, "[LeaderboardRepository] retryPendingSubmissions: Triggering immediate WorkManager sync (replace=$replaceExisting)")
+    scheduler.triggerImmediateSync(replaceExisting = replaceExisting)
+  }
+
+  fun resetRunSubmissionState() {
+    _boardState.update {
+      it.copy(
+        lastRunId = null,
+        lastSubmissionState = RunSubmissionState.NONE,
+        lastSubmissionError = null
+      )
+    }
+  }
+
+  sealed interface SubmissionEvent {
+    data class Completed(val runId: String) : SubmissionEvent
+    data class Failed(
+      val runId: String,
+      val kind: FailureKind,
+      val message: String,
+      val dropped: Boolean
+    ) : SubmissionEvent
   }
 
   companion object {
     private const val TAG = "LeaderboardRepository"
-    val syncEventFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val syncEventFlow = MutableSharedFlow<SubmissionEvent>(extraBufferCapacity = 8)
 
-    fun notifySubmissionComplete() {
-      syncEventFlow.tryEmit(Unit)
+    fun notifySubmissionComplete(runId: String = "") {
+      syncEventFlow.tryEmit(SubmissionEvent.Completed(runId))
+    }
+
+    fun notifySubmissionFailed(runId: String, kind: FailureKind, message: String, dropped: Boolean) {
+      syncEventFlow.tryEmit(SubmissionEvent.Failed(runId, kind, message, dropped))
     }
   }
 }

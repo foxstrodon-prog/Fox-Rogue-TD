@@ -15,7 +15,8 @@ class LeaderboardWorkScheduler(private val context: Context) {
     const val WORK_NAME = "score_submission_work"
   }
 
-  fun triggerImmediateSync() {
+  @JvmOverloads
+  fun triggerImmediateSync(replaceExisting: Boolean = false) {
     val constraints = Constraints.Builder()
       .setRequiredNetworkType(NetworkType.CONNECTED)
       .build()
@@ -27,7 +28,7 @@ class LeaderboardWorkScheduler(private val context: Context) {
 
     WorkManager.getInstance(context).enqueueUniqueWork(
       WORK_NAME,
-      ExistingWorkPolicy.APPEND_OR_REPLACE,
+      if (replaceExisting) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE,
       request
     )
   }

@@ -25,6 +25,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.engine.AppUpdateState
 import com.example.engine.UpdateDownloadStatus
 import com.example.model.GlobalBoardStatus
+import com.example.model.RunSubmissionState
 import com.example.ui.GameUIState
 
 @Composable
@@ -218,6 +219,135 @@ fun UpdateModalDialog(
 }
 
 @Composable
+internal fun RunSummarySubmissionBanner(state: GameUIState) {
+    val isDevTuned = state.lastRunRecord?.isDevTuned == true || state.balanceConfig.isGameplayModified()
+    if (isDevTuned || state.runSubmissionState == RunSubmissionState.EXCLUDED_DEV_TUNED) {
+        Surface(
+            color = Color(0xFFEAB308).copy(alpha = 0.15f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFFEAB308)),
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = "DEV TUNED • EXCLUDED FROM ONLINE LEADERBOARD",
+                color = Color(0xFFFDE047),
+                fontWeight = FontWeight.Bold,
+                fontSize = 8.5.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    } else if (state.runSubmissionState == RunSubmissionState.LOCAL_ONLY) {
+        Surface(
+            color = Color(0xFF64748B).copy(alpha = 0.2f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFF64748B)),
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = state.leaderboardSubmissionError ?: state.leaderboardErrorMessage ?: "LOCAL ONLY (GLOBAL BOARD UNCONFIGURED)",
+                color = Color(0xFF94A3B8),
+                fontWeight = FontWeight.Bold,
+                fontSize = 8.5.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    } else if (!state.leaderboardSubmissionError.isNullOrBlank()) {
+        Surface(
+            color = Color(0xFFFF2A55).copy(alpha = 0.15f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFFFF2A55)),
+            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
+        ) {
+            Text(
+                text = "UPLOAD FAILED: ${state.leaderboardSubmissionError}",
+                color = Color(0xFFFF2A55),
+                fontWeight = FontWeight.Bold,
+                fontSize = 8.5.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    } else if (state.runSubmissionState == RunSubmissionState.PENDING) {
+        Surface(
+            color = Color(0xFF00F0FF).copy(alpha = 0.12f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFF00F0FF)),
+            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp, color = Color(0xFF00F0FF))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = "UPLOADING RUN TO GLOBAL RANKS...", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
+            }
+        }
+    } else if (state.runSubmissionState == RunSubmissionState.SUBMITTED) {
+        Surface(
+            color = Color(0xFF00FF9D).copy(alpha = 0.12f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFF00FF9D)),
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = "SCORE SUBMITTED TO GLOBAL LEADERBOARD",
+                color = Color(0xFF00FF9D),
+                fontWeight = FontWeight.Bold,
+                fontSize = 8.5.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    } else if (state.leaderboardStatus == GlobalBoardStatus.NOT_CONFIGURED) {
+        Surface(
+            color = Color(0xFF64748B).copy(alpha = 0.2f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFF64748B)),
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = state.leaderboardErrorMessage ?: "LOCAL ONLY (GLOBAL BOARD UNCONFIGURED)",
+                color = Color(0xFF94A3B8),
+                fontWeight = FontWeight.Bold,
+                fontSize = 8.5.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    } else if (state.leaderboardStatus == GlobalBoardStatus.LOADING) {
+        Surface(
+            color = Color(0xFF00F0FF).copy(alpha = 0.12f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFF00F0FF)),
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) {
+                CircularProgressIndicator(modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp, color = Color(0xFF00F0FF))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = "SYNCING LEADERBOARD...", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
+            }
+        }
+    } else if (state.leaderboardStatus == GlobalBoardStatus.ERROR) {
+        Surface(
+            color = Color(0xFFFF2A55).copy(alpha = 0.15f),
+            shape = RoundedCornerShape(6.dp),
+            border = BorderStroke(1.dp, Color(0xFFFF2A55)),
+            modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
+        ) {
+            Text(
+                text = state.leaderboardErrorMessage ?: "UPLOAD FAILED",
+                color = Color(0xFFFF2A55),
+                fontWeight = FontWeight.Bold,
+                fontSize = 8.5.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    }
+}
+
+@Composable
 fun RunSummaryDialog(
     state: GameUIState,
     onRestart: () -> Unit,
@@ -254,104 +384,7 @@ fun RunSummaryDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val isDevTuned = state.lastRunRecord?.isDevTuned == true || state.balanceConfig.isGameplayModified()
-                if (isDevTuned) {
-                    Surface(
-                        color = Color(0xFFEAB308).copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color(0xFFEAB308)),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    ) {
-                        Text(
-                            text = "DEV TUNED • EXCLUDED FROM ONLINE LEADERBOARD",
-                            color = Color(0xFFFDE047),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 8.5.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                } else if (state.leaderboardPendingCount > 0) {
-                    Surface(
-                        color = Color(0xFF00F0FF).copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color(0xFF00F0FF)),
-                        modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp, color = Color(0xFF00F0FF))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "UPLOADING RUN TO GLOBAL RANKS...", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
-                        }
-                    }
-                } else {
-                    when (state.leaderboardStatus) {
-                        GlobalBoardStatus.LOADING -> {
-                            Surface(
-                                color = Color(0xFF00F0FF).copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF00F0FF)),
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) {
-                                    CircularProgressIndicator(modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp, color = Color(0xFF00F0FF))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "SYNCING LEADERBOARD...", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 8.5.sp)
-                                }
-                            }
-                        }
-                        GlobalBoardStatus.ONLINE, GlobalBoardStatus.OFFLINE_CACHED, GlobalBoardStatus.IDLE -> {
-                            Surface(
-                                color = Color(0xFF00FF9D).copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF00FF9D)),
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                Text(
-                                    text = "SCORE SUBMITTED TO GLOBAL LEADERBOARD",
-                                    color = Color(0xFF00FF9D),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 8.5.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                        GlobalBoardStatus.ERROR -> {
-                            Surface(
-                                color = Color(0xFFFF2A55).copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFFFF2A55)),
-                                modifier = Modifier.padding(bottom = 8.dp).testTag("leaderboard_retry")
-                            ) {
-                                Text(
-                                    text = "UPLOAD FAILED",
-                                    color = Color(0xFFFF2A55),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 8.5.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                        GlobalBoardStatus.NOT_CONFIGURED -> {
-                            Surface(
-                                color = Color(0xFF64748B).copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF64748B)),
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                Text(
-                                    text = "LOCAL ONLY (GLOBAL BOARD UNCONFIGURED)",
-                                    color = Color(0xFF94A3B8),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 8.5.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                RunSummarySubmissionBanner(state = state)
 
                 Surface(
                     color = Color(0xFF131F33),
@@ -431,9 +464,10 @@ fun RunSummaryDialog(
                         modifier = Modifier.padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        val score = (state.waveNumber.coerceAtLeast(1) - 1) * 1000 + (state.totalKills * 15) + (state.totalDamageDealt * 0.1f).toInt()
+                        val wavesCleared = state.lastRunRecord?.wavesCleared ?: (state.waveNumber.coerceAtLeast(1) - 1)
+                        val score = state.lastRunRecord?.score ?: ((wavesCleared * 1000) + (state.totalKills * 15) + (state.totalDamageDealt * 0.1f).toInt())
                         SummaryStatRow("Final Tactical Score", "$score PTS")
-                        SummaryStatRow("Waves Cleared", "${state.waveNumber - 1}")
+                        SummaryStatRow("Waves Cleared", "$wavesCleared")
                         SummaryStatRow("Hostiles Slain", "${state.totalKills}")
                         SummaryStatRow("Damage Output", "${state.totalDamageDealt.toInt()}")
                         SummaryStatRow("Credits Harvested", "${state.totalScrapEarned}")

@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
+import com.example.engine.repository.LeaderboardRepository
 import com.example.engine.storage.LeaderboardStore
 import com.example.model.FailureKind
 import com.example.model.LeaderboardResult
@@ -15,18 +16,28 @@ import kotlinx.coroutines.withContext
 class ScoreSubmissionWorker @JvmOverloads constructor(
   context: Context,
   params: WorkerParameters,
-  private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
+  private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(context = context),
   private val store: LeaderboardStore = LeaderboardStore(context),
   private val authRepo: AuthRepository = AuthRepository(
     context = context,
-    apiKey = FirestoreLeaderboardApi.resolveDefaultApiKey()
+    apiKey = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
   )
 ) : CoroutineWorker(context, params) {
 
   override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
     Log.d(TAG, "[ScoreSubmissionWorker] Triggered: runAttemptCount=$runAttemptCount")
     if (runAttemptCount > 10) {
+      val msg = "Score submission aborted after $runAttemptCount attempts"
       Log.e(TAG, "[ScoreSubmissionWorker] runAttemptCount ($runAttemptCount) exceeded threshold (> 10). Aborting worker.")
+      val pendingOnAbort = store.getPendingQueue()
+      for (item in pendingOnAbort) {
+        LeaderboardRepository.notifySubmissionFailed(
+          runId = item.runId,
+          kind = FailureKind.SERVER_ERROR,
+          message = msg,
+          dropped = false
+        )
+      }
       return@withContext Result.failure()
     }
 
@@ -37,25 +48,46 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
       return@withContext Result.success()
     }
 
+    if (!api.isConfigured) {
+      val msg = "Leaderboard project ID or API key is not configured"
+      Log.w(TAG, "[ScoreSubmissionWorker] $msg. Aborting submission.")
+      LeaderboardRepository.notifySubmissionFailed(
+        runId = pendingList.first().runId,
+        kind = FailureKind.UNCONFIGURED,
+        message = msg,
+        dropped = false
+      )
+      return@withContext Result.failure()
+    }
+
     authRepo.ensureAuthenticated()
     var idToken = authRepo.getIdToken()
-    val effectiveUserId = authRepo.currentUserId.orEmpty()
+    var effectiveUserId = authRepo.currentUserId.orEmpty()
     Log.d(TAG, "[ScoreSubmissionWorker] Authenticated user context: uid=$effectiveUserId, hasIdToken=${!idToken.isNullOrBlank()}")
 
     if (idToken.isNullOrBlank() || effectiveUserId.isBlank()) {
-      Log.w(TAG, "[ScoreSubmissionWorker] Missing auth credentials (idToken or effectiveUserId). Requesting retry.")
+      val msg = "Anonymous authentication unavailable (no Firebase ID token)"
+      Log.w(TAG, "[ScoreSubmissionWorker] $msg. Requesting retry.")
+      LeaderboardRepository.notifySubmissionFailed(
+        runId = pendingList.first().runId,
+        kind = FailureKind.SECURITY_REJECTED,
+        message = msg,
+        dropped = false
+      )
       return@withContext Result.retry()
     }
 
     for (item in pendingList) {
-      val itemWithUser = item.copy(userId = effectiveUserId)
+      var itemWithUser = item.copy(userId = effectiveUserId)
       Log.d(TAG, "[ScoreSubmissionWorker] Submitting score for runId=${item.runId}, callsign=${item.callsign}, score=${item.score}, waves=${item.wavesCleared}, attempt=${item.attempts + 1}")
       var result = api.submitScore(itemWithUser, idToken = idToken)
       if (result is LeaderboardResult.Failure && result.kind == FailureKind.SECURITY_REJECTED) {
         Log.w(TAG, "[ScoreSubmissionWorker] Score submission returned SECURITY_REJECTED for runId=${item.runId}. Attempting forced token refresh.")
         val refreshed = authRepo.getIdToken(forceRefresh = true)
-        if (!refreshed.isNullOrBlank() && refreshed != idToken) {
+        if (!refreshed.isNullOrBlank()) {
           idToken = refreshed
+          effectiveUserId = authRepo.currentUserId.orEmpty()
+          itemWithUser = item.copy(userId = effectiveUserId)
           result = api.submitScore(itemWithUser, idToken = idToken)
         }
       }
@@ -64,31 +96,38 @@ class ScoreSubmissionWorker @JvmOverloads constructor(
           Log.i(TAG, "[ScoreSubmissionWorker] Confirmed score submission for runId=${item.runId}. Removing from pending queue.")
           store.removePending(item.runId)
           store.recordSubmittedId(item.runId)
-          com.example.engine.repository.LeaderboardRepository.notifySubmissionComplete()
+          LeaderboardRepository.notifySubmissionComplete(item.runId)
         }
         is LeaderboardResult.Failure -> {
           Log.w(TAG, "[ScoreSubmissionWorker] Submission failed for runId=${item.runId}: kind=${result.kind}, message=${result.message}")
           when (result.kind) {
             FailureKind.SECURITY_REJECTED -> {
               store.incrementAttempt(item.runId)
-              if (item.attempts >= 5) {
+              if (item.attempts + 1 >= 5) {
                 Log.e(TAG, "[ScoreSubmissionWorker] RunId=${item.runId} exceeded max security attempts (5). Dropping from queue.")
                 store.removePending(item.runId)
+                LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = true)
               } else {
+                LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = false)
                 return@withContext Result.retry()
               }
+            }
+            FailureKind.UNCONFIGURED -> {
+              LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = false)
+              return@withContext Result.failure()
             }
             FailureKind.RATE_LIMITED,
             FailureKind.TIMEOUT,
             FailureKind.SERVER_ERROR,
-            FailureKind.NETWORK_UNAVAILABLE,
-            FailureKind.UNCONFIGURED -> {
+            FailureKind.NETWORK_UNAVAILABLE -> {
               store.incrementAttempt(item.runId)
+              LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = false)
               return@withContext Result.retry()
             }
             FailureKind.MALFORMED_PAYLOAD -> {
               Log.e(TAG, "[ScoreSubmissionWorker] RunId=${item.runId} failed with MALFORMED_PAYLOAD. Dropping from queue.")
               store.removePending(item.runId)
+              LeaderboardRepository.notifySubmissionFailed(item.runId, result.kind, result.message, dropped = true)
             }
           }
         }

@@ -109,6 +109,30 @@ class LeaderboardStore(context: Context) {
     }
   }
 
+  suspend fun clearPendingQueue() = withContext(Dispatchers.IO) {
+    mutex.withLock {
+      writePendingListInternal(emptyList())
+    }
+  }
+
+  suspend fun updatePendingCallsign(runId: String, callsign: String): Boolean = withContext(Dispatchers.IO) {
+    mutex.withLock {
+      var updated = false
+      val current = readPendingListInternal().map {
+        if (it.runId == runId) {
+          updated = true
+          it.copy(callsign = callsign)
+        } else {
+          it
+        }
+      }
+      if (updated) {
+        writePendingListInternal(current)
+      }
+      updated
+    }
+  }
+
   suspend fun incrementAttempt(runId: String) = withContext(Dispatchers.IO) {
     mutex.withLock {
       val now = System.currentTimeMillis()

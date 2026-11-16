@@ -34,6 +34,7 @@ fun TelemetryLeaderboardDialog(
     state: GameUIState,
     onSetPlayerName: (String) -> Unit,
     onRetryLeaderboard: () -> Unit = {},
+    onClearPendingQueue: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember(state.telemetryInitialTab) { mutableStateOf(state.telemetryInitialTab) }
@@ -302,14 +303,25 @@ fun TelemetryLeaderboardDialog(
                                             textAlign = TextAlign.Center
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
-                                        Button(
-                                            onClick = onRetryLeaderboard,
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(text = if (isOnline) "Refresh Rankings" else "Retry Uplink", color = Color(0xFF00F0FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(
+                                                onClick = onRetryLeaderboard,
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(text = if (isOnline) "Refresh Rankings" else "Retry Uplink", color = Color(0xFF00F0FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            if (state.leaderboardPendingCount > 0) {
+                                                OutlinedButton(
+                                                    onClick = onClearPendingQueue,
+                                                    border = BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.6f)),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Text(text = "Clear Queue (${state.leaderboardPendingCount})", color = Color(0xFFFF2A55), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -342,9 +354,9 @@ fun TelemetryLeaderboardDialog(
                                                 bgColor = Color(0xFF1E293B),
                                                 borderColor = Color(0xFF64748B),
                                                 icon = Icons.Filled.Info,
-                                                text = "Local Only (Global Board Unconfigured)",
-                                                actionText = null,
-                                                onAction = {}
+                                                text = state.leaderboardErrorMessage ?: "Local Only (Global Board Unconfigured)",
+                                                actionText = if (state.leaderboardPendingCount > 0) "CLEAR QUEUE" else null,
+                                                onAction = onClearPendingQueue
                                             )
                                         }
                                         GlobalBoardStatus.ERROR -> {

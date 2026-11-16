@@ -433,9 +433,12 @@ fun RogueTDScreen(
                 state = state,
                 onSetPlayerName = { viewModel.setPlayerName(it) },
                 onRetryLeaderboard = { viewModel.fetchOnlineLeaderboard(true) },
+                onClearPendingQueue = { viewModel.clearPendingLeaderboardQueue() },
                 onDismiss = {
                     viewModel.toggleTelemetryView(false)
-                    viewModel.openPauseMenu()
+                    if (!state.isGameOver && !state.isVictory) {
+                        viewModel.openPauseMenu()
+                    }
                 }
             )
         }

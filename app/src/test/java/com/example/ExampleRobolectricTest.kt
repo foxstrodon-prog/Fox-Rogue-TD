@@ -571,9 +571,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 026`() {
-    assertEquals("0.0.1.026", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(47, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 027`() {
+    assertEquals("0.0.1.027", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(48, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test
@@ -1310,7 +1310,8 @@ class ExampleRobolectricTest {
     val sanitized = com.example.engine.network.FirestoreLeaderboardApi.sanitizeApiKey("  key=\"MY_CLEAN_KEY_999\" ")
     assertEquals("MY_CLEAN_KEY_999", sanitized)
 
-    val defaultKey = com.example.engine.network.FirestoreLeaderboardApi.resolveDefaultApiKey()
+    val context = org.robolectric.RuntimeEnvironment.getApplication()
+    val defaultKey = com.example.engine.network.FirestoreLeaderboardApi.resolveDefaultApiKey(context)
     assertTrue("Default resolved API key must be non-blank", defaultKey.isNotBlank())
     assertFalse("Default resolved API key must not contain key= prefix", defaultKey.startsWith("key="))
     assertEquals(39, defaultKey.length)

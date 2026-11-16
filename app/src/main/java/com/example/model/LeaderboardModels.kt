@@ -62,7 +62,11 @@ data class LeaderboardUiState(
   val entries: List<OnlineScoreEntry> = emptyList(),
   val status: GlobalBoardStatus = GlobalBoardStatus.IDLE,
   val failureKind: FailureKind? = null,
+  val errorMessage: String? = null,
   val isRefreshing: Boolean = false,
   val pendingCount: Int = 0,
-  val lastFetchMs: Long = 0L
+  val lastFetchMs: Long = 0L,
+  val lastRunId: String? = null,
+  val lastSubmissionState: RunSubmissionState = RunSubmissionState.NONE,
+  val lastSubmissionError: String? = null
 )

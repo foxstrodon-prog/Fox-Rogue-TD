@@ -74,6 +74,8 @@ data class GameUIState(
     val leaderboardStatus: GlobalBoardStatus = GlobalBoardStatus.IDLE,
     val leaderboardPendingCount: Int = 0,
     val leaderboardErrorMessage: String? = null,
+    val runSubmissionState: RunSubmissionState = RunSubmissionState.NONE,
+    val leaderboardSubmissionError: String? = null,
     val updateUIState: AppUpdateState = AppUpdateState(),
     val showUpdateModal: Boolean = false,
     val soundProfile: SoundProfile = SoundProfile.CYBER_SYNTH,

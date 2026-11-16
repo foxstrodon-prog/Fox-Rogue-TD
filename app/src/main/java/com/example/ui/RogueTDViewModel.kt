@@ -32,20 +32,31 @@ class RogueTDViewModel @JvmOverloads constructor(
     application: Application,
     val authRepository: AuthRepository = AuthRepository(
         context = application,
-        apiKey = FirestoreLeaderboardApi.resolveDefaultApiKey()
+        apiKey = FirestoreLeaderboardApi.resolveDefaultApiKey(application)
     ),
     val remoteConfigManager: RemoteConfigManager = RemoteConfigManager(),
     val leaderboardRepository: LeaderboardRepository = LeaderboardRepository(
+        api = FirestoreLeaderboardApi(context = application),
         store = LeaderboardStore(application),
         scheduler = LeaderboardWorkScheduler(application),
         authRepo = authRepository
     )
-) : AndroidViewModel(application), CinematicHost {
+) : AndroidViewModel(application) {
 
     private val telemetryManager = TelemetryManager(application)
     val appUpdateManager = AppUpdateManager(application, viewModelScope)
-    override val soundManager = SoundManager(application)
-    val cinematicController = CinematicController(this)
+    val soundManager = SoundManager(application)
+    private val cinematicHost = object : CinematicHost {
+        override val uiStateFlow: MutableStateFlow<GameUIState> get() = _uiState
+        override val soundManager: SoundManager get() = this@RogueTDViewModel.soundManager
+        override fun clearPendingSpawns() = this@RogueTDViewModel.clearPendingSpawns()
+        override fun markSynergyDirty() = this@RogueTDViewModel.markSynergyDirty()
+        override fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean) =
+            this@RogueTDViewModel.addFloatingText(x, y, text, color, isCrit)
+        override fun swapBoosterPads() = this@RogueTDViewModel.swapBoosterPads()
+        override fun deployWave() = this@RogueTDViewModel.deployWave()
+    }
+    val cinematicController = CinematicController(cinematicHost)
 
     private var nextEntityId: Long = 0L
     private fun nextId(prefix: String = "ent_"): String = "$prefix${nextEntityId++}"
@@ -67,10 +78,10 @@ class RogueTDViewModel @JvmOverloads constructor(
             mapThemeSlot = initialConfig.mapThemeSlot
         )
     )
-    override val uiStateFlow: MutableStateFlow<GameUIState> get() = _uiState
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
 
     private var devTunedThisRun: Boolean = false
+    private var runSessionId: Long = 0L
     private var gameLoopJob: Job? = null
     private var updateDismissedForSession: Boolean = false
 
@@ -96,8 +107,8 @@ class RogueTDViewModel @JvmOverloads constructor(
         nextId = ::nextId, addFloatingText = ::addFloatingText, onSynergyDirty = ::markSynergyDirty
     )
 
-    override fun markSynergyDirty() { simulationCoordinator.isSynergyCacheDirty = true }
-    override fun clearPendingSpawns() { waveCoordinator.clearPendingSpawns() }
+    fun markSynergyDirty() { simulationCoordinator.isSynergyCacheDirty = true }
+    fun clearPendingSpawns() { waveCoordinator.clearPendingSpawns() }
     var currentFps: Int = 60; private set
     var frameJitterMs: Float = 0.5f; private set
     private val frameTimes = LongArray(30)
@@ -132,13 +143,21 @@ class RogueTDViewModel @JvmOverloads constructor(
                         onlineLeaderboard = boardState.entries,
                         leaderboardStatus = boardState.status,
                         leaderboardPendingCount = boardState.pendingCount,
+                        runSubmissionState = boardState.lastSubmissionState,
+                        leaderboardSubmissionError = boardState.lastSubmissionError,
                         leaderboardErrorMessage = when (boardState.status) {
                             GlobalBoardStatus.ERROR -> {
-                                if (boardState.pendingCount > 0) "Offline Queue: ${boardState.pendingCount} score(s) pending sync"
-                                else boardState.failureKind?.name ?: "Connection error"
+                                boardState.errorMessage
+                                    ?: if (boardState.pendingCount > 0) "Offline Queue: ${boardState.pendingCount} score(s) pending sync"
+                                    else boardState.failureKind?.name ?: "Connection error"
                             }
-                            GlobalBoardStatus.OFFLINE_CACHED -> if (boardState.entries.isEmpty()) "Connection failed. Scores cached locally." else null
-                            GlobalBoardStatus.NOT_CONFIGURED -> "Database Pending: Enable (default) Firestore in Firebase Console"
+                            GlobalBoardStatus.OFFLINE_CACHED -> {
+                                if (boardState.entries.isEmpty()) boardState.errorMessage ?: "Connection failed. Scores cached locally."
+                                else null
+                            }
+                            GlobalBoardStatus.NOT_CONFIGURED -> {
+                                boardState.errorMessage ?: "Database Pending: Enable (default) Firestore in Firebase Console"
+                            }
                             else -> null
                         }
                     )
@@ -181,10 +200,16 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun fetchOnlineLeaderboard(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            if (forceRefresh) {
-                leaderboardRepository.retryPendingSubmissions()
+            if (forceRefresh && leaderboardRepository.boardState.value.pendingCount > 0) {
+                leaderboardRepository.retryPendingSubmissions(replaceExisting = true)
             }
             leaderboardRepository.fetchLeaderboard(forceRefresh = forceRefresh)
+        }
+    }
+
+    fun clearPendingLeaderboardQueue() {
+        viewModelScope.launch {
+            leaderboardRepository.clearPendingQueue()
         }
     }
 
@@ -231,7 +256,12 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun toggleTelemetryView(open: Boolean, initialTab: Int = 0) {
-        if (open) { refreshTelemetry(); fetchOnlineLeaderboard(forceRefresh = true) }
+        if (open) {
+            refreshTelemetry()
+            if (initialTab != 2) {
+                fetchOnlineLeaderboard(forceRefresh = false)
+            }
+        }
         _uiState.update { it.copy(isTelemetryOpen = open, telemetryInitialTab = initialTab) }
     }
 
@@ -242,7 +272,6 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun openTelemetryFromPauseMenu() {
         refreshTelemetry()
-        fetchOnlineLeaderboard(forceRefresh = true)
         _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true, telemetryInitialTab = 2) }
     }
 
@@ -285,7 +314,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun confirmEndRun() {
         soundManager.isPaused = false
         val state = _uiState.value
-        val wavesCompleted = if (state.isWaveActive) maxOf(0, state.waveNumber - 1) else state.waveNumber
+        val wavesCompleted = maxOf(0, state.waveNumber - 1)
         recordRunCompletion(isVictory = false, waves = wavesCompleted)
         _uiState.update { current ->
             current.copy(
@@ -506,6 +535,8 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun playTestSound(fx: SoundFx) = soundManager.play(fx)
 
     fun startNewRun() {
+        runSessionId++
+        leaderboardRepository.resetRunSubmissionState()
         simulationCoordinator.resetVirtualTime()
         devTunedThisRun = false
         gameLoopJob?.cancel()
@@ -595,7 +626,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     // === DELEGATIONS TO WAVE PROGRESSION & PLACEMENT COORDINATORS ===
-    override fun deployWave() = waveCoordinator.deployWave()
+    fun deployWave() = waveCoordinator.deployWave()
     fun spawnSandboxWave(enemyType: EnemyType, count: Int) = waveCoordinator.spawnSandboxWave(enemyType, count)
     fun selectTile(tile: MapTile?) = placementCoordinator.selectTile(tile)
     fun buildTower(tile: MapTile, towerClass: TowerClass = TowerClass.KINETIC_BALLISTIC) = placementCoordinator.buildTower(tile, towerClass)
@@ -607,7 +638,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun upgradeTowerToFinalForm(tower: TowerInstance, finalFormCode: String) = placementCoordinator.upgradeTowerToFinalForm(tower, finalFormCode)
     fun upgradeTowerPath(tower: TowerInstance, pathIndex: Int) = placementCoordinator.upgradeTowerPath(tower, pathIndex)
     fun ascendTower(tower: TowerInstance) = placementCoordinator.ascendTower(tower)
-    override fun swapBoosterPads() = placementCoordinator.swapBoosterPads()
+    fun swapBoosterPads() = placementCoordinator.swapBoosterPads()
     fun sellSelectedTower() = placementCoordinator.sellSelectedTower()
     fun changeSelectedTowerPriority(priority: TargetPriority) = placementCoordinator.changeSelectedTowerPriority(priority)
     fun canInitiateSingularity(): Boolean = placementCoordinator.canInitiateSingularity()
@@ -647,24 +678,49 @@ class RogueTDViewModel @JvmOverloads constructor(
             telemetryManager.logLevelFail(waves + 1, state.towers.size, state.scrap, mvpClass)
         }
 
+        if (record.score > 0 || record.wavesCleared > 0 || record.enemiesKilled > 0) {
+            _uiState.update { it.copy(lastRunRecord = record) }
+        }
+
+        val completionSessionId = runSessionId
         viewModelScope.launch(Dispatchers.IO) {
-            telemetryManager.recordRun(record)
+            val latestCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
+            val recordToSave = record.copy(playerName = latestCallsign)
+            telemetryManager.recordRun(recordToSave)
             telemetryManager.recordTowerSession(state.towers)
             refreshTelemetry()
             val uid = authRepository.ensureAuthenticated() ?: authRepository.currentUserId
-            leaderboardRepository.enqueueRun(record, playerName, isDev, uid)
+            val enqueueCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
+            leaderboardRepository.enqueueRun(
+                run = recordToSave,
+                callsign = enqueueCallsign,
+                isDevTuned = isDev,
+                userId = uid,
+                isCurrentRun = (completionSessionId == runSessionId)
+            )
             leaderboardRepository.fetchLeaderboard(forceRefresh = true)
         }
     }
 
-    fun setPlayerName(name: String) { telemetryManager.updateLastRunPlayerName(name); refreshTelemetry() }
+    fun setPlayerName(name: String) {
+        val trimmed = name.trim()
+        telemetryManager.updateLastRunPlayerName(trimmed)
+        refreshTelemetry()
+        val lastRunId = _uiState.value.lastRunRecord?.id
+        val sanitizedCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
+        if (!lastRunId.isNullOrBlank()) {
+            viewModelScope.launch {
+                leaderboardRepository.updatePendingCallsign(lastRunId, sanitizedCallsign)
+            }
+        }
+    }
     fun toggleAutoWave() = _uiState.update { it.copy(autoCallNextWave = !it.autoCallNextWave) }
     fun setGameSpeed(speed: GameSpeed) = _uiState.update { current ->
         if (current.isPauseMenuOpen || current.showEndRunConfirmDialog) current.copy(prePauseSpeed = speed, gameSpeed = GameSpeed.PAUSED)
         else current.copy(gameSpeed = speed, prePauseSpeed = speed)
     }
 
-    override fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean) {
+    fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean = false) {
         _uiState.update { it.copy(floatingTexts = it.floatingTexts + FloatingText(id = nextId("ft_"), x = x, y = y, text = text, color = color, isCrit = isCrit)) }
     }
 

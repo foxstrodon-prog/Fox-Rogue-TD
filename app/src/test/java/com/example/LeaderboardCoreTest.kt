@@ -1,27 +1,63 @@
 package com.example
 
+import android.app.Application
 import android.content.Context
+import android.content.pm.Signature
+import android.content.pm.SigningInfo
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ListenableWorker
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
+import androidx.work.impl.WorkManagerImpl
+import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.example.engine.RemoteConfigManager
 import com.example.engine.TelemetryManager
 import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
+import com.example.engine.repository.LeaderboardRepository
 import com.example.engine.storage.LeaderboardStore
 import com.example.engine.storage.PlayerIdentity
+import com.example.engine.worker.LeaderboardWorkScheduler
+import com.example.engine.worker.ScoreSubmissionWorker
 import com.example.model.FailureKind
+import com.example.model.GlobalBoardStatus
 import com.example.model.LeaderboardResult
 import com.example.model.OnlineScoreEntry
 import com.example.model.PendingSubmission
+import com.example.model.RunRecord
+import com.example.model.RunSubmissionState
+import com.example.ui.RogueTDViewModel
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import java.io.File
+import java.net.UnknownHostException
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -32,15 +68,17 @@ class LeaderboardCoreTest {
   @Before
   fun setUp() {
     context = ApplicationProvider.getApplicationContext()
-    androidx.work.testing.WorkManagerTestInitHelper.initializeTestWorkManager(context)
-    val baseDir = File(context.filesDir, "leaderboard")
-    baseDir.deleteRecursively()
+    WorkManagerTestInitHelper.initializeTestWorkManager(context)
+    File(context.filesDir, "leaderboard").deleteRecursively()
+    context.getSharedPreferences("rogue_td_auth", Context.MODE_PRIVATE).edit().clear().commit()
+    context.getSharedPreferences("rogue_td_player_identity", Context.MODE_PRIVATE).edit().clear().commit()
+    context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE).edit().clear().commit()
   }
 
-  @org.junit.After
+  @After
   fun tearDown() {
-    androidx.work.WorkManager.getInstance(context).cancelAllWork()
-    androidx.work.impl.WorkManagerImpl.getInstance(context)?.workDatabase?.close()
+    WorkManager.getInstance(context).cancelAllWork()
+    WorkManagerImpl.getInstance(context)?.workDatabase?.close()
   }
 
   @Test
@@ -207,7 +245,10 @@ class LeaderboardCoreTest {
 
   @Test
   fun `AuthRepository falls back to persistent UUID when unauthenticated`() = runBlocking {
-    val authRepo = AuthRepository(context, auth = null)
+    val offlineClient = OkHttpClient.Builder()
+      .addInterceptor { throw UnknownHostException("offline") }
+      .build()
+    val authRepo = AuthRepository(context, auth = null, httpClient = offlineClient)
     val uid = authRepo.currentUserId
     assertTrue(!uid.isNullOrBlank())
     assertEquals(36, uid!!.length)
@@ -404,5 +445,742 @@ class LeaderboardCoreTest {
     // bypassThrottle = true immediately fetches even within 3s window
     repo.fetchLeaderboard(forceRefresh = true, bypassThrottle = true)
     assertEquals(2, fetchCount)
+  }
+
+  @Test
+  fun `FirestoreLeaderboardApi requires non-blank apiKey and parses API_KEY_INVALID error`() = runBlocking {
+    val missingKeyApi = FirestoreLeaderboardApi(projectId = "test-project", apiKey = "")
+    assertFalse("Missing API key must mark API unconfigured", missingKeyApi.isConfigured)
+
+    val invalidKeyClient = okhttp3.OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        okhttp3.Response.Builder()
+          .request(chain.request())
+          .protocol(okhttp3.Protocol.HTTP_1_1)
+          .code(400)
+          .message("Bad Request")
+          .body(
+            okhttp3.ResponseBody.create(
+              null,
+              """{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}""".toByteArray()
+            )
+          )
+          .build()
+      }
+      .build()
+
+    val api = FirestoreLeaderboardApi(
+      client = invalidKeyClient,
+      projectId = "test-project",
+      apiKey = "bad-key",
+      collection = "leaderboards"
+    )
+    val res = api.fetchTopScores(10)
+    assertTrue(res is LeaderboardResult.Failure)
+    val failure = res as LeaderboardResult.Failure
+    assertEquals(FailureKind.UNCONFIGURED, failure.kind)
+    assertTrue("Error message must identify invalid API key, got: ${failure.message}", failure.message.contains("API Key invalid", ignoreCase = true))
+  }
+
+  @Test
+  fun `LeaderboardStore updatePendingCallsign and clearPendingQueue work reliably`() = runBlocking {
+    val store = LeaderboardStore(context)
+    val item = PendingSubmission(
+      runId = "run-edit-1",
+      callsign = "OldName",
+      score = 1200,
+      wavesCleared = 3,
+      scrapEarned = 150,
+      totalDamage = 4000L,
+      timestampMs = System.currentTimeMillis(),
+      clientVersion = "0.0.1.026"
+    )
+    store.enqueuePending(item)
+    assertTrue(store.updatePendingCallsign("run-edit-1", "Maverick"))
+    assertEquals("Maverick", store.getPendingQueue().first().callsign)
+
+    store.clearPendingQueue()
+    assertTrue(store.getPendingQueue().isEmpty())
+  }
+
+  @Test
+  fun `LeaderboardRepository tracks RunSubmissionState and surfaces failure messages`() = runBlocking {
+    val failingClient = okhttp3.OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        okhttp3.Response.Builder()
+          .request(chain.request())
+          .protocol(okhttp3.Protocol.HTTP_1_1)
+          .code(403)
+          .message("Forbidden")
+          .body(
+            okhttp3.ResponseBody.create(
+              null,
+              """{"error":{"code":403,"message":"Missing or insufficient permissions.","status":"PERMISSION_DENIED"}}""".toByteArray()
+            )
+          )
+          .build()
+      }
+      .build()
+
+    val api = FirestoreLeaderboardApi(
+      client = failingClient,
+      projectId = "test-project",
+      apiKey = "test-key",
+      collection = "leaderboards"
+    )
+    val store = LeaderboardStore(context)
+    val scheduler = com.example.engine.worker.LeaderboardWorkScheduler(context)
+    val repo = com.example.engine.repository.LeaderboardRepository(
+      api = api,
+      store = store,
+      scheduler = scheduler
+    )
+
+    repo.initialize()
+    repo.fetchLeaderboard(forceRefresh = true)
+    assertEquals(com.example.model.GlobalBoardStatus.ERROR, repo.boardState.value.status)
+    assertEquals(FailureKind.SECURITY_REJECTED, repo.boardState.value.failureKind)
+    assertTrue(repo.boardState.value.errorMessage?.contains("Security Rules", ignoreCase = true) == true)
+
+    val run = com.example.model.RunRecord(
+      id = "run-state-1",
+      sectorName = "Sector Alpha",
+      wavesCleared = 4,
+      enemiesKilled = 30,
+      totalDamage = 5000f,
+      scrapEarned = 300,
+      mvpTower = "Vulcan Minigun",
+      isVictory = false,
+      timestamp = System.currentTimeMillis(),
+      isDevTuned = false
+    )
+    repo.enqueueRun(run, "Maverick", isDevTuned = false, userId = "uid_123")
+    assertEquals(RunSubmissionState.PENDING, repo.boardState.value.lastSubmissionState)
+    assertEquals("run-state-1", repo.boardState.value.lastRunId)
+  }
+
+  @Test
+  fun `AuthRepository resolves default apiKey and attempts REST auth when FirebaseAuth is null`() = runBlocking {
+    var restUrl = ""
+    val restClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        restUrl = chain.request().url.toString()
+        val body = """{"localId":"rest_default_key_uid","idToken":"tok_default_1","refreshToken":"ref_default_1","expiresIn":"3600"}"""
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body(body.toResponseBody(null))
+          .build()
+      }
+      .build()
+
+    val authRepo = AuthRepository(context = context, auth = null, httpClient = restClient)
+    val uid = authRepo.ensureAuthenticated()
+    assertEquals("rest_default_key_uid", uid)
+    assertTrue(restUrl.contains("identitytoolkit.googleapis.com/v1/accounts:signUp?key="))
+    assertTrue(authRepo.isAuthenticated.value)
+  }
+
+  @Test
+  fun `ScoreSubmissionWorker aborts on runAttemptCount gt 10 and notifies repository`() = runBlocking {
+    val store = LeaderboardStore(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+    val api = FirestoreLeaderboardApi(projectId = "test-project", apiKey = "test-key")
+    val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler)
+    repo.initialize()
+
+    val run = RunRecord(
+      id = "run-abort-10",
+      sectorName = "Sector Zero",
+      wavesCleared = 5,
+      enemiesKilled = 25,
+      totalDamage = 4000f,
+      scrapEarned = 200,
+      mvpTower = "Vulcan Minigun",
+      isVictory = false,
+      timestamp = System.currentTimeMillis(),
+      isDevTuned = false
+    )
+    repo.enqueueRun(run, "Pilot", isDevTuned = false, userId = "uid-1")
+    assertEquals(RunSubmissionState.PENDING, repo.boardState.value.lastSubmissionState)
+
+    val authRepo = AuthRepository(context, auth = null, apiKey = "")
+    val worker = buildWorker(api, store, authRepo, attemptCount = 11)
+    val result = worker.doWork()
+    assertTrue(result is ListenableWorker.Result.Failure)
+
+    delay(150)
+    assertEquals("run-abort-10", repo.boardState.value.lastRunId)
+    assertTrue(repo.boardState.value.lastSubmissionError?.contains("aborted", ignoreCase = true) == true)
+    assertEquals(FailureKind.SERVER_ERROR, repo.boardState.value.failureKind)
+  }
+
+  @Test
+  fun `ScoreSubmissionWorker fails fast on unconfigured api or UNCONFIGURED server response`() = runBlocking {
+    val store = LeaderboardStore(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+    val unconfiguredApi = FirestoreLeaderboardApi(projectId = "", apiKey = "")
+    val repo = LeaderboardRepository(api = unconfiguredApi, store = store, scheduler = scheduler)
+    repo.initialize()
+
+    store.enqueuePending(
+      PendingSubmission(
+        runId = "run-unconf-1",
+        callsign = "Pilot",
+        score = 1000,
+        wavesCleared = 3,
+        scrapEarned = 100,
+        totalDamage = 1500L,
+        timestampMs = System.currentTimeMillis(),
+        clientVersion = "0.0.1.026"
+      )
+    )
+
+    val authRepo = AuthRepository(context, auth = null, apiKey = "")
+    val worker1 = buildWorker(unconfiguredApi, store, authRepo)
+    assertTrue(worker1.doWork() is ListenableWorker.Result.Failure)
+
+    val restClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        val url = chain.request().url.toString()
+        val body = if (url.contains("identitytoolkit")) {
+          """{"localId":"uid-2","idToken":"tok-2","refreshToken":"ref-2","expiresIn":"3600"}"""
+        } else {
+          """{"error":{"code":400,"message":"API key not valid.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}"""
+        }
+        val code = if (url.contains("identitytoolkit")) 200 else 400
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(code)
+          .message(if (code == 200) "OK" else "Bad Request")
+          .body(body.toResponseBody(null))
+          .build()
+      }
+      .build()
+    val configuredButRejectedApi = FirestoreLeaderboardApi(
+      client = restClient,
+      projectId = "test-project",
+      apiKey = "bad-key"
+    )
+    val configuredAuth = AuthRepository(context, auth = null, httpClient = restClient, apiKey = "bad-key")
+    val events = mutableListOf<LeaderboardRepository.SubmissionEvent>()
+    val collectJob = launch { LeaderboardRepository.syncEventFlow.collect { events.add(it) } }
+    delay(50)
+
+    val worker2 = buildWorker(configuredButRejectedApi, store, configuredAuth)
+    assertTrue(worker2.doWork() is ListenableWorker.Result.Failure)
+    delay(100)
+    collectJob.cancel()
+
+    val unconfEvent = events.filterIsInstance<LeaderboardRepository.SubmissionEvent.Failed>()
+      .lastOrNull { it.runId == "run-unconf-1" }
+    assertNotNull(unconfEvent)
+    assertEquals(FailureKind.UNCONFIGURED, unconfEvent!!.kind)
+  }
+
+  @Test
+  fun `ScoreSubmissionWorker refreshes token on SECURITY_REJECTED and drops at attempt 5`() = runBlocking {
+    val store = LeaderboardStore(context)
+    context.getSharedPreferences("rogue_td_auth", Context.MODE_PRIVATE).edit()
+      .putString("cached_auth_uid", "uid-refresh")
+      .putString("cached_rest_id_token", "stale_token")
+      .putString("cached_rest_refresh_token", "refresh_token_1")
+      .putLong("cached_rest_token_expiry_ms", System.currentTimeMillis() + 600_000L)
+      .commit()
+
+    val seenAuthHeaders = mutableListOf<String?>()
+    val refreshSuccessClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        val req = chain.request()
+        val url = req.url.toString()
+        if (url.contains("securetoken.googleapis.com")) {
+          Response.Builder()
+            .request(req)
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body("""{"id_token":"fresh_token","refresh_token":"refresh_token_2","user_id":"uid-refresh","expires_in":"3600"}""".toResponseBody(null))
+            .build()
+        } else {
+          val authHeader = req.header("Authorization")
+          seenAuthHeaders.add(authHeader)
+          if (authHeader == "Bearer stale_token") {
+            Response.Builder()
+              .request(req)
+              .protocol(Protocol.HTTP_1_1)
+              .code(403)
+              .message("Forbidden")
+              .body("""{"error":{"code":403,"message":"Missing or insufficient permissions.","status":"PERMISSION_DENIED"}}""".toResponseBody(null))
+              .build()
+          } else {
+            Response.Builder()
+              .request(req)
+              .protocol(Protocol.HTTP_1_1)
+              .code(200)
+              .message("OK")
+              .body("{}".toResponseBody(null))
+              .build()
+          }
+        }
+      }
+      .build()
+
+    store.enqueuePending(
+      PendingSubmission(
+        runId = "run-refresh-1",
+        callsign = "Ace",
+        score = 3000,
+        wavesCleared = 6,
+        scrapEarned = 200,
+        totalDamage = 8000L,
+        timestampMs = System.currentTimeMillis(),
+        clientVersion = "0.0.1.026"
+      )
+    )
+
+    val events = mutableListOf<LeaderboardRepository.SubmissionEvent>()
+    val collectJob = launch { LeaderboardRepository.syncEventFlow.collect { events.add(it) } }
+    delay(50)
+
+    val api1 = FirestoreLeaderboardApi(client = refreshSuccessClient, projectId = "test-project", apiKey = "k")
+    val auth1 = AuthRepository(context, auth = null, httpClient = refreshSuccessClient, apiKey = "k")
+    val res1 = buildWorker(api1, store, auth1).doWork()
+    assertTrue(res1 is ListenableWorker.Result.Success)
+    assertEquals(listOf("Bearer stale_token", "Bearer fresh_token"), seenAuthHeaders)
+    assertTrue(store.getPendingQueue().isEmpty())
+    assertTrue(store.isAlreadySubmitted("run-refresh-1"))
+    delay(100)
+    assertTrue(events.any { it is LeaderboardRepository.SubmissionEvent.Completed && it.runId == "run-refresh-1" })
+
+    // Now test dropping at attempts + 1 >= 5 when SECURITY_REJECTED persists
+    val always403Client = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        val req = chain.request()
+        val url = req.url.toString()
+        if (url.contains("securetoken.googleapis.com")) {
+          Response.Builder()
+            .request(req)
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body("""{"id_token":"still_rejected","refresh_token":"r2","user_id":"uid-refresh","expires_in":"3600"}""".toResponseBody(null))
+            .build()
+        } else {
+          Response.Builder()
+            .request(req)
+            .protocol(Protocol.HTTP_1_1)
+            .code(403)
+            .message("Forbidden")
+            .body("""{"error":{"code":403,"message":"Permission denied","status":"PERMISSION_DENIED"}}""".toResponseBody(null))
+            .build()
+        }
+      }
+      .build()
+    store.enqueuePending(
+      PendingSubmission(
+        runId = "run-drop-5",
+        callsign = "Ace",
+        score = 1200,
+        wavesCleared = 4,
+        scrapEarned = 100,
+        totalDamage = 2000L,
+        timestampMs = System.currentTimeMillis(),
+        clientVersion = "0.0.1.026",
+        attempts = 4
+      )
+    )
+    val api2 = FirestoreLeaderboardApi(client = always403Client, projectId = "test-project", apiKey = "k")
+    val auth2 = AuthRepository(context, auth = null, httpClient = always403Client, apiKey = "k")
+    val res2 = buildWorker(api2, store, auth2).doWork()
+    assertTrue(res2 is ListenableWorker.Result.Success)
+    assertTrue("Pending item reaching 5th attempt must be dropped", store.getPendingQueue().isEmpty())
+    delay(100)
+    collectJob.cancel()
+
+    val droppedEvent = events.filterIsInstance<LeaderboardRepository.SubmissionEvent.Failed>()
+      .lastOrNull { it.runId == "run-drop-5" }
+    assertNotNull(droppedEvent)
+    assertTrue(droppedEvent!!.dropped)
+  }
+
+  @Test
+  fun `LeaderboardWorkScheduler appends while running and replaces on explicit retry`() {
+    val wm = WorkManager.getInstance(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+
+    scheduler.triggerImmediateSync(replaceExisting = false)
+    val firstInfos = wm.getWorkInfosForUniqueWork(LeaderboardWorkScheduler.WORK_NAME).get()
+    assertEquals(1, firstInfos.size)
+    val firstId = firstInfos[0].id
+
+    // Simulate active execution of the first work item, then enqueue another without replacing
+    val db = WorkManagerImpl.getInstance(context).workDatabase
+    db.workSpecDao().setState(WorkInfo.State.RUNNING, firstId.toString())
+
+    scheduler.triggerImmediateSync(replaceExisting = false)
+    val afterAppend = wm.getWorkInfosForUniqueWork(LeaderboardWorkScheduler.WORK_NAME).get()
+    assertEquals("APPEND_OR_REPLACE must schedule follow-up work while active work is RUNNING", 2, afterAppend.size)
+    assertTrue(afterAppend.any { it.id == firstId && it.state == WorkInfo.State.RUNNING })
+    assertTrue(afterAppend.any { it.id != firstId && (it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED) })
+
+    // Explicit manual retry with replaceExisting = true replaces active/backed-off chain with a fresh ENQUEUED work
+    scheduler.triggerImmediateSync(replaceExisting = true)
+    val afterReplace = wm.getWorkInfosForUniqueWork(LeaderboardWorkScheduler.WORK_NAME).get()
+    assertTrue(afterReplace.any { it.id != firstId && it.state == WorkInfo.State.ENQUEUED })
+    assertNotEquals(firstId, afterReplace.first { it.state == WorkInfo.State.ENQUEUED }.id)
+  }
+
+  @Test
+  fun `LeaderboardRepository deduplicates already submitted runs and scopes submission events to lastRunId`() = runBlocking {
+    val okClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body("[]".toResponseBody(null))
+          .build()
+      }
+      .build()
+    val api = FirestoreLeaderboardApi(client = okClient, projectId = "test-project", apiKey = "k")
+    val store = LeaderboardStore(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+    val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler)
+    repo.initialize()
+
+    // Already submitted run is skipped by enqueueRun
+    store.recordSubmittedId("run-dup-1")
+    val dupRun = RunRecord(
+      id = "run-dup-1",
+      sectorName = "Sector Zero",
+      wavesCleared = 7,
+      enemiesKilled = 40,
+      totalDamage = 9000f,
+      scrapEarned = 350,
+      mvpTower = "Vulcan Minigun",
+      isVictory = false,
+      timestamp = System.currentTimeMillis(),
+      isDevTuned = false
+    )
+    repo.enqueueRun(dupRun, "Ace", isDevTuned = false, userId = "u1")
+    assertTrue("Already submitted run must not be re-enqueued", store.getPendingQueue().isEmpty())
+    assertEquals(RunSubmissionState.SUBMITTED, repo.boardState.value.lastSubmissionState)
+
+    // Stale events for other runIds or when lastRunId is null must not overwrite current run submission state
+    repo.resetRunSubmissionState()
+    assertNull(repo.boardState.value.lastRunId)
+    assertEquals(RunSubmissionState.NONE, repo.boardState.value.lastSubmissionState)
+
+    LeaderboardRepository.notifySubmissionComplete("stale-run-id")
+    delay(100)
+    assertEquals("Completed event for stale runId must not change NONE state when lastRunId is null", RunSubmissionState.NONE, repo.boardState.value.lastSubmissionState)
+
+    val currentRun = dupRun.copy(id = "run-current-2")
+    repo.enqueueRun(currentRun, "Ace", isDevTuned = false, userId = "u1")
+    assertEquals(RunSubmissionState.PENDING, repo.boardState.value.lastSubmissionState)
+
+    LeaderboardRepository.notifySubmissionFailed("stale-run-id", FailureKind.SERVER_ERROR, "Stale error", dropped = true)
+    delay(100)
+    assertEquals(RunSubmissionState.PENDING, repo.boardState.value.lastSubmissionState)
+    assertNull(repo.boardState.value.lastSubmissionError)
+
+    LeaderboardRepository.notifySubmissionComplete("run-current-2")
+    delay(100)
+    assertEquals(RunSubmissionState.SUBMITTED, repo.boardState.value.lastSubmissionState)
+  }
+
+  @Test
+  fun `FirestoreLeaderboardApi does not failover on API_KEY_INVALID API_KEY_ANDROID_APP_BLOCKED or SERVICE_DISABLED`() = runBlocking {
+    val errorBodies = listOf(
+      400 to """{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}""",
+      403 to """{"error":{"code":403,"message":"Requests from this Android client application are blocked.","status":"PERMISSION_DENIED","details":[{"reason":"API_KEY_ANDROID_APP_BLOCKED"}]}}""",
+      403 to """{"error":{"code":403,"message":"Cloud Firestore API has not been used in project before or it is disabled.","status":"PERMISSION_DENIED","details":[{"reason":"SERVICE_DISABLED"}]}}"""
+    )
+
+    val item = PendingSubmission(
+      runId = "run-nofailover",
+      callsign = "Fox",
+      score = 1000,
+      wavesCleared = 5,
+      scrapEarned = 100,
+      totalDamage = 2000L,
+      timestampMs = 1000L,
+      clientVersion = "0.0.1.026"
+    )
+
+    for ((code, body) in errorBodies) {
+      var requestCount = 0
+      val client = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+          requestCount++
+          Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(code)
+            .message("Error")
+            .body(body.toResponseBody(null))
+            .build()
+        }
+        .build()
+
+      val api = FirestoreLeaderboardApi(client = client, projectId = "test-project", apiKey = "bad-key")
+
+      val submitRes = api.submitScore(item)
+      assertTrue(submitRes is LeaderboardResult.Failure)
+      assertEquals(FailureKind.UNCONFIGURED, (submitRes as LeaderboardResult.Failure).kind)
+      assertEquals("submitScore must not failover to alternateCollection for $body", 1, requestCount)
+
+      requestCount = 0
+      val fetchRes = api.fetchTopScores(10)
+      assertTrue(fetchRes is LeaderboardResult.Failure)
+      assertEquals(FailureKind.UNCONFIGURED, (fetchRes as LeaderboardResult.Failure).kind)
+      assertEquals("fetchTopScores must not failover to alternateCollection for $body", 1, requestCount)
+    }
+  }
+
+  @Test
+  fun `FirestoreLeaderboardApi resolveSigningCertSha1 prefers apkContentsSigners over signingCertificateHistory`() {
+    val activeSig = Signature("01020304")
+    val rotatedHistorySig = Signature("0a0b0c0d")
+    val signingInfo = SigningInfo()
+    Shadows.shadowOf(signingInfo).apply {
+      setSignatures(arrayOf(activeSig))
+      setPastSigningCertificates(arrayOf(rotatedHistorySig, activeSig))
+    }
+    assertEquals(1, signingInfo.apkContentsSigners?.size)
+    Shadows.shadowOf(context.packageManager)
+      .getInternalMutablePackageInfo(context.packageName)
+      .signingInfo = signingInfo
+
+    val expectedDigest = java.security.MessageDigest.getInstance("SHA-1")
+      .digest(activeSig.toByteArray())
+      .joinToString("") { "%02x".format(it) }
+    val actualDigest = FirestoreLeaderboardApi.resolveSigningCertSha1(context)
+    assertEquals(expectedDigest, actualDigest)
+  }
+
+  @Test
+  fun `LeaderboardRepository fetchLeaderboard sends Bearer token and getCachedIdTokenIfValid respects native user`() = runBlocking {
+    val expiry = System.currentTimeMillis() + 600_000L
+    context.getSharedPreferences("rogue_td_auth", Context.MODE_PRIVATE).edit()
+      .putString("cached_auth_uid", "rest_uid_11")
+      .putString("cached_rest_id_token", "rest_bearer_token_11")
+      .putString("cached_rest_refresh_token", "rest_refresh_11")
+      .putLong("cached_rest_token_expiry_ms", expiry)
+      .commit()
+
+    var capturedAuthHeader: String? = null
+    val mockClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        capturedAuthHeader = chain.request().header("Authorization")
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body("[]".toResponseBody(null))
+          .build()
+      }
+      .build()
+
+    val authRepo = AuthRepository(context, auth = null, httpClient = mockClient, apiKey = "k")
+    val api = FirestoreLeaderboardApi(client = mockClient, projectId = "test-project", apiKey = "k")
+    val repo = LeaderboardRepository(api = api, store = LeaderboardStore(context), scheduler = LeaderboardWorkScheduler(context), authRepo = authRepo)
+
+    repo.fetchLeaderboard(forceRefresh = true)
+    assertEquals("Bearer rest_bearer_token_11", capturedAuthHeader)
+
+    // When native FirebaseAuth has an active currentUser, getCachedIdTokenIfValid must return null
+    val firebaseApp = FirebaseApp.getApps(context).firstOrNull() ?: FirebaseApp.initializeApp(context)!!
+    val firebaseAuth = FirebaseAuth.getInstance(firebaseApp)
+    val userField = FirebaseAuth::class.java.declaredFields.first { it.type == FirebaseUser::class.java }
+    userField.isAccessible = true
+    val unsafeClass = Class.forName("sun.misc.Unsafe")
+    val unsafeField = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }
+    val unsafe = unsafeField.get(null)
+    val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
+    val defaultUserClass = Class.forName("com.google.firebase.auth.internal.zzad")
+    val fakeUser = allocateMethod.invoke(unsafe, defaultUserClass) as FirebaseUser
+    val originalUser = userField.get(firebaseAuth)
+    val nativeAuthRepo = AuthRepository(context, auth = firebaseAuth, httpClient = mockClient, apiKey = "k")
+    try {
+      userField.set(firebaseAuth, fakeUser)
+      assertNull(
+        "getCachedIdTokenIfValid must not return REST token while native FirebaseUser is signed in",
+        nativeAuthRepo.getCachedIdTokenIfValid()
+      )
+    } finally {
+      userField.set(firebaseAuth, originalUser)
+    }
+  }
+
+  @Test
+  fun `RogueTDViewModel setPlayerName updates pending callsign after run completion including short sanitized names`() = runBlocking {
+    val app = context.applicationContext as Application
+    val okClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        val url = chain.request().url.toString()
+        val body = if (url.contains("identitytoolkit")) {
+          """{"localId":"vm_uid_1","idToken":"vm_tok_1","refreshToken":"vm_ref_1","expiresIn":"3600"}"""
+        } else {
+          "[]"
+        }
+        Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(200)
+          .message("OK")
+          .body(body.toResponseBody(null))
+          .build()
+      }
+      .build()
+    val authRepo = AuthRepository(context, auth = null, httpClient = okClient, apiKey = "k")
+    val store = LeaderboardStore(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+    val api = FirestoreLeaderboardApi(client = okClient, projectId = "test-project", apiKey = "k")
+    val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler, authRepo = authRepo)
+
+    val vm = RogueTDViewModel(
+      application = app,
+      authRepository = authRepo,
+      remoteConfigManager = RemoteConfigManager(null),
+      leaderboardRepository = repo
+    )
+    // Simulate a wave completed and end run confirmed
+    vm._uiState.value = vm._uiState.value.copy(waveNumber = 3, isWaveActive = false, totalKills = 12, totalDamageDealt = 1500f)
+    vm.confirmEndRun()
+    vm.setPlayerName("Ax")
+    delay(250)
+
+    val queueAfterShort = store.getPendingQueue()
+    assertEquals(1, queueAfterShort.size)
+    assertEquals("Commander", queueAfterShort.first().callsign)
+
+    vm.setPlayerName("Viper")
+    delay(150)
+    assertEquals("Viper", store.getPendingQueue().first().callsign)
+
+    vm.startNewRun()
+    assertEquals(RunSubmissionState.NONE, vm.uiState.value.runSubmissionState)
+  }
+
+  @Test
+  fun `FirestoreLeaderboardApi sanitizeCallsign never falls below 3 chars after space truncation`() {
+    assertEquals("Commander", FirestoreLeaderboardApi.sanitizeCallsign("A               B"))
+    assertEquals("Commander", FirestoreLeaderboardApi.sanitizeCallsign("AB              XYZ"))
+    val longValid = FirestoreLeaderboardApi.sanitizeCallsign("  Alpha_Bravo_12345  ")
+    assertTrue(longValid.length in 3..16)
+  }
+
+  @Test
+  fun `AuthRepository serializes concurrent REST authentication calls`() = runBlocking {
+    var signUpCalls = 0
+    val mockClient = OkHttpClient.Builder()
+      .addInterceptor { chain ->
+        if (chain.request().url.toString().contains("identitytoolkit")) {
+          signUpCalls++
+          Thread.sleep(60)
+          Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body("""{"localId":"serial_uid_1","idToken":"serial_tok_1","refreshToken":"serial_ref_1","expiresIn":"3600"}""".toResponseBody(null))
+            .build()
+        } else {
+          Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body("[]".toResponseBody(null))
+            .build()
+        }
+      }
+      .build()
+
+    val authRepo = AuthRepository(context = context, auth = null, httpClient = mockClient, apiKey = "k")
+    val (uid, token) = coroutineScope {
+      val d1 = async(Dispatchers.IO) { authRepo.ensureAuthenticated() }
+      val d2 = async(Dispatchers.IO) { authRepo.getIdToken() }
+      d1.await() to d2.await()
+    }
+
+    assertEquals("serial_uid_1", uid)
+    assertEquals("serial_tok_1", token)
+    assertEquals("Concurrent ensureAuthenticated and getIdToken must mint only 1 anonymous account", 1, signUpCalls)
+  }
+
+  @Test
+  fun `LeaderboardRepository enqueueRun with isCurrentRun false queues without clobbering active run state`() = runBlocking {
+    val api = FirestoreLeaderboardApi(projectId = "test-project", apiKey = "k")
+    val store = LeaderboardStore(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+    val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler)
+    repo.initialize()
+    repo.resetRunSubmissionState()
+
+    val staleRun = RunRecord(
+      id = "stale-run-99",
+      sectorName = "Sector Zero",
+      wavesCleared = 5,
+      enemiesKilled = 40,
+      totalDamage = 8000f,
+      scrapEarned = 300,
+      mvpTower = "Vulcan Minigun",
+      isVictory = false,
+      timestamp = System.currentTimeMillis(),
+      isDevTuned = false
+    )
+    repo.enqueueRun(staleRun, "Ace", isDevTuned = false, userId = "u1", isCurrentRun = false)
+
+    assertEquals(1, store.getPendingQueue().size)
+    assertNull(repo.boardState.value.lastRunId)
+    assertEquals(RunSubmissionState.NONE, repo.boardState.value.lastSubmissionState)
+  }
+
+  @Test
+  fun `RogueTDViewModel confirmEndRun on pre-wave-1 zero activity does not record phantom score`() = runBlocking {
+    val app = context.applicationContext as Application
+    val authRepo = AuthRepository(context, auth = null, apiKey = "")
+    val store = LeaderboardStore(context)
+    val scheduler = LeaderboardWorkScheduler(context)
+    val api = FirestoreLeaderboardApi(projectId = "", apiKey = "")
+    val repo = LeaderboardRepository(api = api, store = store, scheduler = scheduler, authRepo = authRepo)
+
+    val vm = RogueTDViewModel(
+      application = app,
+      authRepository = authRepo,
+      remoteConfigManager = RemoteConfigManager(null),
+      leaderboardRepository = repo
+    )
+    vm.confirmEndRun()
+    delay(150)
+
+    assertTrue("Zero-activity pre-wave-1 end run must not enqueue a score", store.getPendingQueue().isEmpty())
+    assertNull(vm.uiState.value.lastRunRecord)
+  }
+
+  private fun buildWorker(
+    api: FirestoreLeaderboardApi,
+    store: LeaderboardStore,
+    authRepo: AuthRepository,
+    attemptCount: Int = 0
+  ): ScoreSubmissionWorker {
+    val factory = object : WorkerFactory() {
+      override fun createWorker(
+        appContext: Context,
+        workerClassName: String,
+        workerParameters: WorkerParameters
+      ): ListenableWorker = ScoreSubmissionWorker(appContext, workerParameters, api, store, authRepo)
+    }
+    return TestListenableWorkerBuilder<ScoreSubmissionWorker>(context)
+      .setWorkerFactory(factory)
+      .setRunAttemptCount(attemptCount)
+      .build()
   }
 }
