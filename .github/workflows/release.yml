@@ -94,29 +94,33 @@ jobs:
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
         run: |
-          if ! ./gradlew testDebugUnitTest --no-configuration-cache --stacktrace; then
+          set -o pipefail
+          if ! ./gradlew testDebugUnitTest --no-configuration-cache --stacktrace 2>&1 | tee gradle_test.log; then
             echo "Initial Gradle test run failed; retrying with --refresh-dependencies..."
-            if ! ./gradlew testDebugUnitTest --no-configuration-cache --refresh-dependencies --stacktrace; then
+            if ! ./gradlew testDebugUnitTest --no-configuration-cache --refresh-dependencies --stacktrace 2>&1 | tee gradle_test.log; then
               echo "=== Failing Unit Test Summary ==="
               python3 - <<'PY' || true
           import glob, xml.etree.ElementTree as ET, os
-          summary_lines = ["## Failing Unit Tests"]
+          found = 0
           for path in sorted(glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml")):
               try:
                   root = ET.parse(path).getroot()
                   for tc in root.findall("testcase"):
                       fail = tc.find("failure") or tc.find("error")
                       if fail is not None:
-                          line = f"- `{tc.attrib.get('classname','')}.{tc.attrib.get('name','')}`: {fail.attrib.get('message','')}"
-                          print(line)
-                          print(fail.text or "")
-                          summary_lines.append(line)
+                          found += 1
+                          cls = tc.attrib.get("classname", "")
+                          name = tc.attrib.get("name", "")
+                          msg = (fail.attrib.get("message") or fail.text or "").strip().splitlines()[0:3]
+                          joined = " | ".join(msg).replace("\n", " ")[:300]
+                          print(f"::error::{cls}.{name}: {joined}")
               except Exception as e:
-                  print(f"Error parsing {path}: {e}")
-          step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
-          if step_summary and len(summary_lines) > 1:
-              with open(step_summary, "a", encoding="utf-8") as f:
-                  f.write("\n".join(summary_lines) + "\n")
+                  print(f"::error::XML parse error in {path}: {e}")
+          if found == 0 and os.path.exists("gradle_test.log"):
+              with open("gradle_test.log", "r", encoding="utf-8", errors="replace") as f:
+                  lines = [ln.strip() for ln in f.read().splitlines() if ln.strip()]
+              tail = " | ".join(lines[-15:])[:500]
+              print(f"::error::Gradle failed without failing XML testcases: {tail}")
           PY
               exit 1
             fi
