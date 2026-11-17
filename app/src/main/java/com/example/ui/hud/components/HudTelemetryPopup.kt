@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -125,11 +126,22 @@ internal fun HudTelemetryPopup(
                 )
                 .testTag("${popupTag}_scrim")
         ) {
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(safeInsets)
             ) {
+                val maxLocalWidth = if (isRotated) {
+                    (maxHeight - 32.dp).coerceIn(260.dp, 340.dp)
+                } else {
+                    (maxWidth - 24.dp).coerceIn(260.dp, 340.dp)
+                }
+                val maxLocalHeight = if (isRotated) {
+                    minOf((maxWidth - 36.dp).coerceAtLeast(180.dp), (maxLocalWidth - 20.dp).coerceAtLeast(180.dp))
+                } else {
+                    (maxHeight - 88.dp).coerceIn(200.dp, 460.dp)
+                }
+
                 AnimatedVisibility(
                     visibleState = visibleState,
                     enter = enter,
@@ -145,7 +157,8 @@ internal fun HudTelemetryPopup(
                         modifier = Modifier
                             .testTag(popupTag)
                             .hudCapsuleContainer(isRotated, animatedRotation)
-                            .widthIn(min = 260.dp, max = 340.dp)
+                            .widthIn(min = 260.dp, max = maxLocalWidth)
+                            .heightIn(max = maxLocalHeight)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -155,8 +168,16 @@ internal fun HudTelemetryPopup(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Box(
                                 modifier = Modifier
-                                    .then(if (scrollable) Modifier.heightIn(max = 280.dp) else Modifier)
-                                    .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                                    .weight(1f, fill = false)
+                                    .then(
+                                        if (scrollable) {
+                                            Modifier
+                                                .testTag("${popupTag}_scroll")
+                                                .verticalScroll(rememberScrollState())
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                             ) {
                                 content()
                             }

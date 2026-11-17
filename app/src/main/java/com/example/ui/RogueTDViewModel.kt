@@ -107,9 +107,18 @@ class RogueTDViewModel @JvmOverloads constructor(
         onRecordRunCompletion = ::recordRunCompletion
     )
 
+    companion object {
+        /** Global simulation baseline pace boost so 1X plays at ~1.85x prior baseline speed. */
+        const val BASE_SIM_SPEED_MULTIPLIER = 1.85f
+        private const val MAX_PHYSICS_SUBSTEP_SEC = 0.035f
+        private const val MAX_PHYSICS_SUBSTEPS = 8
+    }
+
     val placementCoordinator = TowerPlacementCoordinator(
         uiStateFlow = _uiState, soundManager = soundManager, telemetryManager = telemetryManager,
-        nextId = ::nextId, addFloatingText = ::addFloatingText, onSynergyDirty = ::markSynergyDirty
+        nextId = ::nextId, addFloatingText = ::addFloatingText, onSynergyDirty = ::markSynergyDirty,
+        onRedispatchEnemies = waveCoordinator::requeueActiveEnemies,
+        onResetTrackParticles = { lvl -> createInitialTrackParticles(lvl.laneAlpha, lvl.laneBeta) }
     )
 
     val assetVaultCoordinator = AssetVaultCoordinator(
@@ -527,7 +536,6 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) = soundManager.playTurretTestSound(towerClass, slot)
     fun playTowerUpgradeTestSound(towerClass: TowerClass, slot: Int) = soundManager.playTowerUpgradeTestSound(towerClass, slot)
-    fun setTowerVisualSkin(skin: String) = _uiState.update { it.copy(towerVisualSkin = skin) }
     fun playTestSound(fx: SoundFx) = soundManager.play(fx)
 
     fun startNewRun() {
@@ -558,7 +566,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 seed = seed, level = level, towers = emptyList(), enemies = emptyList(),
                 projectiles = emptyList(), laserBeams = emptyList(), lightningArcs = emptyList(),
                 explosions = emptyList(), floatingTexts = emptyList(), trackParticles = initialParticles,
-                activeGlobalSynergies = emptyList(), isSynergyPanelExpanded = false, animTimeMs = 0L,
+                activeGlobalSynergies = emptyList(), activeBoardSynergies = emptyList(), isSynergyPanelExpanded = false, animTimeMs = 0L,
                 harmonicGridDamageBoost = remoteConfigManager.harmonicGridDamageBoost,
                 globalKineticSpeedBonus = 0f, ascensionFrostSlowBonus = 0f, globalFrostSlowBonus = 0f, globalTeslaArcsEnabled = false,
                 globalMortarSplashBonus = 0f, globalSolarCritsEnabled = false, globalVoidShredEnabled = false,
@@ -599,9 +607,22 @@ class RogueTDViewModel @JvmOverloads constructor(
                 }
 
                 val speed = _uiState.value.gameSpeed.multiplier
-                val simDeltaSec = (deltaMs / 1000f) * (if (speed > 0f) speed else 1.0f)
                 if (speed > 0f && !_uiState.value.isGameOver && !_uiState.value.isVictory && !isInternalDialogActive()) {
-                    simulationCoordinator.tickSimulation(simDeltaSec, (deltaMs * speed).toLong(), now)
+                    val effectiveSpeed = speed * BASE_SIM_SPEED_MULTIPLIER
+                    val totalSimSec = (deltaMs / 1000f) * effectiveSpeed
+                    val totalSimMs = (deltaMs * effectiveSpeed).toLong().coerceAtLeast(1L)
+                    val steps = kotlin.math.ceil((totalSimSec / MAX_PHYSICS_SUBSTEP_SEC).toDouble())
+                        .toInt()
+                        .coerceIn(1, MAX_PHYSICS_SUBSTEPS)
+                    val stepSec = totalSimSec / steps
+                    val baseStepMs = totalSimMs / steps
+                    val remMs = totalSimMs % steps
+                    for (stepIdx in 0 until steps) {
+                        val s = _uiState.value
+                        if (s.isGameOver || s.isVictory || isInternalDialogActive()) break
+                        val stepMs = baseStepMs + if (stepIdx < remMs) 1L else 0L
+                        simulationCoordinator.tickSimulation(stepSec, stepMs, now)
+                    }
                 } else {
                     _uiState.update { it.copy(animTimeMs = now) }
                 }

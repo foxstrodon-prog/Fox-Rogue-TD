@@ -137,6 +137,8 @@ fun SingularityWarningDialog(
                     }
 
                     // Tabular telemetry readout
+                    val anchorTile = state.level?.tiles?.firstOrNull { it.pos == anchor?.gridPos }
+                    val isBoosterSpot = anchorTile != null && anchorTile.buff != com.example.model.TileBuff.NONE
                     Surface(
                         color = Color(0xFF131C2E).copy(alpha = 0.85f),
                         shape = RoundedCornerShape(12.dp),
@@ -161,6 +163,11 @@ fun SingularityWarningDialog(
                                 label = "REFUND BOUNTY (20%)",
                                 value = "+$scrapBounty c",
                                 valueColor = Color(0xFFFFD700)
+                            )
+                            SingularityTelemetryRow(
+                                label = "BATTLEFIELD RESET",
+                                value = if (isBoosterSpot) "NEW MAP + 2 BOOSTER PADS" else "NEW MAP + KEEP SPOT",
+                                valueColor = Color(0xFF00F0FF)
                             )
                             SingularityTelemetryRow(
                                 label = "GLOBAL AURA VAULT",
@@ -193,9 +200,9 @@ fun SingularityWarningDialog(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (state.isWaveActive) {
-                                    "ACTIVE WAVE: Creeps remain! Defense drops to 1 Capstone until you rebuild."
+                                    "ACTIVE WAVE: New map generates & active enemies reset to spawners! Defense drops to 1 Singularity until you rebuild."
                                 } else {
-                                    "INTERMISSION SAFE: Clears grid to draft a new turret generation."
+                                    "INTERMISSION SAFE: Generates a new map while preserving your Singularity spot${if (isBoosterSpot) " & linked booster pair" else ""}."
                                 },
                                 color = if (state.isWaveActive) Color(0xFFFFAB91) else Color(0xFFCBD5E1),
                                 fontSize = 9.5.sp,

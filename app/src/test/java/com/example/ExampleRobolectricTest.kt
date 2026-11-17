@@ -257,9 +257,9 @@ class ExampleRobolectricTest {
     assertEquals("▲", com.example.model.TowerClass.ELEMENTAL_VOID.shapeSymbol)
     assertEquals("Triangle", com.example.model.TowerClass.ELEMENTAL_VOID.shapeName)
 
-    // Square for Heavy Siege
-    assertEquals("■", com.example.model.TowerClass.HEAVY_SIEGE.shapeSymbol)
-    assertEquals("Square", com.example.model.TowerClass.HEAVY_SIEGE.shapeName)
+    // Hexagon for Heavy Siege
+    assertEquals("⬢", com.example.model.TowerClass.HEAVY_SIEGE.shapeSymbol)
+    assertEquals("Hexagon", com.example.model.TowerClass.HEAVY_SIEGE.shapeName)
   }
 
   @Test
@@ -574,9 +574,9 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify app build version is 0 0 1 040`() {
-    assertEquals("0.0.1.040", com.example.BuildConfig.VERSION_NAME)
-    assertEquals(61, com.example.BuildConfig.VERSION_CODE)
+  fun `verify app build version is 0 0 1 041`() {
+    assertEquals("0.0.1.041", com.example.BuildConfig.VERSION_NAME)
+    assertEquals(62, com.example.BuildConfig.VERSION_CODE)
   }
 
   @Test

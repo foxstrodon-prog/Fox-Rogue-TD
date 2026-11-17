@@ -22,6 +22,7 @@ import com.example.model.GlobalAuraSynergy
 @Composable
 internal fun HudSynergyCapsule(
     activeGlobalSynergies: List<GlobalAuraSynergy>,
+    activeBoardSynergies: List<GlobalAuraSynergy>? = null,
     maxConduitGen: Int,
     absorbedVaults: List<BankedSynergyVault>,
     absorbedSynergiesCount: Int,
@@ -30,8 +31,38 @@ internal fun HudSynergyCapsule(
     deviceAngle: Int = popupDeviceAngleFromCounterRotation(animatedRotation)
 ) {
     var showSynergyPopup by remember { mutableStateOf(false) }
-    val activeSynergiesCount = activeGlobalSynergies.size
-    val totalSynergiesCount = activeSynergiesCount
+    val singularitySynergiesCount = maxOf(
+        absorbedSynergiesCount,
+        absorbedVaults.sumOf { vault -> vault.synergies.sumOf { it.sourceCount } }
+    )
+    val boardSynergies = remember(activeBoardSynergies, activeGlobalSynergies, absorbedVaults) {
+        if (activeBoardSynergies != null) {
+            activeBoardSynergies
+        } else if (absorbedVaults.isEmpty()) {
+            activeGlobalSynergies
+        } else {
+            // Legacy caller provided combined activeGlobalSynergies without activeBoardSynergies:
+            // subtract vaulted counts so Singularity synergies are not double-counted.
+            val vaultedByName = mutableMapOf<String, Int>()
+            for (vault in absorbedVaults) {
+                for (syn in vault.synergies) {
+                    vaultedByName[syn.auraName] = (vaultedByName[syn.auraName] ?: 0) + syn.sourceCount
+                }
+            }
+            activeGlobalSynergies.mapNotNull { syn ->
+                val sub = vaultedByName[syn.auraName] ?: 0
+                if (sub <= 0) {
+                    syn
+                } else {
+                    val remaining = syn.sourceCount - sub
+                    vaultedByName[syn.auraName] = (sub - syn.sourceCount).coerceAtLeast(0)
+                    if (remaining > 0) syn.copy(sourceCount = remaining) else null
+                }
+            }
+        }
+    }
+    val boardSynergiesCount = boardSynergies.sumOf { it.sourceCount }
+    val totalSynergiesCount = boardSynergiesCount + singularitySynergiesCount
 
     Box(modifier = Modifier.hudCapsuleContainer(isRotated, animatedRotation)) {
         Surface(
@@ -81,10 +112,11 @@ internal fun HudSynergyCapsule(
                 scrollable = true
             ) {
                 SynergyBreakdownContent(
-                    activeGlobalSynergies = activeGlobalSynergies,
+                    boardSynergies = boardSynergies,
+                    boardSynergiesCount = boardSynergiesCount,
                     maxConduitGen = maxConduitGen,
                     absorbedVaults = absorbedVaults,
-                    absorbedSynergiesCount = absorbedSynergiesCount
+                    singularitySynergiesCount = singularitySynergiesCount
                 )
             }
         }
@@ -93,28 +125,35 @@ internal fun HudSynergyCapsule(
 
 @Composable
 private fun SynergyBreakdownContent(
-    activeGlobalSynergies: List<GlobalAuraSynergy>,
+    boardSynergies: List<GlobalAuraSynergy>,
+    boardSynergiesCount: Int,
     maxConduitGen: Int,
     absorbedVaults: List<BankedSynergyVault>,
-    absorbedSynergiesCount: Int
+    singularitySynergiesCount: Int
 ) {
-    Column {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "ACTIVE SYNERGIES (${activeGlobalSynergies.size})",
+            text = "ACTIVE SYNERGIES ($boardSynergiesCount)",
             color = Color(0xFFFFB800),
             fontWeight = FontWeight.Black,
             fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 2.dp)
+        )
+        Text(
+            text = "Board Live Synergies • ${boardSynergies.size} unique / $boardSynergiesCount total stacks",
+            color = Color(0xFF94A3B8),
+            fontSize = 8.5.sp,
             modifier = Modifier.padding(bottom = 4.dp)
         )
-        if (activeGlobalSynergies.isEmpty()) {
+        if (boardSynergies.isEmpty()) {
             Text(
-                text = "No active aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
+                text = "No active board aura synergies.\nAscend towers to Tier 3 to project global buffs across the battlefield.",
                 color = Color(0xFF94A3B8),
                 fontSize = 9.sp,
                 lineHeight = 12.sp
             )
         } else {
-            activeGlobalSynergies.forEach { syn ->
+            boardSynergies.forEach { syn ->
                 Column(modifier = Modifier.padding(vertical = 3.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = syn.iconEmoji, fontSize = 11.sp)
@@ -141,7 +180,7 @@ private fun SynergyBreakdownContent(
             color = Color(0xFF1E293B)
         )
         Text(
-            text = "⚡ ABSORBED CONDUIT SYNERGIES (GEN $maxConduitGen • $absorbedSynergiesCount Banked)",
+            text = "⚡ SINGULARITY TOWER (GEN $maxConduitGen • $singularitySynergiesCount Banked)",
             color = Color(0xFF00F0FF),
             fontWeight = FontWeight.Black,
             fontSize = 10.5.sp,
@@ -149,7 +188,7 @@ private fun SynergyBreakdownContent(
         )
         if (absorbedVaults.isEmpty()) {
             Text(
-                text = "No absorbed conduit synergies yet. Reach Tier 3 on all towers and ascend into a Conduit to permanently bank synergies.",
+                text = "No Singularity Tower forged yet. Fill all pads with Tier 3 towers and collapse the board to bank synergies permanently.",
                 color = Color(0xFF64748B),
                 fontSize = 9.sp,
                 lineHeight = 12.sp
@@ -162,14 +201,14 @@ private fun SynergyBreakdownContent(
                             Text(text = syn.iconEmoji, fontSize = 11.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "${syn.auraName} [Gen ${vault.generation}]",
+                                text = "${syn.auraName} (${syn.sourceCount}x) [Gen ${vault.generation}]",
                                 color = Color(syn.color),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp
                             )
                         }
                         Text(
-                            text = "${syn.effectDescription} • [PERMANENT CORE BUFF]",
+                            text = "${syn.effectDescription} • [PERMANENT SINGULARITY BUFF]",
                             color = Color(0xFF00FF9D),
                             fontSize = 8.5.sp,
                             lineHeight = 11.sp

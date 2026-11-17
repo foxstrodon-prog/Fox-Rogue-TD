@@ -123,35 +123,41 @@ object WaveGenerator {
 
         when (difficulty) {
             GameDifficulty.EASY -> {
-                baseHpScale = (1.0f + (waveNumber - 1) * 0.16f) * difficulty.hpScaleMultiplier
-                baseSpeedScale = (1.0f + minOf(0.25f, (waveNumber - 1) * 0.015f)) * difficulty.speedScaleMultiplier
+                val post12 = if (waveNumber > 12) (waveNumber - 12) * 0.16f else 0f
+                val post20Exp = if (waveNumber > 20) Math.pow(1.055, (waveNumber - 20).toDouble()).toFloat() else 1.0f
+                baseHpScale = ((1.0f + (waveNumber - 1) * 0.20f + post12) * post20Exp) * difficulty.hpScaleMultiplier
+                baseSpeedScale = (1.0f + minOf(0.35f, (waveNumber - 1) * 0.018f)) * difficulty.speedScaleMultiplier
             }
             GameDifficulty.MEDIUM -> {
-                baseHpScale = 1.0f + (waveNumber - 1) * 0.20f + if (waveNumber > 10) (waveNumber - 10) * 0.12f else 0f
-                baseSpeedScale = 1.0f + minOf(0.35f, (waveNumber - 1) * 0.02f)
+                val post10 = if (waveNumber > 10) (waveNumber - 10) * 0.22f else 0f
+                val post22Exp = if (waveNumber > 22) Math.pow(1.06, (waveNumber - 22).toDouble()).toFloat() else 1.0f
+                baseHpScale = ((1.0f + (waveNumber - 1) * 0.24f + post10) * post22Exp) * difficulty.hpScaleMultiplier
+                baseSpeedScale = (1.0f + minOf(0.45f, (waveNumber - 1) * 0.022f)) * difficulty.speedScaleMultiplier
             }
             GameDifficulty.HARD -> {
-                val pre30Base = 1.0f + (waveNumber - 1) * 0.22f + if (waveNumber > 10) (waveNumber - 10) * 0.14f else 0f
+                val pre30Base = 1.0f + (waveNumber - 1) * 0.28f + if (waveNumber > 8) (waveNumber - 8) * 0.24f else 0f
+                val midExp = if (waveNumber > 16) Math.pow(1.04, minOf(waveNumber - 16, 14).toDouble()).toFloat() else 1.0f
                 if (waveNumber <= 30) {
-                    baseHpScale = pre30Base * difficulty.hpScaleMultiplier
+                    baseHpScale = pre30Base * midExp * difficulty.hpScaleMultiplier
                 } else {
+                    val w30Value = (1.0f + 29 * 0.28f + 22 * 0.24f) * Math.pow(1.04, 14.0).toFloat() * difficulty.hpScaleMultiplier
                     val post30 = (waveNumber - 30).toDouble()
-                    val expCurve = 1.35f * Math.pow(1.045, post30).toFloat()
-                    baseHpScale = (1.0f + 29 * 0.22f + 20 * 0.14f) * expCurve
+                    val expCurve = Math.pow(1.065, post30).toFloat()
+                    baseHpScale = w30Value * expCurve
                 }
-                baseSpeedScale = (1.0f + minOf(0.40f, (waveNumber - 1) * 0.025f)) * difficulty.speedScaleMultiplier
+                baseSpeedScale = (1.0f + minOf(0.55f, (waveNumber - 1) * 0.028f)) * difficulty.speedScaleMultiplier
             }
             GameDifficulty.INFINITE -> {
-                val w50Base = 1.0f + 49 * 0.20f + 40 * 0.12f
+                val w50Base = 1.0f + 49 * 0.24f + 40 * 0.20f
                 if (waveNumber <= 50) {
-                    baseHpScale = 1.0f + (waveNumber - 1) * 0.20f + if (waveNumber > 10) (waveNumber - 10) * 0.12f else 0f
-                    baseSpeedScale = 1.0f + minOf(0.35f, (waveNumber - 1) * 0.02f)
+                    baseHpScale = (1.0f + (waveNumber - 1) * 0.24f + if (waveNumber > 10) (waveNumber - 10) * 0.20f else 0f) * difficulty.hpScaleMultiplier
+                    baseSpeedScale = (1.0f + minOf(0.45f, (waveNumber - 1) * 0.022f)) * difficulty.speedScaleMultiplier
                 } else {
                     val post50 = (waveNumber - 50).toDouble()
                     val safePost50 = minOf(post50, 300.0)
                     val expCurve = Math.pow(1.08, safePost50).toFloat()
-                    baseHpScale = minOf(1.0e12f, w50Base * expCurve)
-                    baseSpeedScale = minOf(2.2f, 1.35f + (waveNumber - 50) * 0.015f)
+                    baseHpScale = minOf(1.0e12f, (w50Base * difficulty.hpScaleMultiplier) * expCurve)
+                    baseSpeedScale = minOf(2.2f, (1.45f + (waveNumber - 50) * 0.015f) * difficulty.speedScaleMultiplier)
                 }
             }
         }
@@ -418,8 +424,8 @@ object WaveGenerator {
             }
         }
 
-        // Calibrated difficulty-aware wave completion scrap bonus ensuring full-board Synergy Singularity feasibility
-        val baseBonusScrap = 65 + waveNumber * 12 + if (isBossWave) 90 else 0
+        // Calibrated difficulty-aware wave completion scrap bonus curbing late-game runaway while keeping full-board Singularity viable
+        val baseBonusScrap = 40 + minOf(waveNumber, 40) * 6 + if (isBossWave) 70 else 0
         val bonusScrap = (baseBonusScrap * difficulty.scrapIncomeMultiplier).toInt()
 
         val displayModifier = if (difficulty != GameDifficulty.MEDIUM) {

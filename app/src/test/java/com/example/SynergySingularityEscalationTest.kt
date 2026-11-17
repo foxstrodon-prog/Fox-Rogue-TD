@@ -163,9 +163,9 @@ class SynergySingularityEscalationTest {
         assertEquals(100, GameDifficulty.HARD.maxWave)
         assertEquals(Int.MAX_VALUE, GameDifficulty.INFINITE.maxWave)
 
-        assertEquals(0.80f, GameDifficulty.EASY.hpScaleMultiplier, 0.001f)
-        assertEquals(1.00f, GameDifficulty.MEDIUM.hpScaleMultiplier, 0.001f)
-        assertEquals(1.25f, GameDifficulty.HARD.hpScaleMultiplier, 0.001f)
+        assertEquals(1.00f, GameDifficulty.EASY.hpScaleMultiplier, 0.001f)
+        assertEquals(1.25f, GameDifficulty.MEDIUM.hpScaleMultiplier, 0.001f)
+        assertEquals(1.60f, GameDifficulty.HARD.hpScaleMultiplier, 0.001f)
     }
 
     @Test

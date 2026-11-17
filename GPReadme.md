@@ -4,7 +4,19 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.040
+### 🚀 What's New in Version 0.0.1.041
+
+⚛️ **Singularity Remaps, Synergy HUD & Skin Previews, Balance Overhaul & Hexagon Siege**
+- **Bullet HUD Synergies & Singularity Tracking:** The synergy pill now counts duplicate tower sources, splits Active Board Synergies from the Singularity Tower's vaulted stacks in a dedicated secondary section, and scrolls cleanly across all 4 screen rotations.
+- **Singularity New Map & Booster Preservation:** Collapsing into a Singularity now generates a brand-new battlefield around your preserved anchor spot (or both linked pads if built on a Booster Pair) and safely resets active wave enemies to the new spawners.
+- **Live Skin & Map Theme Previews:** Preview all 4 tower shapes side-by-side for any Turret Skin and inspect dual-lane Map & Lane Environment themes live before equipping in Customization and the Sound & Skin Vault.
+- **Faster 1X Pace & Rebalanced Difficulty:** Increased baseline `1X` game speed (`1.85x`) with anti-tunneling sub-stepping, curbed late-game scrap inflation, and steepened Easy/Medium/Hard scaling while updating Kinetic Tier-4 aura pulses, Heavy Siege Hexagon (`⬢`) silhouettes, and glowing blank buildable pads (`250/250` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.040
 
 🗂️ **Versioned Sound & Skin Archives + 4 New Variants Across Every Category**
 - **Build-Over-Build Sound & Skin Library:** Every update now keeps the canonical Default loadout intact, archives the previous build's variants, and adds 4 fresh options across Turret Fire, Upgrades, BGM Tracks, SFX Packs, Turret Skins, and Map Themes (`v0.0.1.040` / Build #61).

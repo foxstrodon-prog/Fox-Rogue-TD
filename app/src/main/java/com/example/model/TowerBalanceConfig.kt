@@ -45,13 +45,13 @@ enum class TowerClass(
     val shapeSymbol: String get() = when (this) {
         KINETIC_BALLISTIC -> "●"
         ELEMENTAL_VOID -> "▲"
-        HEAVY_SIEGE -> "■"
+        HEAVY_SIEGE -> "⬢"
         STELLAR_COSMIC -> "★"
     }
     val shapeName: String get() = when (this) {
         KINETIC_BALLISTIC -> "Circle"
         ELEMENTAL_VOID -> "Triangle"
-        HEAVY_SIEGE -> "Square"
+        HEAVY_SIEGE -> "Hexagon"
         STELLAR_COSMIC -> "Star"
     }
 }

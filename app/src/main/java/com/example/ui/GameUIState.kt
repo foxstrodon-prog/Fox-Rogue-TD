@@ -61,6 +61,8 @@ data class GameUIState(
     val bestWaveRecord: Int = 1,
     val trackParticles: List<TrackParticle> = emptyList(),
     val activeGlobalSynergies: List<GlobalAuraSynergy> = emptyList(),
+    /** Live Tier-3+ board synergies only (excluding Capstone/Singularity vault); null when unset in isolated tests. */
+    val activeBoardSynergies: List<GlobalAuraSynergy>? = null,
     val isSynergyPanelExpanded: Boolean = false,
     val showEndRunConfirmDialog: Boolean = false,
     val harmonicGridActive: Boolean = false,
@@ -102,7 +104,6 @@ data class GameUIState(
     val mapThemeId: String = "default_theme_1",
     val bgmTrackId: String = "default_bgm_rolling_playlist",
     val sfxPackId: String = "default_sfx_pack_cyber_synth",
-    val towerVisualSkin: String = "Vector Blueprint",
     val activeCinematic: ActiveCinematicState? = null,
     val difficulty: GameDifficulty = GameDifficulty.MEDIUM,
     val isSingularityWarningOpen: Boolean = false,

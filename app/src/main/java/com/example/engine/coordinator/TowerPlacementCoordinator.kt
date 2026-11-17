@@ -2,6 +2,7 @@ package com.example.engine.coordinator
 
 import com.example.audio.SoundFx
 import com.example.audio.SoundManager
+import com.example.engine.MapGenerator
 import com.example.engine.TelemetryManager
 import com.example.engine.TowerUpgradeManager
 import com.example.model.*
@@ -20,7 +21,9 @@ class TowerPlacementCoordinator(
     private val telemetryManager: TelemetryManager,
     private val nextId: (String) -> String,
     private val addFloatingText: (Float, Float, String, Long, Boolean) -> Unit,
-    private val onSynergyDirty: () -> Unit
+    private val onSynergyDirty: () -> Unit,
+    private val onRedispatchEnemies: ((List<EnemyInstance>) -> Unit)? = null,
+    private val onResetTrackParticles: ((GeneratedLevel) -> List<TrackParticle>)? = null
 ) {
     private var lastBoosterSwapTimeMs: Long = 0L
 
@@ -480,11 +483,70 @@ class TowerPlacementCoordinator(
             if (it.isCapstone) it.copy(isCapstone = false, synergyVault = mutableListOf()) else it
         }
         mergedVault.add(BankedSynergyVault(generation = nextGen, synergies = computeSynergies(sacrificedLiveOnly)))
+        val anchorTile = state.level?.tiles?.firstOrNull { it.pos == anchor.gridPos }
+        val preservedEmptySpots = setOf(anchor.gridPos)
+        val preservedBuffPads: Map<TileBuff, Pair<GridPos, GridPos>> = if (anchorTile != null && anchorTile.buff != TileBuff.NONE) {
+            val pads = state.level.tiles.filter { it.buff == anchorTile.buff }
+            if (pads.size == 2) mapOf(anchorTile.buff to (pads[0].pos to pads[1].pos)) else emptyMap()
+        } else {
+            emptyMap()
+        }
+
+        val currentLevel = state.level
+        val newLevel = if (currentLevel != null && currentLevel.width >= 6 && currentLevel.height >= 6) {
+            val nextSeed = state.seed + (nextGen.toLong() * 104_729L) + (sacrificed.size * 7_919L) + 1_337L
+            MapGenerator.generate(
+                seed = nextSeed,
+                width = currentLevel.width,
+                height = currentLevel.height,
+                minLaneLength = state.balanceConfig.minLaneLength,
+                maxLaneLength = state.balanceConfig.maxLaneLength,
+                targetOpenSlots = state.balanceConfig.getTargetOpenSlotsForDifficulty(state.difficulty),
+                minLaneOverlap = state.balanceConfig.minLaneOverlap,
+                maxLaneOverlap = state.balanceConfig.maxLaneOverlap,
+                preservedEmptySpots = preservedEmptySpots,
+                preservedBuffPads = preservedBuffPads
+            )
+        } else {
+            currentLevel
+        }
+
         val ascendedAnchor = anchor.copy(
             isCapstone = true,
             generation = nextGen,
-            synergyVault = mergedVault
+            synergyVault = mergedVault,
+            targetEnemyId = null
         )
+
+        val activeEnemies = state.enemies.filter { !it.isDead }
+        val nextEnemies: List<EnemyInstance> = if (activeEnemies.isNotEmpty() && newLevel != null) {
+            if (onRedispatchEnemies != null) {
+                onRedispatchEnemies.invoke(activeEnemies)
+                emptyList()
+            } else {
+                activeEnemies.forEach { enemy ->
+                    val path = if (enemy.laneIndex == 0) newLevel.laneAlpha else newLevel.laneBeta
+                    val start = path.first()
+                    enemy.currentPathSegmentIndex = 0
+                    enemy.segmentProgress = 0f
+                    enemy.worldX = start.x.toFloat()
+                    enemy.worldY = start.y.toFloat()
+                    enemy.slowTimerMs = 0L
+                    enemy.shockTimerMs = 0L
+                    enemy.headingRad = 0f
+                }
+                activeEnemies
+            }
+        } else {
+            emptyList()
+        }
+
+        val nextTrackParticles = if (newLevel != null && newLevel !== currentLevel) {
+            onResetTrackParticles?.invoke(newLevel) ?: state.trackParticles
+        } else {
+            state.trackParticles
+        }
+        val nextSelectedTile = newLevel?.tiles?.firstOrNull { it.pos == ascendedAnchor.gridPos } ?: state.selectedTile
 
         val newExplosions = state.explosions.toMutableList()
         sacrificed.forEach { st ->
@@ -496,7 +558,15 @@ class TowerPlacementCoordinator(
 
         uiStateFlow.update {
             it.copy(
+                seed = newLevel?.seed ?: it.seed,
+                level = newLevel,
                 towers = listOf(ascendedAnchor),
+                enemies = nextEnemies,
+                projectiles = emptyList(),
+                laserBeams = emptyList(),
+                lightningArcs = emptyList(),
+                trackParticles = nextTrackParticles,
+                selectedTile = nextSelectedTile,
                 selectedTower = ascendedAnchor,
                 lastSelectedTowerId = ascendedAnchor.id,
                 scrap = (it.scrap - ascensionCost).coerceAtLeast(0) + scrapBounty,

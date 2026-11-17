@@ -102,10 +102,10 @@ enum class GameDifficulty(
     val enemyCountMultiplier: Float,
     val scrapIncomeMultiplier: Float = 1.0f
 ) {
-    EASY("easy", "EASY", 30, "Reconnaissance: Wave 30 Milestone (-20% HP, -10% Speed)", 0.80f, 0.90f, 0.85f, 1.45f),
-    MEDIUM("medium", "MEDIUM", 50, "Standard Defense: Wave 50 Milestone (Calibrated Baseline)", 1.00f, 1.00f, 1.00f, 1.20f),
-    HARD("hard", "HARD", 100, "Endgame Gauntlet: Wave 100 Milestone (True Exponential Past W30)", 1.25f, 1.05f, 1.15f, 1.05f),
-    INFINITE("infinite", "INFINITE", Int.MAX_VALUE, "Endless Incursion: Infinite Scaling (1.08^W Past W50)", 1.00f, 1.00f, 1.00f, 1.00f)
+    EASY("easy", "EASY", 30, "Reconnaissance: Wave 30 Milestone (Balanced Economy)", 1.00f, 0.95f, 0.90f, 1.00f),
+    MEDIUM("medium", "MEDIUM", 50, "Standard Defense: Wave 50 Milestone (Singularity Recommended)", 1.25f, 1.05f, 1.00f, 0.85f),
+    HARD("hard", "HARD", 100, "Endgame Gauntlet: Wave 100 Milestone (Singularity Escalation)", 1.60f, 1.12f, 1.15f, 0.72f),
+    INFINITE("infinite", "INFINITE", Int.MAX_VALUE, "Endless Incursion: Infinite Scaling (1.08^W Past W50)", 1.20f, 1.05f, 1.00f, 0.80f)
 }
 
 enum class TargetPriority(val label: String) {

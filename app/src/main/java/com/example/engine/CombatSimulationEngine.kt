@@ -100,7 +100,7 @@ class CombatSimulationEngine(
             } else {
                 val p0 = path[enemy.currentPathSegmentIndex]
                 val p1 = path[enemy.currentPathSegmentIndex + 1]
-                val t = if (enemy.segmentProgress.isFinite()) enemy.segmentProgress else 0f
+                val t = if (enemy.segmentProgress.isFinite()) enemy.segmentProgress.coerceIn(0f, 1f) else 0f
                 val wx = p0.x + (p1.x - p0.x) * t
                 val wy = p0.y + (p1.y - p0.y) * t
                 enemy.worldX = if (wx.isFinite()) wx else p0.x.toFloat()

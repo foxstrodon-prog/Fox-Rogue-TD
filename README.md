@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.040`):** [`apk/Dual-Front-TD-v0.0.1.040-debug.apk`](apk/Dual-Front-TD-v0.0.1.040-debug.apk)
+- **Latest Android APK (`v0.0.1.041`):** [`apk/Dual-Front-TD-v0.0.1.041-debug.apk`](apk/Dual-Front-TD-v0.0.1.041-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,25 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.040
+## 🕹️ What's New in Version 0.0.1.041
+
+### ⚛️ Singularity Remap, Synergy HUD & Skin Previews, Speed/Economy Balance & Tower Polish (`versionCode = 62`)
+- **Bullet HUD Synergies (`HudSynergyCapsule.kt`, `HudTelemetryPopup.kt`, `TowerUpgradeManager.kt`, `HudTopBar.kt`):**
+  - Separated live **Active Board Synergies** from the **Singularity Tower** vault in a two-section telemetry popup, included duplicate `sourceCount` stacks in the HUD pill and headers, and added orientation-aware `BoxWithConstraints` scrolling across all 4 rotations (`0°/90°/180°/270°`) with `CLOSE` pinned.
+- **Singularity Collapse New Map & Mid-Round Safety (`TowerPlacementCoordinator.kt`, `MapGenerator.kt`, `WaveProgressionCoordinator.kt`, `SingularityWarningDialog.kt`):**
+  - Collapsing into a Singularity now generates a fresh dual-lane map while preserving the anchor tower's tile—or both linked pads when anchored on an Amplifier, High Ground, or Conduit booster pair—and cleanly resets/stagger-redispatches living mid-round enemies from the new spawners.
+- **Interactive Skin & Theme Previews (`AudioVisualCustomizationPanel.kt`, `AssetVaultDialog.kt`):**
+  - Added live multi-class Turret Skin previews (Kinetic Circle, Elemental Triangle, Heavy Hexagon, Stellar Star) and dual-lane Map & Lane Theme previews with Preview-vs-Equip support in both Customization and the Sound & Skin Vault, and removed unused `towerVisualSkin`.
+- **1X Simulation Pace & Difficulty/Economy Rebalance (`RogueTDViewModel.kt`, `GameModels.kt`, `WaveGenerator.kt`, `SimulationCoordinator.kt`):**
+  - Boosted baseline `1X` simulation pace (`BASE_SIM_SPEED_MULTIPLIER = 1.85f`) with fixed physics sub-stepping to prevent high-speed tunneling, capped additive kill-bounty inflation, added late-wave density decay, tightened wave completion scrap, and steepened Easy/Medium/Hard HP & speed scaling.
+- **Tower & Pad Visual Upgrades (`EntityRenderer.kt`, `TowerUpgradeBar.kt`, `TowerBalanceConfig.kt`, `TerrainRenderer.kt`):**
+  - Added Tier-4 aura pulsing and upgraded layered geometry to `KINETIC_BALLISTIC` across all 5 draw styles, switched `HEAVY_SIEGE` visuals and silhouettes to **Hexagon (`⬢`)** while preserving `EnemyShape.SQUARE` combat interactions, and added a glowing perimeter outline and subtle fade pulse to unoccupied blank buildable pads (`250/250` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.040
 
 ### 🗂️ Versioned Sound & Skin Archive Library (`versionCode = 61`)
 - **Build-Over-Build Versioned Asset Registry (`AssetCatalogModels.kt`, `BuildArchiveCatalog.kt`, `BuildArchiveVisualCatalog.kt`, `ArchivedAudioSynthesizer.kt`):**

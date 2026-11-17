@@ -321,7 +321,11 @@ object TowerUpgradeManager {
         return (tower.type.baseCost * 2.0f).toInt()
     }
 
-    fun computeActiveSynergies(towers: List<TowerInstance>): List<GlobalAuraSynergy> {
+    /**
+     * Computes only the live Tier-3+ global aura synergies currently active on the board
+     * (excluding banked Singularity/Capstone vault synergies so board and Capstone can be tracked separately).
+     */
+    fun computeBoardSynergies(towers: List<TowerInstance>): List<GlobalAuraSynergy> {
         val counts = LinkedHashMap<Pair<TowerArchetype, Int>, Int>()
         for (i in towers.indices) {
             val t = towers[i]
@@ -331,7 +335,7 @@ object TowerUpgradeManager {
                 counts[key] = (counts[key] ?: 0) + 1
             }
         }
-        val activeList = counts.map { (key, count) ->
+        return counts.map { (key, count) ->
             val (arch, auraIdx) = key
             val aura = if (auraIdx == 1) arch.secondaryAura else arch.primaryAura
             val emoji = when (arch.towerClass) {
@@ -341,7 +345,11 @@ object TowerUpgradeManager {
                 TowerClass.STELLAR_COSMIC -> "★"
             }
             GlobalAuraSynergy(aura.name, aura.description, count, emoji, arch.color)
-        }.toMutableList()
+        }
+    }
+
+    fun computeActiveSynergies(towers: List<TowerInstance>): List<GlobalAuraSynergy> {
+        val activeList = computeBoardSynergies(towers).toMutableList()
 
         val capstone = towers.firstOrNull { it.isCapstone }
         if (capstone != null && capstone.synergyVault.isNotEmpty()) {

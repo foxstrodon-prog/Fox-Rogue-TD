@@ -60,11 +60,13 @@ class SimulationCoordinator(
 
     var isSynergyCacheDirty: Boolean = true
     private var cachedSynergies: List<GlobalAuraSynergy> = emptyList()
+    private var cachedBoardSynergies: List<GlobalAuraSynergy> = emptyList()
 
     fun resetVirtualTime() {
         virtualSimTimeMs = 0L
         isSynergyCacheDirty = true
         cachedSynergies = emptyList()
+        cachedBoardSynergies = emptyList()
         cachedLevelForTiles = null
         tileByPos.clear()
         cachedBoostedTilesExist = false
@@ -213,7 +215,6 @@ class SimulationCoordinator(
         val isHarmonicActive = harmonicCount >= 6 && boostedTilesExist
         val remoteHarmonicDmgBoost = remoteConfigManager.harmonicGridDamageBoost
         val harmonicDmgBonus = if (isHarmonicActive) remoteHarmonicDmgBoost else 0.0f
-        val harmonicIncomeMul = if (isHarmonicActive) 1.25f else 1.0f
         var frameDamageDealt = 0f
         var killsGained = 0
         var scrapGained = 0
@@ -308,15 +309,30 @@ class SimulationCoordinator(
                 }
             }
 
-            val conduitIncomeBonus = 1.0f + (conduitTilesCount * 0.15f)
-            val padEconomyBonus = 1.0f + (harmonicCount * 0.03f)
+            val auraScrapBonus = (globalScrapBonus - 1.0f).coerceIn(0f, 0.75f)
+            val conduitBonus = minOf(0.20f, conduitTilesCount * 0.10f)
+            val padBonus = minOf(0.12f, harmonicCount * 0.02f)
+            val harmonicBonus = if (isHarmonicActive) 0.15f else 0f
+            val totalAdditiveIncomeBonus = 1.0f + minOf(0.90f, auraScrapBonus + conduitBonus + padBonus + harmonicBonus)
+            val waveDensityDecay = if (state.waveNumber <= 12) {
+                1.0f
+            } else {
+                (1.0f / (1.0f + (state.waveNumber - 12) * 0.045f)).coerceAtLeast(0.32f)
+            }
             val diffIncomeMul = state.difficulty.scrapIncomeMultiplier
 
             for (i in survivingEnemies.indices) {
                 val enemy = survivingEnemies[i]
                 if (enemy.isDead) {
                     killsGained++
-                    val bounty = (enemy.type.scrapValue * diffIncomeMul * globalScrapBonus * state.balanceConfig.globalIncomeMultiplier * remoteConfigManager.scrapBountyMultiplier * conduitIncomeBonus * harmonicIncomeMul * padEconomyBonus).roundToInt().coerceAtLeast(1)
+                    val bounty = (
+                        enemy.type.scrapValue *
+                            diffIncomeMul *
+                            totalAdditiveIncomeBonus *
+                            waveDensityDecay *
+                            state.balanceConfig.globalIncomeMultiplier *
+                            remoteConfigManager.scrapBountyMultiplier
+                        ).roundToInt().coerceAtLeast(1)
                     scrapGained += bounty
                     queueFloatingText(enemy.worldX, enemy.worldY, "+$bounty", 0xFFFFD700, false)
                 } else remainingAlive.add(enemy)
@@ -357,16 +373,26 @@ class SimulationCoordinator(
             updatedFloatingTexts.add(scratchNewFloatingTexts[i])
         }
 
-        val synergies = if (isSynergyCacheDirty) {
-            computeActiveSynergies(towers).also { cachedSynergies = it; isSynergyCacheDirty = false }
-        } else cachedSynergies
+        val synergies: List<GlobalAuraSynergy>
+        val boardSynergies: List<GlobalAuraSynergy>
+        if (isSynergyCacheDirty) {
+            boardSynergies = TowerUpgradeManager.computeBoardSynergies(towers)
+            synergies = computeActiveSynergies(towers)
+            cachedBoardSynergies = boardSynergies
+            cachedSynergies = synergies
+            isSynergyCacheDirty = false
+        } else {
+            boardSynergies = cachedBoardSynergies
+            synergies = cachedSynergies
+        }
 
         uiStateFlow.update { prev ->
             prev.copy(
                 enemies = remainingAlive, projectiles = survivingProjectiles,
                 laserBeams = newBeams, lightningArcs = newArcs, explosions = newExplosions,
                 floatingTexts = updatedFloatingTexts, trackParticles = updatedParticles,
-                activeGlobalSynergies = synergies, harmonicGridActive = isHarmonicActive,
+                activeGlobalSynergies = synergies, activeBoardSynergies = boardSynergies,
+                harmonicGridActive = isHarmonicActive,
                 harmonicPadsCount = harmonicCount, harmonicGridDamageBoost = remoteHarmonicDmgBoost,
                 globalRangeBonus = globalRangeBonus, globalFrostSlowBonus = globalSlowBonus,
                 animTimeMs = nowMs, coreHp = newCoreHp,

@@ -63,7 +63,9 @@ fun MinimalTopHud(
     val capstoneTowers = remember(state.towers) { state.towers.filter { it.isCapstone } }
     val maxConduitGen = remember(capstoneTowers) { capstoneTowers.maxOfOrNull { it.generation } ?: 0 }
     val absorbedVaults = remember(capstoneTowers) { capstoneTowers.flatMap { it.synergyVault } }
-    val absorbedSynergiesCount = remember(absorbedVaults) { absorbedVaults.sumOf { it.synergies.size } }
+    val absorbedSynergiesCount = remember(absorbedVaults) {
+        absorbedVaults.sumOf { vault -> vault.synergies.sumOf { it.sourceCount } }
+    }
     val activeEnemyCount = maxOf(state.activeEnemyCount, state.enemies.size)
     val harmonicDmgPct = (state.harmonicGridDamageBoost * 100f).roundToInt()
     val isBossWave = state.currentWaveData?.isBossWave == true
@@ -194,6 +196,7 @@ fun MinimalTopHud(
             // 5. Consolidated Synergies Indicator
             HudSynergyCapsule(
                 activeGlobalSynergies = state.activeGlobalSynergies,
+                activeBoardSynergies = state.activeBoardSynergies,
                 maxConduitGen = maxConduitGen,
                 absorbedVaults = absorbedVaults,
                 absorbedSynergiesCount = absorbedSynergiesCount,

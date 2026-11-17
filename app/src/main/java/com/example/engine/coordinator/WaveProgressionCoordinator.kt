@@ -24,17 +24,37 @@ class WaveProgressionCoordinator(
     private val onRecordRunCompletion: (Boolean, Int) -> Unit
 ) {
     private val pendingSpawns = ArrayList<EnemySpawnEntry>(64)
+    private val redispatchEnemies = ArrayList<EnemyInstance>(64)
     private var nextSpawnTimeMs: Long = 0L
     var waveHasStartedSpawning: Boolean = false
         private set
 
     fun clearPendingSpawns() {
         pendingSpawns.clear()
+        redispatchEnemies.clear()
         waveHasStartedSpawning = false
         nextSpawnTimeMs = 0L
     }
 
-    fun hasPendingSpawns(): Boolean = pendingSpawns.isNotEmpty()
+    fun hasPendingSpawns(): Boolean = pendingSpawns.isNotEmpty() || redispatchEnemies.isNotEmpty()
+
+    /**
+     * Re-queues living enemies from a Singularity collapse so they emerge staggered from the new map's spawners
+     * without stacking on frame 0 or causing instant core breaches.
+     */
+    fun requeueActiveEnemies(enemies: List<EnemyInstance>) {
+        redispatchEnemies.clear()
+        for (i in enemies.indices) {
+            val e = enemies[i]
+            if (!e.isDead) {
+                redispatchEnemies.add(e)
+            }
+        }
+        if (redispatchEnemies.isNotEmpty()) {
+            nextSpawnTimeMs = 300L
+            waveHasStartedSpawning = true
+        }
+    }
 
     /**
      * Deploys the next wave and initializes dual-lane spawn queues.
@@ -51,6 +71,7 @@ class WaveProgressionCoordinator(
             state.difficulty
         )
         pendingSpawns.clear()
+        redispatchEnemies.clear()
         pendingSpawns.addAll(waveData.spawnList)
         nextSpawnTimeMs = 300L
         waveHasStartedSpawning = false
@@ -72,36 +93,55 @@ class WaveProgressionCoordinator(
         deltaMs: Long,
         targetEnemies: MutableList<EnemyInstance>
     ) {
-        if (!state.isWaveActive || pendingSpawns.isEmpty()) return
+        if (!state.isWaveActive || (pendingSpawns.isEmpty() && redispatchEnemies.isEmpty())) return
 
         nextSpawnTimeMs -= deltaMs
         if (nextSpawnTimeMs <= 0L) {
-            val spawn = pendingSpawns.removeAt(0)
             waveHasStartedSpawning = true
+            if (redispatchEnemies.isNotEmpty()) {
+                val recycled = redispatchEnemies.removeAt(0)
+                val path = if (recycled.laneIndex == 0) level.laneAlpha else level.laneBeta
+                val start = path.first()
+                recycled.currentPathSegmentIndex = 0
+                recycled.segmentProgress = 0f
+                recycled.worldX = start.x.toFloat()
+                recycled.worldY = start.y.toFloat()
+                recycled.slowTimerMs = 0L
+                recycled.shockTimerMs = 0L
+                recycled.headingRad = 0f
+                targetEnemies.add(recycled)
 
-            val path = if (spawn.laneIndex == 0) level.laneAlpha else level.laneBeta
-            val start = path.first()
-            val customEnemyBal = state.balanceConfig.getEnemyBalance(spawn.type)
-            val bossMul = if (spawn.isBoss) remoteConfigManager.bossHealthMultiplier else 1.0f
-            val hpMultiplier = spawn.hpScale * state.balanceConfig.enemyHpMultiplier * remoteConfigManager.waveHpMultiplier * bossMul
-            val effectiveMaxHp = customEnemyBal.hp * hpMultiplier
+                nextSpawnTimeMs = when {
+                    redispatchEnemies.isNotEmpty() -> if (recycled.isBoss) 750L else 380L
+                    pendingSpawns.isNotEmpty() -> pendingSpawns[0].delayMs
+                    else -> 0L
+                }
+            } else {
+                val spawn = pendingSpawns.removeAt(0)
+                val path = if (spawn.laneIndex == 0) level.laneAlpha else level.laneBeta
+                val start = path.first()
+                val customEnemyBal = state.balanceConfig.getEnemyBalance(spawn.type)
+                val bossMul = if (spawn.isBoss) remoteConfigManager.bossHealthMultiplier else 1.0f
+                val hpMultiplier = spawn.hpScale * state.balanceConfig.enemyHpMultiplier * remoteConfigManager.waveHpMultiplier * bossMul
+                val effectiveMaxHp = customEnemyBal.hp * hpMultiplier
 
-            val newEnemy = EnemyInstance(
-                id = nextId("en_"),
-                type = spawn.type,
-                laneIndex = spawn.laneIndex,
-                currentPathSegmentIndex = 0,
-                segmentProgress = 0f,
-                maxHp = effectiveMaxHp,
-                currentHp = effectiveMaxHp,
-                speed = customEnemyBal.speed * spawn.speedScale,
-                worldX = start.x.toFloat(),
-                worldY = start.y.toFloat(),
-                isBoss = spawn.isBoss
-            )
-            targetEnemies.add(newEnemy)
+                val newEnemy = EnemyInstance(
+                    id = nextId("en_"),
+                    type = spawn.type,
+                    laneIndex = spawn.laneIndex,
+                    currentPathSegmentIndex = 0,
+                    segmentProgress = 0f,
+                    maxHp = effectiveMaxHp,
+                    currentHp = effectiveMaxHp,
+                    speed = customEnemyBal.speed * spawn.speedScale,
+                    worldX = start.x.toFloat(),
+                    worldY = start.y.toFloat(),
+                    isBoss = spawn.isBoss
+                )
+                targetEnemies.add(newEnemy)
 
-            nextSpawnTimeMs = if (pendingSpawns.isNotEmpty()) pendingSpawns[0].delayMs else 0L
+                nextSpawnTimeMs = if (pendingSpawns.isNotEmpty()) pendingSpawns[0].delayMs else 0L
+            }
         }
     }
 
@@ -122,7 +162,7 @@ class WaveProgressionCoordinator(
         var bonusScrap = 0
         var updatedCoreHp = currentCoreHp
 
-        if (waveActive && waveHasStartedSpawning && pendingSpawns.isEmpty() && remainingAlive.isEmpty()) {
+        if (waveActive && waveHasStartedSpawning && pendingSpawns.isEmpty() && redispatchEnemies.isEmpty() && remainingAlive.isEmpty()) {
             waveActive = false
             waveHasStartedSpawning = false
 

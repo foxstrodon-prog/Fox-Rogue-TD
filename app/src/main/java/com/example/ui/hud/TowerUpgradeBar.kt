@@ -20,9 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -113,22 +111,28 @@ fun TowerClassSilhouette(
                 )
             }
             TowerClass.HEAVY_SIEGE -> {
-                val pad = w * 0.12f
-                drawRoundRect(
+                cachedPath.reset()
+                val r = w * 0.45f
+                for (i in 0 until 6) {
+                    val angle = (i * Math.PI / 3.0 - Math.PI / 2.0).toFloat()
+                    val x = cx + r * kotlin.math.cos(angle)
+                    val y = cy + r * kotlin.math.sin(angle)
+                    if (i == 0) cachedPath.moveTo(x, y) else cachedPath.lineTo(x, y)
+                }
+                cachedPath.close()
+                drawPath(
+                    path = cachedPath,
                     color = color,
-                    topLeft = Offset(pad, pad),
-                    size = Size(w - 2 * pad, h - 2 * pad),
-                    cornerRadius = CornerRadius(2.5f, 2.5f),
                     style = Stroke(width = 1.6f)
                 )
                 drawCircle(
                     color = color,
-                    radius = w * 0.24f,
+                    radius = w * 0.22f,
                     center = Offset(cx, cy)
                 )
                 drawCircle(
                     color = Color(0xFF0F172A),
-                    radius = w * 0.11f,
+                    radius = w * 0.10f,
                     center = Offset(cx, cy)
                 )
             }

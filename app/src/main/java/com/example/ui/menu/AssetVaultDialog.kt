@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
@@ -16,6 +15,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +67,11 @@ fun AssetVaultDialog(
 ) {
     var selectedTab by remember { mutableStateOf(VaultTab.ALL) }
     var selectedArchiveSection by remember { mutableStateOf(ArchiveSection.ALL) }
+    var previewedVisualAssetId by remember { mutableStateOf<String?>(null) }
+
+    val previewedVisualAsset = remember(assets, previewedVisualAssetId) {
+        previewedVisualAssetId?.let { id -> assets.firstOrNull { it.id == id } }
+    }
 
     val filteredAssets = remember(assets, selectedTab, selectedArchiveSection) {
         when (selectedTab) {
@@ -257,6 +262,54 @@ fun AssetVaultDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                if (previewedVisualAsset != null) {
+                    val vSection = when (previewedVisualAsset.category) {
+                        "TURRET_SKIN" -> ArchiveSection.TURRET_SKIN.id
+                        "MAP_THEME" -> ArchiveSection.MAP_THEME.id
+                        else -> previewedVisualAsset.archiveSection
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .testTag("vault_visual_preview_stage")
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = "HIDE PREVIEW ✕",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .testTag("vault_visual_preview_hide")
+                                        .clickable { previewedVisualAssetId = null }
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
+                            when (vSection) {
+                                ArchiveSection.TURRET_SKIN.id -> {
+                                    TurretSkinMultiClassPreviewStage(
+                                        skinDef = BuildArchiveCatalog.resolveTurretSkin(previewedVisualAsset.id, previewedVisualAsset.slotIndex),
+                                        isEquipped = previewedVisualAsset.isEquipped,
+                                        onEquipClick = { onEquipAsset(previewedVisualAsset.id) }
+                                    )
+                                }
+                                ArchiveSection.MAP_THEME.id -> {
+                                    MapThemeLivePreviewStage(
+                                        themeDef = BuildArchiveCatalog.resolveMapTheme(previewedVisualAsset.id, previewedVisualAsset.slotIndex),
+                                        isEquipped = previewedVisualAsset.isEquipped,
+                                        onEquipClick = { onEquipAsset(previewedVisualAsset.id) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (filteredAssets.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -276,13 +329,25 @@ fun AssetVaultDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredAssets, key = { it.id }) { asset ->
+                            val isVisualPreviewable = asset.category == "TURRET_SKIN" ||
+                                asset.category == "MAP_THEME" ||
+                                asset.archiveSection == ArchiveSection.TURRET_SKIN.id ||
+                                asset.archiveSection == ArchiveSection.MAP_THEME.id
                             AssetVaultCard(
                                 asset = asset,
+                                isVisualPreviewActive = (previewedVisualAssetId == asset.id),
+                                isVisualPreviewable = isVisualPreviewable,
+                                onVisualPreview = {
+                                    previewedVisualAssetId = if (previewedVisualAssetId == asset.id) null else asset.id
+                                },
                                 onPreview = { onPreviewAsset(asset.id) },
                                 onLike = { onLikeAsset(asset.id) },
                                 onDislike = { onDislikeAsset(asset.id) },
                                 onStar = { onStarAsset(asset.id) },
-                                onEquip = { onEquipAsset(asset.id) }
+                                onEquip = {
+                                    if (isVisualPreviewable) previewedVisualAssetId = asset.id
+                                    onEquipAsset(asset.id)
+                                }
                             )
                         }
                     }
@@ -295,6 +360,9 @@ fun AssetVaultDialog(
 @Composable
 private fun AssetVaultCard(
     asset: CustomAssetRecord,
+    isVisualPreviewActive: Boolean,
+    isVisualPreviewable: Boolean,
+    onVisualPreview: () -> Unit,
     onPreview: () -> Unit,
     onLike: () -> Unit,
     onDislike: () -> Unit,
@@ -303,6 +371,7 @@ private fun AssetVaultCard(
 ) {
     val borderCol = when {
         asset.isEquipped -> Color(0xFF00E5FF)
+        isVisualPreviewActive -> Color(0xFFA855F7)
         asset.voteState == 1 -> Color(0xFF00E676)
         asset.voteState == -1 -> Color(0xFFFF5252)
         else -> Color(0xFF262C36)
@@ -386,6 +455,18 @@ private fun AssetVaultCard(
                     textColor = Color(0xFF00E5FF),
                     modifier = Modifier.testTag("vault_play_${asset.id}"),
                     onClick = onPreview
+                )
+            }
+
+            if (isVisualPreviewable) {
+                SquircleActionButton(
+                    label = if (isVisualPreviewActive) "VIEWING" else "PREVIEW",
+                    icon = Icons.Filled.Visibility,
+                    bgColor = if (isVisualPreviewActive) Color(0xFF2E1065) else Color(0xFF112233),
+                    borderColor = if (isVisualPreviewActive) Color(0xFFC084FC) else Color(0xFF38BDF8),
+                    textColor = if (isVisualPreviewActive) Color(0xFFE9D5FF) else Color(0xFF38BDF8),
+                    modifier = Modifier.testTag("vault_preview_${asset.id}"),
+                    onClick = onVisualPreview
                 )
             }
 
@@ -474,23 +555,10 @@ private fun AssetPreviewBadge(asset: CustomAssetRecord) {
         }
         effectiveSection == ArchiveSection.MAP_THEME.id -> {
             val themeDef = BuildArchiveCatalog.resolveMapTheme(asset.id, asset.slotIndex)
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(themeDef.groundColor))
-                    .border(
-                        1.5.dp,
-                        if (asset.isEquipped) Color(0xFF00FF9D) else Color(0xFF475569),
-                        RoundedCornerShape(10.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(themeDef.laneAlphaColor)))
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(themeDef.laneBetaColor)))
-                }
-            }
+            MapThemePreviewThumbnail(
+                themeDef = themeDef,
+                isSelected = asset.isEquipped
+            )
         }
         asset.category == "BACKGROUND_MUSIC" || asset.id.contains("_bgm_") -> {
             Box(

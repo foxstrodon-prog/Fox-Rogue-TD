@@ -171,20 +171,64 @@ fun DrawScope.drawTerrainTiles(
                         )
                     }
                 } else if (tile.isBuildable) {
-                    drawRoundRect(
-                        color = Color(0xFF1E293B).copy(alpha = 0.55f),
-                        topLeft = Offset(tx + 3f, ty + 3f),
-                        size = Size(cellW - 6f, cellH - 6f),
-                        cornerRadius = CornerRadius(5f, 5f),
-                        style = Stroke(width = 1.2f)
-                    )
-
-                    if (canAffordNewTower && tile.pos !in occupiedTowerPositions) {
-                        val dotPulse = sin(flowTimeF * 0.005f) * 0.08f + 0.30f
-                        drawCircle(
-                            color = Color.White.copy(alpha = dotPulse),
-                            radius = cellW * 0.05f,
-                            center = Offset(centerX, centerY)
+                    val isUnoccupied = tile.pos !in occupiedTowerPositions
+                    if (isUnoccupied) {
+                        val fadeWave = sin(flowTimeF * 0.005f) * 0.5f + 0.5f
+                        if (canAffordNewTower) {
+                            drawRoundRect(
+                                color = Color(0xFF38BDF8).copy(alpha = 0.05f + 0.06f * fadeWave),
+                                topLeft = Offset(tx + 3f, ty + 3f),
+                                size = Size(cellW - 6f, cellH - 6f),
+                                cornerRadius = CornerRadius(5f, 5f)
+                            )
+                            drawRoundRect(
+                                color = Color(0xFF38BDF8).copy(alpha = 0.14f + 0.18f * fadeWave),
+                                topLeft = Offset(tx + 2.5f, ty + 2.5f),
+                                size = Size(cellW - 5f, cellH - 5f),
+                                cornerRadius = CornerRadius(6f, 6f),
+                                style = Stroke(width = 4.0f)
+                            )
+                            drawRoundRect(
+                                color = Color(0xFF7DD3FC).copy(alpha = 0.38f + 0.36f * fadeWave),
+                                topLeft = Offset(tx + 3f, ty + 3f),
+                                size = Size(cellW - 6f, cellH - 6f),
+                                cornerRadius = CornerRadius(5f, 5f),
+                                style = Stroke(width = 1.6f)
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.25f + 0.25f * fadeWave),
+                                radius = cellW * 0.05f,
+                                center = Offset(centerX, centerY)
+                            )
+                        } else {
+                            drawRoundRect(
+                                color = Color(0xFF38BDF8).copy(alpha = 0.03f + 0.03f * fadeWave),
+                                topLeft = Offset(tx + 3f, ty + 3f),
+                                size = Size(cellW - 6f, cellH - 6f),
+                                cornerRadius = CornerRadius(5f, 5f)
+                            )
+                            drawRoundRect(
+                                color = Color(0xFF38BDF8).copy(alpha = 0.10f + 0.10f * fadeWave),
+                                topLeft = Offset(tx + 2.5f, ty + 2.5f),
+                                size = Size(cellW - 5f, cellH - 5f),
+                                cornerRadius = CornerRadius(6f, 6f),
+                                style = Stroke(width = 3.0f)
+                            )
+                            drawRoundRect(
+                                color = Color(0xFF64748B).copy(alpha = 0.68f + 0.15f * fadeWave),
+                                topLeft = Offset(tx + 3f, ty + 3f),
+                                size = Size(cellW - 6f, cellH - 6f),
+                                cornerRadius = CornerRadius(5f, 5f),
+                                style = Stroke(width = 1.4f)
+                            )
+                        }
+                    } else {
+                        drawRoundRect(
+                            color = Color(0xFF1E293B).copy(alpha = 0.55f),
+                            topLeft = Offset(tx + 3f, ty + 3f),
+                            size = Size(cellW - 6f, cellH - 6f),
+                            cornerRadius = CornerRadius(5f, 5f),
+                            style = Stroke(width = 1.2f)
                         )
                     }
                 }
