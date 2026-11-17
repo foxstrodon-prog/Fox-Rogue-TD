@@ -255,8 +255,10 @@ class SimulationCoordinator(
                 if (virtualSimTimeMs - tower.lastShotTimeMs >= cooldownMs) {
                     tower.lastShotTimeMs = virtualSimTimeMs
                     val sfxSlot = when (tower.towerClass) {
-                        TowerClass.KINETIC_BALLISTIC -> state.kineticSfxSlot; TowerClass.ELEMENTAL_VOID -> state.elementalSfxSlot
-                        TowerClass.HEAVY_SIEGE -> state.siegeSfxSlot; TowerClass.STELLAR_COSMIC -> 1
+                        TowerClass.KINETIC_BALLISTIC -> state.kineticSfxSlot
+                        TowerClass.ELEMENTAL_VOID -> state.elementalSfxSlot
+                        TowerClass.HEAVY_SIEGE -> state.siegeSfxSlot
+                        TowerClass.STELLAR_COSMIC -> state.stellarSfxSlot
                     }
                     soundManager.playTurretFire(tower.towerClass, sfxSlot)
 

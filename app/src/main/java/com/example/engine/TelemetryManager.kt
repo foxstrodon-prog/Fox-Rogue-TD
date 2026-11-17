@@ -263,7 +263,19 @@ class TelemetryManager @JvmOverloads constructor(
             minLaneOverlap = prefs.getInt("cfg_min_lane_overlap", 4),
             maxLaneOverlap = prefs.getInt("cfg_max_lane_overlap", 12),
             mapColumns = prefs.getInt("cfg_map_columns", 10),
-            mapRows = prefs.getInt("cfg_map_rows", 20)
+            mapRows = prefs.getInt("cfg_map_rows", 20),
+            masterVolume = prefs.getFloat("cfg_master_vol", 0.7f),
+            musicVolume = prefs.getFloat("cfg_music_vol", 0.45f),
+            sfxVolume = prefs.getFloat("cfg_sfx_vol", 0.8f),
+            upgradeVolume = prefs.getFloat("cfg_upgrade_vol", 0.85f),
+            isMuted = prefs.getBoolean("cfg_audio_muted", false),
+            musicTrackName = prefs.getString("cfg_music_track", "ROLLING_PLAYLIST") ?: "ROLLING_PLAYLIST",
+            kineticSfxSlot = prefs.getInt("cfg_kinetic_sfx_slot", 1),
+            elementalSfxSlot = prefs.getInt("cfg_elemental_sfx_slot", 1),
+            siegeSfxSlot = prefs.getInt("cfg_siege_sfx_slot", 1),
+            stellarSfxSlot = prefs.getInt("cfg_stellar_sfx_slot", 1),
+            turretSkinSlot = prefs.getInt("cfg_turret_skin_slot", 1),
+            mapThemeSlot = prefs.getInt("cfg_map_theme_slot", 1)
         )
     }
 
@@ -284,6 +296,18 @@ class TelemetryManager @JvmOverloads constructor(
             .putInt("cfg_max_lane_overlap", config.maxLaneOverlap)
             .putInt("cfg_map_columns", config.mapColumns)
             .putInt("cfg_map_rows", config.mapRows)
+            .putFloat("cfg_master_vol", config.masterVolume)
+            .putFloat("cfg_music_vol", config.musicVolume)
+            .putFloat("cfg_sfx_vol", config.sfxVolume)
+            .putFloat("cfg_upgrade_vol", config.upgradeVolume)
+            .putBoolean("cfg_audio_muted", config.isMuted)
+            .putString("cfg_music_track", config.musicTrackName)
+            .putInt("cfg_kinetic_sfx_slot", config.kineticSfxSlot)
+            .putInt("cfg_elemental_sfx_slot", config.elementalSfxSlot)
+            .putInt("cfg_siege_sfx_slot", config.siegeSfxSlot)
+            .putInt("cfg_stellar_sfx_slot", config.stellarSfxSlot)
+            .putInt("cfg_turret_skin_slot", config.turretSkinSlot)
+            .putInt("cfg_map_theme_slot", config.mapThemeSlot)
             .apply()
     }
 

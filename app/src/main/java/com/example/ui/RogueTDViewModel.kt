@@ -8,9 +8,11 @@ import com.example.audio.SoundFx
 import com.example.audio.SoundManager
 import com.example.audio.SoundProfile
 import com.example.engine.*
+import com.example.engine.coordinator.AssetVaultCoordinator
 import com.example.engine.coordinator.SimulationCoordinator
 import com.example.engine.coordinator.TowerPlacementCoordinator
 import com.example.engine.coordinator.WaveProgressionCoordinator
+import com.example.engine.network.AssetVoteSyncManager
 import com.example.engine.network.AuthRepository
 import com.example.engine.network.FirestoreLeaderboardApi
 import com.example.engine.repository.LeaderboardRepository
@@ -74,6 +76,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             kineticSfxSlot = initialConfig.kineticSfxSlot,
             elementalSfxSlot = initialConfig.elementalSfxSlot,
             siegeSfxSlot = initialConfig.siegeSfxSlot,
+            stellarSfxSlot = initialConfig.stellarSfxSlot,
             turretSkinSlot = initialConfig.turretSkinSlot,
             mapThemeSlot = initialConfig.mapThemeSlot
         )
@@ -108,6 +111,11 @@ class RogueTDViewModel @JvmOverloads constructor(
         nextId = ::nextId, addFloatingText = ::addFloatingText, onSynergyDirty = ::markSynergyDirty
     )
 
+    val assetVaultCoordinator = AssetVaultCoordinator(
+        uiStateFlow = _uiState, soundManager = soundManager, telemetryManager = telemetryManager,
+        voteSyncManager = AssetVoteSyncManager(application, authRepository), scope = viewModelScope
+    )
+
     fun markSynergyDirty() { simulationCoordinator.isSynergyCacheDirty = true }
     fun clearPendingSpawns() { waveCoordinator.clearPendingSpawns() }
     var currentFps: Int = 60; private set
@@ -127,6 +135,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.setUpgradeVolumeLevel(config.upgradeVolume)
         soundManager.setMutedState(config.isMuted)
         soundManager.activeMusicTrack = _uiState.value.musicTrack
+        assetVaultCoordinator.syncEquippedFromState()
 
         refreshTelemetry()
         startNewRun()
@@ -282,9 +291,20 @@ class RogueTDViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(isPauseMenuOpen = false, isSettingsOpen = true) }
     }
 
+    fun openAssetVaultFromPauseMenu() {
+        assetVaultCoordinator.syncEquippedFromState()
+        _uiState.update { it.copy(isPauseMenuOpen = false, isAssetVaultOpen = true) }
+    }
+
+    fun closeAssetVault() {
+        assetVaultCoordinator.stopPreview()
+        assetVaultCoordinator.syncVotesToCloud(force = false)
+        _uiState.update { it.copy(isAssetVaultOpen = false, isPauseMenuOpen = true) }
+    }
+
     fun isInternalDialogActive(): Boolean {
         val s = _uiState.value
-        return s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.showEndRunConfirmDialog || s.showUpdateModal || s.isGameOver || s.isVictory || s.isSingularityWarningOpen
+        return s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.isAssetVaultOpen || s.showEndRunConfirmDialog || s.showUpdateModal || s.isGameOver || s.isVictory || s.isSingularityWarningOpen
     }
 
     fun openPauseMenu() {
@@ -361,10 +381,11 @@ class RogueTDViewModel @JvmOverloads constructor(
                 musicVolume = defaultConfig.musicVolume, sfxVolume = defaultConfig.sfxVolume,
                 upgradeVolume = defaultConfig.upgradeVolume, isAudioMuted = defaultConfig.isMuted,
                 kineticSfxSlot = defaultConfig.kineticSfxSlot, elementalSfxSlot = defaultConfig.elementalSfxSlot,
-                siegeSfxSlot = defaultConfig.siegeSfxSlot, turretSkinSlot = defaultConfig.turretSkinSlot,
-                mapThemeSlot = defaultConfig.mapThemeSlot
+                siegeSfxSlot = defaultConfig.siegeSfxSlot, stellarSfxSlot = defaultConfig.stellarSfxSlot,
+                turretSkinSlot = defaultConfig.turretSkinSlot, mapThemeSlot = defaultConfig.mapThemeSlot
             )
         }
+        assetVaultCoordinator.syncEquippedFromState()
         regenerateMapIfPreWave1(oldConfig, defaultConfig, _uiState.value.difficulty)
     }
 
@@ -431,6 +452,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             telemetryManager.saveBalanceConfig(updated)
             prev.copy(musicTrack = track, balanceConfig = updated)
         }
+        assetVaultCoordinator.syncEquippedFromState()
     }
 
     fun setMasterVolume(level: Float) {
@@ -488,49 +510,37 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
     }
 
-    fun setKineticSfxSlot(slot: Int) {
-        val clamped = slot.coerceIn(1, 5)
+    private inline fun updateSlotSetting(crossinline transform: (DevBalanceConfig, GameUIState) -> GameUIState) {
         _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(kineticSfxSlot = clamped)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(kineticSfxSlot = clamped, balanceConfig = updated)
+            val next = transform(prev.balanceConfig, prev)
+            telemetryManager.saveBalanceConfig(next.balanceConfig)
+            next
         }
+        assetVaultCoordinator.syncEquippedFromState()
     }
 
-    fun setElementalSfxSlot(slot: Int) {
-        val clamped = slot.coerceIn(1, 5)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(elementalSfxSlot = clamped)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(elementalSfxSlot = clamped, balanceConfig = updated)
-        }
+    fun setKineticSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
+        updateSlotSetting { cfg, st -> st.copy(kineticSfxSlot = c, balanceConfig = cfg.copy(kineticSfxSlot = c)) }
     }
 
-    fun setSiegeSfxSlot(slot: Int) {
-        val clamped = slot.coerceIn(1, 5)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(siegeSfxSlot = clamped)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(siegeSfxSlot = clamped, balanceConfig = updated)
-        }
+    fun setElementalSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
+        updateSlotSetting { cfg, st -> st.copy(elementalSfxSlot = c, balanceConfig = cfg.copy(elementalSfxSlot = c)) }
     }
 
-    fun setTurretSkinSlot(slot: Int) {
-        val clamped = slot.coerceIn(1, 5)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(turretSkinSlot = clamped)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(turretSkinSlot = clamped, balanceConfig = updated)
-        }
+    fun setSiegeSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
+        updateSlotSetting { cfg, st -> st.copy(siegeSfxSlot = c, balanceConfig = cfg.copy(siegeSfxSlot = c)) }
     }
 
-    fun setMapThemeSlot(slot: Int) {
-        val clamped = slot.coerceIn(1, 5)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(mapThemeSlot = clamped)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(mapThemeSlot = clamped, balanceConfig = updated)
-        }
+    fun setStellarSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
+        updateSlotSetting { cfg, st -> st.copy(stellarSfxSlot = c, balanceConfig = cfg.copy(stellarSfxSlot = c)) }
+    }
+
+    fun setTurretSkinSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
+        updateSlotSetting { cfg, st -> st.copy(turretSkinSlot = c, balanceConfig = cfg.copy(turretSkinSlot = c)) }
+    }
+
+    fun setMapThemeSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
+        updateSlotSetting { cfg, st -> st.copy(mapThemeSlot = c, balanceConfig = cfg.copy(mapThemeSlot = c)) }
     }
 
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) = soundManager.playTurretTestSound(towerClass, slot)

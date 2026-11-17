@@ -49,10 +49,12 @@ fun PauseMenuDialog(
     onKineticSfxSlotSelected: (Int) -> Unit = {},
     onElementalSfxSlotSelected: (Int) -> Unit = {},
     onSiegeSfxSlotSelected: (Int) -> Unit = {},
+    onStellarSfxSlotSelected: (Int) -> Unit = {},
     onPlayTurretTestSound: (TowerClass, Int) -> Unit = { _, _ -> },
     onPlayTowerUpgradeTestSound: (TowerClass, Int) -> Unit = { _, _ -> },
     onTurretSkinSlotSelected: (Int) -> Unit = {},
     onMapThemeSlotSelected: (Int) -> Unit = {},
+    onOpenAssetVault: () -> Unit = {},
     onDifficultyChanged: (GameDifficulty) -> Unit = {},
     onResume: () -> Unit
 ) {
@@ -140,10 +142,12 @@ fun PauseMenuDialog(
                         onKineticSfxSlotSelected = onKineticSfxSlotSelected,
                         onElementalSfxSlotSelected = onElementalSfxSlotSelected,
                         onSiegeSfxSlotSelected = onSiegeSfxSlotSelected,
+                        onStellarSfxSlotSelected = onStellarSfxSlotSelected,
                         onPlayTurretTestSound = onPlayTurretTestSound,
                         onPlayTowerUpgradeTestSound = onPlayTowerUpgradeTestSound,
                         onTurretSkinSlotSelected = onTurretSkinSlotSelected,
-                        onMapThemeSlotSelected = onMapThemeSlotSelected
+                        onMapThemeSlotSelected = onMapThemeSlotSelected,
+                        onOpenAssetVault = onOpenAssetVault
                     )
                 } else {
                     // === MAIN PAUSE ACTIONS VIEW ===
@@ -271,6 +275,21 @@ fun PauseMenuDialog(
                             Icon(imageVector = Icons.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("AUDIO & VISUAL CUSTOMIZATION", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenAssetVault,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00E5FF)),
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00E5FF)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                                .testTag("pause_menu_asset_vault_button")
+                        ) {
+                            Icon(imageVector = Icons.Filled.LibraryMusic, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("SOUND & SKIN VAULT (ARCHIVES & VOTES)", fontWeight = FontWeight.Bold, fontSize = 10.5.sp)
                         }
 
                         OutlinedButton(

@@ -39,6 +39,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Spark-Safe Sound & Skin Asset Votes (1 document per authenticated user)
+    match /asset_votes/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+                            && request.auth.uid == userId
+                            && request.resource.data.keys().hasAll([
+                              'userId', 'versionName', 'versionCode', 'syncedAtEpochMs', 'votes'
+                            ])
+                            && request.resource.data.userId == request.auth.uid
+                            && request.resource.data.votes is map
+                            && request.resource.data.votes.size() <= 200;
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

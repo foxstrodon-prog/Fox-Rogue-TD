@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.035
+### 🚀 What's New in Version 0.0.1.036
+
+🔊 **Sound & Skin Archive Vault, Permanent Audio Storage & Vote Sync**
+- **In-Game Sound & Skin Vault:** Browse, preview, equip, and rate every BGM track, sound effect, 20 turret gunfire variants, 20 upgrade sounds, 5 turret skins, 5 map themes, and archived legacy `.wav` sounds directly from the Pause Menu.
+- **Permanent Audio Archive:** Synthesized `.wav` files are stored permanently in `sound_archive` with background migration from cache so older sound variants are preserved.
+- **Stellar Cosmic Audio Controls & Cloud Vote Sync:** Added Stellar Cosmic gunfire/upgrade testing slots and Spark-safe Like / Dislike / Star rating sync (`219/219` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.035
 
 🔄 **Rotation Layout Polish, Safe-Drawing Popups & Narrow-Viewport HUD Scroll**
 - **Banner Rotation & HUD Drag Sync:** Synced portrait `UpdateBanner` with top-HUD downward dragging, swapped layout extents on counter-rotated Round-1 and update banners at `90°`/`270°` to prevent top clipping, and positioned the Round-1 tile hint at 3/4 visual screen depth across all four orientations.
@@ -12,8 +23,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Narrow-Screen Top HUD Scroll:** Enabled horizontal scrolling on narrow portrait phones for `MinimalTopHud` while preserving full-width capsule spacing on wider displays (`214/214` unit tests passing).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.033
 

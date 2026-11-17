@@ -213,6 +213,7 @@ data class DevBalanceConfig(
     val kineticSfxSlot: Int = 1,
     val elementalSfxSlot: Int = 1,
     val siegeSfxSlot: Int = 1,
+    val stellarSfxSlot: Int = 1,
     val turretSkinSlot: Int = 1,
     val mapThemeSlot: Int = 1,
     val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
@@ -567,6 +568,7 @@ data class DevBalanceConfig(
         if (kineticSfxSlot != default.kineticSfxSlot) diffMap["kineticSfxSlot"] = kineticSfxSlot
         if (elementalSfxSlot != default.elementalSfxSlot) diffMap["elementalSfxSlot"] = elementalSfxSlot
         if (siegeSfxSlot != default.siegeSfxSlot) diffMap["siegeSfxSlot"] = siegeSfxSlot
+        if (stellarSfxSlot != default.stellarSfxSlot) diffMap["stellarSfxSlot"] = stellarSfxSlot
         if (turretSkinSlot != default.turretSkinSlot) diffMap["turretSkinSlot"] = turretSkinSlot
         if (mapThemeSlot != default.mapThemeSlot) diffMap["mapThemeSlot"] = mapThemeSlot
 

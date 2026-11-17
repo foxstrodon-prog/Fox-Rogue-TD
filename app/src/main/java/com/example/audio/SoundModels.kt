@@ -34,7 +34,7 @@ enum class MusicTrack(val label: String) {
 
 /**
  * Procedural Asset Record for Sound and Skin Library.
- * Supports Heart/Star favorites and JSON delta export.
+ * Supports tri-state Like/Dislike voting (voteState), Star bookmarks, equipping, and archive paths.
  */
 data class CustomAssetRecord(
     val id: String,
@@ -44,5 +44,11 @@ data class CustomAssetRecord(
     var isFavoriteHeart: Boolean = false,
     var isFavoriteStar: Boolean = false,
     val unlockScore: Int = 0,
-    val metadata: String = ""
+    val metadata: String = "",
+    val towerClassOrdinal: Int = -1,
+    val slotIndex: Int = 1,
+    val filePath: String? = null,
+    var voteState: Int = 0, // 1 = Liked, -1 = Disliked, 0 = Neutral
+    var isEquipped: Boolean = false,
+    var updatedAtEpochMs: Long = 0L
 )

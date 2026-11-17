@@ -54,6 +54,7 @@ import com.example.ui.hud.components.SingularityWarningDialog
 import com.example.ui.hud.components.hudCapsuleContainer
 import com.example.ui.hud.components.isQuarterTurnRotation
 import com.example.ui.menu.DevBalanceSettingsDialog
+import com.example.ui.menu.AssetVaultDialog
 import com.example.ui.menu.PauseMenuDialog
 
 @Composable
@@ -356,12 +357,32 @@ fun RogueTDScreen(
                 onKineticSfxSlotSelected = { viewModel.setKineticSfxSlot(it) },
                 onElementalSfxSlotSelected = { viewModel.setElementalSfxSlot(it) },
                 onSiegeSfxSlotSelected = { viewModel.setSiegeSfxSlot(it) },
+                onStellarSfxSlotSelected = { viewModel.setStellarSfxSlot(it) },
                 onPlayTurretTestSound = { cls, slot -> viewModel.playTurretTestSound(cls, slot) },
                 onPlayTowerUpgradeTestSound = { cls, slot -> viewModel.playTowerUpgradeTestSound(cls, slot) },
                 onTurretSkinSlotSelected = { viewModel.setTurretSkinSlot(it) },
                 onMapThemeSlotSelected = { viewModel.setMapThemeSlot(it) },
+                onOpenAssetVault = { viewModel.openAssetVaultFromPauseMenu() },
                 onDifficultyChanged = { viewModel.setGameDifficulty(it) },
                 onResume = { viewModel.closePauseMenu() }
+            )
+        }
+
+        // === SOUND & SKIN VAULT MODAL ===
+        if (state.isAssetVaultOpen) {
+            val vaultAssets by viewModel.assetVaultCoordinator.assetLibraryFlow.collectAsStateWithLifecycle()
+            val vaultSyncStatus by viewModel.assetVaultCoordinator.syncStatusFlow.collectAsStateWithLifecycle()
+            AssetVaultDialog(
+                assets = vaultAssets,
+                syncStatusText = vaultSyncStatus,
+                onPreviewAsset = { viewModel.assetVaultCoordinator.previewAsset(it) },
+                onStopPreview = { viewModel.assetVaultCoordinator.stopPreview() },
+                onLikeAsset = { viewModel.assetVaultCoordinator.setAssetVote(it, 1) },
+                onDislikeAsset = { viewModel.assetVaultCoordinator.setAssetVote(it, -1) },
+                onStarAsset = { viewModel.assetVaultCoordinator.toggleAssetStar(it) },
+                onEquipAsset = { viewModel.assetVaultCoordinator.equipAsset(it) },
+                onCloudSync = { viewModel.assetVaultCoordinator.syncVotesToCloud(force = true) },
+                onDismiss = { viewModel.closeAssetVault() }
             )
         }
 

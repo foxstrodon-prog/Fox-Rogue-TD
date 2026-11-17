@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.035`):** [`apk/Dual-Front-TD-v0.0.1.035-debug.apk`](apk/Dual-Front-TD-v0.0.1.035-debug.apk)
+- **Latest Android APK (`v0.0.1.036`):** [`apk/Dual-Front-TD-v0.0.1.036-debug.apk`](apk/Dual-Front-TD-v0.0.1.036-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,24 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.035
+## 🕹️ What's New in Version 0.0.1.036
+
+### 🔊 Sound & Skin Archive Vault, Permanent WAV Storage & Spark-Safe Vote Sync (`versionCode = 57`)
+- **Permanent Sound Archive & Legacy WAV Discovery (`SoundArchiveStore.kt`, `SoundManager.kt`, `MusicAndPreviewPlayer.kt`):**
+  - Migrated procedural `.wav` storage from volatile `cacheDir` to persistent `filesDir/sound_archive`, with non-blocking `Dispatchers.IO` migration of stranded legacy `.wav` files and immediate `StateFlow` refresh.
+  - Registered all 5 BGM tracks, generic `SoundFx`, **20 Turret Gunfire variants** (`4 TowerClass × 5 slots`, including `STELLAR_COSMIC`), **20 Tower Upgrade variants**, **5 Turret Skins**, **5 Map Themes**, and any archived `.wav` files on disk (`ARCHIVED_WAV`).
+  - Added `previewAsset(assetId)` / `stopPreview()` with single-slot transient playback that pauses active BGM during music/archive previews and resumes cleanly on completion.
+- **In-Game Sound & Skin Vault UI & Stellar Cosmic Menu Wiring (`AssetVaultDialog.kt`, `AudioVisualCustomizationPanel.kt`, `PauseMenuDialog.kt`, `RogueTDScreen.kt`):**
+  - Added the **Sound & Skin Vault** dialog accessible from both the Pause Menu and Audio & Visual Customization panel, featuring category filters, skin/theme preview badges, 2-row squircle cards for narrow `360.dp` portrait and landscape screens, one-tap playback, equip buttons, and tri-state Like (`+1`) / Dislike (`-1`) / Star (`★`) toggles.
+  - Added `stellarSfxSlot` across `DevBalanceConfig`, `GameUIState`, `TelemetryManager`, `SimulationCoordinator`, and `AudioVisualCustomizationPanel` so Stellar Cosmic gunfire and upgrade sounds can be A/B tested and equipped in-game.
+- **Spark-Safe Firebase Vote Sync & Security Rules (`AssetVoteSyncManager.kt`, `AssetVaultCoordinator.kt`, `firestore.rules`):**
+  - Persists votes locally to `filesDir/exported_skins_sounds_library.json` (`importLibraryJson` + `exportLibraryJson`) and batches ratings into a single `asset_votes/{userId}` document write on Vault close or manual Sync using full-document `.set(payload)` overwrite (eliminating stale-vote keys when resetting back to Neutral) with a 10-second Spark cooldown and strict `request.auth` schema rules (`219/219` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.035
 
 ### 🔄 Rotation Layout Polish, Safe-Drawing Popups & Narrow-Viewport HUD Scroll (`versionCode = 56`, includes v0.0.1.034 HUD Fixes)
 - **Dynamic Banner Shift & Swapped Rotation Bounds (`RogueTDScreen.kt`, `Round1Banners.kt`, `HudStatusWidgets.kt`):**
@@ -36,8 +53,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Wrapped `MinimalTopHud`'s row in `BoxWithConstraints` + `horizontalScroll(rememberScrollState()).widthIn(min = maxWidth)`, preserving `Arrangement.SpaceBetween` on wide displays while preventing right-edge clipping of `HudLaunchWaveButton` and `HudBatteryWidget` on `360.dp` portrait phones (`214/214` unit tests passing).
 
 ---
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.033
 

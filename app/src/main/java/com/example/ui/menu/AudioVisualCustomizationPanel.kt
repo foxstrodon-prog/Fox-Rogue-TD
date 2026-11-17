@@ -149,10 +149,12 @@ internal fun AudioVisualCustomizationPanel(
     onKineticSfxSlotSelected: (Int) -> Unit,
     onElementalSfxSlotSelected: (Int) -> Unit,
     onSiegeSfxSlotSelected: (Int) -> Unit,
+    onStellarSfxSlotSelected: (Int) -> Unit = {},
     onPlayTurretTestSound: (TowerClass, Int) -> Unit,
     onPlayTowerUpgradeTestSound: (TowerClass, Int) -> Unit,
     onTurretSkinSlotSelected: (Int) -> Unit,
-    onMapThemeSlotSelected: (Int) -> Unit
+    onMapThemeSlotSelected: (Int) -> Unit,
+    onOpenAssetVault: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -161,6 +163,20 @@ internal fun AudioVisualCustomizationPanel(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        OutlinedButton(
+            onClick = onOpenAssetVault,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00E5FF)),
+            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00E5FF)),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+        ) {
+            Icon(imageVector = Icons.Filled.LibraryMusic, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("OPEN SOUND & SKIN VAULT (ARCHIVES & VOTES)", fontWeight = FontWeight.Black, fontSize = 10.5.sp)
+        }
+
         // Section 1: Audio Channels & Attenuation
         Surface(
             color = Color(0xFF1E293B).copy(alpha = 0.6f),
@@ -321,7 +337,7 @@ internal fun AudioVisualCustomizationPanel(
             }
         }
 
-        // Section 3: Turret Gunfire Audio Variants
+        // Section 3: Turret Gunfire Audio Variants (4 Classes x 5 Slots)
         Surface(
             color = Color(0xFF1E293B).copy(alpha = 0.6f),
             shape = RoundedCornerShape(10.dp),
@@ -329,144 +345,65 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("TURRET GUNFIRE AUDIO TESTING (5 SLOTS)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
-                Text("A/B test gunfire audio profiles across the 3 turret archetypes. Tap any slot to test immediately.", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                Text("TURRET GUNFIRE AUDIO TESTING (4 CLASSES × 5 SLOTS)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                Text("A/B test gunfire audio profiles across all 4 turret archetypes. Tap any slot to test immediately.", color = Color(0xFF94A3B8), fontSize = 9.sp)
 
-                // Kinetic Ballistics
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Kinetic Ballistics (Rotary)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Button(
-                            onClick = { onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, state.kineticSfxSlot) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F0FF), contentColor = Color.Black),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(22.dp)
-                        ) {
-                            Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text("TEST", fontWeight = FontWeight.Black, fontSize = 9.sp)
+                TurretGunfireSlotSection(
+                    title = "Kinetic Ballistics (Rotary)",
+                    accentColor = Color(0xFF00F0FF),
+                    darkTextOnSelected = true,
+                    selectedSlot = state.kineticSfxSlot,
+                    slotLabelFor = { TurretSfxSlot.fromSlot(it).kineticName.split(" ").first() },
+                    onSelectAndTest = { slot ->
+                        onKineticSfxSlotSelected(slot)
+                        onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, slot)
+                    },
+                    onTestActive = { onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, state.kineticSfxSlot) }
+                )
+                TurretGunfireSlotSection(
+                    title = "Elemental Void (Energy)",
+                    accentColor = Color(0xFFD946EF),
+                    darkTextOnSelected = false,
+                    selectedSlot = state.elementalSfxSlot,
+                    slotLabelFor = { TurretSfxSlot.fromSlot(it).elementalName.split(" ").first() },
+                    onSelectAndTest = { slot ->
+                        onElementalSfxSlotSelected(slot)
+                        onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, slot)
+                    },
+                    onTestActive = { onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, state.elementalSfxSlot) }
+                )
+                TurretGunfireSlotSection(
+                    title = "Heavy Siege (Artillery)",
+                    accentColor = Color(0xFFFFB800),
+                    darkTextOnSelected = true,
+                    selectedSlot = state.siegeSfxSlot,
+                    slotLabelFor = { TurretSfxSlot.fromSlot(it).siegeName.split(" ").first() },
+                    onSelectAndTest = { slot ->
+                        onSiegeSfxSlotSelected(slot)
+                        onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, slot)
+                    },
+                    onTestActive = { onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, state.siegeSfxSlot) }
+                )
+                TurretGunfireSlotSection(
+                    title = "Stellar Cosmic (Singularity)",
+                    accentColor = Color(0xFFFFD700),
+                    darkTextOnSelected = true,
+                    selectedSlot = state.stellarSfxSlot,
+                    slotLabelFor = {
+                        when (it) {
+                            1 -> "Starlight"; 2 -> "Nebula"; 3 -> "Solar"; 4 -> "Pulsar"; else -> "Nova"
                         }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        (1..5).forEach { slot ->
-                            val isSel = state.kineticSfxSlot == slot
-                            val slotName = TurretSfxSlot.fromSlot(slot).kineticName
-                            Surface(
-                                color = if (isSel) Color(0xFF00F0FF) else Color(0xFF0F172A),
-                                shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFF00F0FF) else Color(0xFF334155)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        onKineticSfxSlotSelected(slot)
-                                        onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, slot)
-                                    }
-                            ) {
-                                Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Slot $slot", color = if (isSel) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                    Text(slotName.split(" ").first(), color = if (isSel) Color(0xFF0F172A) else Color(0xFF94A3B8), fontSize = 7.5.sp, maxLines = 1)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Elemental Void
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Elemental Void (Energy)", color = Color(0xFFD946EF), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Button(
-                            onClick = { onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, state.elementalSfxSlot) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD946EF), contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(22.dp)
-                        ) {
-                            Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text("TEST", fontWeight = FontWeight.Black, fontSize = 9.sp)
-                        }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        (1..5).forEach { slot ->
-                            val isSel = state.elementalSfxSlot == slot
-                            val slotName = TurretSfxSlot.fromSlot(slot).elementalName
-                            Surface(
-                                color = if (isSel) Color(0xFFD946EF) else Color(0xFF0F172A),
-                                shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFFD946EF) else Color(0xFF334155)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        onElementalSfxSlotSelected(slot)
-                                        onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, slot)
-                                    }
-                            ) {
-                                Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Slot $slot", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                    Text(slotName.split(" ").first(), color = if (isSel) Color(0xFFFDF4FF) else Color(0xFF94A3B8), fontSize = 7.5.sp, maxLines = 1)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Heavy Siege
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Heavy Siege (Artillery)", color = Color(0xFFFFB800), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Button(
-                            onClick = { onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, state.siegeSfxSlot) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB800), contentColor = Color.Black),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(22.dp)
-                        ) {
-                            Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text("TEST", fontWeight = FontWeight.Black, fontSize = 9.sp)
-                        }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        (1..5).forEach { slot ->
-                            val isSel = state.siegeSfxSlot == slot
-                            val slotName = TurretSfxSlot.fromSlot(slot).siegeName
-                            Surface(
-                                color = if (isSel) Color(0xFFFFB800) else Color(0xFF0F172A),
-                                shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFFFFB800) else Color(0xFF334155)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        onSiegeSfxSlotSelected(slot)
-                                        onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, slot)
-                                    }
-                            ) {
-                                Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Slot $slot", color = if (isSel) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                    Text(slotName.split(" ").first(), color = if (isSel) Color(0xFF0F172A) else Color(0xFF94A3B8), fontSize = 7.5.sp, maxLines = 1)
-                                }
-                            }
-                        }
-                    }
-                }
+                    },
+                    onSelectAndTest = { slot ->
+                        onStellarSfxSlotSelected(slot)
+                        onPlayTurretTestSound(TowerClass.STELLAR_COSMIC, slot)
+                    },
+                    onTestActive = { onPlayTurretTestSound(TowerClass.STELLAR_COSMIC, state.stellarSfxSlot) }
+                )
             }
         }
 
-        // Section 4: Tower Upgrade Audio Testing (3 Classes x 5 Skins)
+        // Section 4: Tower Upgrade Audio Testing (4 Classes x 5 Skins)
         Surface(
             color = Color(0xFF1E293B).copy(alpha = 0.6f),
             shape = RoundedCornerShape(10.dp),
@@ -474,13 +411,14 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("TOWER UPGRADE AUDIO TESTING (3 CLASSES × 5 SKINS)", color = Color(0xFF00FF9D), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                Text("TOWER UPGRADE AUDIO TESTING (4 CLASSES × 5 SKINS)", color = Color(0xFF00FF9D), fontWeight = FontWeight.Black, fontSize = 11.sp)
                 Text("Test class-specific and skin-tailored tower upgrade sound profiles directly from the menu.", color = Color(0xFF94A3B8), fontSize = 9.sp)
 
                 val upgradeClasses = listOf(
                     Triple(TowerClass.KINETIC_BALLISTIC, "Kinetic Upgrade", Color(0xFF00F0FF)),
                     Triple(TowerClass.ELEMENTAL_VOID, "Elemental Upgrade", Color(0xFFD946EF)),
-                    Triple(TowerClass.HEAVY_SIEGE, "Siege Upgrade", Color(0xFFFFB800))
+                    Triple(TowerClass.HEAVY_SIEGE, "Siege Upgrade", Color(0xFFFFB800)),
+                    Triple(TowerClass.STELLAR_COSMIC, "Stellar Upgrade", Color(0xFFFFD700))
                 )
 
                 upgradeClasses.forEach { (cls, name, color) ->
@@ -672,6 +610,69 @@ internal fun AudioVisualCustomizationPanel(
                                 fontSize = 10.5.sp
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TurretGunfireSlotSection(
+    title: String,
+    accentColor: Color,
+    darkTextOnSelected: Boolean,
+    selectedSlot: Int,
+    slotLabelFor: (Int) -> String,
+    onSelectAndTest: (Int) -> Unit,
+    onTestActive: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, color = accentColor, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            Button(
+                onClick = onTestActive,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accentColor,
+                    contentColor = if (darkTextOnSelected) Color.Black else Color.White
+                ),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.height(22.dp)
+            ) {
+                Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(12.dp))
+                Spacer(modifier = Modifier.width(2.dp))
+                Text("TEST", fontWeight = FontWeight.Black, fontSize = 9.sp)
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            (1..5).forEach { slot ->
+                val isSel = selectedSlot == slot
+                Surface(
+                    color = if (isSel) accentColor else Color(0xFF0F172A),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) accentColor else Color(0xFF334155)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onSelectAndTest(slot) }
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Slot $slot",
+                            color = if (isSel && darkTextOnSelected) Color.Black else Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp
+                        )
+                        Text(
+                            slotLabelFor(slot),
+                            color = if (isSel) (if (darkTextOnSelected) Color(0xFF0F172A) else Color(0xFFFDF4FF)) else Color(0xFF94A3B8),
+                            fontSize = 7.5.sp,
+                            maxLines = 1
+                        )
                     }
                 }
             }
