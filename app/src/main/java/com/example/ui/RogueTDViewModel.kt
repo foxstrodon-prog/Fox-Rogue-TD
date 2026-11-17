@@ -73,12 +73,13 @@ class RogueTDViewModel @JvmOverloads constructor(
             upgradeVolume = initialConfig.upgradeVolume,
             isAudioMuted = initialConfig.isMuted,
             musicTrack = runCatching { MusicTrack.valueOf(initialConfig.musicTrackName) }.getOrDefault(MusicTrack.ROLLING_PLAYLIST),
-            kineticSfxSlot = initialConfig.kineticSfxSlot,
-            elementalSfxSlot = initialConfig.elementalSfxSlot,
-            siegeSfxSlot = initialConfig.siegeSfxSlot,
-            stellarSfxSlot = initialConfig.stellarSfxSlot,
-            turretSkinSlot = initialConfig.turretSkinSlot,
-            mapThemeSlot = initialConfig.mapThemeSlot
+            kineticSfxSlot = initialConfig.kineticSfxSlot, elementalSfxSlot = initialConfig.elementalSfxSlot,
+            siegeSfxSlot = initialConfig.siegeSfxSlot, stellarSfxSlot = initialConfig.stellarSfxSlot,
+            turretSkinSlot = initialConfig.turretSkinSlot, mapThemeSlot = initialConfig.mapThemeSlot,
+            kineticFireId = initialConfig.kineticFireId, elementalFireId = initialConfig.elementalFireId,
+            siegeFireId = initialConfig.siegeFireId, stellarFireId = initialConfig.stellarFireId,
+            turretSkinId = initialConfig.turretSkinId, mapThemeId = initialConfig.mapThemeId,
+            bgmTrackId = initialConfig.bgmTrackId, sfxPackId = initialConfig.sfxPackId
         )
     )
     val uiState: StateFlow<GameUIState> = _uiState.asStateFlow()
@@ -387,7 +388,11 @@ class RogueTDViewModel @JvmOverloads constructor(
                 upgradeVolume = defaultConfig.upgradeVolume, isAudioMuted = defaultConfig.isMuted,
                 kineticSfxSlot = defaultConfig.kineticSfxSlot, elementalSfxSlot = defaultConfig.elementalSfxSlot,
                 siegeSfxSlot = defaultConfig.siegeSfxSlot, stellarSfxSlot = defaultConfig.stellarSfxSlot,
-                turretSkinSlot = defaultConfig.turretSkinSlot, mapThemeSlot = defaultConfig.mapThemeSlot
+                turretSkinSlot = defaultConfig.turretSkinSlot, mapThemeSlot = defaultConfig.mapThemeSlot,
+                kineticFireId = defaultConfig.kineticFireId, elementalFireId = defaultConfig.elementalFireId,
+                siegeFireId = defaultConfig.siegeFireId, stellarFireId = defaultConfig.stellarFireId,
+                turretSkinId = defaultConfig.turretSkinId, mapThemeId = defaultConfig.mapThemeId,
+                bgmTrackId = defaultConfig.bgmTrackId, sfxPackId = defaultConfig.sfxPackId
             )
         }
         assetVaultCoordinator.syncEquippedFromState()
@@ -456,101 +461,68 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun setMusicTrack(track: MusicTrack) {
-        soundManager.activeMusicTrack = track
+        val bgmId = com.example.audio.BuildArchiveCatalog.resolveBgmTrack(
+            when (track) {
+                MusicTrack.NONE -> ""
+                MusicTrack.ROLLING_PLAYLIST -> "default_bgm_rolling_playlist"
+                MusicTrack.CYBER_AMBIENT -> "default_bgm_cyber_ambient"
+                else -> "b60_bgm_${track.name.lowercase()}"
+            }
+        ).id
+        val resolvedId = if (track == MusicTrack.NONE) "" else bgmId
         _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(musicTrackName = track.name)
+            val updated = prev.balanceConfig.copy(musicTrackName = track.name, bgmTrackId = resolvedId)
             telemetryManager.saveBalanceConfig(updated)
-            prev.copy(musicTrack = track, balanceConfig = updated)
+            prev.copy(musicTrack = track, bgmTrackId = resolvedId, balanceConfig = updated)
         }
+        if (track == MusicTrack.NONE) soundManager.activeMusicTrack = track else soundManager.playBgmByAssetId(resolvedId)
         assetVaultCoordinator.syncEquippedFromState()
     }
 
-    fun setMasterVolume(level: Float) {
-        soundManager.setMasterVolumeLevel(level)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(masterVolume = level)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(masterVolume = level, balanceConfig = updated)
-        }
-    }
-
-    fun setSfxVolume(level: Float) {
-        soundManager.setSfxVolumeLevel(level)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(sfxVolume = level)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(sfxVolume = level, balanceConfig = updated)
-        }
-    }
-
-    fun setUpgradeVolume(level: Float) {
-        soundManager.setUpgradeVolumeLevel(level)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(upgradeVolume = level)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(upgradeVolume = level, balanceConfig = updated)
-        }
-    }
-
-    fun setMusicVolume(level: Float) {
-        soundManager.setMusicVolumeLevel(level)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(musicVolume = level)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(musicVolume = level, balanceConfig = updated)
-        }
-    }
+    fun setMasterVolume(level: Float) = updateSlotSetting { cfg, st -> st.copy(masterVolume = level, balanceConfig = cfg.copy(masterVolume = level)) }.also { soundManager.setMasterVolumeLevel(level) }
+    fun setSfxVolume(level: Float) = updateSlotSetting { cfg, st -> st.copy(sfxVolume = level, balanceConfig = cfg.copy(sfxVolume = level)) }.also { soundManager.setSfxVolumeLevel(level) }
+    fun setUpgradeVolume(level: Float) = updateSlotSetting { cfg, st -> st.copy(upgradeVolume = level, balanceConfig = cfg.copy(upgradeVolume = level)) }.also { soundManager.setUpgradeVolumeLevel(level) }
+    fun setMusicVolume(level: Float) = updateSlotSetting { cfg, st -> st.copy(musicVolume = level, balanceConfig = cfg.copy(musicVolume = level)) }.also { soundManager.setMusicVolumeLevel(level) }
 
     fun toggleAudioMute(): Boolean {
         val newMuted = soundManager.toggleMute()
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(isMuted = newMuted)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(isAudioMuted = newMuted, balanceConfig = updated)
-        }
+        updateSlotSetting { cfg, st -> st.copy(isAudioMuted = newMuted, balanceConfig = cfg.copy(isMuted = newMuted)) }
         return newMuted
     }
 
     fun setAudioMuted(muted: Boolean) {
         soundManager.setMutedState(muted)
-        _uiState.update { prev ->
-            val updated = prev.balanceConfig.copy(isMuted = muted)
-            telemetryManager.saveBalanceConfig(updated)
-            prev.copy(isAudioMuted = muted, balanceConfig = updated)
-        }
+        updateSlotSetting { cfg, st -> st.copy(isAudioMuted = muted, balanceConfig = cfg.copy(isMuted = muted)) }
     }
 
     private inline fun updateSlotSetting(crossinline transform: (DevBalanceConfig, GameUIState) -> GameUIState) {
-        _uiState.update { prev ->
-            val next = transform(prev.balanceConfig, prev)
-            telemetryManager.saveBalanceConfig(next.balanceConfig)
-            next
-        }
+        _uiState.update { prev -> transform(prev.balanceConfig, prev).also { telemetryManager.saveBalanceConfig(it.balanceConfig) } }
         assetVaultCoordinator.syncEquippedFromState()
     }
 
     fun setKineticSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
-        updateSlotSetting { cfg, st -> st.copy(kineticSfxSlot = c, balanceConfig = cfg.copy(kineticSfxSlot = c)) }
+        val id = com.example.audio.BuildArchiveCatalog.buildActiveFireId(TowerClass.KINETIC_BALLISTIC, c)
+        updateSlotSetting { cfg, st -> st.copy(kineticSfxSlot = c, kineticFireId = id, balanceConfig = cfg.copy(kineticSfxSlot = c, kineticFireId = id)) }
     }
-
     fun setElementalSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
-        updateSlotSetting { cfg, st -> st.copy(elementalSfxSlot = c, balanceConfig = cfg.copy(elementalSfxSlot = c)) }
+        val id = com.example.audio.BuildArchiveCatalog.buildActiveFireId(TowerClass.ELEMENTAL_VOID, c)
+        updateSlotSetting { cfg, st -> st.copy(elementalSfxSlot = c, elementalFireId = id, balanceConfig = cfg.copy(elementalSfxSlot = c, elementalFireId = id)) }
     }
-
     fun setSiegeSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
-        updateSlotSetting { cfg, st -> st.copy(siegeSfxSlot = c, balanceConfig = cfg.copy(siegeSfxSlot = c)) }
+        val id = com.example.audio.BuildArchiveCatalog.buildActiveFireId(TowerClass.HEAVY_SIEGE, c)
+        updateSlotSetting { cfg, st -> st.copy(siegeSfxSlot = c, siegeFireId = id, balanceConfig = cfg.copy(siegeSfxSlot = c, siegeFireId = id)) }
     }
-
     fun setStellarSfxSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
-        updateSlotSetting { cfg, st -> st.copy(stellarSfxSlot = c, balanceConfig = cfg.copy(stellarSfxSlot = c)) }
+        val id = com.example.audio.BuildArchiveCatalog.buildActiveFireId(TowerClass.STELLAR_COSMIC, c)
+        updateSlotSetting { cfg, st -> st.copy(stellarSfxSlot = c, stellarFireId = id, balanceConfig = cfg.copy(stellarSfxSlot = c, stellarFireId = id)) }
     }
-
     fun setTurretSkinSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
-        updateSlotSetting { cfg, st -> st.copy(turretSkinSlot = c, balanceConfig = cfg.copy(turretSkinSlot = c)) }
+        val id = com.example.audio.BuildArchiveCatalog.buildActiveSkinId(c)
+        updateSlotSetting { cfg, st -> st.copy(turretSkinSlot = c, turretSkinId = id, balanceConfig = cfg.copy(turretSkinSlot = c, turretSkinId = id)) }
     }
-
     fun setMapThemeSlot(slot: Int) = slot.coerceIn(1, 5).let { c ->
-        updateSlotSetting { cfg, st -> st.copy(mapThemeSlot = c, balanceConfig = cfg.copy(mapThemeSlot = c)) }
+        val id = com.example.audio.BuildArchiveCatalog.buildActiveThemeId(c)
+        updateSlotSetting { cfg, st -> st.copy(mapThemeSlot = c, mapThemeId = id, balanceConfig = cfg.copy(mapThemeSlot = c, mapThemeId = id)) }
     }
 
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) = soundManager.playTurretTestSound(towerClass, slot)

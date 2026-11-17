@@ -49,7 +49,7 @@ service cloud.firestore {
                             ])
                             && request.resource.data.userId == request.auth.uid
                             && request.resource.data.votes is map
-                            && request.resource.data.votes.size() <= 200;
+                            && request.resource.data.votes.size() <= 1500;
       allow delete: if false;
     }
 

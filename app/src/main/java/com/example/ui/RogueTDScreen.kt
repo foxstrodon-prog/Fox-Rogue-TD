@@ -354,6 +354,7 @@ fun RogueTDScreen(
                 onToggleAudioMute = { viewModel.toggleAudioMute() },
                 onSoundProfileChanged = { viewModel.setSoundProfile(it) },
                 onMusicTrackSelected = { viewModel.setMusicTrack(it) },
+                onBgmAssetSelected = { viewModel.assetVaultCoordinator.equipAsset(it) },
                 onKineticSfxSlotSelected = { viewModel.setKineticSfxSlot(it) },
                 onElementalSfxSlotSelected = { viewModel.setElementalSfxSlot(it) },
                 onSiegeSfxSlotSelected = { viewModel.setSiegeSfxSlot(it) },

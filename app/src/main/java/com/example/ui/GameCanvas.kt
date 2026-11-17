@@ -10,7 +10,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
-import com.example.model.MapThemeSlot
 import com.example.model.MapTile
 import com.example.ui.canvas.*
 import kotlin.math.cos
@@ -84,49 +83,13 @@ fun GameCanvas(
         withTransform({
             translate(boardOriginX, boardOriginY)
         }) {
-            val themeSlot = MapThemeSlot.fromSlot(state.mapThemeSlot)
-            val groundColor = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> biome.groundColor
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF0B192C)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF1C1917)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFF090514)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF020B05)
-            }
-            val gridLineColor = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> biome.groundSecondary.copy(alpha = 0.5f)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF1E3E62).copy(alpha = 0.7f)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF292524).copy(alpha = 0.7f)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFF2E1065).copy(alpha = 0.7f)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF064E3B).copy(alpha = 0.7f)
-            }
-            val pathBaseColor = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> biome.pathColor
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF16253D)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF44403C)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFF1E103A)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF065F46)
-            }
-            val colorAlpha = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFF00F0FF)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFF00E5FF)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFFF59E0B)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFFA855F7)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF10B981)
-            }
-            val colorBeta = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFFF6B00)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFFFFD600)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF06B6D4)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFFF43F5E)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFF6366F1)
-            }
-            val colorMerged = when (themeSlot) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Color(0xFFD946EF)
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Color(0xFFFF2A6D)
-                MapThemeSlot.SLOT_3_OUTPOST -> Color(0xFF84CC16)
-                MapThemeSlot.SLOT_4_VOID -> Color(0xFF06F9D2)
-                MapThemeSlot.SLOT_5_MATRIX -> Color(0xFFFBBF24)
-            }
+            val themeDef = com.example.audio.BuildArchiveCatalog.resolveMapTheme(state.mapThemeId, state.mapThemeSlot)
+            val groundColor = if (themeDef.useBiomePalette) biome.groundColor else Color(themeDef.groundColor)
+            val gridLineColor = if (themeDef.useBiomePalette) biome.groundSecondary.copy(alpha = 0.5f) else Color(themeDef.gridLineColor).copy(alpha = themeDef.gridLineAlpha)
+            val pathBaseColor = if (themeDef.useBiomePalette) biome.pathColor else Color(themeDef.pathBaseColor)
+            val colorAlpha = Color(themeDef.laneAlphaColor)
+            val colorBeta = Color(themeDef.laneBetaColor)
+            val colorMerged = Color(themeDef.laneMergedColor)
 
             drawTerrainGrid(
                 gridWidth = gridWidth,

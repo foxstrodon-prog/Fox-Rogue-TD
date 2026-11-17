@@ -1,10 +1,13 @@
 package com.example.engine.coordinator
 
+import com.example.audio.BuildArchiveCatalog
 import com.example.audio.CustomAssetRecord
 import com.example.audio.MusicTrack
 import com.example.audio.SoundManager
+import com.example.audio.SoundProfile
 import com.example.engine.TelemetryManager
 import com.example.engine.network.AssetVoteSyncManager
+import com.example.model.ArchiveSection
 import com.example.model.TowerClass
 import com.example.ui.GameUIState
 import kotlinx.coroutines.CoroutineScope
@@ -62,7 +65,15 @@ class AssetVaultCoordinator(
             stellarSlot = s.stellarSfxSlot,
             turretSkinSlot = s.turretSkinSlot,
             mapThemeSlot = s.mapThemeSlot,
-            musicTrack = s.musicTrack
+            musicTrack = s.musicTrack,
+            kineticFireId = s.kineticFireId,
+            elementalFireId = s.elementalFireId,
+            siegeFireId = s.siegeFireId,
+            stellarFireId = s.stellarFireId,
+            turretSkinId = s.turretSkinId,
+            mapThemeId = s.mapThemeId,
+            bgmTrackId = s.bgmTrackId,
+            sfxPackId = s.sfxPackId
         )
     }
 
@@ -100,46 +111,123 @@ class AssetVaultCoordinator(
         }
     }
 
-    fun equipAsset(assetId: String) {
-        val asset = assetLibraryFlow.value.firstOrNull { it.id == assetId } ?: return
+    fun equipAsset(rawAssetId: String) {
+        val canonicalId = BuildArchiveCatalog.migrateLegacyAssetId(rawAssetId)
+        val asset = assetLibraryFlow.value.firstOrNull { it.id == canonicalId || it.id == rawAssetId } ?: return
         val slot = asset.slotIndex.coerceIn(1, 5)
-        when (asset.category) {
-            "TURRET_FIRE" -> {
-                when (TowerClass.entries.getOrElse(asset.towerClassOrdinal) { TowerClass.KINETIC_BALLISTIC }) {
+        val effectiveSection = when (asset.category) {
+            "TURRET_FIRE" -> ArchiveSection.TURRET_FIRE.id
+            "TURRET_UPGRADE" -> ArchiveSection.TURRET_UPGRADE.id
+            "BACKGROUND_MUSIC", "SFX" -> ArchiveSection.BGM_SFX.id
+            "TURRET_SKIN" -> ArchiveSection.TURRET_SKIN.id
+            "MAP_THEME" -> ArchiveSection.MAP_THEME.id
+            else -> asset.archiveSection.ifBlank { ArchiveSection.BGM_SFX.id }
+        }
+
+        when {
+            effectiveSection == ArchiveSection.TURRET_FIRE.id -> {
+                val towerClass = inferTowerClass(asset)
+                when (towerClass) {
                     TowerClass.KINETIC_BALLISTIC -> updateSlotState { cfg, st ->
-                        st.copy(kineticSfxSlot = slot, balanceConfig = cfg.copy(kineticSfxSlot = slot))
+                        st.copy(
+                            kineticSfxSlot = slot,
+                            kineticFireId = asset.id,
+                            balanceConfig = cfg.copy(kineticSfxSlot = slot, kineticFireId = asset.id)
+                        )
                     }
                     TowerClass.ELEMENTAL_VOID -> updateSlotState { cfg, st ->
-                        st.copy(elementalSfxSlot = slot, balanceConfig = cfg.copy(elementalSfxSlot = slot))
+                        st.copy(
+                            elementalSfxSlot = slot,
+                            elementalFireId = asset.id,
+                            balanceConfig = cfg.copy(elementalSfxSlot = slot, elementalFireId = asset.id)
+                        )
                     }
                     TowerClass.HEAVY_SIEGE -> updateSlotState { cfg, st ->
-                        st.copy(siegeSfxSlot = slot, balanceConfig = cfg.copy(siegeSfxSlot = slot))
+                        st.copy(
+                            siegeSfxSlot = slot,
+                            siegeFireId = asset.id,
+                            balanceConfig = cfg.copy(siegeSfxSlot = slot, siegeFireId = asset.id)
+                        )
                     }
                     TowerClass.STELLAR_COSMIC -> updateSlotState { cfg, st ->
-                        st.copy(stellarSfxSlot = slot, balanceConfig = cfg.copy(stellarSfxSlot = slot))
+                        st.copy(
+                            stellarSfxSlot = slot,
+                            stellarFireId = asset.id,
+                            balanceConfig = cfg.copy(stellarSfxSlot = slot, stellarFireId = asset.id)
+                        )
                     }
                 }
             }
-            "TURRET_SKIN", "TURRET_UPGRADE" -> {
+            effectiveSection == ArchiveSection.TURRET_SKIN.id || effectiveSection == ArchiveSection.TURRET_UPGRADE.id -> {
+                val resolvedSkinId = if (effectiveSection == ArchiveSection.TURRET_SKIN.id) {
+                    asset.id
+                } else if (asset.isArchived && asset.buildCode == 60) {
+                    "b60_skin_$slot"
+                } else {
+                    BuildArchiveCatalog.buildActiveSkinId(slot)
+                }
                 updateSlotState { cfg, st ->
-                    st.copy(turretSkinSlot = slot, balanceConfig = cfg.copy(turretSkinSlot = slot))
+                    st.copy(
+                        turretSkinSlot = slot,
+                        turretSkinId = resolvedSkinId,
+                        balanceConfig = cfg.copy(turretSkinSlot = slot, turretSkinId = resolvedSkinId)
+                    )
                 }
             }
-            "MAP_THEME" -> {
+            effectiveSection == ArchiveSection.MAP_THEME.id -> {
                 updateSlotState { cfg, st ->
-                    st.copy(mapThemeSlot = slot, balanceConfig = cfg.copy(mapThemeSlot = slot))
+                    st.copy(
+                        mapThemeSlot = slot,
+                        mapThemeId = asset.id,
+                        balanceConfig = cfg.copy(mapThemeSlot = slot, mapThemeId = asset.id)
+                    )
                 }
             }
-            "BACKGROUND_MUSIC" -> {
-                val track = MusicTrack.entries.firstOrNull { "bgm_${it.name.lowercase()}" == asset.id } ?: return
-                soundManager.activeMusicTrack = track
+            effectiveSection == ArchiveSection.BGM_SFX.id && (asset.category == "BACKGROUND_MUSIC" || asset.id.contains("_bgm_")) -> {
+                val bgmDef = BuildArchiveCatalog.resolveBgmTrack(asset.id)
+                val track = bgmDef.legacyTrackName?.let { name ->
+                    runCatching { MusicTrack.valueOf(name) }.getOrNull()
+                } ?: MusicTrack.CYBER_AMBIENT
                 updateSlotState { cfg, st ->
-                    st.copy(musicTrack = track, balanceConfig = cfg.copy(musicTrackName = track.name))
+                    st.copy(
+                        musicTrack = track,
+                        bgmTrackId = asset.id,
+                        balanceConfig = cfg.copy(musicTrackName = track.name, bgmTrackId = asset.id)
+                    )
+                }
+                syncEquippedFromState()
+                soundManager.playBgmByAssetId(asset.id)
+                soundManager.exportLibraryJsonAsync()
+                return
+            }
+            effectiveSection == ArchiveSection.BGM_SFX.id && (asset.id.contains("_sfx")) -> {
+                val pack = BuildArchiveCatalog.resolveSfxPack(asset.id)
+                val profile = runCatching { SoundProfile.valueOf(pack.legacyProfileName) }.getOrDefault(SoundProfile.CYBER_SYNTH)
+                soundManager.activeProfile = profile
+                updateSlotState { cfg, st ->
+                    st.copy(
+                        soundProfile = profile,
+                        sfxPackId = asset.id,
+                        balanceConfig = cfg.copy(sfxPackId = asset.id)
+                    )
                 }
             }
         }
         syncEquippedFromState()
         soundManager.exportLibraryJsonAsync()
+    }
+
+    private fun inferTowerClass(asset: CustomAssetRecord): TowerClass {
+        if (asset.towerClassOrdinal in 0..3) {
+            return TowerClass.entries[asset.towerClassOrdinal]
+        }
+        val lower = asset.id.lowercase()
+        return when {
+            lower.contains("elemental") -> TowerClass.ELEMENTAL_VOID
+            lower.contains("siege") -> TowerClass.HEAVY_SIEGE
+            lower.contains("stellar") -> TowerClass.STELLAR_COSMIC
+            else -> TowerClass.KINETIC_BALLISTIC
+        }
     }
 
     private inline fun updateSlotState(crossinline transform: (com.example.model.DevBalanceConfig, GameUIState) -> GameUIState) {

@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.039
+### 🚀 What's New in Version 0.0.1.040
+
+🗂️ **Versioned Sound & Skin Archives + 4 New Variants Across Every Category**
+- **Build-Over-Build Sound & Skin Library:** Every update now keeps the canonical Default loadout intact, archives the previous build's variants, and adds 4 fresh options across Turret Fire, Upgrades, BGM Tracks, SFX Packs, Turret Skins, and Map Themes (`v0.0.1.040` / Build #61).
+- **Revamped "Archives" Tab:** Browse, preview, equip, and rate past variants from `Build #60 (v0.0.1.039)` and legacy `Pre-Build #60` presets inside the Sound & Skin Vault with dedicated section filters (`Turret Fire`, `Upgrades`, `BGM & SFX`, `Turret Skins`, `Map Themes`) and build badges.
+- **Persistent Custom Loadouts & Scaled Cloud Voting:** Equipping any active or archived skin, map theme, gunfire audio, or soundtrack persists across restarts, and Firebase vote sync now scales cleanly up to 1,500 rated assets per player (`237/237` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.039
 
 🔊 **Off-Main-Thread Audio, Atomic WAV Writes & Smarter Cloud Vote Sync**
 - **Zero-Hitch Audio & Preview Controls:** Moved startup SFX/music `.wav` synthesis, rolling playlist transitions, and Vault equip persistence off the Main thread with atomic file writes, serialized track switching, and accurate `0%` preview muting.

@@ -113,8 +113,8 @@ class SoundVaultAndVoteSyncTest {
     fun `Tri-state Like Dislike Neutral and Star persist across SoundManager restarts`() = runBlocking {
         val sm1 = SoundManager(context)
         sm1.initLoadJob?.join()
-        val targetId = "fire_stellar_slot_3"
-        val skinId = "skin_slot_4"
+        val targetId = "b60_fire_stellar_3"
+        val skinId = "b60_skin_4"
 
         assertEquals(1, sm1.setAssetVote(targetId, 1))
         assertTrue(sm1.assetLibraryFlow.value.first { it.id == targetId }.isFavoriteHeart)
@@ -177,22 +177,22 @@ class SoundVaultAndVoteSyncTest {
             apiKey = "test_api_key_123"
         )
 
-        sm.setAssetVote("fire_kinetic_slot_2", 1)
-        sm.setAssetVote("theme_slot_3", -1)
+        sm.setAssetVote("b60_fire_kinetic_2", 1)
+        sm.setAssetVote("b60_theme_3", -1)
 
         val payload1 = syncManager.buildVotePayload("uid_123", sm.assetLibraryFlow.value, 1000L)
         @Suppress("UNCHECKED_CAST")
         val votes1 = payload1["votes"] as Map<String, Any>
-        assertTrue(votes1.containsKey("fire_kinetic_slot_2"))
-        assertTrue(votes1.containsKey("theme_slot_3"))
+        assertTrue(votes1.containsKey("b60_fire_kinetic_2"))
+        assertTrue(votes1.containsKey("b60_theme_3"))
 
-        // Reset fire_kinetic_slot_2 back to Neutral (0)
-        sm.setAssetVote("fire_kinetic_slot_2", 1)
+        // Reset b60_fire_kinetic_2 back to Neutral (0)
+        sm.setAssetVote("b60_fire_kinetic_2", 1)
         val payload2 = syncManager.buildVotePayload("uid_123", sm.assetLibraryFlow.value, 2000L)
         @Suppress("UNCHECKED_CAST")
         val votes2 = payload2["votes"] as Map<String, Any>
-        assertFalse("Neutralized vote must be absent from full-overwrite payload", votes2.containsKey("fire_kinetic_slot_2"))
-        assertTrue(votes2.containsKey("theme_slot_3"))
+        assertFalse("Neutralized vote must be absent from full-overwrite payload", votes2.containsKey("b60_fire_kinetic_2"))
+        assertTrue(votes2.containsKey("b60_theme_3"))
 
         // First sync completes a Firestore request and triggers cooldown
         val firstSyncDone = CountDownLatch(1)
@@ -410,10 +410,10 @@ class SoundVaultAndVoteSyncTest {
         val stateFlow = MutableStateFlow(GameUIState())
         val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
 
-        coordinator.equipAsset("fire_stellar_slot_4")
-        coordinator.equipAsset("skin_slot_5")
-        coordinator.equipAsset("theme_slot_2")
-        coordinator.equipAsset("bgm_neon_overdrive")
+        coordinator.equipAsset("b60_fire_stellar_4")
+        coordinator.equipAsset("b60_skin_5")
+        coordinator.equipAsset("b60_theme_2")
+        coordinator.equipAsset("b60_bgm_neon_overdrive")
 
         val state = stateFlow.value
         assertEquals(4, state.stellarSfxSlot)
@@ -422,10 +422,10 @@ class SoundVaultAndVoteSyncTest {
         assertEquals(MusicTrack.NEON_OVERDRIVE, state.musicTrack)
 
         val records = sm.assetLibraryFlow.value
-        assertTrue(records.first { it.id == "fire_stellar_slot_4" }.isEquipped)
-        assertTrue(records.first { it.id == "skin_slot_5" }.isEquipped)
-        assertTrue(records.first { it.id == "theme_slot_2" }.isEquipped)
-        assertTrue(records.first { it.id == "bgm_neon_overdrive" }.isEquipped)
+        assertTrue(records.first { it.id == "b60_fire_stellar_4" }.isEquipped)
+        assertTrue(records.first { it.id == "b60_skin_5" }.isEquipped)
+        assertTrue(records.first { it.id == "b60_theme_2" }.isEquipped)
+        assertTrue(records.first { it.id == "b60_bgm_neon_overdrive" }.isEquipped)
 
         // Verify TelemetryManager persisted slots
         val reloaded = tm.getBalanceConfig()
@@ -434,9 +434,9 @@ class SoundVaultAndVoteSyncTest {
         assertEquals(2, reloaded.mapThemeSlot)
 
         // Verify previewAsset executes safely across categories
-        coordinator.previewAsset("fire_stellar_slot_4")
-        coordinator.previewAsset("upgrade_stellar_cosmic_slot_2")
-        coordinator.previewAsset("sfx_place")
+        coordinator.previewAsset("b60_fire_stellar_4")
+        coordinator.previewAsset("b60_upgrade_stellar_cosmic_2")
+        coordinator.previewAsset("default_sfx_place")
         coordinator.stopPreview()
 
         sm.release()
@@ -447,8 +447,8 @@ class SoundVaultAndVoteSyncTest {
     fun `AssetVoteSyncManager uploads asset_votes over Firestore REST with REST auth fallback`() = runBlocking {
         val sm = SoundManager(context)
         sm.initLoadJob?.join()
-        sm.setAssetVote("fire_kinetic_slot_2", 1)
-        sm.toggleAssetFavoriteStar("skin_slot_4")
+        sm.setAssetVote("b60_fire_kinetic_2", 1)
+        sm.toggleAssetFavoriteStar("b60_skin_4")
 
         var capturedMethod = ""
         var capturedUrl = ""
@@ -533,8 +533,8 @@ class SoundVaultAndVoteSyncTest {
         assertTrue(fields.has("versionCode"))
         assertTrue(fields.has("syncedAtEpochMs"))
         val voteFields = fields.getJSONObject("votes").getJSONObject("mapValue").getJSONObject("fields")
-        assertTrue(voteFields.has("fire_kinetic_slot_2"))
-        assertTrue(voteFields.has("skin_slot_4"))
+        assertTrue(voteFields.has("b60_fire_kinetic_2"))
+        assertTrue(voteFields.has("b60_skin_4"))
 
         sm.release()
         sm.awaitPendingIoForTest()
@@ -667,16 +667,17 @@ class SoundVaultAndVoteSyncTest {
     }
 
     @Test
-    fun `TurretSfxSlot stellarName matches SoundArchiveStore record labels`() = runBlocking {
+    fun `TurretSfxSlot stellarName matches Build 60 archived SoundArchiveStore record labels`() = runBlocking {
         val sm = SoundManager(context)
         sm.initLoadJob?.join()
         val records = sm.assetLibraryFlow.value
         for (slot in 1..5) {
             val expectedName = TurretSfxSlot.fromSlot(slot).stellarName
-            val record = records.first { it.id == "fire_stellar_slot_$slot" }
+            val record = records.first { it.id == "b60_fire_stellar_$slot" }
+            val expectedSuffix = if (slot == 1) "$expectedName [B60 Snapshot]" else expectedName
             assertTrue(
-                "Record '${record.name}' should end with '$expectedName'",
-                record.name.endsWith(expectedName)
+                "Record '${record.name}' should end with '$expectedSuffix'",
+                record.name.endsWith(expectedSuffix)
             )
         }
         sm.release()
@@ -743,8 +744,8 @@ class SoundVaultAndVoteSyncTest {
         )
         val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
 
-        coordinator.setAssetVote("fire_kinetic_slot_2", 1)
-        coordinator.toggleAssetStar("skin_slot_4")
+        coordinator.setAssetVote("b60_fire_kinetic_2", 1)
+        coordinator.toggleAssetStar("b60_skin_4")
         assertTrue("Voting must immediately mark pending cloud sync", syncManager.hasPendingSync())
         assertTrue(coordinator.syncStatusFlow.value.contains("Pending cloud sync", ignoreCase = true))
 
@@ -852,12 +853,12 @@ class SoundVaultAndVoteSyncTest {
         val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
 
         // Cast initial vote and start first cloud sync
-        coordinator.setAssetVote("fire_kinetic_slot_2", 1)
+        coordinator.setAssetVote("b60_fire_kinetic_2", 1)
         coordinator.syncVotesToCloud(force = true)
         assertTrue("First PATCH must enter flight", patch1Entered.await(5, TimeUnit.SECONDS))
 
         // Cast a newer vote while PATCH 1 is blocked in flight, then attempt a colliding sync
-        coordinator.setAssetVote("skin_slot_4", -1)
+        coordinator.setAssetVote("b60_skin_4", -1)
         coordinator.syncVotesToCloud(force = false)
 
         // Release PATCH 1 and let Main looper run its completion handler
@@ -893,8 +894,8 @@ class SoundVaultAndVoteSyncTest {
             .getJSONObject("votes")
             .getJSONObject("mapValue")
             .getJSONObject("fields")
-        assertTrue(patch2VoteFields.has("fire_kinetic_slot_2"))
-        assertTrue("Follow-up PATCH must contain newer skin_slot_4 vote", patch2VoteFields.has("skin_slot_4"))
+        assertTrue(patch2VoteFields.has("b60_fire_kinetic_2"))
+        assertTrue("Follow-up PATCH must contain newer b60_skin_4 vote", patch2VoteFields.has("b60_skin_4"))
 
         sm.release()
         sm.awaitPendingIoForTest()
@@ -1054,13 +1055,13 @@ class SoundVaultAndVoteSyncTest {
         val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
 
         jsonFile.delete()
-        coordinator.equipAsset("fire_stellar_slot_4")
+        coordinator.equipAsset("b60_fire_stellar_4")
         assertEquals(4, stateFlow.value.stellarSfxSlot)
         assertFalse("equipAsset must not write exported JSON synchronously on caller thread", jsonFile.exists())
 
         ioDispatcher.scheduler.advanceUntilIdle()
         assertTrue("Async export must persist library JSON after IO runs", jsonFile.exists())
-        assertTrue(jsonFile.readText().contains("\"id\": \"fire_stellar_slot_4\""))
+        assertTrue(jsonFile.readText().contains("\"id\": \"b60_fire_stellar_4\""))
 
         sm.release()
         ioDispatcher.scheduler.advanceUntilIdle()

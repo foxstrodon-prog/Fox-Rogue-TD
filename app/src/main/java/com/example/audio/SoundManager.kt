@@ -3,6 +3,7 @@ package com.example.audio
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import com.example.model.ArchiveSection
 import com.example.model.TowerClass
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -13,16 +14,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
 /**
  * Hybrid Audio Engine:
  * - [MusicAndPreviewPlayer] for BGM streaming, rolling playlist, fades, ducking, and archive previews.
- * - [SoundPool] for low-latency SFX: placement, upgrades, and 20 turret firing audio variants.
- * - [SoundArchiveStore] for permanent `.wav` persistence under `filesDir/sound_archive`,
- *   legacy `cacheDir` migration, and local Like/Dislike/Star JSON persistence.
+ * - [SoundPool] for low-latency SFX: placement, upgrades, and turret firing audio variants.
+ * - [SoundArchiveStore] & [BuildArchiveCatalog] for build-versioned permanent `.wav` persistence,
+ *   lazy on-demand archived audio synthesis, and Like/Dislike/Star JSON persistence.
  */
 class SoundManager @JvmOverloads constructor(
     context: Context,
@@ -46,20 +46,11 @@ class SoundManager @JvmOverloads constructor(
     @Volatile
     private var isReleased: Boolean = false
 
-    @Volatile
-    internal var initLoadJob: Job? = null
-
-    @Volatile
-    internal var profileLoadJob: Job? = null
-
-    @Volatile
-    internal var trackSwitchJob: Job? = null
-
-    @Volatile
-    internal var migrationJob: Job? = null
-
-    @Volatile
-    internal var finalFlushJob: Job? = null
+    @Volatile internal var initLoadJob: Job? = null
+    @Volatile internal var profileLoadJob: Job? = null
+    @Volatile internal var trackSwitchJob: Job? = null
+    @Volatile internal var migrationJob: Job? = null
+    @Volatile internal var finalFlushJob: Job? = null
 
     private var profileGeneration: Long = 0L
 
@@ -77,22 +68,27 @@ class SoundManager @JvmOverloads constructor(
     private val siegeLoaded = BooleanArray(5)
     private val stellarSoundIds = IntArray(5)
     private val stellarLoaded = BooleanArray(5)
-
     private val upgradeSoundIds = Array(4) { IntArray(5) }
     private val upgradeLoaded = Array(4) { BooleanArray(5) }
-
-    val equippedTurretSkinSlot: Int
-        get() = libraryController.equippedTurretSkinSlot
-
-    val equippedMapThemeSlot: Int
-        get() = libraryController.equippedMapThemeSlot
 
     private val lastTurretFirePlayMs = LongArray(4)
     private val minTurretFireIntervalMs = 65L
     private val sfxLoadTargetMap = ConcurrentHashMap<Int, Triple<Int, Int, Int>>()
 
+    // Lazy SoundPool cache for equipped archived Fire / Upgrade / WAV assets
+    private val dynamicAssetSoundIds = ConcurrentHashMap<String, Int>()
+    private val dynamicSampleLoaded = ConcurrentHashMap<Int, Boolean>()
+    private val dynamicAssetSampleToKey = ConcurrentHashMap<Int, String>()
+    private val dynamicPreloadInFlight = ConcurrentHashMap.newKeySet<String>()
+
     @Volatile
     private var turretAssetsLoaded: Boolean = false
+
+    val equippedTurretSkinSlot: Int get() = libraryController.equippedTurretSkinSlot
+    val equippedMapThemeSlot: Int get() = libraryController.equippedMapThemeSlot
+    val equippedTurretSkinId: String get() = libraryController.equippedTurretSkinId
+    val equippedMapThemeId: String get() = libraryController.equippedMapThemeId
+    val equippedBgmId: String get() = libraryController.equippedBgmId
 
     @Volatile
     var enabled: Boolean = true
@@ -104,7 +100,7 @@ class SoundManager @JvmOverloads constructor(
             field = value
             musicPlayer.updateMusicVolume()
             if (!value && wasMuted && !musicPlayer.hasActiveMediaPlayer() && enabled && !isAudioSuspended && activeMusicTrack != MusicTrack.NONE) {
-                requestPlayTrackAsync(activeMusicTrack, resetPlaylist = false)
+                requestPlayTrackAsync(activeMusicTrack, libraryController.equippedBgmId, resetPlaylist = false)
             }
         }
 
@@ -174,8 +170,8 @@ class SoundManager @JvmOverloads constructor(
         set(value) {
             if (field == value) return
             field = value
-            requestPlayTrackAsync(value, resetPlaylist = true)
             updateMusicEquippedStateInMemory(value)
+            requestPlayTrackAsync(value, libraryController.equippedBgmId, resetPlaylist = true)
         }
 
     private val musicPlayer = MusicAndPreviewPlayer(
@@ -188,6 +184,7 @@ class SoundManager @JvmOverloads constructor(
         getSfxVolume = { sfxVolume },
         getMusicVolume = { musicVolume },
         getActiveMusicTrack = { activeMusicTrack },
+        getActiveBgmAssetId = { libraryController.equippedBgmId },
         ioDispatcher = ioDispatcher
     )
 
@@ -214,6 +211,9 @@ class SoundManager @JvmOverloads constructor(
                         5 -> upgradeLoaded[target.second][target.third] = true
                     }
                 }
+                if (dynamicAssetSampleToKey.containsKey(sampleId)) {
+                    dynamicSampleLoaded[sampleId] = true
+                }
             }
         }
 
@@ -228,7 +228,7 @@ class SoundManager @JvmOverloads constructor(
             }
         }
 
-        requestPlayTrackAsync(activeMusicTrack, resetPlaylist = false)
+        requestPlayTrackAsync(activeMusicTrack, libraryController.equippedBgmId, resetPlaylist = false)
 
         migrationJob = ioScope.launch {
             val migratedCount = archiveStore.migrateLegacyCacheWavsToArchive()
@@ -238,7 +238,7 @@ class SoundManager @JvmOverloads constructor(
         }
     }
 
-    private fun requestPlayTrackAsync(track: MusicTrack, resetPlaylist: Boolean) {
+    private fun requestPlayTrackAsync(track: MusicTrack, bgmAssetId: String?, resetPlaylist: Boolean) {
         synchronized(trackSwitchLock) {
             if (isReleased) return
             trackSwitchJob?.cancel()
@@ -252,11 +252,29 @@ class SoundManager @JvmOverloads constructor(
                 return
             }
             trackSwitchJob = ioScope.launch {
-                if (!isReleased) {
+                if (isReleased) return@launch
+                if (!bgmAssetId.isNullOrBlank() &&
+                    bgmAssetId != "default_bgm_rolling_playlist" &&
+                    bgmAssetId != "b60_bgm_rolling_playlist" &&
+                    BuildArchiveCatalog.bgmById.containsKey(bgmAssetId)
+                ) {
+                    musicPlayer.playBgmAsset(bgmAssetId, expectedGeneration = expectedGen)
+                } else {
                     musicPlayer.playTrack(track, expectedGeneration = expectedGen)
                 }
             }
         }
+    }
+
+    fun playBgmByAssetId(bgmAssetId: String) {
+        val canonicalId = BuildArchiveCatalog.migrateLegacyAssetId(bgmAssetId)
+        val def = BuildArchiveCatalog.resolveBgmTrack(canonicalId)
+        val legacyTrack = def.legacyTrackName?.let { name ->
+            runCatching { MusicTrack.valueOf(name) }.getOrNull()
+        } ?: MusicTrack.CYBER_AMBIENT
+        activeMusicTrack = legacyTrack
+        libraryController.updateMusicEquippedStateInMemory(legacyTrack, def.id)
+        requestPlayTrackAsync(legacyTrack, def.id, resetPlaylist = true)
     }
 
     private fun updateMusicEquippedStateInMemory(musicTrack: MusicTrack) =
@@ -276,8 +294,14 @@ class SoundManager @JvmOverloads constructor(
     fun getEquippedFireSlot(towerClass: TowerClass): Int =
         libraryController.getEquippedFireSlot(towerClass)
 
+    fun getEquippedFireId(towerClass: TowerClass): String =
+        libraryController.getEquippedFireId(towerClass)
+
     fun getEquippedUpgradeSlot(towerClass: TowerClass): Int =
         libraryController.getEquippedUpgradeSlot(towerClass)
+
+    fun getEquippedUpgradeId(towerClass: TowerClass): String =
+        libraryController.getEquippedUpgradeId(towerClass)
 
     fun populateAssetLibrary() =
         libraryController.populateAssetLibrary(activeProfile, activeMusicTrack)
@@ -291,48 +315,66 @@ class SoundManager @JvmOverloads constructor(
         stellarSlot: Int,
         turretSkinSlot: Int,
         mapThemeSlot: Int,
-        musicTrack: MusicTrack
-    ) = libraryController.syncEquippedSlots(
-        kineticSlot = kineticSlot,
-        elementalSlot = elementalSlot,
-        siegeSlot = siegeSlot,
-        stellarSlot = stellarSlot,
-        turretSkinSlot = turretSkinSlot,
-        mapThemeSlot = mapThemeSlot,
-        musicTrack = musicTrack
-    )
+        musicTrack: MusicTrack,
+        kineticFireId: String? = null,
+        elementalFireId: String? = null,
+        siegeFireId: String? = null,
+        stellarFireId: String? = null,
+        turretSkinId: String? = null,
+        mapThemeId: String? = null,
+        bgmTrackId: String? = null,
+        sfxPackId: String? = null
+    ) {
+        libraryController.syncEquippedSlots(
+            kineticSlot, elementalSlot, siegeSlot, stellarSlot,
+            turretSkinSlot, mapThemeSlot, musicTrack,
+            kineticFireId, elementalFireId, siegeFireId, stellarFireId,
+            turretSkinId, mapThemeId, bgmTrackId, sfxPackId
+        )
+        listOfNotNull(kineticFireId, elementalFireId, siegeFireId, stellarFireId).forEach { id ->
+            val canonical = BuildArchiveCatalog.migrateLegacyAssetId(id)
+            if (canonical.startsWith("b60_") || canonical.startsWith("pre60_")) preloadDynamicAssetAsync(canonical)
+        }
+    }
 
     fun previewAsset(assetId: String) {
-        val asset = assetLibraryFlow.value.firstOrNull { it.id == assetId } ?: return
-        when (asset.category) {
-            "TURRET_FIRE" -> {
+        val canonicalId = BuildArchiveCatalog.migrateLegacyAssetId(assetId)
+        val asset = assetLibraryFlow.value.firstOrNull { it.id == canonicalId || it.id == assetId } ?: return
+        val isBgm = asset.category == "BACKGROUND_MUSIC" ||
+            (asset.category == "ARCHIVE" && asset.archiveSection == ArchiveSection.BGM_SFX.id && asset.id.contains("_bgm_"))
+        if (isBgm) {
+            val targetId = if (asset.id.endsWith("rolling_playlist")) musicPlayer.getCurrentRollingBgmId() else asset.id
+            val generation = musicPlayer.nextPreviewGeneration()
+            ioScope.launch {
+                val file = musicPlayer.getOrCreateAudioFileForAsset(targetId) ?: return@launch
+                musicPlayer.playTransientWavFile(file, expectedGeneration = generation)
+            }
+            return
+        }
+
+        when {
+            asset.category == "TURRET_FIRE" -> {
                 musicPlayer.stopPreview()
                 val tClass = TowerClass.entries.getOrElse(asset.towerClassOrdinal) { TowerClass.KINETIC_BALLISTIC }
                 playTurretTestSound(tClass, asset.slotIndex)
             }
-            "TURRET_UPGRADE" -> {
+            asset.category == "TURRET_UPGRADE" -> {
                 musicPlayer.stopPreview()
                 val tClass = TowerClass.entries.getOrElse(asset.towerClassOrdinal) { TowerClass.KINETIC_BALLISTIC }
                 playTowerUpgradeTestSound(tClass, asset.slotIndex)
             }
-            "SFX" -> {
+            asset.category == "SFX" && asset.id.startsWith("default_sfx_") && !asset.id.startsWith("default_sfx_pack_") -> {
                 musicPlayer.stopPreview()
                 SoundFx.entries.getOrNull(asset.slotIndex)?.let { play(it) }
             }
-            "BACKGROUND_MUSIC" -> {
-                val track = MusicTrack.entries.firstOrNull { "bgm_${it.name.lowercase()}" == asset.id } ?: return
-                val targetTrack = if (track == MusicTrack.ROLLING_PLAYLIST) musicPlayer.getCurrentRollingTrack() else track
+            else -> {
+                // Archived Fire, Upgrade, BGM/SFX pack, or Legacy WAV -> lazy synthesis/load on IO
                 val generation = musicPlayer.nextPreviewGeneration()
                 ioScope.launch {
-                    val file = musicPlayer.getOrCreateMusicFile(targetTrack)
+                    val file = asset.filePath?.let(::File)?.takeIf { it.exists() && it.length() >= 64L }
+                        ?: musicPlayer.getOrCreateAudioFileForAsset(asset.id)
+                        ?: return@launch
                     musicPlayer.playTransientWavFile(file, expectedGeneration = generation)
-                }
-            }
-            "ARCHIVED_WAV" -> {
-                val path = asset.filePath ?: return
-                val generation = musicPlayer.nextPreviewGeneration()
-                ioScope.launch {
-                    musicPlayer.playTransientWavFile(File(path), expectedGeneration = generation)
                 }
             }
         }
@@ -357,24 +399,23 @@ class SoundManager @JvmOverloads constructor(
     // SFX Loading & Playback
     // ---------------------------------------------------------------------------------------------
 
-    private fun writeWavAtomicallyIfNeeded(file: File, synthesize: () -> ShortArray) {
-        if (file.exists() && file.length() >= 64L) return
-        file.parentFile?.let { if (!it.exists()) it.mkdirs() }
-        val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
-        try {
-            val wavBytes = AudioSynthesizer.toWav(synthesize())
-            FileOutputStream(tmpFile).use { it.write(wavBytes) }
-            if (!tmpFile.renameTo(file)) {
-                if (file.exists()) {
-                    file.delete()
+    private fun preloadDynamicAssetAsync(assetId: String) {
+        if (isReleased || dynamicAssetSoundIds.containsKey(assetId) || !dynamicPreloadInFlight.add(assetId)) return
+        ioScope.launch {
+            try {
+                val recordPath = assetLibraryFlow.value.firstOrNull { it.id == assetId }?.filePath
+                val file = recordPath?.let(::File)?.takeIf { it.exists() && it.length() >= 64L }
+                    ?: musicPlayer.getOrCreateAudioFileForAsset(assetId)
+                    ?: return@launch
+                synchronized(soundPoolLock) {
+                    if (isReleased) return@launch
+                    val sampleId = soundPool.load(file.absolutePath, 1)
+                    dynamicAssetSoundIds[assetId] = sampleId
+                    dynamicAssetSampleToKey[sampleId] = assetId
                 }
-                if (!tmpFile.renameTo(file)) {
-                    FileOutputStream(file).use { it.write(wavBytes) }
-                }
-            }
-        } finally {
-            if (tmpFile.exists()) {
-                tmpFile.delete()
+            } catch (_: Exception) {
+            } finally {
+                dynamicPreloadInFlight.remove(assetId)
             }
         }
     }
@@ -382,9 +423,7 @@ class SoundManager @JvmOverloads constructor(
     @Synchronized
     private fun loadAllSfx(profile: SoundProfile, expectedProfileGen: Long? = null) {
         if (isReleased) return
-        if (expectedProfileGen != null && synchronized(profileLoadLock) { profileGeneration } != expectedProfileGen) {
-            return
-        }
+        if (expectedProfileGen != null && synchronized(profileLoadLock) { profileGeneration } != expectedProfileGen) return
 
         synchronized(soundPoolLock) {
             if (isReleased) return
@@ -401,12 +440,10 @@ class SoundManager @JvmOverloads constructor(
 
         for (fx in SoundFx.entries) {
             if (isReleased) return
-            if (expectedProfileGen != null && synchronized(profileLoadLock) { profileGeneration } != expectedProfileGen) {
-                return
-            }
+            if (expectedProfileGen != null && synchronized(profileLoadLock) { profileGeneration } != expectedProfileGen) return
             try {
                 val file = archiveStore.getGenericSfxFile(profile, fx)
-                writeWavAtomicallyIfNeeded(file) {
+                archiveStore.writeWavAtomicallyIfNeeded(file) {
                     ProceduralAudioSynthesizer.synthesizeGeneric(fx, profile)
                 }
                 synchronized(soundPoolLock) {
@@ -426,33 +463,28 @@ class SoundManager @JvmOverloads constructor(
         for (slot in 1..5) {
             if (isReleased) return
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.KINETIC_BALLISTIC, slot), kineticSoundIds, slot - 1, 1) {
-                ProceduralAudioSynthesizer.synthesizeKineticVariant(slot)
+                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.KINETIC_BALLISTIC, slot)
             }
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.ELEMENTAL_VOID, slot), elementalSoundIds, slot - 1, 2) {
-                ProceduralAudioSynthesizer.synthesizeElementalVariant(slot)
+                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.ELEMENTAL_VOID, slot)
             }
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.HEAVY_SIEGE, slot), siegeSoundIds, slot - 1, 3) {
-                ProceduralAudioSynthesizer.synthesizeSiegeVariant(slot)
+                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.HEAVY_SIEGE, slot)
             }
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.STELLAR_COSMIC, slot), stellarSoundIds, slot - 1, 4) {
-                ProceduralAudioSynthesizer.synthesizeStellarVariant(slot)
+                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.STELLAR_COSMIC, slot)
             }
         }
 
-        val classes = listOf(
-            TowerClass.KINETIC_BALLISTIC,
-            TowerClass.ELEMENTAL_VOID,
-            TowerClass.HEAVY_SIEGE,
-            TowerClass.STELLAR_COSMIC
-        )
+        val classes = BuildArchiveCatalog.allClasses
         for (c in classes.indices) {
             val tClass = classes[c]
             for (slot in 1..5) {
                 if (isReleased) return
                 try {
                     val file = archiveStore.getUpgradeFile(tClass, slot)
-                    writeWavAtomicallyIfNeeded(file) {
-                        ProceduralAudioSynthesizer.synthesizeTowerUpgrade(tClass, slot)
+                    archiveStore.writeWavAtomicallyIfNeeded(file) {
+                        ArchivedAudioSynthesizer.synthesizeB61Upgrade(tClass, slot)
                     }
                     synchronized(soundPoolLock) {
                         if (isReleased) return
@@ -475,7 +507,7 @@ class SoundManager @JvmOverloads constructor(
         crossinline synthesize: () -> ShortArray
     ) {
         try {
-            writeWavAtomicallyIfNeeded(file) { synthesize() }
+            archiveStore.writeWavAtomicallyIfNeeded(file) { synthesize() }
             synchronized(soundPoolLock) {
                 if (isReleased) return
                 val id = soundPool.load(file.absolutePath, 1)
@@ -509,7 +541,21 @@ class SoundManager @JvmOverloads constructor(
         play(SoundFx.PLACE)
     }
 
-    fun playTurretFire(towerClass: TowerClass, slot: Int = getEquippedFireSlot(towerClass)) {
+    private fun getFireSample(towerClass: TowerClass, slot: Int): Pair<Int, Boolean> {
+        val s = (slot - 1).coerceIn(0, 4)
+        return when (towerClass) {
+            TowerClass.KINETIC_BALLISTIC -> kineticSoundIds[s] to kineticLoaded[s]
+            TowerClass.ELEMENTAL_VOID -> elementalSoundIds[s] to elementalLoaded[s]
+            TowerClass.HEAVY_SIEGE -> siegeSoundIds[s] to siegeLoaded[s]
+            TowerClass.STELLAR_COSMIC -> stellarSoundIds[s] to stellarLoaded[s]
+        }
+    }
+
+    fun playTurretFire(
+        towerClass: TowerClass,
+        slot: Int = getEquippedFireSlot(towerClass),
+        assetId: String? = null
+    ) {
         if (isReleased || !enabled || isMuted || isAudioSuspended) return
         val archetypeIdx = towerClass.ordinal.coerceIn(0, 3)
         val nowMs = System.currentTimeMillis()
@@ -517,23 +563,29 @@ class SoundManager @JvmOverloads constructor(
         lastTurretFirePlayMs[archetypeIdx] = nowMs
 
         triggerCombatDucking(durationMs = 450L)
-
-        val targetSlot = (slot - 1).coerceIn(0, 4)
-        val (soundId, isLoaded) = when (towerClass) {
-            TowerClass.KINETIC_BALLISTIC -> Pair(kineticSoundIds[targetSlot], kineticLoaded[targetSlot])
-            TowerClass.ELEMENTAL_VOID -> Pair(elementalSoundIds[targetSlot], elementalLoaded[targetSlot])
-            TowerClass.HEAVY_SIEGE -> Pair(siegeSoundIds[targetSlot], siegeLoaded[targetSlot])
-            TowerClass.STELLAR_COSMIC -> Pair(stellarSoundIds[targetSlot], stellarLoaded[targetSlot])
+        val resolvedId = assetId ?: libraryController.getEquippedFireId(towerClass)
+        if (resolvedId.startsWith("b60_") || resolvedId.startsWith("pre60_")) {
+            val dynSampleId = dynamicAssetSoundIds[resolvedId]
+            if (dynSampleId != null && dynamicSampleLoaded[dynSampleId] == true) {
+                val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
+                val jitterRate = 0.96f + Random.nextFloat() * 0.08f
+                try {
+                    synchronized(soundPoolLock) {
+                        if (!isReleased) soundPool.play(dynSampleId, v, v, 2, 0, jitterRate)
+                    }
+                } catch (_: Exception) {}
+                return
+            }
+            preloadDynamicAssetAsync(resolvedId)
         }
 
+        val (soundId, isLoaded) = getFireSample(towerClass, slot)
         if (soundId != 0 && isLoaded) {
             val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
             val jitterRate = 0.96f + Random.nextFloat() * 0.08f
             try {
                 synchronized(soundPoolLock) {
-                    if (!isReleased) {
-                        soundPool.play(soundId, v, v, 2, 0, jitterRate)
-                    }
+                    if (!isReleased) soundPool.play(soundId, v, v, 2, 0, jitterRate)
                 }
             } catch (_: Exception) {}
         }
@@ -541,13 +593,7 @@ class SoundManager @JvmOverloads constructor(
 
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) {
         if (isReleased || !enabled || isMuted) return
-        val targetSlot = (slot - 1).coerceIn(0, 4)
-        val (soundId, isLoaded) = when (towerClass) {
-            TowerClass.KINETIC_BALLISTIC -> Pair(kineticSoundIds[targetSlot], kineticLoaded[targetSlot])
-            TowerClass.ELEMENTAL_VOID -> Pair(elementalSoundIds[targetSlot], elementalLoaded[targetSlot])
-            TowerClass.HEAVY_SIEGE -> Pair(siegeSoundIds[targetSlot], siegeLoaded[targetSlot])
-            TowerClass.STELLAR_COSMIC -> Pair(stellarSoundIds[targetSlot], stellarLoaded[targetSlot])
-        }
+        val (soundId, isLoaded) = getFireSample(towerClass, slot)
         try {
             synchronized(soundPoolLock) {
                 if (isReleased) return
@@ -560,8 +606,26 @@ class SoundManager @JvmOverloads constructor(
         } catch (_: Exception) {}
     }
 
-    fun playTowerUpgrade(towerClass: TowerClass, skinSlot: Int = getEquippedUpgradeSlot(towerClass)) {
+    fun playTowerUpgrade(
+        towerClass: TowerClass,
+        skinSlot: Int = getEquippedUpgradeSlot(towerClass),
+        assetId: String? = null
+    ) {
         if (isReleased || !enabled || isMuted || isAudioSuspended) return
+        val resolvedId = assetId ?: libraryController.getEquippedUpgradeId(towerClass)
+        if (resolvedId.startsWith("b60_") || resolvedId.startsWith("pre60_")) {
+            val dynSampleId = dynamicAssetSoundIds[resolvedId]
+            if (dynSampleId != null && dynamicSampleLoaded[dynSampleId] == true) {
+                val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)
+                try {
+                    synchronized(soundPoolLock) {
+                        if (!isReleased) soundPool.play(dynSampleId, v, v, 2, 0, 1.0f)
+                    }
+                } catch (_: Exception) {}
+                return
+            }
+            preloadDynamicAssetAsync(resolvedId)
+        }
         val c = towerClass.ordinal.coerceIn(0, 3)
         val s = (skinSlot - 1).coerceIn(0, 4)
         val soundId = upgradeSoundIds[c][s]

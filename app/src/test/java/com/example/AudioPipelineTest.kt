@@ -285,8 +285,10 @@ class AudioPipelineTest {
         sm.awaitPendingIoForTest()
 
         assertEquals(MusicTrack.CELESTIAL_BASTION, sm.activeMusicTrack)
-        val bgmRecords = sm.assetLibraryFlow.value.filter { it.category == "BACKGROUND_MUSIC" }
-        assertTrue(bgmRecords.first { it.id == "bgm_celestial_bastion" }.isEquipped)
+        val bgmRecords = sm.assetLibraryFlow.value.filter {
+            it.category == "BACKGROUND_MUSIC" || it.id.contains("_bgm_")
+        }
+        assertTrue(bgmRecords.first { it.id == "b60_bgm_celestial_bastion" }.isEquipped)
         assertEquals(1, bgmRecords.count { it.isEquipped })
         sm.release()
         sm.awaitPendingIoForTest()
@@ -296,8 +298,8 @@ class AudioPipelineTest {
     fun `resumeMusic and updateTick dispatch track preparation asynchronously off caller thread`() {
         val archiveStore = SoundArchiveStore(context)
         val ioDispatcher = StandardTestDispatcher()
-        val rollingFirstFile = archiveStore.getMusicFile(MusicTrack.CYBER_AMBIENT)
-        val rollingSecondFile = archiveStore.getMusicFile(MusicTrack.PULSE_ARPEGGIO)
+        val rollingFirstFile = archiveStore.getMusicFileForAsset("default_bgm_cyber_ambient")
+        val rollingSecondFile = archiveStore.getMusicFileForAsset("b61_bgm_orbital_surge")
         rollingFirstFile.delete()
         rollingSecondFile.delete()
         ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(rollingFirstFile.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))

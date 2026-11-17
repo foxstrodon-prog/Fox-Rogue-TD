@@ -2,10 +2,8 @@ package com.example.audio
 
 import android.content.Context
 import com.example.BuildConfig
-import com.example.model.MapThemeSlot
+import com.example.model.ArchiveSection
 import com.example.model.TowerClass
-import com.example.model.TurretSfxSlot
-import com.example.model.TurretSkinSlot
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -13,7 +11,8 @@ import java.io.File
 /**
  * Persistent Sound & Skin Archive Store.
  * Manages permanent `.wav` storage under `filesDir/sound_archive`, migrates legacy `cacheDir` `.wav` files,
- * builds the full asset catalog, and handles JSON import/export for Like/Dislike/Star ratings.
+ * builds the versioned Build-over-Build asset catalog (Pre-Build #60, Build #60, Build #61+),
+ * and handles JSON import/export for Like/Dislike/Star ratings with legacy ID migration.
  */
 internal class SoundArchiveStore(context: Context) {
 
@@ -28,21 +27,64 @@ internal class SoundArchiveStore(context: Context) {
     fun getMusicFile(track: MusicTrack): File =
         File(archiveDir, "bgm_${track.name.lowercase()}_v5_lowpass.wav")
 
+    fun getMusicFileForAsset(bgmAssetId: String): File {
+        val def = BuildArchiveCatalog.resolveBgmTrack(bgmAssetId)
+        return File(archiveDir, def.wavFileName)
+    }
+
     fun getGenericSfxFile(profile: SoundProfile, fx: SoundFx): File =
         File(archiveDir, "sfx_${profile.name.lowercase()}_${fx.name.lowercase()}_v4.wav")
 
     fun getGunfireFile(towerClass: TowerClass, slot: Int): File {
-        val tag = towerClassShortTag(towerClass)
-        val ver = if (towerClass == TowerClass.STELLAR_COSMIC) "v1" else "v2"
-        return File(archiveDir, "sfx_gunfire_${tag}_slot${slot}_${ver}.wav")
+        val defId = BuildArchiveCatalog.buildActiveFireId(towerClass, slot)
+        val def = BuildArchiveCatalog.turretAudioById[defId]
+        return if (def != null) File(archiveDir, def.wavFileName)
+        else File(archiveDir, "sfx_gunfire_${BuildArchiveCatalog.towerClassShortTag(towerClass)}_slot${slot}_v2.wav")
     }
 
-    fun getUpgradeFile(towerClass: TowerClass, slot: Int): File =
-        File(archiveDir, "sfx_upgrade_${towerClass.name.lowercase()}_slot${slot}_v2.wav")
+    fun getUpgradeFile(towerClass: TowerClass, slot: Int): File {
+        val defId = BuildArchiveCatalog.buildActiveUpgradeId(towerClass, slot)
+        val def = BuildArchiveCatalog.turretAudioById[defId]
+        return if (def != null) File(archiveDir, def.wavFileName)
+        else File(archiveDir, "sfx_upgrade_${towerClass.name.lowercase()}_slot${slot}_v2.wav")
+    }
+
+    fun getWavFileForAsset(rawAssetId: String, activeProfile: SoundProfile = SoundProfile.CYBER_SYNTH): File? {
+        val assetId = BuildArchiveCatalog.migrateLegacyAssetId(rawAssetId)
+        BuildArchiveCatalog.bgmById[assetId]?.let { return File(archiveDir, it.wavFileName) }
+        BuildArchiveCatalog.sfxPacksById[assetId]?.let { pack ->
+            if (pack.previewWavFileName.isNotBlank()) return File(archiveDir, pack.previewWavFileName)
+        }
+        if (assetId.startsWith("default_sfx_")) {
+            val fxName = assetId.removePrefix("default_sfx_").uppercase()
+            val fx = SoundFx.entries.firstOrNull { it.name == fxName }
+            if (fx != null) return getGenericSfxFile(activeProfile, fx)
+        }
+        BuildArchiveCatalog.turretAudioById[assetId]?.let { return File(archiveDir, it.wavFileName) }
+        return null
+    }
+
+    fun writeWavAtomicallyIfNeeded(file: File, synthesize: () -> ShortArray) {
+        if (file.exists() && file.length() >= 64L) return
+        file.parentFile?.let { if (!it.exists()) it.mkdirs() }
+        val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
+        try {
+            val wavBytes = AudioSynthesizer.toWav(synthesize())
+            java.io.FileOutputStream(tmpFile).use { it.write(wavBytes) }
+            if (!tmpFile.renameTo(file)) {
+                if (file.exists()) file.delete()
+                if (!tmpFile.renameTo(file)) {
+                    java.io.FileOutputStream(file).use { it.write(wavBytes) }
+                }
+            }
+        } finally {
+            if (tmpFile.exists()) tmpFile.delete()
+        }
+    }
 
     /**
      * Copies any legacy `.wav` files stranded in `cacheDir` into persistent `filesDir/sound_archive`.
-     * Designed to run on `Dispatchers.IO`. Returns the number of files migrated.
+     * Runs on `Dispatchers.IO`. Returns the number of files migrated.
      */
     fun migrateLegacyCacheWavsToArchive(): Int {
         var migrated = 0
@@ -61,153 +103,365 @@ internal class SoundArchiveStore(context: Context) {
     }
 
     /**
-     * Builds the complete immutable asset catalog without synthesizing any audio on the caller thread.
+     * Builds the complete immutable versioned asset catalog (Active Build #61 + Default,
+     * Build #60 Snapshot, and Pre-Build #60 legacy skins/themes/WAVs) without synthesizing audio.
      */
     fun buildAssetLibrary(
         activeProfile: SoundProfile,
-        activeMusicTrack: MusicTrack,
-        equippedFireSlots: IntArray,
-        equippedUpgradeSlots: IntArray,
-        equippedTurretSkinSlot: Int,
-        equippedMapThemeSlot: Int
+        equippedBgmId: String,
+        equippedSfxPackId: String,
+        equippedFireIds: Array<String>,
+        equippedUpgradeIds: Array<String>,
+        equippedTurretSkinId: String,
+        equippedMapThemeId: String
     ): List<CustomAssetRecord> {
         val records = mutableListOf<CustomAssetRecord>()
         val knownFilenames = mutableSetOf<String>()
 
-        // 1. Background Music Tracks
-        for (track in MusicTrack.values()) {
-            if (track != MusicTrack.NONE) {
-                val file = getMusicFile(track)
-                knownFilenames.add(file.name)
-                records.add(
-                    CustomAssetRecord(
-                        id = "bgm_${track.name.lowercase()}",
-                        type = "SOUND",
-                        name = track.label,
-                        category = "BACKGROUND_MUSIC",
-                        filePath = file.absolutePath,
-                        isEquipped = (activeMusicTrack == track)
-                    )
-                )
-            }
+        // Register all known SoundProfile generic WAV names so only truly legacy/unknown WAVs become ARCHIVED_WAV
+        SoundProfile.entries.forEach { prof ->
+            SoundFx.entries.forEach { fx -> knownFilenames.add(getGenericSfxFile(prof, fx).name) }
         }
 
-        // 2. Generic Game SFX (for active SoundProfile)
-        for (fx in SoundFx.values()) {
-            val file = getGenericSfxFile(activeProfile, fx)
+        // 1. Active Background Music (Rolling Playlist + Default Track 1 + 4 Build #61 tracks)
+        BuildArchiveCatalog.build61BgmTracks.forEach { bgm ->
+            val file = File(archiveDir, bgm.wavFileName)
             knownFilenames.add(file.name)
             records.add(
                 CustomAssetRecord(
-                    id = "sfx_${fx.name.lowercase()}",
+                    id = bgm.id,
                     type = "SOUND",
-                    name = "${fx.label} (${activeProfile.name})",
-                    category = "SFX",
-                    slotIndex = fx.ordinal,
-                    filePath = file.absolutePath
+                    name = bgm.displayName,
+                    category = "BACKGROUND_MUSIC",
+                    metadata = bgm.description,
+                    slotIndex = bgm.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedBgmId == bgm.id),
+                    buildCode = bgm.buildCode,
+                    buildLabel = bgm.buildLabel,
+                    archiveSection = ArchiveSection.BGM_SFX.id,
+                    isArchived = false,
+                    isDefault = bgm.isDefault
                 )
             )
         }
 
-        // 3. 20 Turret Gunfire Variants (4 Classes x 5 Slots)
-        val classes = listOf(
-            TowerClass.KINETIC_BALLISTIC,
-            TowerClass.ELEMENTAL_VOID,
-            TowerClass.HEAVY_SIEGE,
-            TowerClass.STELLAR_COSMIC
-        )
-        classes.forEachIndexed { classIdx, tClass ->
-            val shortTag = towerClassShortTag(tClass)
-            for (slot in 1..5) {
-                val file = getGunfireFile(tClass, slot)
-                knownFilenames.add(file.name)
-                val slotLabel = gunfireVariantLabel(tClass, slot)
-                records.add(
-                    CustomAssetRecord(
-                        id = "fire_${shortTag}_slot_${slot}",
-                        type = "SOUND",
-                        name = "${towerClassLabel(tClass)} Fire #$slot: $slotLabel",
-                        category = "TURRET_FIRE",
-                        towerClassOrdinal = classIdx,
-                        slotIndex = slot,
-                        filePath = file.absolutePath,
-                        isEquipped = (equippedFireSlots.getOrElse(classIdx) { 1 } == slot)
-                    )
+        // 2. Active Generic SFX (Default Cyber Synth items) + 4 new Build #61 SFX Packs
+        for (fx in SoundFx.entries) {
+            val file = getGenericSfxFile(activeProfile, fx)
+            knownFilenames.add(file.name)
+            records.add(
+                CustomAssetRecord(
+                    id = "default_sfx_${fx.name.lowercase()}",
+                    type = "SOUND",
+                    name = "${fx.label} (${activeProfile.name})",
+                    category = "SFX",
+                    slotIndex = fx.ordinal,
+                    filePath = file.absolutePath,
+                    buildCode = CURRENT_BUILD_CODE,
+                    buildLabel = "Default (Core)",
+                    archiveSection = ArchiveSection.BGM_SFX.id,
+                    isArchived = false,
+                    isDefault = true
                 )
-            }
+            )
+        }
+        BuildArchiveCatalog.build61SfxPacks.forEach { pack ->
+            val file = File(archiveDir, pack.previewWavFileName)
+            knownFilenames.add(file.name)
+            records.add(
+                CustomAssetRecord(
+                    id = pack.id,
+                    type = "SOUND",
+                    name = pack.displayName,
+                    category = "SFX",
+                    metadata = pack.description,
+                    slotIndex = pack.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedSfxPackId == pack.id),
+                    buildCode = pack.buildCode,
+                    buildLabel = pack.buildLabel,
+                    archiveSection = ArchiveSection.BGM_SFX.id,
+                    isArchived = false,
+                    isDefault = pack.isDefault
+                )
+            )
         }
 
-        // 4. 20 Tower Upgrade Variants (4 Classes x 5 Skin Slots)
-        classes.forEachIndexed { classIdx, tClass ->
-            for (slot in 1..5) {
-                val file = getUpgradeFile(tClass, slot)
-                knownFilenames.add(file.name)
-                val skinName = TurretSkinSlot.fromSlot(slot).displayName
-                records.add(
-                    CustomAssetRecord(
-                        id = "upgrade_${tClass.name.lowercase()}_slot_${slot}",
-                        type = "SOUND",
-                        name = "${towerClassLabel(tClass)} Upgrade #$slot ($skinName)",
-                        category = "TURRET_UPGRADE",
-                        towerClassOrdinal = classIdx,
-                        slotIndex = slot,
-                        filePath = file.absolutePath,
-                        isEquipped = (equippedUpgradeSlots.getOrElse(classIdx) { 1 } == slot)
-                    )
+        // 3. Active Turret Fire (20: 4 classes x (Default + 4 Build #61))
+        BuildArchiveCatalog.build61TurretFireDefs.forEach { def ->
+            val file = File(archiveDir, def.wavFileName)
+            knownFilenames.add(file.name)
+            val classIdx = def.towerClass.ordinal
+            records.add(
+                CustomAssetRecord(
+                    id = def.id,
+                    type = "SOUND",
+                    name = def.displayName,
+                    category = "TURRET_FIRE",
+                    metadata = def.description,
+                    towerClassOrdinal = classIdx,
+                    slotIndex = def.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedFireIds.getOrElse(classIdx) { "" } == def.id),
+                    buildCode = def.buildCode,
+                    buildLabel = def.buildLabel,
+                    archiveSection = ArchiveSection.TURRET_FIRE.id,
+                    isArchived = false,
+                    isDefault = def.isDefault
                 )
-            }
+            )
         }
 
-        // 5. Legacy / Archived WAV files discovered on disk (previous versions, other profiles, etc.)
+        // 4. Active Turret Upgrades (20: 4 classes x (Default + 4 Build #61))
+        BuildArchiveCatalog.build61TurretUpgradeDefs.forEach { def ->
+            val file = File(archiveDir, def.wavFileName)
+            knownFilenames.add(file.name)
+            val classIdx = def.towerClass.ordinal
+            records.add(
+                CustomAssetRecord(
+                    id = def.id,
+                    type = "SOUND",
+                    name = def.displayName,
+                    category = "TURRET_UPGRADE",
+                    metadata = def.description,
+                    towerClassOrdinal = classIdx,
+                    slotIndex = def.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedUpgradeIds.getOrElse(classIdx) { "" } == def.id),
+                    buildCode = def.buildCode,
+                    buildLabel = def.buildLabel,
+                    archiveSection = ArchiveSection.TURRET_UPGRADE.id,
+                    isArchived = false,
+                    isDefault = def.isDefault
+                )
+            )
+        }
+
+        // 5. Active Turret Visual Skins (5: Default + 4 Build #61)
+        BuildArchiveVisualCatalog.build61TurretSkins.forEach { skin ->
+            records.add(
+                CustomAssetRecord(
+                    id = skin.id,
+                    type = "SKIN",
+                    name = skin.displayName,
+                    category = "TURRET_SKIN",
+                    slotIndex = skin.slotIndex,
+                    unlockScore = (skin.slotIndex - 1) * 5000,
+                    metadata = skin.description,
+                    isEquipped = (equippedTurretSkinId == skin.id),
+                    buildCode = skin.buildCode,
+                    buildLabel = skin.buildLabel,
+                    archiveSection = ArchiveSection.TURRET_SKIN.id,
+                    isArchived = false,
+                    isDefault = skin.isDefault
+                )
+            )
+        }
+
+        // 6. Active Map Themes (5: Default + 4 Build #61)
+        BuildArchiveVisualCatalog.build61MapThemes.forEach { theme ->
+            records.add(
+                CustomAssetRecord(
+                    id = theme.id,
+                    type = "SKIN",
+                    name = theme.displayName,
+                    category = "MAP_THEME",
+                    slotIndex = theme.slotIndex,
+                    unlockScore = (theme.slotIndex - 1) * 5000,
+                    metadata = theme.description,
+                    isEquipped = (equippedMapThemeId == theme.id),
+                    buildCode = theme.buildCode,
+                    buildLabel = theme.buildLabel,
+                    archiveSection = ArchiveSection.MAP_THEME.id,
+                    isArchived = false,
+                    isDefault = theme.isDefault
+                )
+            )
+        }
+
+        // 7. Archives: Build #60 Snapshot (Turret Fire, Upgrades, BGM, SFX, Skins, Map Themes)
+        BuildArchiveCatalog.build60ArchivedFireDefs.forEach { def ->
+            val file = File(archiveDir, def.wavFileName)
+            knownFilenames.add(file.name)
+            val classIdx = def.towerClass.ordinal
+            records.add(
+                CustomAssetRecord(
+                    id = def.id,
+                    type = "SOUND",
+                    name = def.displayName,
+                    category = "ARCHIVE",
+                    metadata = def.description,
+                    towerClassOrdinal = classIdx,
+                    slotIndex = def.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedFireIds.getOrElse(classIdx) { "" } == def.id),
+                    buildCode = def.buildCode,
+                    buildLabel = def.buildLabel,
+                    archiveSection = ArchiveSection.TURRET_FIRE.id,
+                    isArchived = true
+                )
+            )
+        }
+        BuildArchiveCatalog.build60ArchivedUpgradeDefs.forEach { def ->
+            val file = File(archiveDir, def.wavFileName)
+            knownFilenames.add(file.name)
+            val classIdx = def.towerClass.ordinal
+            records.add(
+                CustomAssetRecord(
+                    id = def.id,
+                    type = "SOUND",
+                    name = def.displayName,
+                    category = "ARCHIVE",
+                    metadata = def.description,
+                    towerClassOrdinal = classIdx,
+                    slotIndex = def.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedUpgradeIds.getOrElse(classIdx) { "" } == def.id),
+                    buildCode = def.buildCode,
+                    buildLabel = def.buildLabel,
+                    archiveSection = ArchiveSection.TURRET_UPGRADE.id,
+                    isArchived = true
+                )
+            )
+        }
+        BuildArchiveCatalog.build60ArchivedBgmTracks.forEach { bgm ->
+            val file = File(archiveDir, bgm.wavFileName)
+            knownFilenames.add(file.name)
+            records.add(
+                CustomAssetRecord(
+                    id = bgm.id,
+                    type = "SOUND",
+                    name = bgm.displayName,
+                    category = "ARCHIVE",
+                    metadata = bgm.description,
+                    slotIndex = bgm.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedBgmId == bgm.id),
+                    buildCode = bgm.buildCode,
+                    buildLabel = bgm.buildLabel,
+                    archiveSection = ArchiveSection.BGM_SFX.id,
+                    isArchived = true
+                )
+            )
+        }
+        BuildArchiveCatalog.build60ArchivedSfxPacks.forEach { pack ->
+            val file = File(archiveDir, pack.previewWavFileName)
+            knownFilenames.add(file.name)
+            records.add(
+                CustomAssetRecord(
+                    id = pack.id,
+                    type = "SOUND",
+                    name = pack.displayName,
+                    category = "ARCHIVE",
+                    metadata = pack.description,
+                    slotIndex = pack.slotIndex,
+                    filePath = file.absolutePath,
+                    isEquipped = (equippedSfxPackId == pack.id),
+                    buildCode = pack.buildCode,
+                    buildLabel = pack.buildLabel,
+                    archiveSection = ArchiveSection.BGM_SFX.id,
+                    isArchived = true
+                )
+            )
+        }
+        BuildArchiveVisualCatalog.build60ArchivedSkins.forEach { skin ->
+            records.add(
+                CustomAssetRecord(
+                    id = skin.id,
+                    type = "SKIN",
+                    name = skin.displayName,
+                    category = "ARCHIVE",
+                    slotIndex = skin.slotIndex,
+                    metadata = skin.description,
+                    isEquipped = (equippedTurretSkinId == skin.id),
+                    buildCode = skin.buildCode,
+                    buildLabel = skin.buildLabel,
+                    archiveSection = ArchiveSection.TURRET_SKIN.id,
+                    isArchived = true
+                )
+            )
+        }
+        BuildArchiveVisualCatalog.build60ArchivedThemes.forEach { theme ->
+            records.add(
+                CustomAssetRecord(
+                    id = theme.id,
+                    type = "SKIN",
+                    name = theme.displayName,
+                    category = "ARCHIVE",
+                    slotIndex = theme.slotIndex,
+                    metadata = theme.description,
+                    isEquipped = (equippedMapThemeId == theme.id),
+                    buildCode = theme.buildCode,
+                    buildLabel = theme.buildLabel,
+                    archiveSection = ArchiveSection.MAP_THEME.id,
+                    isArchived = true
+                )
+            )
+        }
+
+        // 8. Archives: Pre-Build #60 Legacy SkinTheme Presets & Unrecognized On-Disk WAVs
+        BuildArchiveVisualCatalog.pre60ArchivedSkins.forEach { skin ->
+            records.add(
+                CustomAssetRecord(
+                    id = skin.id,
+                    type = "SKIN",
+                    name = skin.displayName,
+                    category = "ARCHIVE",
+                    slotIndex = skin.slotIndex,
+                    metadata = skin.description,
+                    isEquipped = (equippedTurretSkinId == skin.id),
+                    buildCode = PRE60_BUILD_CODE,
+                    buildLabel = PRE60_BUILD_LABEL,
+                    archiveSection = ArchiveSection.TURRET_SKIN.id,
+                    isArchived = true
+                )
+            )
+        }
+        BuildArchiveVisualCatalog.pre60ArchivedThemes.forEach { theme ->
+            records.add(
+                CustomAssetRecord(
+                    id = theme.id,
+                    type = "SKIN",
+                    name = theme.displayName,
+                    category = "ARCHIVE",
+                    slotIndex = theme.slotIndex,
+                    metadata = theme.description,
+                    isEquipped = (equippedMapThemeId == theme.id),
+                    buildCode = PRE60_BUILD_CODE,
+                    buildLabel = PRE60_BUILD_LABEL,
+                    archiveSection = ArchiveSection.MAP_THEME.id,
+                    isArchived = true
+                )
+            )
+        }
         try {
             archiveDir.listFiles { f -> f.isFile && f.name.endsWith(".wav", ignoreCase = true) }
                 ?.sortedBy { it.name }
                 ?.forEach { wavFile ->
                     if (wavFile.name !in knownFilenames) {
-                        val cleanId = "archive_${wavFile.nameWithoutExtension.lowercase()}"
+                        val section = BuildArchiveCatalog.inferArchiveSectionFromFilename(wavFile.name)
+                        val cleanId = "pre60_wav_${wavFile.nameWithoutExtension.lowercase()}"
                         records.add(
                             CustomAssetRecord(
                                 id = cleanId,
                                 type = "SOUND",
-                                name = "Archived: ${wavFile.nameWithoutExtension}",
+                                name = "Legacy WAV: ${wavFile.nameWithoutExtension}",
                                 category = "ARCHIVED_WAV",
-                                filePath = wavFile.absolutePath
+                                metadata = "Imported legacy audio file",
+                                filePath = wavFile.absolutePath,
+                                isEquipped = equippedFireIds.contains(cleanId) ||
+                                    equippedUpgradeIds.contains(cleanId) ||
+                                    equippedBgmId == cleanId,
+                                buildCode = PRE60_BUILD_CODE,
+                                buildLabel = PRE60_BUILD_LABEL,
+                                archiveSection = section.id,
+                                isArchived = true
                             )
                         )
                     }
                 }
         } catch (_: Exception) {}
-
-        // 6. 5 Turret Visual Skins (aligned with TurretSkinSlot)
-        TurretSkinSlot.entries.forEach { skin ->
-            records.add(
-                CustomAssetRecord(
-                    id = "skin_slot_${skin.slot}",
-                    type = "SKIN",
-                    name = skin.displayName,
-                    category = "TURRET_SKIN",
-                    slotIndex = skin.slot,
-                    unlockScore = (skin.slot - 1) * 5000,
-                    metadata = skin.description,
-                    isEquipped = (equippedTurretSkinSlot == skin.slot)
-                )
-            )
-        }
-
-        // 7. 5 Map & Lane Themes (aligned with MapThemeSlot)
-        MapThemeSlot.entries.forEach { theme ->
-            records.add(
-                CustomAssetRecord(
-                    id = "theme_slot_${theme.slot}",
-                    type = "SKIN",
-                    name = theme.displayName,
-                    category = "MAP_THEME",
-                    slotIndex = theme.slot,
-                    unlockScore = (theme.slot - 1) * 5000,
-                    metadata = theme.description,
-                    isEquipped = (equippedMapThemeSlot == theme.slot)
-                )
-            )
-        }
 
         return records
     }
@@ -281,14 +535,18 @@ internal class SoundArchiveStore(context: Context) {
             val assetsArr = root.optJSONArray("assets") ?: return emptyMap()
             for (i in 0 until assetsArr.length()) {
                 val obj = assetsArr.optJSONObject(i) ?: continue
-                val id = obj.optString("id", "")
-                if (id.isBlank()) continue
+                val rawId = obj.optString("id", "")
+                if (rawId.isBlank()) continue
+                val id = BuildArchiveCatalog.migrateLegacyAssetId(rawId)
                 val heart = obj.optBoolean("heart", false)
                 val vote = obj.optInt("voteState", if (heart) 1 else 0).coerceIn(-1, 1)
                 val star = obj.optBoolean("star", false)
                 val updatedAt = obj.optLong("updatedAtEpochMs", 0L)
                 if (vote != 0 || star || updatedAt > 0L) {
-                    result[id] = PersistedAssetRating(vote, star, updatedAt)
+                    val prev = result[id]
+                    if (prev == null || updatedAt >= prev.updatedAtEpochMs) {
+                        result[id] = PersistedAssetRating(vote, star, updatedAt)
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -309,6 +567,9 @@ internal class SoundArchiveStore(context: Context) {
                     put("id", item.id)
                     put("name", item.name)
                     put("category", item.category)
+                    put("archiveSection", item.archiveSection)
+                    put("buildCode", item.buildCode)
+                    put("buildLabel", item.buildLabel)
                     put("voteState", item.voteState)
                     put("heart", item.isFavoriteHeart)
                     put("star", item.isFavoriteStar)
@@ -326,6 +587,11 @@ internal class SoundArchiveStore(context: Context) {
                     put("type", item.type)
                     put("name", item.name)
                     put("category", item.category)
+                    put("archiveSection", item.archiveSection)
+                    put("buildCode", item.buildCode)
+                    put("buildLabel", item.buildLabel)
+                    put("isArchived", item.isArchived)
+                    put("isDefault", item.isDefault)
                     put("voteState", item.voteState)
                     put("heart", item.isFavoriteHeart)
                     put("star", item.isFavoriteStar)
@@ -353,29 +619,5 @@ internal class SoundArchiveStore(context: Context) {
             }
         }
         return jsonStr
-    }
-
-    private fun towerClassShortTag(towerClass: TowerClass): String = when (towerClass) {
-        TowerClass.KINETIC_BALLISTIC -> "kinetic"
-        TowerClass.ELEMENTAL_VOID -> "elemental"
-        TowerClass.HEAVY_SIEGE -> "siege"
-        TowerClass.STELLAR_COSMIC -> "stellar"
-    }
-
-    private fun towerClassLabel(towerClass: TowerClass): String = when (towerClass) {
-        TowerClass.KINETIC_BALLISTIC -> "Kinetic"
-        TowerClass.ELEMENTAL_VOID -> "Elemental"
-        TowerClass.HEAVY_SIEGE -> "Siege"
-        TowerClass.STELLAR_COSMIC -> "Stellar"
-    }
-
-    private fun gunfireVariantLabel(towerClass: TowerClass, slot: Int): String {
-        val s = TurretSfxSlot.fromSlot(slot)
-        return when (towerClass) {
-            TowerClass.KINETIC_BALLISTIC -> s.kineticName
-            TowerClass.ELEMENTAL_VOID -> s.elementalName
-            TowerClass.HEAVY_SIEGE -> s.siegeName
-            TowerClass.STELLAR_COSMIC -> s.stellarName
-        }
     }
 }

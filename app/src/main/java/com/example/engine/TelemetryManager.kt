@@ -275,8 +275,34 @@ class TelemetryManager @JvmOverloads constructor(
             siegeSfxSlot = prefs.getInt("cfg_siege_sfx_slot", 1),
             stellarSfxSlot = prefs.getInt("cfg_stellar_sfx_slot", 1),
             turretSkinSlot = prefs.getInt("cfg_turret_skin_slot", 1),
-            mapThemeSlot = prefs.getInt("cfg_map_theme_slot", 1)
+            mapThemeSlot = prefs.getInt("cfg_map_theme_slot", 1),
+            kineticFireId = prefs.getString("cfg_kinetic_fire_id", null)
+                ?: legacySlotToFireId("kinetic", prefs.getInt("cfg_kinetic_sfx_slot", 1)),
+            elementalFireId = prefs.getString("cfg_elemental_fire_id", null)
+                ?: legacySlotToFireId("elemental", prefs.getInt("cfg_elemental_sfx_slot", 1)),
+            siegeFireId = prefs.getString("cfg_siege_fire_id", null)
+                ?: legacySlotToFireId("siege", prefs.getInt("cfg_siege_sfx_slot", 1)),
+            stellarFireId = prefs.getString("cfg_stellar_fire_id", null)
+                ?: legacySlotToFireId("stellar", prefs.getInt("cfg_stellar_sfx_slot", 1)),
+            turretSkinId = prefs.getString("cfg_turret_skin_id", null)
+                ?: prefs.getInt("cfg_turret_skin_slot", 1).let { if (it in 2..5) "b60_skin_$it" else "default_skin_1" },
+            mapThemeId = prefs.getString("cfg_map_theme_id", null)
+                ?: prefs.getInt("cfg_map_theme_slot", 1).let { if (it in 2..5) "b60_theme_$it" else "default_theme_1" },
+            bgmTrackId = prefs.getString("cfg_bgm_track_id", null)
+                ?: legacyMusicNameToId(prefs.getString("cfg_music_track", "ROLLING_PLAYLIST") ?: "ROLLING_PLAYLIST"),
+            sfxPackId = prefs.getString("cfg_sfx_pack_id", "default_sfx_pack_cyber_synth")
+                ?: "default_sfx_pack_cyber_synth"
         )
+    }
+
+    private fun legacySlotToFireId(tag: String, slot: Int): String =
+        if (slot in 2..5) "b60_fire_${tag}_$slot" else "default_fire_$tag"
+
+    private fun legacyMusicNameToId(trackName: String): String = when (trackName) {
+        "NONE" -> ""
+        "ROLLING_PLAYLIST" -> "default_bgm_rolling_playlist"
+        "CYBER_AMBIENT" -> "default_bgm_cyber_ambient"
+        else -> "b60_bgm_${trackName.lowercase()}"
     }
 
     fun saveBalanceConfig(config: DevBalanceConfig) {
@@ -308,6 +334,14 @@ class TelemetryManager @JvmOverloads constructor(
             .putInt("cfg_stellar_sfx_slot", config.stellarSfxSlot)
             .putInt("cfg_turret_skin_slot", config.turretSkinSlot)
             .putInt("cfg_map_theme_slot", config.mapThemeSlot)
+            .putString("cfg_kinetic_fire_id", config.kineticFireId)
+            .putString("cfg_elemental_fire_id", config.elementalFireId)
+            .putString("cfg_siege_fire_id", config.siegeFireId)
+            .putString("cfg_stellar_fire_id", config.stellarFireId)
+            .putString("cfg_turret_skin_id", config.turretSkinId)
+            .putString("cfg_map_theme_id", config.mapThemeId)
+            .putString("cfg_bgm_track_id", config.bgmTrackId)
+            .putString("cfg_sfx_pack_id", config.sfxPackId)
             .apply()
     }
 

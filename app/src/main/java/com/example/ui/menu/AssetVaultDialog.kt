@@ -31,16 +31,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.audio.BuildArchiveCatalog
 import com.example.audio.CustomAssetRecord
-import com.example.model.MapThemeSlot
-import com.example.model.TurretSkinSlot
+import com.example.model.ArchiveSection
 
 private enum class VaultTab(val label: String) {
     ALL("All"),
     FIRE("Turret Fire (20)"),
     UPGRADE("Upgrades (20)"),
     BGM_SFX("BGM & SFX"),
-    ARCHIVED("Archived WAVs"),
+    ARCHIVES("Archives"),
     TURRET_SKINS("Turret Skins (5)"),
     MAP_THEMES("Map Themes (5)"),
     LIKED("Liked / Starred"),
@@ -49,7 +49,7 @@ private enum class VaultTab(val label: String) {
 
 /**
  * In-Game Sound & Skin Vault Dialog (Sam's responsive squircle layout).
- * Supports 2-row cards for 360dp portrait phones and wide landscape tablets,
+ * Supports build-versioned active & archived catalogs, section filters inside "Archives",
  * preview playback, equipping into GameUIState, and tri-state Like/Dislike/Star voting.
  */
 @Composable
@@ -66,16 +66,19 @@ fun AssetVaultDialog(
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(VaultTab.ALL) }
+    var selectedArchiveSection by remember { mutableStateOf(ArchiveSection.ALL) }
 
-    val filteredAssets = remember(assets, selectedTab) {
+    val filteredAssets = remember(assets, selectedTab, selectedArchiveSection) {
         when (selectedTab) {
             VaultTab.ALL -> assets
-            VaultTab.FIRE -> assets.filter { it.category == "TURRET_FIRE" }
-            VaultTab.UPGRADE -> assets.filter { it.category == "TURRET_UPGRADE" }
-            VaultTab.BGM_SFX -> assets.filter { it.category == "BACKGROUND_MUSIC" || it.category == "SFX" }
-            VaultTab.ARCHIVED -> assets.filter { it.category == "ARCHIVED_WAV" }
-            VaultTab.TURRET_SKINS -> assets.filter { it.category == "TURRET_SKIN" }
-            VaultTab.MAP_THEMES -> assets.filter { it.category == "MAP_THEME" }
+            VaultTab.FIRE -> assets.filter { it.category == "TURRET_FIRE" && !it.isArchived }
+            VaultTab.UPGRADE -> assets.filter { it.category == "TURRET_UPGRADE" && !it.isArchived }
+            VaultTab.BGM_SFX -> assets.filter { (it.category == "BACKGROUND_MUSIC" || it.category == "SFX") && !it.isArchived }
+            VaultTab.ARCHIVES -> assets.filter { item ->
+                item.isArchived && (selectedArchiveSection == ArchiveSection.ALL || item.archiveSection == selectedArchiveSection.id)
+            }
+            VaultTab.TURRET_SKINS -> assets.filter { it.category == "TURRET_SKIN" && !it.isArchived }
+            VaultTab.MAP_THEMES -> assets.filter { it.category == "MAP_THEME" && !it.isArchived }
             VaultTab.LIKED -> assets.filter { it.voteState == 1 || it.isFavoriteStar }
             VaultTab.DISLIKED -> assets.filter { it.voteState == -1 }
         }
@@ -118,7 +121,7 @@ fun AssetVaultDialog(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${assets.size} assets • Auto-syncs to Firebase",
+                            text = "${assets.size} assets • Build #61 + Archives • Firebase sync",
                             color = Color(0xFF8B949E),
                             fontSize = 10.5.sp,
                             maxLines = 1,
@@ -185,7 +188,7 @@ fun AssetVaultDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Category Filter Tabs
+                // Top-level Category Filter Tabs
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -203,6 +206,7 @@ fun AssetVaultDialog(
                                     color = if (active) Color(0xFF00E5FF) else Color(0xFF30363D),
                                     shape = RoundedCornerShape(12.dp)
                                 )
+                                .testTag("vault_tab_${tab.name}")
                                 .clickable { selectedTab = tab }
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
@@ -212,6 +216,41 @@ fun AssetVaultDialog(
                                 fontSize = 11.sp,
                                 fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
                             )
+                        }
+                    }
+                }
+
+                // Sub-section Filter Chips inside "Archives"
+                if (selectedTab == VaultTab.ARCHIVES) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ArchiveSection.entries.forEach { section ->
+                            val active = (selectedArchiveSection == section)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (active) Color(0xFFA855F7).copy(alpha = 0.22f) else Color(0xFF111827))
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (active) Color(0xFFA855F7) else Color(0xFF30363D),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .testTag("archive_section_${section.id}")
+                                    .clickable { selectedArchiveSection = section }
+                                    .padding(horizontal = 9.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = section.label,
+                                    color = if (active) Color(0xFFE9D5FF) else Color(0xFF9CA3AF),
+                                    fontSize = 10.sp,
+                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -231,7 +270,9 @@ fun AssetVaultDialog(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("asset_vault_list"),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredAssets, key = { it.id }) { asset ->
@@ -272,8 +313,14 @@ private fun AssetVaultCard(
         "TURRET_UPGRADE",
         "BACKGROUND_MUSIC",
         "TURRET_SKIN",
-        "MAP_THEME"
-    )
+        "MAP_THEME",
+        "ARCHIVE"
+    ) || (asset.category == "SFX" && asset.id.contains("_sfx_pack_")) ||
+        (asset.category == "ARCHIVED_WAV" && (
+            asset.archiveSection == ArchiveSection.TURRET_FIRE.id ||
+                asset.archiveSection == ArchiveSection.TURRET_UPGRADE.id ||
+                asset.id.contains("bgm")
+            ))
 
     Column(
         modifier = Modifier
@@ -284,7 +331,7 @@ private fun AssetVaultCard(
             .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Row 1: Preview Badge + Title + Category/ID
+        // Row 1: Preview Badge + Title + Build Label Badge + Metadata
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -292,17 +339,28 @@ private fun AssetVaultCard(
         ) {
             AssetPreviewBadge(asset)
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = asset.name,
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (asset.buildLabel.isNotBlank()) {
+                        BuildTagBadge(asset)
+                    }
+                }
+                val sectionTag = asset.archiveSection.ifBlank { asset.category }
                 Text(
-                    text = asset.name,
-                    color = Color.White,
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = if (asset.metadata.isNotBlank()) "${asset.category} • ${asset.metadata}" else "${asset.category} • ${asset.id}",
+                    text = if (asset.metadata.isNotBlank()) "$sectionTag • ${asset.metadata}" else "$sectionTag • ${asset.id}",
                     color = Color(0xFF8B949E),
                     fontSize = 10.sp,
                     maxLines = 1,
@@ -326,6 +384,7 @@ private fun AssetVaultCard(
                     bgColor = Color(0xFF112233),
                     borderColor = Color(0xFF00E5FF),
                     textColor = Color(0xFF00E5FF),
+                    modifier = Modifier.testTag("vault_play_${asset.id}"),
                     onClick = onPreview
                 )
             }
@@ -336,6 +395,7 @@ private fun AssetVaultCard(
                     bgColor = if (asset.isEquipped) Color(0xFF0D3321) else Color(0xFF21262D),
                     borderColor = if (asset.isEquipped) Color(0xFF00E676) else Color(0xFF484F58),
                     textColor = if (asset.isEquipped) Color(0xFF00E676) else Color(0xFFC9D1D9),
+                    modifier = Modifier.testTag("vault_use_${asset.id}"),
                     onClick = onEquip
                 )
             }
@@ -371,37 +431,68 @@ private fun AssetVaultCard(
 }
 
 @Composable
+private fun BuildTagBadge(asset: CustomAssetRecord) {
+    val badgeColor = when {
+        asset.isDefault -> Color(0xFF00E676)
+        asset.buildCode == 0 -> Color(0xFFF59E0B)
+        asset.buildCode == 60 -> Color(0xFFA855F7)
+        else -> Color(0xFF00E5FF)
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(badgeColor.copy(alpha = 0.14f))
+            .border(1.dp, badgeColor.copy(alpha = 0.55f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 5.dp, vertical = 1.5.dp)
+    ) {
+        Text(
+            text = asset.buildLabel,
+            color = badgeColor,
+            fontSize = 8.5.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
 private fun AssetPreviewBadge(asset: CustomAssetRecord) {
-    when (asset.category) {
-        "TURRET_SKIN" -> {
+    val effectiveSection = when (asset.category) {
+        "TURRET_SKIN" -> ArchiveSection.TURRET_SKIN.id
+        "MAP_THEME" -> ArchiveSection.MAP_THEME.id
+        "BACKGROUND_MUSIC" -> "BACKGROUND_MUSIC"
+        else -> asset.archiveSection
+    }
+
+    when {
+        effectiveSection == ArchiveSection.TURRET_SKIN.id -> {
+            val skinDef = BuildArchiveCatalog.resolveTurretSkin(asset.id, asset.slotIndex)
             TurretSkinPreviewThumbnail(
-                skinSlot = TurretSkinSlot.fromSlot(asset.slotIndex),
+                skinDef = skinDef,
                 isSelected = asset.isEquipped
             )
         }
-        "MAP_THEME" -> {
-            val (bg, laneA, laneB) = when (MapThemeSlot.fromSlot(asset.slotIndex)) {
-                MapThemeSlot.SLOT_1_DEFAULT -> Triple(Color(0xFF090E17), Color(0xFF00F0FF), Color(0xFFFF6B00))
-                MapThemeSlot.SLOT_2_BLUEPRINT -> Triple(Color(0xFF0B192C), Color(0xFF00E5FF), Color(0xFFFFD600))
-                MapThemeSlot.SLOT_3_OUTPOST -> Triple(Color(0xFF1C1917), Color(0xFFF59E0B), Color(0xFF06B6D4))
-                MapThemeSlot.SLOT_4_VOID -> Triple(Color(0xFF090514), Color(0xFFA855F7), Color(0xFFF43F5E))
-                MapThemeSlot.SLOT_5_MATRIX -> Triple(Color(0xFF020B05), Color(0xFF10B981), Color(0xFF6366F1))
-            }
+        effectiveSection == ArchiveSection.MAP_THEME.id -> {
+            val themeDef = BuildArchiveCatalog.resolveMapTheme(asset.id, asset.slotIndex)
             Box(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(bg)
-                    .border(1.5.dp, if (asset.isEquipped) Color(0xFF00FF9D) else Color(0xFF475569), RoundedCornerShape(10.dp)),
+                    .background(Color(themeDef.groundColor))
+                    .border(
+                        1.5.dp,
+                        if (asset.isEquipped) Color(0xFF00FF9D) else Color(0xFF475569),
+                        RoundedCornerShape(10.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(laneA))
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(laneB))
+                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(themeDef.laneAlphaColor)))
+                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(themeDef.laneBetaColor)))
                 }
             }
         }
-        "BACKGROUND_MUSIC" -> {
+        asset.category == "BACKGROUND_MUSIC" || asset.id.contains("_bgm_") -> {
             Box(
                 modifier = Modifier
                     .size(36.dp)

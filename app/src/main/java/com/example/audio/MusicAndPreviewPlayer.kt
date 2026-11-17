@@ -10,12 +10,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
-import java.util.EnumMap
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 
 /**
  * Encapsulates streaming BGM [MediaPlayer] (rolling playlist, smooth fades, ducking, pause attenuation)
- * and the single-slot transient archive preview [MediaPlayer].
+ * and the single-slot transient archive preview [MediaPlayer] with lazy per-asset WAV generation.
  */
 internal class MusicAndPreviewPlayer(
     private val archiveStore: SoundArchiveStore,
@@ -27,13 +27,12 @@ internal class MusicAndPreviewPlayer(
     private val getSfxVolume: () -> Float,
     private val getMusicVolume: () -> Float,
     private val getActiveMusicTrack: () -> MusicTrack,
+    private val getActiveBgmAssetId: () -> String = { "default_bgm_rolling_playlist" },
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val playerLock = Any()
     private val playerScope = CoroutineScope(SupervisorJob() + ioDispatcher)
-    private val musicFileLocks = EnumMap<MusicTrack, Any>(MusicTrack::class.java).apply {
-        MusicTrack.entries.forEach { put(it, Any()) }
-    }
+    private val fileLocks = ConcurrentHashMap<String, Any>()
     private var mediaPlayer: MediaPlayer? = null
     private var previewPlayer: MediaPlayer? = null
     private var bgmPausedForPreview: Boolean = false
@@ -41,12 +40,12 @@ internal class MusicAndPreviewPlayer(
     private var trackGeneration: Long = 0L
     private var isReleased: Boolean = false
 
-    private val rollingPlaylistTracks = listOf(
-        MusicTrack.CYBER_AMBIENT,
-        MusicTrack.PULSE_ARPEGGIO,
-        MusicTrack.DEEP_SPACE,
-        MusicTrack.NEON_OVERDRIVE,
-        MusicTrack.CELESTIAL_BASTION
+    private val rollingPlaylistBgmIds = listOf(
+        "default_bgm_cyber_ambient",
+        "b61_bgm_orbital_surge",
+        "b61_bgm_cryo_lattice",
+        "b61_bgm_ion_horizon",
+        "b61_bgm_quantum_bastion"
     )
     private var currentRollingIndex: Int = 0
     private var playlistTrackElapsedMs: Long = 0L
@@ -62,8 +61,8 @@ internal class MusicAndPreviewPlayer(
     private val DUCK_FACTOR = 0.50f
     private val PAUSE_ATTENUATION_FACTOR = 0.50f
 
-    fun getCurrentRollingTrack(): MusicTrack = synchronized(playerLock) {
-        rollingPlaylistTracks[currentRollingIndex]
+    fun getCurrentRollingBgmId(): String = synchronized(playerLock) {
+        rollingPlaylistBgmIds[currentRollingIndex]
     }
 
     fun hasActiveMediaPlayer(): Boolean = synchronized(playerLock) {
@@ -97,30 +96,43 @@ internal class MusicAndPreviewPlayer(
         if (file.exists() && file.length() >= 256L) {
             return file
         }
-        val fileLock = musicFileLocks[track] ?: playerLock
-        synchronized(fileLock) {
-            if (file.exists() && file.length() >= 256L) {
-                return file
-            }
-            file.parentFile?.let { if (!it.exists()) it.mkdirs() }
-            val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
-            try {
-                val wavBytes = AudioSynthesizer.toWav(AudioSynthesizer.synthesizeMusic(track))
-                FileOutputStream(tmpFile).use { it.write(wavBytes) }
-                if (!tmpFile.renameTo(file)) {
-                    if (file.exists()) {
-                        file.delete()
-                    }
-                    if (!tmpFile.renameTo(file)) {
-                        FileOutputStream(file).use { it.write(wavBytes) }
-                    }
-                }
-            } finally {
-                if (tmpFile.exists()) {
-                    tmpFile.delete()
-                }
+        val lock = fileLocks.computeIfAbsent(file.name) { Any() }
+        synchronized(lock) {
+            if (file.exists() && file.length() >= 256L) return file
+            writeWavAtomically(file) {
+                AudioSynthesizer.synthesizeMusic(track)
             }
             return file
+        }
+    }
+
+    fun getOrCreateAudioFileForAsset(assetId: String): File? {
+        val canonicalId = BuildArchiveCatalog.migrateLegacyAssetId(assetId)
+        val file = archiveStore.getWavFileForAsset(canonicalId) ?: return null
+        if (file.exists() && file.length() >= 64L) return file
+        val lock = fileLocks.computeIfAbsent(file.name) { Any() }
+        synchronized(lock) {
+            if (file.exists() && file.length() >= 64L) return file
+            val pcm = ArchivedAudioSynthesizer.synthesizeByAssetId(canonicalId) ?: return null
+            writeWavAtomically(file) { pcm }
+            return file
+        }
+    }
+
+    private inline fun writeWavAtomically(file: File, synthesize: () -> ShortArray) {
+        file.parentFile?.let { if (!it.exists()) it.mkdirs() }
+        val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
+        try {
+            val wavBytes = AudioSynthesizer.toWav(synthesize())
+            FileOutputStream(tmpFile).use { it.write(wavBytes) }
+            if (!tmpFile.renameTo(file)) {
+                if (file.exists()) file.delete()
+                if (!tmpFile.renameTo(file)) {
+                    FileOutputStream(file).use { it.write(wavBytes) }
+                }
+            }
+        } finally {
+            if (tmpFile.exists()) tmpFile.delete()
         }
     }
 
@@ -134,35 +146,76 @@ internal class MusicAndPreviewPlayer(
                 stopMusicLocked()
                 return
             }
-            val resolved = if (track == MusicTrack.ROLLING_PLAYLIST) rollingPlaylistTracks[currentRollingIndex] else track
             if (!isEnabled() || isMuted() || isSuspended()) {
                 stopMusicLocked()
                 return
             }
-            resolved to gen
+            track to gen
         }
-        playTrackInternal(target, expectedGen)
+        if (target == MusicTrack.ROLLING_PLAYLIST) {
+            val activeBgmId = getActiveBgmAssetId()
+            if (activeBgmId == "default_bgm_rolling_playlist" || activeBgmId == "b60_bgm_rolling_playlist") {
+                playBgmFileInternal(
+                    fileSupplier = { getOrCreateMusicFile(MusicTrack.CYBER_AMBIENT) },
+                    expectedTrackGen = expectedGen
+                )
+            } else {
+                playBgmAsset(activeBgmId, expectedGen)
+            }
+        } else {
+            playBgmFileInternal(
+                fileSupplier = { getOrCreateMusicFile(target) },
+                expectedTrackGen = expectedGen
+            )
+        }
     }
 
-    private fun playTrackInternal(targetTrack: MusicTrack, expectedTrackGen: Long? = null) {
+    fun playBgmAsset(bgmAssetId: String, expectedGeneration: Long? = null) {
+        val (resolvedId, expectedGen) = synchronized(playerLock) {
+            if (expectedGeneration != null && expectedGeneration != trackGeneration) {
+                return
+            }
+            val gen = expectedGeneration ?: ++trackGeneration
+            if (isReleased || getActiveMusicTrack() == MusicTrack.NONE) {
+                stopMusicLocked()
+                return
+            }
+            if (!isEnabled() || isMuted() || isSuspended()) {
+                stopMusicLocked()
+                return
+            }
+            val def = BuildArchiveCatalog.resolveBgmTrack(bgmAssetId)
+            val resolved = if (def.isRollingPlaylist) rollingPlaylistBgmIds[currentRollingIndex] else def.id
+            resolved to gen
+        }
+        playBgmFileInternal(
+            fileSupplier = { getOrCreateAudioFileForAsset(resolvedId) },
+            expectedTrackGen = expectedGen
+        )
+    }
+
+    private fun playBgmFileInternal(
+        fileSupplier: () -> File?,
+        expectedTrackGen: Long?
+    ) {
         val canProceed = synchronized(playerLock) {
             if (expectedTrackGen != null && expectedTrackGen != trackGeneration) {
                 false
             } else {
                 stopMusicLocked()
-                !isReleased && isEnabled() && !isMuted() && !isSuspended() && targetTrack != MusicTrack.NONE
+                !isReleased && isEnabled() && !isMuted() && !isSuspended() && getActiveMusicTrack() != MusicTrack.NONE
             }
         }
         if (!canProceed) return
 
         val file = try {
-            getOrCreateMusicFile(targetTrack)
+            fileSupplier()
         } catch (_: Exception) {
-            return
-        }
+            null
+        } ?: return
 
         synchronized(playerLock) {
-            if (isReleased || !isEnabled() || isMuted() || isSuspended() || targetTrack == MusicTrack.NONE) return
+            if (isReleased || !isEnabled() || isMuted() || isSuspended() || getActiveMusicTrack() == MusicTrack.NONE) return
             if (expectedTrackGen != null && expectedTrackGen != trackGeneration) return
 
             var candidate: MediaPlayer? = null
@@ -299,12 +352,17 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun resumeMusic() {
-        val trackToPlay: Pair<MusicTrack, Long>? = synchronized(playerLock) {
+        val pendingTrack: Pair<String, Long>? = synchronized(playerLock) {
             if (isReleased || !isEnabled() || isMuted() || isSuspended()) return
             val track = getActiveMusicTrack()
             if (track == MusicTrack.NONE) return
             if (mediaPlayer == null) {
-                val resolved = if (track == MusicTrack.ROLLING_PLAYLIST) rollingPlaylistTracks[currentRollingIndex] else track
+                val activeId = getActiveBgmAssetId()
+                val resolved = if (activeId == "default_bgm_rolling_playlist" || activeId == "b60_bgm_rolling_playlist") {
+                    rollingPlaylistBgmIds[currentRollingIndex]
+                } else {
+                    activeId
+                }
                 resolved to ++trackGeneration
             } else {
                 try {
@@ -319,9 +377,16 @@ internal class MusicAndPreviewPlayer(
                 null
             }
         }
-        trackToPlay?.let { (track, gen) ->
+        pendingTrack?.let { (bgmId, gen) ->
             playerScope.launch {
-                playTrackInternal(track, gen)
+                val legacyTrack = getActiveMusicTrack()
+                if (legacyTrack != MusicTrack.ROLLING_PLAYLIST && legacyTrack != MusicTrack.NONE &&
+                    bgmId == "default_bgm_rolling_playlist"
+                ) {
+                    playTrack(legacyTrack, gen)
+                } else {
+                    playBgmAsset(bgmId, gen)
+                }
             }
         }
     }
@@ -337,7 +402,7 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun updateTick(nowMs: Long, dtMs: Long) {
-        var nextRollingTrack: Pair<MusicTrack, Long>? = null
+        var nextRollingId: Pair<String, Long>? = null
         synchronized(playerLock) {
             if (isReleased) return
             if (isDucked && nowMs >= duckUntilMs) {
@@ -360,15 +425,15 @@ internal class MusicAndPreviewPlayer(
             ) {
                 playlistTrackElapsedMs += dtMs
                 if (playlistTrackElapsedMs >= PLAYLIST_TRACK_WINDOW_MS) {
-                    currentRollingIndex = (currentRollingIndex + 1) % rollingPlaylistTracks.size
+                    currentRollingIndex = (currentRollingIndex + 1) % rollingPlaylistBgmIds.size
                     playlistTrackElapsedMs = 0L
-                    nextRollingTrack = rollingPlaylistTracks[currentRollingIndex] to ++trackGeneration
+                    nextRollingId = rollingPlaylistBgmIds[currentRollingIndex] to ++trackGeneration
                 }
             }
         }
-        nextRollingTrack?.let { (track, gen) ->
+        nextRollingId?.let { (bgmId, gen) ->
             playerScope.launch {
-                playTrackInternal(track, gen)
+                playBgmAsset(bgmId, gen)
             }
         }
     }

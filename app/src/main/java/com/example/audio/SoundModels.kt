@@ -34,7 +34,7 @@ enum class MusicTrack(val label: String) {
 
 /**
  * Procedural Asset Record for Sound and Skin Library.
- * Supports tri-state Like/Dislike voting (voteState), Star bookmarks, equipping, and archive paths.
+ * Supports build versioning, Archive sections, tri-state Like/Dislike voting, Star bookmarks, and equipping.
  */
 data class CustomAssetRecord(
     val id: String,
@@ -50,5 +50,10 @@ data class CustomAssetRecord(
     val filePath: String? = null,
     val voteState: Int = 0, // 1 = Liked, -1 = Disliked, 0 = Neutral
     val isEquipped: Boolean = false,
-    val updatedAtEpochMs: Long = 0L
+    val updatedAtEpochMs: Long = 0L,
+    val buildCode: Int = 61,
+    val buildLabel: String = "Build #61 (v0.0.1.040)",
+    val archiveSection: String = "",
+    val isArchived: Boolean = false,
+    val isDefault: Boolean = false
 )

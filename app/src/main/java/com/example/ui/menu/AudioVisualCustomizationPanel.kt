@@ -20,21 +20,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.audio.BuildArchiveCatalog
+import com.example.audio.BuildArchiveVisualCatalog
 import com.example.audio.MusicTrack
 import com.example.audio.SoundProfile
-import com.example.model.MapThemeSlot
 import com.example.model.TowerClass
-import com.example.model.TurretSfxSlot
+import com.example.model.TowerDrawStyle
+import com.example.model.TurretSkinDef
 import com.example.model.TurretSkinSlot
 import com.example.ui.GameUIState
 import kotlin.math.roundToInt
 
 /**
- * Visual thumbnail preview for custom turret vector skins.
+ * Data-driven visual thumbnail preview for custom turret vector skins (active & archived).
  */
 @Composable
 fun TurretSkinPreviewThumbnail(
-    skinSlot: TurretSkinSlot,
+    skinDef: TurretSkinDef,
     isSelected: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -42,98 +44,80 @@ fun TurretSkinPreviewThumbnail(
         val cx = size.width / 2f
         val cy = size.height / 2f
         val radius = size.width * 0.42f
+        val hullCol = Color(skinDef.hullColor)
+        val frameCol = Color(skinDef.frameColor)
+        val detailCol = Color(skinDef.detailColor)
+        val accentCol = Color(if (skinDef.accentTint != 0L) skinDef.accentTint else skinDef.frameColor)
 
-        // Base circular chassis foundation
+        drawCircle(color = hullCol, radius = radius, center = Offset(cx, cy))
         drawCircle(
-            color = Color(0xFF1E293B),
-            radius = radius,
-            center = Offset(cx, cy)
-        )
-        drawCircle(
-            color = if (isSelected) Color(0xFF00FF9D) else Color(0xFF475569),
+            color = if (isSelected) Color(0xFF00FF9D) else frameCol,
             radius = radius * 0.85f,
             center = Offset(cx, cy),
             style = Stroke(width = 1.5.dp.toPx())
         )
         drawCircle(
-            color = if (isSelected) Color(0xFF00F0FF) else Color(0xFF94A3B8),
+            color = if (isSelected) Color(0xFF00F0FF) else accentCol,
             radius = radius * 0.35f,
             center = Offset(cx, cy)
         )
 
-        // Visual skin features
-        when (skinSlot) {
-            TurretSkinSlot.SLOT_1_DEFAULT -> {
-                drawCircle(
-                    color = Color(0xFF00F0FF).copy(alpha = 0.7f),
-                    radius = radius * 0.58f,
-                    center = Offset(cx, cy),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-            }
-            TurretSkinSlot.SLOT_2_BLUEPRINT -> {
-                val ch = radius * 0.75f
-                drawLine(
-                    color = Color.White.copy(alpha = 0.85f),
-                    start = Offset(cx - ch, cy),
-                    end = Offset(cx + ch, cy),
-                    strokeWidth = 1.dp.toPx()
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.85f),
-                    start = Offset(cx, cy - ch),
-                    end = Offset(cx, cy + ch),
-                    strokeWidth = 1.dp.toPx()
-                )
-                drawCircle(
-                    color = Color(0xFF60A5FA).copy(alpha = 0.65f),
-                    radius = radius * 0.95f,
-                    center = Offset(cx, cy),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-            }
-            TurretSkinSlot.SLOT_3_MILITARY -> {
-                val rOff = radius * 0.55f
-                val rRad = 2.dp.toPx()
-                val innerRad = rRad * 0.5f
-                val r1 = Offset(cx - rOff, cy - rOff)
-                val r2 = Offset(cx + rOff, cy - rOff)
-                val r3 = Offset(cx - rOff, cy + rOff)
-                val r4 = Offset(cx + rOff, cy + rOff)
-                drawCircle(color = Color(0xFF475569), radius = rRad, center = r1)
-                drawCircle(color = Color(0xFFCBD5E1), radius = innerRad, center = r1)
-                drawCircle(color = Color(0xFF475569), radius = rRad, center = r2)
-                drawCircle(color = Color(0xFFCBD5E1), radius = innerRad, center = r2)
-                drawCircle(color = Color(0xFF475569), radius = rRad, center = r3)
-                drawCircle(color = Color(0xFFCBD5E1), radius = innerRad, center = r3)
-                drawCircle(color = Color(0xFF475569), radius = rRad, center = r4)
-                drawCircle(color = Color(0xFFCBD5E1), radius = innerRad, center = r4)
-            }
-            TurretSkinSlot.SLOT_4_VOID -> {
-                drawCircle(
-                    color = Color(0xFFA855F7).copy(alpha = 0.85f),
-                    radius = radius * 0.95f,
-                    center = Offset(cx, cy),
-                    style = Stroke(width = 1.8.dp.toPx())
-                )
-                drawCircle(
-                    color = Color(0xFFEC4899).copy(alpha = 0.5f),
-                    radius = radius * 0.65f,
-                    center = Offset(cx, cy),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-            }
-            TurretSkinSlot.SLOT_5_PIXEL -> {
-                val pSize = 3.5.dp.toPx()
-                val bOff = radius * 0.68f
-                val sz = Size(pSize, pSize)
-                drawRect(color = Color(0xFFFACC15), topLeft = Offset(cx - bOff, cy - bOff), size = sz)
-                drawRect(color = Color(0xFFFACC15), topLeft = Offset(cx + bOff - pSize, cy - bOff), size = sz)
-                drawRect(color = Color(0xFFFACC15), topLeft = Offset(cx - bOff, cy + bOff - pSize), size = sz)
-                drawRect(color = Color(0xFFFACC15), topLeft = Offset(cx + bOff - pSize, cy + bOff - pSize), size = sz)
+        if (skinDef.drawStyle == TowerDrawStyle.NEON_GLOW) {
+            drawCircle(
+                color = accentCol.copy(alpha = 0.7f),
+                radius = radius * 0.58f,
+                center = Offset(cx, cy),
+                style = Stroke(width = 1.dp.toPx())
+            )
+        }
+        if (skinDef.hasCrosshair || skinDef.drawStyle == TowerDrawStyle.BLUEPRINT_LINE) {
+            val ch = radius * 0.75f
+            drawLine(detailCol.copy(alpha = 0.85f), Offset(cx - ch, cy), Offset(cx + ch, cy), 1.dp.toPx())
+            drawLine(detailCol.copy(alpha = 0.85f), Offset(cx, cy - ch), Offset(cx, cy + ch), 1.dp.toPx())
+            drawCircle(frameCol.copy(alpha = 0.65f), radius * 0.95f, Offset(cx, cy), style = Stroke(1.dp.toPx()))
+        }
+        if (skinDef.hasCornerStuds || skinDef.drawStyle == TowerDrawStyle.SOLID_MILITARY) {
+            val rOff = radius * 0.55f
+            val rRad = 2.dp.toPx()
+            val innerRad = rRad * 0.5f
+            val corners = arrayOf(
+                Offset(cx - rOff, cy - rOff),
+                Offset(cx + rOff, cy - rOff),
+                Offset(cx - rOff, cy + rOff),
+                Offset(cx + rOff, cy + rOff)
+            )
+            for (pt in corners) {
+                drawCircle(color = frameCol, radius = rRad, center = pt)
+                drawCircle(color = detailCol, radius = innerRad, center = pt)
             }
         }
+        if (skinDef.hasVoidHalo || skinDef.drawStyle == TowerDrawStyle.VOID_RING) {
+            drawCircle(frameCol.copy(alpha = 0.85f), radius * 0.95f, Offset(cx, cy), style = Stroke(1.8.dp.toPx()))
+            drawCircle(detailCol.copy(alpha = 0.5f), radius * 0.65f, Offset(cx, cy), style = Stroke(1.dp.toPx()))
+        }
+        if (skinDef.hasPixelCorners || skinDef.drawStyle == TowerDrawStyle.PIXEL_BLOCK) {
+            val pSize = 3.5.dp.toPx()
+            val bOff = radius * 0.68f
+            val sz = Size(pSize, pSize)
+            drawRect(color = detailCol, topLeft = Offset(cx - bOff, cy - bOff), size = sz)
+            drawRect(color = detailCol, topLeft = Offset(cx + bOff - pSize, cy - bOff), size = sz)
+            drawRect(color = detailCol, topLeft = Offset(cx - bOff, cy + bOff - pSize), size = sz)
+            drawRect(color = detailCol, topLeft = Offset(cx + bOff - pSize, cy + bOff - pSize), size = sz)
+        }
     }
+}
+
+@Composable
+fun TurretSkinPreviewThumbnail(
+    skinSlot: TurretSkinSlot,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    TurretSkinPreviewThumbnail(
+        skinDef = BuildArchiveCatalog.resolveTurretSkin(null, skinSlot.slot),
+        isSelected = isSelected,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -146,6 +130,7 @@ internal fun AudioVisualCustomizationPanel(
     onToggleAudioMute: () -> Unit,
     onSoundProfileChanged: (SoundProfile) -> Unit,
     onMusicTrackSelected: (MusicTrack) -> Unit,
+    onBgmAssetSelected: (String) -> Unit = {},
     onKineticSfxSlotSelected: (Int) -> Unit,
     onElementalSfxSlotSelected: (Int) -> Unit,
     onSiegeSfxSlotSelected: (Int) -> Unit,
@@ -211,61 +196,14 @@ internal fun AudioVisualCustomizationPanel(
                     }
                 }
 
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Master Output", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${(state.masterVolume * 100).roundToInt()}%", color = Color(0xFF94A3B8), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = state.masterVolume,
-                        onValueChange = onMasterVolumeChanged,
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(thumbColor = Color(0xFF00F0FF), activeTrackColor = Color(0xFF00F0FF))
-                    )
-                }
-
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Music Volume (Live -50% Pause Level)", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${(state.musicVolume * 100).roundToInt()}%", color = Color(0xFFC084FC), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = state.musicVolume,
-                        onValueChange = onMusicVolumeChanged,
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(thumbColor = Color(0xFFC084FC), activeTrackColor = Color(0xFFC084FC))
-                    )
-                }
-
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Combat Sound Effects", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${(state.sfxVolume * 100).roundToInt()}%", color = Color(0xFFFFB800), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = state.sfxVolume,
-                        onValueChange = onSfxVolumeChanged,
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(thumbColor = Color(0xFFFFB800), activeTrackColor = Color(0xFFFFB800))
-                    )
-                }
-
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Upgrade Sound Effects", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${(state.upgradeVolume * 100).roundToInt()}%", color = Color(0xFF00FF9D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = state.upgradeVolume,
-                        onValueChange = onUpgradeVolumeChanged,
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(thumbColor = Color(0xFF00FF9D), activeTrackColor = Color(0xFF00FF9D))
-                    )
-                }
+                VolumeSliderRow("Master Output", state.masterVolume, Color(0xFF00F0FF), Color(0xFF94A3B8), onMasterVolumeChanged)
+                VolumeSliderRow("Music Volume (Live -50% Pause Level)", state.musicVolume, Color(0xFFC084FC), Color(0xFFC084FC), onMusicVolumeChanged)
+                VolumeSliderRow("Combat Sound Effects", state.sfxVolume, Color(0xFFFFB800), Color(0xFFFFB800), onSfxVolumeChanged)
+                VolumeSliderRow("Upgrade Sound Effects", state.upgradeVolume, Color(0xFF00FF9D), Color(0xFF00FF9D), onUpgradeVolumeChanged)
             }
         }
 
-        // Section 2: Music Playlist & Track Selector
+        // Section 2: Music Playlist & Track Selector (Build #61 + Rolling + Default)
         Surface(
             color = Color(0xFF1E293B).copy(alpha = 0.6f),
             shape = RoundedCornerShape(10.dp),
@@ -273,67 +211,26 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("MUSIC STREAMING & PLAYLIST", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                Text("MUSIC STREAMING & PLAYLIST (BUILD #61)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
                 Text("Dynamic combat ducking automatically drops BGM during turret firing.", color = Color(0xFF94A3B8), fontSize = 9.sp)
 
-                val tracks = listOf(
-                    MusicTrack.ROLLING_PLAYLIST to "🔁 Rolling Playlist (Cycles 1-5)",
-                    MusicTrack.CYBER_AMBIENT to "Track 1: Sector Zero Synth",
-                    MusicTrack.PULSE_ARPEGGIO to "Track 2: Dual Front Pulse",
-                    MusicTrack.DEEP_SPACE to "Track 3: Sub-Void Drone",
-                    MusicTrack.NEON_OVERDRIVE to "Track 4: Neon Overdrive",
-                    MusicTrack.CELESTIAL_BASTION to "Track 5: Celestial Bastion",
-                    MusicTrack.NONE to "Mute Music Track"
-                )
-
-                tracks.forEach { (track, label) ->
-                    val isSel = (state.musicTrack == track)
-                    Surface(
-                        color = if (isSel) Color(0xFFC084FC).copy(alpha = 0.25f) else Color(0xFF0F172A),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFFC084FC) else Color(0xFF334155)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onMusicTrackSelected(track) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (isSel) Icons.Filled.CheckCircle else Icons.Filled.MusicNote,
-                                    contentDescription = null,
-                                    tint = if (isSel) Color(0xFFC084FC) else Color(0xFF64748B),
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = label,
-                                    color = if (isSel) Color.White else Color(0xFFCBD5E1),
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 10.5.sp
-                                )
-                            }
-                            if (isSel && track != MusicTrack.NONE) {
-                                Surface(
-                                    color = Color(0xFFC084FC).copy(alpha = 0.20f),
-                                    shape = RoundedCornerShape(4.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC084FC).copy(alpha = 0.6f))
-                                ) {
-                                    Text(
-                                        text = "▶ PREVIEWING",
-                                        color = Color(0xFFC084FC),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 8.sp,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                BuildArchiveCatalog.build61BgmTracks.forEach { trackDef ->
+                    val isSel = (state.musicTrack != MusicTrack.NONE && state.bgmTrackId == trackDef.id)
+                    val label = if (trackDef.isRollingPlaylist) "🔁 ${trackDef.displayName}" else trackDef.displayName
+                    MusicOptionRow(
+                        label = label,
+                        isSelected = isSel,
+                        showPreviewingBadge = isSel,
+                        onClick = { onBgmAssetSelected(trackDef.id) }
+                    )
                 }
+                val isMutedTrack = (state.musicTrack == MusicTrack.NONE)
+                MusicOptionRow(
+                    label = "Mute Music Track",
+                    isSelected = isMutedTrack,
+                    showPreviewingBadge = false,
+                    onClick = { onMusicTrackSelected(MusicTrack.NONE) }
+                )
             }
         }
 
@@ -353,7 +250,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFF00F0FF),
                     darkTextOnSelected = true,
                     selectedSlot = state.kineticSfxSlot,
-                    slotLabelFor = { TurretSfxSlot.fromSlot(it).kineticName.split(" ").first() },
+                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.KINETIC_BALLISTIC, it) },
                     onSelectAndTest = { slot ->
                         onKineticSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, slot)
@@ -365,7 +262,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFD946EF),
                     darkTextOnSelected = false,
                     selectedSlot = state.elementalSfxSlot,
-                    slotLabelFor = { TurretSfxSlot.fromSlot(it).elementalName.split(" ").first() },
+                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.ELEMENTAL_VOID, it) },
                     onSelectAndTest = { slot ->
                         onElementalSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, slot)
@@ -377,7 +274,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFFFB800),
                     darkTextOnSelected = true,
                     selectedSlot = state.siegeSfxSlot,
-                    slotLabelFor = { TurretSfxSlot.fromSlot(it).siegeName.split(" ").first() },
+                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.HEAVY_SIEGE, it) },
                     onSelectAndTest = { slot ->
                         onSiegeSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, slot)
@@ -389,7 +286,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFFFD700),
                     darkTextOnSelected = true,
                     selectedSlot = state.stellarSfxSlot,
-                    slotLabelFor = { TurretSfxSlot.fromSlot(it).stellarName.split(" ").first() },
+                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.STELLAR_COSMIC, it) },
                     onSelectAndTest = { slot ->
                         onStellarSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.STELLAR_COSMIC, slot)
@@ -463,7 +360,7 @@ internal fun AudioVisualCustomizationPanel(
             }
         }
 
-        // Section 5: Turret Visual Skins
+        // Section 5: Turret Visual Skins (Build #61 Active Lineup)
         Surface(
             color = Color(0xFF1E293B).copy(alpha = 0.6f),
             shape = RoundedCornerShape(10.dp),
@@ -471,25 +368,23 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("TURRET VISUAL SKINS (5 SLOTS)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
-                TurretSkinSlot.entries.forEach { skin ->
-                    val isSel = (state.turretSkinSlot == skin.slot)
+                Text("TURRET VISUAL SKINS (BUILD #61 LINEUP)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                BuildArchiveVisualCatalog.build61TurretSkins.forEach { skin ->
+                    val isSel = (state.turretSkinId == skin.id) ||
+                        (state.turretSkinSlot == skin.slotIndex && !state.turretSkinId.startsWith("b60_") && !state.turretSkinId.startsWith("pre60_"))
                     Surface(
                         color = if (isSel) Color(0xFF00FF9D).copy(alpha = 0.20f) else Color(0xFF0F172A),
                         shape = RoundedCornerShape(6.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFF00FF9D) else Color(0xFF334155)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onTurretSkinSlotSelected(skin.slot) }
+                            .clickable { onTurretSkinSlotSelected(skin.slotIndex) }
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TurretSkinPreviewThumbnail(
-                                skinSlot = skin,
-                                isSelected = isSel
-                            )
+                            TurretSkinPreviewThumbnail(skinDef = skin, isSelected = isSel)
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -501,7 +396,7 @@ internal fun AudioVisualCustomizationPanel(
                                     )
                                     Spacer(modifier = Modifier.width(5.dp))
                                     Text(
-                                        text = "Slot ${skin.slot}: ${skin.displayName}",
+                                        text = "Slot ${skin.slotIndex}: ${skin.displayName}",
                                         color = if (isSel) Color.White else Color(0xFFE2E8F0),
                                         fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                         fontSize = 10.5.sp
@@ -520,7 +415,7 @@ internal fun AudioVisualCustomizationPanel(
             }
         }
 
-        // Section 6: Map & Lane Themes
+        // Section 6: Map & Lane Themes (Build #61 Active Lineup)
         Surface(
             color = Color(0xFF1E293B).copy(alpha = 0.6f),
             shape = RoundedCornerShape(10.dp),
@@ -528,16 +423,17 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("MAP & LANE ENVIRONMENT THEMES (5 SLOTS)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
-                MapThemeSlot.entries.forEach { theme ->
-                    val isSel = (state.mapThemeSlot == theme.slot)
+                Text("MAP & LANE ENVIRONMENT THEMES (BUILD #61 LINEUP)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                BuildArchiveVisualCatalog.build61MapThemes.forEach { theme ->
+                    val isSel = (state.mapThemeId == theme.id) ||
+                        (state.mapThemeSlot == theme.slotIndex && !state.mapThemeId.startsWith("b60_") && !state.mapThemeId.startsWith("pre60_"))
                     Surface(
                         color = if (isSel) Color(0xFFFFB800).copy(alpha = 0.20f) else Color(0xFF0F172A),
                         shape = RoundedCornerShape(6.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) Color(0xFFFFB800) else Color(0xFF334155)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onMapThemeSlotSelected(theme.slot) }
+                            .clickable { onMapThemeSlotSelected(theme.slotIndex) }
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -549,7 +445,7 @@ internal fun AudioVisualCustomizationPanel(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Slot ${theme.slot}: ${theme.displayName}",
+                                    text = "Slot ${theme.slotIndex}: ${theme.displayName}",
                                     color = if (isSel) Color.White else Color(0xFFE2E8F0),
                                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 10.5.sp
@@ -607,6 +503,82 @@ internal fun AudioVisualCustomizationPanel(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VolumeSliderRow(
+    label: String,
+    value: Float,
+    accentColor: Color,
+    pctColor: Color,
+    onValueChanged: (Float) -> Unit
+) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+            Text("${(value * 100).roundToInt()}%", color = pctColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChanged,
+            valueRange = 0f..1f,
+            colors = SliderDefaults.colors(thumbColor = accentColor, activeTrackColor = accentColor)
+        )
+    }
+}
+
+@Composable
+private fun MusicOptionRow(
+    label: String,
+    isSelected: Boolean,
+    showPreviewingBadge: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (isSelected) Color(0xFFC084FC).copy(alpha = 0.25f) else Color(0xFF0F172A),
+        shape = RoundedCornerShape(6.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) Color(0xFFC084FC) else Color(0xFF334155)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Icon(
+                    imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    tint = if (isSelected) Color(0xFFC084FC) else Color(0xFF64748B),
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = label,
+                    color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 10.5.sp
+                )
+            }
+            if (showPreviewingBadge) {
+                Surface(
+                    color = Color(0xFFC084FC).copy(alpha = 0.20f),
+                    shape = RoundedCornerShape(4.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC084FC).copy(alpha = 0.6f))
+                ) {
+                    Text(
+                        text = "▶ PREVIEWING",
+                        color = Color(0xFFC084FC),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 8.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
                 }
             }
         }

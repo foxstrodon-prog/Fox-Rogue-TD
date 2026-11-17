@@ -216,6 +216,14 @@ data class DevBalanceConfig(
     val stellarSfxSlot: Int = 1,
     val turretSkinSlot: Int = 1,
     val mapThemeSlot: Int = 1,
+    val kineticFireId: String = "default_fire_kinetic",
+    val elementalFireId: String = "default_fire_elemental",
+    val siegeFireId: String = "default_fire_siege",
+    val stellarFireId: String = "default_fire_stellar",
+    val turretSkinId: String = "default_skin_1",
+    val mapThemeId: String = "default_theme_1",
+    val bgmTrackId: String = "default_bgm_rolling_playlist",
+    val sfxPackId: String = "default_sfx_pack_cyber_synth",
     val customTowerConfigs: Map<String, TowerUnitBalance> = emptyMap(),
     val customEnemyConfigs: Map<String, EnemyUnitBalance> = emptyMap()
 ) {
@@ -571,6 +579,14 @@ data class DevBalanceConfig(
         if (stellarSfxSlot != default.stellarSfxSlot) diffMap["stellarSfxSlot"] = stellarSfxSlot
         if (turretSkinSlot != default.turretSkinSlot) diffMap["turretSkinSlot"] = turretSkinSlot
         if (mapThemeSlot != default.mapThemeSlot) diffMap["mapThemeSlot"] = mapThemeSlot
+        if (kineticFireId != default.kineticFireId) diffMap["kineticFireId"] = kineticFireId
+        if (elementalFireId != default.elementalFireId) diffMap["elementalFireId"] = elementalFireId
+        if (siegeFireId != default.siegeFireId) diffMap["siegeFireId"] = siegeFireId
+        if (stellarFireId != default.stellarFireId) diffMap["stellarFireId"] = stellarFireId
+        if (turretSkinId != default.turretSkinId) diffMap["turretSkinId"] = turretSkinId
+        if (mapThemeId != default.mapThemeId) diffMap["mapThemeId"] = mapThemeId
+        if (bgmTrackId != default.bgmTrackId) diffMap["bgmTrackId"] = bgmTrackId
+        if (sfxPackId != default.sfxPackId) diffMap["sfxPackId"] = sfxPackId
 
         // Tower diffs across all 52 units (L1 Base, L2 Vectors, L3 Archetypes) + any custom keys
         val towerDiffs = mutableMapOf<String, Map<String, Any>>()

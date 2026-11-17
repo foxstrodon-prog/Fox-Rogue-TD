@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.039`):** [`apk/Dual-Front-TD-v0.0.1.039-debug.apk`](apk/Dual-Front-TD-v0.0.1.039-debug.apk)
+- **Latest Android APK (`v0.0.1.040`):** [`apk/Dual-Front-TD-v0.0.1.040-debug.apk`](apk/Dual-Front-TD-v0.0.1.040-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,24 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.039
+## 🕹️ What's New in Version 0.0.1.040
+
+### 🗂️ Versioned Sound & Skin Archive Library (`versionCode = 61`)
+- **Build-Over-Build Versioned Asset Registry (`AssetCatalogModels.kt`, `BuildArchiveCatalog.kt`, `BuildArchiveVisualCatalog.kt`, `ArchivedAudioSynthesizer.kt`):**
+  - Preserved the canonical Default (`Slot 1`) assets untouched across all categories while introducing 4 new Build #61 variants for **Turret Fire** (16 new across 4 classes), **Upgrades** (16 new), **BGM Tracks** (4 new), **SFX Packs** (4 new), **Turret Skins** (Crimson Vanguard, Arctic Prism, Astral Eclipse, Phosphor 1984), and **Map Themes** (Crimson Caldera, Glacial Schematic, Astral Horizon, Emerald CRT).
+  - Assigned immutable build-scoped IDs (`pre60_*`, `b60_*`, `b61_*`, `default_*`) with seamless vote and config migration from `v0.0.1.039` so Likes, Dislikes, and Stars never collide across builds.
+  - Refactored `EntityRenderer.kt` and `GameCanvas.kt` to consume data-driven `TurretSkinDef` and `MapThemeDef` styles with zero per-frame allocations, and wired lazy on-demand `Dispatchers.IO` synthesis for archived audio items.
+- **Revamped "Archives" Vault & Legacy Pre-Build #60 Preservation (`AssetVaultDialog.kt`, `SoundArchiveStore.kt`, `AudioVisualCustomizationPanel.kt`):**
+  - Renamed `"Archived WAVs"` to **"Archives"** with 6 section filter chips (`All Archives`, `Turret Fire`, `Upgrades`, `BGM & SFX`, `Turret Skins`, `Map Themes`), build-label badges (`Pre-Build #60`, `Build #60 (v0.0.1.039)`, `Build #61 (v0.0.1.040)`), and full **PLAY**, **USE**, and **👍 / 👎 / ★** controls on every archived sound, skin, and map theme.
+  - Snapshotted all Build #60 (`v0.0.1.039`) assets into the Build #60 Archive and tagged legacy `SkinTheme` presets and unrecognized on-disk `.wav` files under `Pre-Build #60`.
+- **Spark-Safe Firebase Scaling & Persistence (`AssetVoteSyncManager.kt`, `firestore.rules`, `TelemetryManager.kt`, `VersionedArchiveVaultTest.kt`):**
+  - Scaled `asset_votes/{userId}` document capacity from `200` to `1500` entries with `buildCode` metadata while maintaining single-document-per-user Spark efficiency, and persisted equipped active/archived asset IDs cleanly across restarts (`237/237` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.039
 
 ### 🔊 Off-Main-Thread Audio Pipeline, Atomic WAV Writes & Vote Sync Ordering (`versionCode = 60`)
 - **Zero-Blocking Audio Initialization & Asset Persistence (`SoundManager.kt`, `MusicAndPreviewPlayer.kt`, `AssetVaultCoordinator.kt`):**
@@ -31,10 +48,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
 - **In-Flight Vote Preservation & Redundant-Sync Prevention (`AssetVoteSyncManager.kt`, `AssetVaultCoordinator.kt`, `RogueTDViewModel.kt`, `app/build.gradle.kts`):**
   - Added revision tracking in `AssetVoteSyncManager` so votes cast while a Firestore PATCH is in flight preserve `hasPendingSync`, released `isSyncInFlight` before `onResult` Main-thread callbacks, and drained/rescheduled follow-up syncs in `AssetVaultCoordinator`.
   - Short-circuited empty no-op vote syncs before checking the 10-second Spark cooldown, updated `closeAssetVault()` to call `syncPendingVotesIfNeeded()`, and aligned `stageDebugApk` output naming dynamically with `android.defaultConfig.versionName` (`231/231` unit tests passing).
-
----
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.038
 

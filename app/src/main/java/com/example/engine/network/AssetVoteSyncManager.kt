@@ -84,7 +84,7 @@ class AssetVoteSyncManager @JvmOverloads constructor(
     ): Map<String, Any> {
         val votedItems = records
             .filter { it.voteState != 0 || it.isFavoriteStar }
-            .take(200)
+            .take(1500)
 
         val votesMap = linkedMapOf<String, Any>()
         val likedIds = mutableListOf<String>()
@@ -99,6 +99,7 @@ class AssetVoteSyncManager @JvmOverloads constructor(
             votesMap[item.id] = mapOf(
                 "name" to item.name,
                 "category" to item.category,
+                "buildCode" to item.buildCode,
                 "vote" to item.voteState,
                 "star" to item.isFavoriteStar,
                 "equipped" to item.isEquipped,
@@ -129,6 +130,7 @@ class AssetVoteSyncManager @JvmOverloads constructor(
             val entryFields = JSONObject()
                 .put("name", JSONObject().put("stringValue", entry["name"]?.toString().orEmpty()))
                 .put("category", JSONObject().put("stringValue", entry["category"]?.toString().orEmpty()))
+                .put("buildCode", JSONObject().put("integerValue", ((entry["buildCode"] as? Number)?.toInt() ?: 0).toString()))
                 .put("vote", JSONObject().put("integerValue", ((entry["vote"] as? Number)?.toInt() ?: 0).toString()))
                 .put("star", JSONObject().put("booleanValue", entry["star"] as? Boolean ?: false))
                 .put("equipped", JSONObject().put("booleanValue", entry["equipped"] as? Boolean ?: false))
