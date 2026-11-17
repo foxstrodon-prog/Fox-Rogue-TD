@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.036`):** [`apk/Dual-Front-TD-v0.0.1.036-debug.apk`](apk/Dual-Front-TD-v0.0.1.036-debug.apk)
+- **Latest Android APK (`v0.0.1.037`):** [`apk/Dual-Front-TD-v0.0.1.037-debug.apk`](apk/Dual-Front-TD-v0.0.1.037-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,20 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.036
+## 🕹️ What's New in Version 0.0.1.037
+
+### 🔥 Firebase REST Vote Sync & Auth Fallback Hardening (`versionCode = 58`)
+- **Unified Firestore REST Vote Sync (`AssetVoteSyncManager.kt`):**
+  - Migrated `asset_votes/{userId}` cloud telemetry writes from the native `FirebaseFirestore` SDK to Firestore REST full-document overwrite `PATCH` (no `updateMask`) authenticated via `AuthRepository.ensureAuthenticated()` + `AuthRepository.getAuthenticatedSession()`.
+  - Ensures Sound & Skin Vault ratings sync seamlessly on both native `FirebaseAuth` and Identity Toolkit REST fallback sessions without `request.auth == null` `PERMISSION_DENIED` mismatches, and includes `X-Android-Package` / `X-Android-Cert` / `X-Goog-Api-Key` headers matching `FirestoreLeaderboardApi`.
+- **Automatic Token Refresh & Actionable Sync Diagnostics (`AssetVoteSyncManager.kt`, `SoundVaultAndVoteSyncTest.kt`):**
+  - Retries once with a forced token refresh on HTTP `401`/`403` and surfaces clear diagnostic reasons (such as undeployed `firestore.rules`, disabled Anonymous Auth, or Android SHA-1 key blocks) directly in the Vault sync status banner (`221/221` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.036
 
 ### 🔊 Sound & Skin Archive Vault, Permanent WAV Storage & Spark-Safe Vote Sync (`versionCode = 57`)
 - **Permanent Sound Archive & Legacy WAV Discovery (`SoundArchiveStore.kt`, `SoundManager.kt`, `MusicAndPreviewPlayer.kt`):**
@@ -36,8 +49,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Persists votes locally to `filesDir/exported_skins_sounds_library.json` (`importLibraryJson` + `exportLibraryJson`) and batches ratings into a single `asset_votes/{userId}` document write on Vault close or manual Sync using full-document `.set(payload)` overwrite (eliminating stale-vote keys when resetting back to Neutral) with a 10-second Spark cooldown and strict `request.auth` schema rules (`219/219` unit tests passing).
 
 ---
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.035
 

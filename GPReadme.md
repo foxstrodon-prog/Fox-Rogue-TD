@@ -4,7 +4,17 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.036
+### 🚀 What's New in Version 0.0.1.037
+
+🔥 **Firebase REST Vote Sync & Auth Fallback Hardening**
+- **Reliable Cloud Rating Sync:** Migrated Sound & Skin Vault vote uploads to authenticated Firestore REST so both native Firebase Auth and REST fallback sessions sync cleanly without permission mismatches.
+- **Clear Sync Diagnostics & Auto-Retry:** Automatically retries expired tokens once on `401`/`403` and reports actionable Firebase rule or auth errors directly in the Vault status banner (`221/221` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.036
 
 🔊 **Sound & Skin Archive Vault, Permanent Audio Storage & Vote Sync**
 - **In-Game Sound & Skin Vault:** Browse, preview, equip, and rate every BGM track, sound effect, 20 turret gunfire variants, 20 upgrade sounds, 5 turret skins, 5 map themes, and archived legacy `.wav` sounds directly from the Pause Menu.

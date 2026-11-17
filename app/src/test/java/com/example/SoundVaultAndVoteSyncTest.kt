@@ -1,6 +1,7 @@
 package com.example
 
 import android.content.Context
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.example.audio.MusicTrack
 import com.example.audio.SoundManager
@@ -16,14 +17,22 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -39,6 +48,8 @@ class SoundVaultAndVoteSyncTest {
         File(context.filesDir, "exported_skins_sounds_library.json").delete()
         File(context.filesDir, "sound_archive").deleteRecursively()
         context.cacheDir.listFiles { f -> f.name.endsWith(".wav") }?.forEach { it.delete() }
+        context.getSharedPreferences("rogue_td_auth", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("asset_vote_sync_prefs", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @After
@@ -183,6 +194,196 @@ class SoundVaultAndVoteSyncTest {
         coordinator.previewAsset("upgrade_stellar_cosmic_slot_2")
         coordinator.previewAsset("sfx_place")
         coordinator.stopPreview()
+
+        sm.release()
+    }
+
+    @Test
+    fun `AssetVoteSyncManager uploads asset_votes over Firestore REST with REST auth fallback`() {
+        val sm = SoundManager(context)
+        sm.setAssetVote("fire_kinetic_slot_2", 1)
+        sm.toggleAssetFavoriteStar("skin_slot_4")
+
+        var capturedMethod = ""
+        var capturedUrl = ""
+        var capturedAuthHeader = ""
+        var capturedBody = ""
+
+        val mockHttp = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val url = req.url.toString()
+                when {
+                    url.contains("identitytoolkit.googleapis.com") -> {
+                        val respJson = JSONObject()
+                            .put("localId", "rest_uid_42")
+                            .put("idToken", "rest_token_abc")
+                            .put("refreshToken", "rest_refresh_xyz")
+                            .put("expiresIn", "3600")
+                            .toString()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(respJson.toResponseBody())
+                            .build()
+                    }
+                    url.contains("firestore.googleapis.com") -> {
+                        capturedMethod = req.method
+                        capturedUrl = url
+                        capturedAuthHeader = req.header("Authorization").orEmpty()
+                        val buf = Buffer()
+                        req.body?.writeTo(buf)
+                        capturedBody = buf.readUtf8()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body("{}".toResponseBody())
+                            .build()
+                    }
+                    else -> error("Unexpected URL: $url")
+                }
+            }
+            .build()
+
+        val authRepo = AuthRepository(
+            context = context,
+            auth = null,
+            httpClient = mockHttp,
+            apiKey = "test_api_key_123"
+        )
+        val syncManager = AssetVoteSyncManager(
+            context = context,
+            authRepository = authRepo,
+            httpClient = mockHttp,
+            projectId = "test-project",
+            apiKey = "test_api_key_123"
+        )
+
+        val resultRef = AtomicReference<Pair<Boolean, String>?>(null)
+        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            resultRef.set(ok to msg)
+        }
+
+        val deadline = System.currentTimeMillis() + 5_000L
+        while (resultRef.get() == null && System.currentTimeMillis() < deadline) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+
+        val result = resultRef.get()
+        assertNotNull("Expected sync callback", result)
+        assertTrue("Expected REST vote sync to succeed: ${result?.second}", result!!.first)
+        assertEquals("PATCH", capturedMethod)
+        assertTrue(capturedUrl.contains("/databases/(default)/documents/asset_votes/rest_uid_42"))
+        assertFalse("Full overwrite PATCH must not include updateMask", capturedUrl.contains("updateMask"))
+        assertEquals("Bearer rest_token_abc", capturedAuthHeader)
+
+        val fields = JSONObject(capturedBody).getJSONObject("fields")
+        assertEquals("rest_uid_42", fields.getJSONObject("userId").getString("stringValue"))
+        assertTrue(fields.has("versionCode"))
+        assertTrue(fields.has("syncedAtEpochMs"))
+        val voteFields = fields.getJSONObject("votes").getJSONObject("mapValue").getJSONObject("fields")
+        assertTrue(voteFields.has("fire_kinetic_slot_2"))
+        assertTrue(voteFields.has("skin_slot_4"))
+
+        sm.release()
+    }
+
+    @Test
+    fun `AssetVoteSyncManager refreshes token on 403 and surfaces PERMISSION_DENIED guidance`() {
+        val sm = SoundManager(context)
+        sm.setAssetVote("fire_kinetic_slot_2", 1)
+
+        var firestoreCalls = 0
+        var refreshCalls = 0
+
+        val mockHttp = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val url = req.url.toString()
+                when {
+                    url.contains("identitytoolkit.googleapis.com") -> {
+                        val respJson = JSONObject()
+                            .put("localId", "rest_uid_99")
+                            .put("idToken", "initial_token")
+                            .put("refreshToken", "refresh_99")
+                            .put("expiresIn", "3600")
+                            .toString()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(respJson.toResponseBody())
+                            .build()
+                    }
+                    url.contains("securetoken.googleapis.com") -> {
+                        refreshCalls++
+                        val respJson = JSONObject()
+                            .put("user_id", "rest_uid_99")
+                            .put("id_token", "refreshed_token")
+                            .put("refresh_token", "refresh_99")
+                            .put("expires_in", "3600")
+                            .toString()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(respJson.toResponseBody())
+                            .build()
+                    }
+                    url.contains("firestore.googleapis.com") -> {
+                        firestoreCalls++
+                        val errJson = """{"error":{"code":403,"message":"Missing or insufficient permissions.","status":"PERMISSION_DENIED"}}"""
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(403)
+                            .message("Forbidden")
+                            .body(errJson.toResponseBody())
+                            .build()
+                    }
+                    else -> error("Unexpected URL: $url")
+                }
+            }
+            .build()
+
+        val authRepo = AuthRepository(
+            context = context,
+            auth = null,
+            httpClient = mockHttp,
+            apiKey = "test_api_key_123"
+        )
+        val syncManager = AssetVoteSyncManager(
+            context = context,
+            authRepository = authRepo,
+            httpClient = mockHttp,
+            projectId = "test-project",
+            apiKey = "test_api_key_123"
+        )
+
+        val resultRef = AtomicReference<Pair<Boolean, String>?>(null)
+        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            resultRef.set(ok to msg)
+        }
+
+        val deadline = System.currentTimeMillis() + 5_000L
+        while (resultRef.get() == null && System.currentTimeMillis() < deadline) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+
+        val result = resultRef.get()
+        assertNotNull(result)
+        assertFalse(result!!.first)
+        assertEquals("Expected token refresh on 403", 1, refreshCalls)
+        assertEquals("Expected retry after refresh", 2, firestoreCalls)
+        assertTrue(result.second.contains("PERMISSION_DENIED"))
 
         sm.release()
     }

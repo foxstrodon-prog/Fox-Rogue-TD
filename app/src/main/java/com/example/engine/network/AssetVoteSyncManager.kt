@@ -1,32 +1,54 @@
 package com.example.engine.network
 
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import com.example.BuildConfig
 import com.example.audio.CustomAssetRecord
-import com.google.firebase.FirebaseApp
-import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /**
  * Spark-Safe Firebase Telemetry Sync for Sound & Skin Votes.
  * Batches all Like (+1), Dislike (-1), and Star ratings into a SINGLE Firestore document
- * per authenticated user (`asset_votes/{userId}`) using full-document overwrite `.set(payload)`
- * (never `SetOptions.merge()`) so reset-to-neutral votes are cleanly removed from Firestore.
+ * per authenticated user (`asset_votes/{userId}`) over Firestore REST using full-document
+ * overwrite PATCH (no `updateMask`, never `SetOptions.merge()`) so reset-to-neutral votes
+ * are cleanly removed from Firestore and REST Identity Toolkit fallback sessions work reliably.
  */
-class AssetVoteSyncManager(
+class AssetVoteSyncManager @JvmOverloads constructor(
     context: Context,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val httpClient: OkHttpClient = OkHttpClientProvider.client,
+    projectId: String = FirestoreLeaderboardApi.resolveProjectId(BuildConfig.LEADERBOARD_PROJECT_ID, context),
+    apiKey: String = FirestoreLeaderboardApi.resolveDefaultApiKey(context)
 ) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences("asset_vote_sync_prefs", Context.MODE_PRIVATE)
+    private val resolvedProjectId: String = projectId.trim()
+        .ifBlank { FirestoreLeaderboardApi.resolveProjectId("", appContext) }
+    private val resolvedApiKey: String = FirestoreLeaderboardApi.sanitizeApiKey(apiKey)
+        .ifBlank { FirestoreLeaderboardApi.resolveDefaultApiKey(appContext) }
+    private val androidCertSha1: String? = FirestoreLeaderboardApi.resolveSigningCertSha1(appContext)
 
     @Volatile
     private var lastSyncEpochMs: Long = 0L
 
     private val MIN_SYNC_COOLDOWN_MS = 10_000L
+
+    val isConfigured: Boolean
+        get() = resolvedProjectId.isNotBlank() && resolvedApiKey.isNotBlank()
 
     fun buildVotePayload(
         userId: String,
@@ -72,6 +94,46 @@ class AssetVoteSyncManager(
         )
     }
 
+    internal fun buildFirestoreDocumentJson(payload: Map<String, Any>): JSONObject {
+        @Suppress("UNCHECKED_CAST")
+        val votesMap = payload["votes"] as? Map<String, Map<String, Any?>> ?: emptyMap()
+        val voteEntryFields = JSONObject()
+        for ((assetId, entry) in votesMap) {
+            val entryFields = JSONObject()
+                .put("name", JSONObject().put("stringValue", entry["name"]?.toString().orEmpty()))
+                .put("category", JSONObject().put("stringValue", entry["category"]?.toString().orEmpty()))
+                .put("vote", JSONObject().put("integerValue", ((entry["vote"] as? Number)?.toInt() ?: 0).toString()))
+                .put("star", JSONObject().put("booleanValue", entry["star"] as? Boolean ?: false))
+                .put("equipped", JSONObject().put("booleanValue", entry["equipped"] as? Boolean ?: false))
+                .put("updatedAt", JSONObject().put("integerValue", ((entry["updatedAt"] as? Number)?.toLong() ?: 0L).toString()))
+            voteEntryFields.put(assetId, JSONObject().put("mapValue", JSONObject().put("fields", entryFields)))
+        }
+
+        fun stringArrayValue(key: String): JSONObject {
+            val list = payload[key] as? List<*> ?: emptyList<Any>()
+            val values = JSONArray()
+            for (item in list) {
+                values.put(JSONObject().put("stringValue", item?.toString().orEmpty()))
+            }
+            return JSONObject().put("arrayValue", JSONObject().put("values", values))
+        }
+
+        val fields = JSONObject()
+            .put("userId", JSONObject().put("stringValue", payload["userId"]?.toString().orEmpty()))
+            .put("versionName", JSONObject().put("stringValue", payload["versionName"]?.toString().orEmpty()))
+            .put("versionCode", JSONObject().put("integerValue", ((payload["versionCode"] as? Number)?.toInt() ?: 0).toString()))
+            .put("syncedAtEpochMs", JSONObject().put("integerValue", ((payload["syncedAtEpochMs"] as? Number)?.toLong() ?: 0L).toString()))
+            .put("likedCount", JSONObject().put("integerValue", ((payload["likedCount"] as? Number)?.toInt() ?: 0).toString()))
+            .put("dislikedCount", JSONObject().put("integerValue", ((payload["dislikedCount"] as? Number)?.toInt() ?: 0).toString()))
+            .put("starredCount", JSONObject().put("integerValue", ((payload["starredCount"] as? Number)?.toInt() ?: 0).toString()))
+            .put("likedIds", stringArrayValue("likedIds"))
+            .put("dislikedIds", stringArrayValue("dislikedIds"))
+            .put("starredIds", stringArrayValue("starredIds"))
+            .put("votes", JSONObject().put("mapValue", JSONObject().put("fields", voteEntryFields)))
+
+        return JSONObject().put("fields", fields)
+    }
+
     fun syncVotesToFirestore(
         scope: CoroutineScope,
         records: List<CustomAssetRecord>,
@@ -95,28 +157,38 @@ class AssetVoteSyncManager(
 
         scope.launch(Dispatchers.IO) {
             try {
-                if (FirebaseApp.getApps(appContext).isEmpty()) {
+                if (!isConfigured) {
                     withContext(Dispatchers.Main) {
                         onResult(false, "Saved locally (Firebase unconfigured)")
                     }
                     return@launch
                 }
 
-                val uid = authRepository.ensureAuthenticated() ?: authRepository.currentUserId
-                if (uid.isNullOrBlank()) {
+                authRepository.ensureAuthenticated()
+                var (uid, idToken) = authRepository.getAuthenticatedSession()
+                if (uid.isNullOrBlank() || idToken.isNullOrBlank()) {
+                    val authErr = authRepository.lastAuthFailure?.message ?: "Auth unavailable"
                     withContext(Dispatchers.Main) {
-                        onResult(false, "Saved locally (Auth pending)")
+                        onResult(false, "Saved locally ($authErr)")
                     }
                     return@launch
                 }
 
-                val payload = buildVotePayload(uid, records, now)
-                // Full overwrite (NO SetOptions.merge) so votes reset to Neutral (0) are removed from Firestore.
-                FirebaseFirestore.getInstance()
-                    .collection("asset_votes")
-                    .document(uid)
-                    .set(payload)
-                    .addOnSuccessListener {
+                var payload = buildVotePayload(uid, records, now)
+                var result = patchVoteDocument(uid, idToken, payload)
+
+                if (result is PatchOutcome.HttpFailure && (result.code == 401 || result.code == 403)) {
+                    val (refreshedUid, refreshedToken) = authRepository.getAuthenticatedSession(forceRefresh = true)
+                    if (!refreshedUid.isNullOrBlank() && !refreshedToken.isNullOrBlank()) {
+                        uid = refreshedUid
+                        idToken = refreshedToken
+                        payload = buildVotePayload(uid, records, now)
+                        result = patchVoteDocument(uid, idToken, payload)
+                    }
+                }
+
+                when (result) {
+                    is PatchOutcome.Success -> {
                         prefs.edit().putBoolean(KEY_HAD_CLOUD_VOTES, hasVotedItems).apply()
                         val msg = if (hasVotedItems) {
                             val count = (payload["votes"] as? Map<*, *>)?.size ?: 0
@@ -124,16 +196,112 @@ class AssetVoteSyncManager(
                         } else {
                             "Cleared cloud ratings on Firebase"
                         }
-                        onResult(true, msg)
+                        withContext(Dispatchers.Main) { onResult(true, msg) }
                     }
-                    .addOnFailureListener { e ->
-                        onResult(false, "Saved locally (${e.localizedMessage ?: "Offline"})")
+                    is PatchOutcome.HttpFailure -> {
+                        val msg = formatFirestoreHttpError(result.code, result.body)
+                        Log.w(TAG, "asset_votes sync HTTP ${result.code}: $msg | raw=${result.body}")
+                        withContext(Dispatchers.Main) { onResult(false, "Saved locally ($msg)") }
                     }
-            } catch (_: Exception) {
+                    is PatchOutcome.NetworkFailure -> {
+                        Log.w(TAG, "asset_votes sync network error: ${result.message}")
+                        withContext(Dispatchers.Main) { onResult(false, "Saved locally (${result.message})") }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "asset_votes sync unexpected failure: ${e.message}", e)
                 withContext(Dispatchers.Main) {
-                    onResult(false, "Saved locally (Firebase unavailable)")
+                    onResult(false, "Saved locally (${e.localizedMessage ?: "Firebase unavailable"})")
                 }
             }
+        }
+    }
+
+    private sealed interface PatchOutcome {
+        data object Success : PatchOutcome
+        data class HttpFailure(val code: Int, val body: String) : PatchOutcome
+        data class NetworkFailure(val message: String) : PatchOutcome
+    }
+
+    private suspend fun patchVoteDocument(
+        userId: String,
+        idToken: String,
+        payload: Map<String, Any>
+    ): PatchOutcome {
+        val encodedUid = Uri.encode(userId)
+        val url = "https://firestore.googleapis.com/v1/projects/$resolvedProjectId/databases/(default)/documents/asset_votes/$encodedUid?key=$resolvedApiKey"
+        val docJson = buildFirestoreDocumentJson(payload).toString()
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("X-Goog-Api-Key", resolvedApiKey)
+            .addHeader("Authorization", "Bearer $idToken")
+            .apply {
+                if (!androidCertSha1.isNullOrBlank()) {
+                    addHeader("X-Android-Package", appContext.packageName)
+                    addHeader("X-Android-Cert", androidCertSha1)
+                }
+            }
+            .patch(docJson.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        return try {
+            httpClient.newCall(request).awaitResponse().use { response ->
+                val code = response.code
+                if (code in 200..299) {
+                    PatchOutcome.Success
+                } else {
+                    PatchOutcome.HttpFailure(code, response.body?.string().orEmpty())
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: SocketTimeoutException) {
+            PatchOutcome.NetworkFailure("Connection timed out")
+        } catch (_: UnknownHostException) {
+            PatchOutcome.NetworkFailure("Offline")
+        } catch (_: IOException) {
+            PatchOutcome.NetworkFailure("Network error")
+        }
+    }
+
+    private fun formatFirestoreHttpError(code: Int, body: String): String {
+        if (body.isBlank()) return "HTTP $code"
+        return try {
+            val trimmed = body.trim()
+            val json = if (trimmed.startsWith("[")) {
+                JSONArray(trimmed).optJSONObject(0) ?: JSONObject()
+            } else {
+                JSONObject(trimmed)
+            }
+            val err = json.optJSONObject("error")
+            val msg = err?.optString("message", "").orEmpty()
+            val status = err?.optString("status", "").orEmpty()
+            val details = err?.optJSONArray("details")
+            var reason = ""
+            if (details != null) {
+                for (i in 0 until details.length()) {
+                    val r = details.optJSONObject(i)?.optString("reason", "").orEmpty()
+                    if (r.isNotBlank()) reason = r
+                }
+            }
+            when {
+                reason == "API_KEY_ANDROID_APP_BLOCKED" || msg.contains("Requests from this Android client application", ignoreCase = true) ->
+                    "API key Android SHA-1 blocked"
+                reason == "SERVICE_DISABLED" || msg.contains("is disabled", ignoreCase = true) ->
+                    "Cloud Firestore API disabled"
+                status == "PERMISSION_DENIED" || code == 403 ->
+                    "PERMISSION_DENIED (deploy firestore.rules or enable Anonymous Auth)"
+                code == 404 || status == "NOT_FOUND" ->
+                    "Firestore database not found"
+                code == 429 ->
+                    "Rate limited (429)"
+                msg.isNotBlank() -> msg
+                else -> "HTTP $code"
+            }
+        } catch (_: Exception) {
+            "HTTP $code"
         }
     }
 
@@ -142,6 +310,8 @@ class AssetVoteSyncManager(
     }
 
     companion object {
+        private const val TAG = "AssetVoteSyncManager"
         private const val KEY_HAD_CLOUD_VOTES = "had_cloud_votes"
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
