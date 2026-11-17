@@ -1,8 +1,11 @@
 package com.example
 
+import android.app.Application
 import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.example.audio.MusicTrack
 import com.example.audio.SoundManager
 import com.example.engine.TelemetryManager
@@ -10,7 +13,9 @@ import com.example.engine.coordinator.AssetVaultCoordinator
 import com.example.engine.network.AssetVoteSyncManager
 import com.example.engine.network.AuthRepository
 import com.example.model.TowerClass
+import com.example.model.TurretSfxSlot
 import com.example.ui.GameUIState
+import com.example.ui.RogueTDViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +37,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import java.io.File
+import java.net.UnknownHostException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
@@ -125,8 +134,37 @@ class SoundVaultAndVoteSyncTest {
     @Test
     fun `AssetVoteSyncManager drops neutralized votes from payload and guards Spark cooldown`() {
         val sm = SoundManager(context)
-        val authRepo = AuthRepository(context = context, auth = null, apiKey = "")
-        val syncManager = AssetVoteSyncManager(context, authRepo)
+        val mockHttp = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val url = req.url.toString()
+                val body = when {
+                    url.contains("identitytoolkit.googleapis.com") -> JSONObject()
+                        .put("localId", "uid_cooldown")
+                        .put("idToken", "token_cooldown")
+                        .put("refreshToken", "refresh_cooldown")
+                        .put("expiresIn", "3600")
+                        .toString()
+                    url.contains("firestore.googleapis.com") -> "{}"
+                    else -> error("Unexpected URL: $url")
+                }
+                Response.Builder()
+                    .request(req)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(body.toResponseBody())
+                    .build()
+            }
+            .build()
+        val authRepo = AuthRepository(context = context, auth = null, httpClient = mockHttp, apiKey = "test_api_key_123")
+        val syncManager = AssetVoteSyncManager(
+            context = context,
+            authRepository = authRepo,
+            httpClient = mockHttp,
+            projectId = "test-project",
+            apiKey = "test_api_key_123"
+        )
 
         sm.setAssetVote("fire_kinetic_slot_2", 1)
         sm.setAssetVote("theme_slot_3", -1)
@@ -145,14 +183,202 @@ class SoundVaultAndVoteSyncTest {
         assertFalse("Neutralized vote must be absent from full-overwrite payload", votes2.containsKey("fire_kinetic_slot_2"))
         assertTrue(votes2.containsKey("theme_slot_3"))
 
-        // First sync triggers cooldown; immediate second sync (force = false) is blocked by Spark guard
-        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true)
+        // First sync completes a Firestore request and triggers cooldown
+        val firstSyncDone = CountDownLatch(1)
+        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, _ ->
+            assertTrue(ok)
+            firstSyncDone.countDown()
+        }
+        val deadline = System.currentTimeMillis() + 5_000L
+        while (firstSyncDone.count > 0 && System.currentTimeMillis() < deadline) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals(0L, firstSyncDone.count)
+
+        // Immediate second sync (force = false) is blocked by Spark guard while preserving pending status
         var secondResultMsg = ""
         syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = false) { ok, msg ->
             assertFalse(ok)
             secondResultMsg = msg
         }
         assertTrue(secondResultMsg.contains("cooldown", ignoreCase = true))
+        assertTrue(secondResultMsg.contains("Pending cloud sync", ignoreCase = true))
+
+        sm.release()
+    }
+
+    @Test
+    fun `AssetVoteSyncManager skips cooldown on unconfigured or offline failure and deduplicates concurrent syncs`() {
+        val sm = SoundManager(context)
+        sm.setAssetVote("fire_kinetic_slot_2", 1)
+
+        // 1. Unconfigured failure must NOT trigger cooldown
+        val unconfiguredAuth = AuthRepository(context = context, auth = null, apiKey = "")
+        val unconfiguredSync = AssetVoteSyncManager(
+            context = context,
+            authRepository = unconfiguredAuth,
+            projectId = "",
+            apiKey = ""
+        )
+        val unconfiguredFirst = AtomicReference<Pair<Boolean, String>?>(null)
+        unconfiguredSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            unconfiguredFirst.set(ok to msg)
+        }
+        val deadline1 = System.currentTimeMillis() + 5_000L
+        while (unconfiguredFirst.get() == null && System.currentTimeMillis() < deadline1) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertFalse(unconfiguredFirst.get()!!.first)
+
+        val unconfiguredSecond = AtomicReference<Pair<Boolean, String>?>(null)
+        unconfiguredSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = false) { ok, msg ->
+            unconfiguredSecond.set(ok to msg)
+        }
+        val deadline2 = System.currentTimeMillis() + 5_000L
+        while (unconfiguredSecond.get() == null && System.currentTimeMillis() < deadline2) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertFalse(
+            "Unconfigured failure must not activate cooldown: ${unconfiguredSecond.get()?.second}",
+            unconfiguredSecond.get()!!.second.contains("cooldown", ignoreCase = true)
+        )
+
+        // 2. Offline failure (UnknownHostException) must NOT trigger cooldown
+        val offlineClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val url = chain.request().url.toString()
+                if (url.contains("identitytoolkit.googleapis.com")) {
+                    val respJson = JSONObject()
+                        .put("localId", "offline_uid")
+                        .put("idToken", "offline_token")
+                        .put("refreshToken", "offline_refresh")
+                        .put("expiresIn", "3600")
+                        .toString()
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(respJson.toResponseBody())
+                        .build()
+                } else {
+                    throw UnknownHostException("offline")
+                }
+            }
+            .build()
+        val offlineAuth = AuthRepository(context = context, auth = null, httpClient = offlineClient, apiKey = "test_key")
+        val offlineSync = AssetVoteSyncManager(
+            context = context,
+            authRepository = offlineAuth,
+            httpClient = offlineClient,
+            projectId = "test-project",
+            apiKey = "test_key"
+        )
+        val offlineFirst = AtomicReference<Pair<Boolean, String>?>(null)
+        offlineSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            offlineFirst.set(ok to msg)
+        }
+        val deadline3 = System.currentTimeMillis() + 5_000L
+        while (offlineFirst.get() == null && System.currentTimeMillis() < deadline3) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertTrue(offlineFirst.get()!!.second.contains("Offline", ignoreCase = true))
+
+        val offlineSecond = AtomicReference<Pair<Boolean, String>?>(null)
+        offlineSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = false) { ok, msg ->
+            offlineSecond.set(ok to msg)
+        }
+        val deadline4 = System.currentTimeMillis() + 5_000L
+        while (offlineSecond.get() == null && System.currentTimeMillis() < deadline4) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertFalse(
+            "Offline failure must not activate cooldown: ${offlineSecond.get()?.second}",
+            offlineSecond.get()!!.second.contains("cooldown", ignoreCase = true)
+        )
+
+        // 3. Concurrent sync calls must be deduplicated via in-flight AtomicBoolean
+        val patchEntered = CountDownLatch(1)
+        val allowPatchFinish = CountDownLatch(1)
+        val patchCalls = AtomicInteger(0)
+        val concurrentClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val url = chain.request().url.toString()
+                if (url.contains("identitytoolkit.googleapis.com")) {
+                    val respJson = JSONObject()
+                        .put("localId", "conc_uid")
+                        .put("idToken", "conc_token")
+                        .put("refreshToken", "conc_refresh")
+                        .put("expiresIn", "3600")
+                        .toString()
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(respJson.toResponseBody())
+                        .build()
+                } else {
+                    patchCalls.incrementAndGet()
+                    patchEntered.countDown()
+                    allowPatchFinish.await(5, TimeUnit.SECONDS)
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("{}".toResponseBody())
+                        .build()
+                }
+            }
+            .build()
+        val concAuth = AuthRepository(context = context, auth = null, httpClient = concurrentClient, apiKey = "test_key")
+        val concSync = AssetVoteSyncManager(
+            context = context,
+            authRepository = concAuth,
+            httpClient = concurrentClient,
+            projectId = "test-project",
+            apiKey = "test_key"
+        )
+        val firstResult = AtomicReference<Pair<Boolean, String>?>(null)
+        concSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            firstResult.set(ok to msg)
+        }
+        assertTrue("First sync should reach Firestore PATCH", patchEntered.await(5, TimeUnit.SECONDS))
+
+        var duplicateMsg = ""
+        concSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            assertFalse(ok)
+            duplicateMsg = msg
+        }
+        assertTrue(duplicateMsg.contains("already in progress", ignoreCase = true))
+        assertEquals(1, patchCalls.get())
+
+        allowPatchFinish.countDown()
+        val deadline5 = System.currentTimeMillis() + 5_000L
+        while (firstResult.get() == null && System.currentTimeMillis() < deadline5) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertTrue(firstResult.get()!!.first)
+
+        // In-flight guard must be released in finally so a subsequent forced sync executes
+        val followUpResult = AtomicReference<Pair<Boolean, String>?>(null)
+        concSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            followUpResult.set(ok to msg)
+        }
+        val deadline6 = System.currentTimeMillis() + 5_000L
+        while (followUpResult.get() == null && System.currentTimeMillis() < deadline6) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertTrue(followUpResult.get()!!.first)
+        assertEquals(2, patchCalls.get())
 
         sm.release()
     }
@@ -385,6 +611,50 @@ class SoundVaultAndVoteSyncTest {
         assertEquals("Expected retry after refresh", 2, firestoreCalls)
         assertTrue(result.second.contains("PERMISSION_DENIED"))
 
+        sm.release()
+    }
+
+    @Test
+    fun `openPauseMenu does not stack over AssetVaultDialog and startNewRun resets isAssetVaultOpen`() {
+        val store = ViewModelStore()
+        val vm = ViewModelProvider(
+            store,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        )[RogueTDViewModel::class.java]
+        try {
+            vm.openPauseMenu()
+            assertTrue(vm.uiState.value.isPauseMenuOpen)
+
+            vm.openAssetVaultFromPauseMenu()
+            assertFalse(vm.uiState.value.isPauseMenuOpen)
+            assertTrue(vm.uiState.value.isAssetVaultOpen)
+
+            // Simulating MainActivity.onStop() calling openPauseMenu() while Asset Vault is open
+            vm.openPauseMenu()
+            assertFalse("PauseMenuDialog must not open over AssetVaultDialog", vm.uiState.value.isPauseMenuOpen)
+            assertTrue("AssetVaultDialog must remain open", vm.uiState.value.isAssetVaultOpen)
+
+            // Starting a new run must clear isAssetVaultOpen
+            vm.startNewRun()
+            assertFalse(vm.uiState.value.isAssetVaultOpen)
+            assertFalse(vm.uiState.value.isPauseMenuOpen)
+        } finally {
+            store.clear()
+        }
+    }
+
+    @Test
+    fun `TurretSfxSlot stellarName matches SoundArchiveStore record labels`() {
+        val sm = SoundManager(context)
+        val records = sm.assetLibraryFlow.value
+        for (slot in 1..5) {
+            val expectedName = TurretSfxSlot.fromSlot(slot).stellarName
+            val record = records.first { it.id == "fire_stellar_slot_$slot" }
+            assertTrue(
+                "Record '${record.name}' should end with '$expectedName'",
+                record.name.endsWith(expectedName)
+            )
+        }
         sm.release()
     }
 }

@@ -2,15 +2,22 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.audio.MusicAndPreviewPlayer
 import com.example.audio.MusicTrack
+import com.example.audio.SoundArchiveStore
 import com.example.audio.SoundManager
 import com.example.model.TowerClass
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowMediaPlayer
+import org.robolectric.shadows.util.DataSource
+import java.io.File
+import java.io.IOException
 
 /**
  * Quinn (Quality Engineer) & Charles (Audio Director)
@@ -27,6 +34,11 @@ class AudioPipelineTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         soundManager = SoundManager(context)
+    }
+
+    @After
+    fun tearDown() {
+        soundManager.release()
     }
 
     @Test
@@ -132,5 +144,59 @@ class AudioPipelineTest {
                 soundManager.playTowerUpgrade(cls, skin)
             }
         }
+    }
+
+    @Test
+    fun `playTransientWavFile handles corrupted wav failure cleanly without throwing`() {
+        val archiveStore = SoundArchiveStore(context)
+        var suspended = false
+        val player = MusicAndPreviewPlayer(
+            archiveStore = archiveStore,
+            isEnabled = { true },
+            isMuted = { false },
+            isSuspended = { suspended },
+            isPaused = { false },
+            getMasterVolume = { 0.8f },
+            getSfxVolume = { 0.8f },
+            getMusicVolume = { 0.5f },
+            getActiveMusicTrack = { MusicTrack.CYBER_AMBIENT }
+        )
+
+        val bgmFile = player.getOrCreateMusicFile(MusicTrack.CYBER_AMBIENT)
+        ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(bgmFile.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))
+        player.playTrack(MusicTrack.CYBER_AMBIENT)
+        assertTrue(player.hasActiveMediaPlayer())
+
+        val badWav = File(context.cacheDir, "corrupted_preview_test.wav").apply {
+            writeBytes(byteArrayOf(0x00, 0x01, 0x02, 0x03))
+        }
+        ShadowMediaPlayer.addException(DataSource.toDataSource(badWav.absolutePath), IOException("Corrupted WAV"))
+
+        // Must catch exception, release candidate MediaPlayer, and run resumeBgmAfterPreview cleanly
+        player.playTransientWavFile(badWav)
+        assertTrue(player.hasActiveMediaPlayer())
+        assertFalse(player.hasActivePreviewPlayer())
+
+        // Invalidated generation or suspended state must be a no-op
+        val validWav = player.getOrCreateMusicFile(MusicTrack.PULSE_ARPEGGIO)
+        ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(validWav.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))
+
+        val staleGen = player.nextPreviewGeneration()
+        player.stopPreview()
+        player.playTransientWavFile(validWav, expectedGeneration = staleGen)
+        assertFalse("Stale preview generation must not start preview playback", player.hasActivePreviewPlayer())
+
+        suspended = true
+        player.playTransientWavFile(validWav)
+        assertFalse("playTransientWavFile must be a no-op while suspended", player.hasActivePreviewPlayer())
+
+        suspended = false
+        player.playTransientWavFile(validWav)
+        assertTrue("Valid preview should start when active and not suspended", player.hasActivePreviewPlayer())
+        player.stopPreview()
+        assertFalse(player.hasActivePreviewPlayer())
+
+        player.release()
+        badWav.delete()
     }
 }

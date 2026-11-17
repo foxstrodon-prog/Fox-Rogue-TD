@@ -70,7 +70,7 @@ fun RogueTDScreen(
 
     val isSquircleOpen = hudState.selectedTower != null || (hudState.selectedTile != null && hudState.selectedTile?.isBuildable == true)
     BackHandler(
-        enabled = hudState.activeCinematic == null && !hudState.isGameOver && !hudState.isVictory && !hudState.isPauseMenuOpen
+        enabled = hudState.activeCinematic == null && !hudState.isGameOver && !hudState.isVictory && !hudState.isPauseMenuOpen && !hudState.isAssetVaultOpen
     ) {
         if (isSquircleOpen) {
             viewModel.selectTile(null)

@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.random.Random
 
 /**
@@ -31,10 +30,17 @@ class SoundManager(context: Context) {
     private val appContext = context.applicationContext
     private val archiveStore = SoundArchiveStore(appContext)
     private val libraryLock = Any()
+    private val exportLock = Any()
+    private val exportWriteLock = Any()
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
     internal var migrationJob: Job? = null
+
+    private var latestScheduledSeq: Long = 0L
+    private var lastWrittenSeq: Long = 0L
+    private var latestExportSnapshot: List<CustomAssetRecord>? = null
+    private var activeExportJob: Job? = null
 
     // --- SoundPool SFX Engine ---
     private var soundPool: SoundPool
@@ -54,8 +60,8 @@ class SoundManager(context: Context) {
     private val upgradeSoundIds = Array(4) { IntArray(5) }
     private val upgradeLoaded = Array(4) { BooleanArray(5) }
 
-    val equippedFireSlotByClass = IntArray(4) { 1 }
-    val equippedUpgradeSlotByClass = IntArray(4) { 1 }
+    private val equippedFireSlotByClass = IntArray(4) { 1 }
+    private val equippedUpgradeSlotByClass = IntArray(4) { 1 }
 
     @Volatile
     var equippedTurretSkinSlot: Int = 1
@@ -82,7 +88,10 @@ class SoundManager(context: Context) {
             field = value
             musicPlayer.updateMusicVolume()
             if (!value && wasMuted && !musicPlayer.hasActiveMediaPlayer() && enabled && !isAudioSuspended && activeMusicTrack != MusicTrack.NONE) {
-                musicPlayer.playTrack(activeMusicTrack)
+                val trackToPlay = activeMusicTrack
+                ioScope.launch {
+                    musicPlayer.playTrack(trackToPlay)
+                }
             }
         }
 
@@ -132,6 +141,7 @@ class SoundManager(context: Context) {
     @Volatile
     var activeProfile: SoundProfile = SoundProfile.CYBER_SYNTH
         set(value) {
+            if (field == value) return
             field = value
             loadAllSfx(value)
             populateAssetLibrary()
@@ -140,9 +150,12 @@ class SoundManager(context: Context) {
     @Volatile
     var activeMusicTrack: MusicTrack = MusicTrack.ROLLING_PLAYLIST
         set(value) {
+            if (field == value) return
             field = value
             musicPlayer.resetPlaylistElapsed()
-            musicPlayer.playTrack(value)
+            ioScope.launch {
+                musicPlayer.playTrack(value)
+            }
             populateAssetLibrary()
         }
 
@@ -158,7 +171,7 @@ class SoundManager(context: Context) {
         getActiveMusicTrack = { activeMusicTrack }
     )
 
-    val assetLibrary = CopyOnWriteArrayList<CustomAssetRecord>()
+    private var assetLibrary: List<CustomAssetRecord> = emptyList()
 
     private val _assetLibraryFlow = MutableStateFlow<List<CustomAssetRecord>>(emptyList())
     val assetLibraryFlow: StateFlow<List<CustomAssetRecord>> = _assetLibraryFlow.asStateFlow()
@@ -189,7 +202,13 @@ class SoundManager(context: Context) {
 
         loadAllSfx(activeProfile)
         populateAssetLibrary()
-        musicPlayer.playTrack(activeMusicTrack)
+
+        val initialTrack = activeMusicTrack
+        ioScope.launch {
+            if (activeMusicTrack == initialTrack) {
+                musicPlayer.playTrack(initialTrack)
+            }
+        }
 
         migrationJob = ioScope.launch {
             val migratedCount = archiveStore.migrateLegacyCacheWavsToArchive()
@@ -201,9 +220,15 @@ class SoundManager(context: Context) {
 
     fun getArchiveDirectory(): File = archiveStore.archiveDir
 
+    fun getEquippedFireSlot(towerClass: TowerClass): Int =
+        synchronized(libraryLock) { equippedFireSlotByClass[towerClass.ordinal.coerceIn(0, 3)] }
+
+    fun getEquippedUpgradeSlot(towerClass: TowerClass): Int =
+        synchronized(libraryLock) { equippedUpgradeSlotByClass[towerClass.ordinal.coerceIn(0, 3)] }
+
     fun populateAssetLibrary() {
         synchronized(libraryLock) {
-            val inMemoryMap = assetLibrary.associateBy({ it.id }, { it.copy() })
+            val inMemoryMap = assetLibrary.associateBy { it.id }
             val freshRecords = archiveStore.buildAssetLibrary(
                 activeProfile = activeProfile,
                 activeMusicTrack = activeMusicTrack,
@@ -213,19 +238,16 @@ class SoundManager(context: Context) {
                 equippedMapThemeSlot = equippedMapThemeSlot
             )
             val merged = archiveStore.applyPersistedAndInMemoryStates(freshRecords, inMemoryMap)
-            assetLibrary.clear()
-            assetLibrary.addAll(merged)
-            _assetLibraryFlow.value = merged.map { it.copy() }
+            assetLibrary = merged
+            _assetLibraryFlow.value = merged
         }
     }
 
     fun importLibraryJson() {
         synchronized(libraryLock) {
-            val current = assetLibrary.map { it.copy() }
-            val merged = archiveStore.applyPersistedAndInMemoryStates(current, emptyMap())
-            assetLibrary.clear()
-            assetLibrary.addAll(merged)
-            _assetLibraryFlow.value = merged.map { it.copy() }
+            val merged = archiveStore.applyPersistedAndInMemoryStates(assetLibrary, emptyMap())
+            assetLibrary = merged
+            _assetLibraryFlow.value = merged
         }
     }
 
@@ -260,36 +282,43 @@ class SoundManager(context: Context) {
                 }
                 item.copy(isEquipped = equippedNow)
             }
-            assetLibrary.clear()
-            assetLibrary.addAll(updated)
-            _assetLibraryFlow.value = updated.map { it.copy() }
+            assetLibrary = updated
+            _assetLibraryFlow.value = updated
         }
     }
 
     fun previewAsset(assetId: String) {
-        val asset = assetLibrary.firstOrNull { it.id == assetId } ?: return
+        val asset = assetLibraryFlow.value.firstOrNull { it.id == assetId } ?: return
         when (asset.category) {
             "TURRET_FIRE" -> {
+                musicPlayer.stopPreview()
                 val tClass = TowerClass.entries.getOrElse(asset.towerClassOrdinal) { TowerClass.KINETIC_BALLISTIC }
                 playTurretTestSound(tClass, asset.slotIndex)
             }
             "TURRET_UPGRADE" -> {
+                musicPlayer.stopPreview()
                 val tClass = TowerClass.entries.getOrElse(asset.towerClassOrdinal) { TowerClass.KINETIC_BALLISTIC }
                 playTowerUpgradeTestSound(tClass, asset.slotIndex)
             }
             "SFX" -> {
+                musicPlayer.stopPreview()
                 SoundFx.entries.getOrNull(asset.slotIndex)?.let { play(it) }
             }
             "BACKGROUND_MUSIC" -> {
                 val track = MusicTrack.entries.firstOrNull { "bgm_${it.name.lowercase()}" == asset.id } ?: return
                 val targetTrack = if (track == MusicTrack.ROLLING_PLAYLIST) musicPlayer.getCurrentRollingTrack() else track
+                val generation = musicPlayer.nextPreviewGeneration()
                 ioScope.launch {
-                    musicPlayer.playTransientWavFile(musicPlayer.getOrCreateMusicFile(targetTrack))
+                    val file = musicPlayer.getOrCreateMusicFile(targetTrack)
+                    musicPlayer.playTransientWavFile(file, expectedGeneration = generation)
                 }
             }
             "ARCHIVED_WAV" -> {
                 val path = asset.filePath ?: return
-                musicPlayer.playTransientWavFile(File(path))
+                val generation = musicPlayer.nextPreviewGeneration()
+                ioScope.launch {
+                    musicPlayer.playTransientWavFile(File(path), expectedGeneration = generation)
+                }
             }
         }
     }
@@ -299,6 +328,7 @@ class SoundManager(context: Context) {
     fun setAssetVote(assetId: String, targetVote: Int): Int {
         val coerced = targetVote.coerceIn(-1, 1)
         var resultingVote = 0
+        val snapshotToExport: List<CustomAssetRecord>
         synchronized(libraryLock) {
             val now = System.currentTimeMillis()
             val updated = assetLibrary.map { item ->
@@ -313,11 +343,11 @@ class SoundManager(context: Context) {
                     item
                 }
             }
-            assetLibrary.clear()
-            assetLibrary.addAll(updated)
-            _assetLibraryFlow.value = updated.map { it.copy() }
-            archiveStore.exportLibraryJson(appContext, updated)
+            assetLibrary = updated
+            _assetLibraryFlow.value = updated
+            snapshotToExport = updated
         }
+        scheduleExportLibraryJson(snapshotToExport)
         return resultingVote
     }
 
@@ -325,6 +355,7 @@ class SoundManager(context: Context) {
 
     fun toggleAssetFavoriteStar(assetId: String): Boolean {
         var resultingStar = false
+        val snapshotToExport: List<CustomAssetRecord>
         synchronized(libraryLock) {
             val now = System.currentTimeMillis()
             val updated = assetLibrary.map { item ->
@@ -338,16 +369,58 @@ class SoundManager(context: Context) {
                     item
                 }
             }
-            assetLibrary.clear()
-            assetLibrary.addAll(updated)
-            _assetLibraryFlow.value = updated.map { it.copy() }
-            archiveStore.exportLibraryJson(appContext, updated)
+            assetLibrary = updated
+            _assetLibraryFlow.value = updated
+            snapshotToExport = updated
         }
+        scheduleExportLibraryJson(snapshotToExport)
         return resultingStar
     }
 
-    fun exportLibraryJson(context: Context = appContext): String = synchronized(libraryLock) {
-        archiveStore.exportLibraryJson(context, assetLibrary.toList())
+    private fun scheduleExportLibraryJson(records: List<CustomAssetRecord>) {
+        synchronized(exportLock) {
+            latestScheduledSeq++
+            latestExportSnapshot = records
+            if (activeExportJob?.isActive == true) return
+            activeExportJob = ioScope.launch {
+                drainPendingExports()
+            }
+        }
+    }
+
+    private fun drainPendingExports() {
+        while (true) {
+            val hasPending = synchronized(exportLock) {
+                if (lastWrittenSeq >= latestScheduledSeq || latestExportSnapshot == null) {
+                    activeExportJob = null
+                    false
+                } else {
+                    true
+                }
+            }
+            if (!hasPending) return
+
+            synchronized(exportWriteLock) {
+                val (currentSeq, currentSnapshot) = synchronized(exportLock) {
+                    latestScheduledSeq to latestExportSnapshot
+                }
+                if (currentSnapshot != null && currentSeq > lastWrittenSeq) {
+                    archiveStore.exportLibraryJson(appContext, currentSnapshot)
+                    synchronized(exportLock) {
+                        if (currentSeq > lastWrittenSeq) {
+                            lastWrittenSeq = currentSeq
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun exportLibraryJson(context: Context = appContext): String {
+        val snapshot = synchronized(libraryLock) { assetLibrary }
+        return synchronized(exportWriteLock) {
+            archiveStore.exportLibraryJson(context, snapshot)
+        }
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -465,7 +538,7 @@ class SoundManager(context: Context) {
         play(SoundFx.PLACE)
     }
 
-    fun playTurretFire(towerClass: TowerClass, slot: Int = equippedFireSlotByClass[towerClass.ordinal.coerceIn(0, 3)]) {
+    fun playTurretFire(towerClass: TowerClass, slot: Int = getEquippedFireSlot(towerClass)) {
         if (!enabled || isMuted || isAudioSuspended) return
         val archetypeIdx = towerClass.ordinal.coerceIn(0, 3)
         val nowMs = System.currentTimeMillis()
@@ -509,7 +582,7 @@ class SoundManager(context: Context) {
         }
     }
 
-    fun playTowerUpgrade(towerClass: TowerClass, skinSlot: Int = equippedUpgradeSlotByClass[towerClass.ordinal.coerceIn(0, 3)]) {
+    fun playTowerUpgrade(towerClass: TowerClass, skinSlot: Int = getEquippedUpgradeSlot(towerClass)) {
         if (!enabled || isMuted || isAudioSuspended) return
         val c = towerClass.ordinal.coerceIn(0, 3)
         val s = (skinSlot - 1).coerceIn(0, 4)
@@ -596,6 +669,19 @@ class SoundManager(context: Context) {
 
     fun release() {
         ioScope.cancel()
+        synchronized(exportWriteLock) {
+            val (currentSeq, currentSnapshot) = synchronized(exportLock) {
+                latestScheduledSeq to latestExportSnapshot
+            }
+            if (currentSnapshot != null && currentSeq > lastWrittenSeq) {
+                archiveStore.exportLibraryJson(appContext, currentSnapshot)
+                synchronized(exportLock) {
+                    if (currentSeq > lastWrittenSeq) {
+                        lastWrittenSeq = currentSeq
+                    }
+                }
+            }
+        }
         musicPlayer.release()
         try { soundPool.release() } catch (_: Exception) {}
     }

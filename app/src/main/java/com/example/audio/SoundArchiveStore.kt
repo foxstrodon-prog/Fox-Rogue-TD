@@ -338,9 +338,20 @@ internal class SoundArchiveStore(context: Context) {
         root.put("assets", assetsArr)
 
         val jsonStr = root.toString(2)
+        val targetFile = File(context.filesDir, "exported_skins_sounds_library.json")
+        val tmpFile = File(context.filesDir, "exported_skins_sounds_library.json.tmp")
         try {
-            File(context.filesDir, "exported_skins_sounds_library.json").writeText(jsonStr)
-        } catch (_: Exception) {}
+            targetFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+            tmpFile.writeText(jsonStr)
+            if (!tmpFile.renameTo(targetFile)) {
+                targetFile.writeText(jsonStr)
+            }
+        } catch (_: Exception) {
+        } finally {
+            if (tmpFile.exists()) {
+                tmpFile.delete()
+            }
+        }
         return jsonStr
     }
 
@@ -364,13 +375,7 @@ internal class SoundArchiveStore(context: Context) {
             TowerClass.KINETIC_BALLISTIC -> s.kineticName
             TowerClass.ELEMENTAL_VOID -> s.elementalName
             TowerClass.HEAVY_SIEGE -> s.siegeName
-            TowerClass.STELLAR_COSMIC -> when (slot) {
-                1 -> "Starlight Lance (Default)"
-                2 -> "Nebula Pulse"
-                3 -> "Solar Flare"
-                4 -> "Pulsar Beam"
-                else -> "Supernova Burst"
-            }
+            TowerClass.STELLAR_COSMIC -> s.stellarName
         }
     }
 }

@@ -187,12 +187,18 @@ enum class MapThemeSlot(val slot: Int, val displayName: String, val description:
 }
 
 /** 5 selectable gunfire audio variants per archetype (1 Default + 4 Candidates) */
-enum class TurretSfxSlot(val slot: Int, val kineticName: String, val elementalName: String, val siegeName: String) {
-    SLOT_1_DEFAULT(1, "Rotary Gunfire (Default)", "Phase Beam (Default)", "Artillery Blast (Default)"),
-    SLOT_2_VARIANT_A(2, "Heavy Autocannon", "Plasma Burn", "Sonic Detonator"),
-    SLOT_3_VARIANT_B(3, "Hyper Pulse", "Ion Discharge", "Flak Burst"),
-    SLOT_4_VARIANT_C(4, "Gauss Needle", "Void Pulse", "Concussion Mortar"),
-    SLOT_5_VARIANT_D(5, "Rail Crack", "Arc Flare", "Plasma Howitzer");
+enum class TurretSfxSlot(
+    val slot: Int,
+    val kineticName: String,
+    val elementalName: String,
+    val siegeName: String,
+    val stellarName: String
+) {
+    SLOT_1_DEFAULT(1, "Rotary Gunfire (Default)", "Phase Beam (Default)", "Artillery Blast (Default)", "Starlight Lance (Default)"),
+    SLOT_2_VARIANT_A(2, "Heavy Autocannon", "Plasma Burn", "Sonic Detonator", "Nebula Pulse"),
+    SLOT_3_VARIANT_B(3, "Hyper Pulse", "Ion Discharge", "Flak Burst", "Solar Flare"),
+    SLOT_4_VARIANT_C(4, "Gauss Needle", "Void Pulse", "Concussion Mortar", "Pulsar Beam"),
+    SLOT_5_VARIANT_D(5, "Rail Crack", "Arc Flare", "Plasma Howitzer", "Supernova Burst");
 
     companion object {
         fun fromSlot(slot: Int): TurretSfxSlot = values().firstOrNull { it.slot == slot } ?: SLOT_1_DEFAULT

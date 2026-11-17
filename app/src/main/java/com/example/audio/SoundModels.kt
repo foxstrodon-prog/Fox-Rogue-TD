@@ -41,14 +41,14 @@ data class CustomAssetRecord(
     val type: String, // "SKIN" or "SOUND"
     val name: String,
     val category: String,
-    var isFavoriteHeart: Boolean = false,
-    var isFavoriteStar: Boolean = false,
+    val isFavoriteHeart: Boolean = false,
+    val isFavoriteStar: Boolean = false,
     val unlockScore: Int = 0,
     val metadata: String = "",
     val towerClassOrdinal: Int = -1,
     val slotIndex: Int = 1,
     val filePath: String? = null,
-    var voteState: Int = 0, // 1 = Liked, -1 = Disliked, 0 = Neutral
-    var isEquipped: Boolean = false,
-    var updatedAtEpochMs: Long = 0L
+    val voteState: Int = 0, // 1 = Liked, -1 = Disliked, 0 = Neutral
+    val isEquipped: Boolean = false,
+    val updatedAtEpochMs: Long = 0L
 )

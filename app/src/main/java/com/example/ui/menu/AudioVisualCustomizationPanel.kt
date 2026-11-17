@@ -389,11 +389,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFFFD700),
                     darkTextOnSelected = true,
                     selectedSlot = state.stellarSfxSlot,
-                    slotLabelFor = {
-                        when (it) {
-                            1 -> "Starlight"; 2 -> "Nebula"; 3 -> "Solar"; 4 -> "Pulsar"; else -> "Nova"
-                        }
-                    },
+                    slotLabelFor = { TurretSfxSlot.fromSlot(it).stellarName.split(" ").first() },
                     onSelectAndTest = { slot ->
                         onStellarSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.STELLAR_COSMIC, slot)

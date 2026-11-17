@@ -134,7 +134,9 @@ class RogueTDViewModel @JvmOverloads constructor(
         soundManager.setSfxVolumeLevel(config.sfxVolume)
         soundManager.setUpgradeVolumeLevel(config.upgradeVolume)
         soundManager.setMutedState(config.isMuted)
-        soundManager.activeMusicTrack = _uiState.value.musicTrack
+        if (soundManager.activeMusicTrack != _uiState.value.musicTrack) {
+            soundManager.activeMusicTrack = _uiState.value.musicTrack
+        }
         assetVaultCoordinator.syncEquippedFromState()
 
         refreshTelemetry()
@@ -309,7 +311,7 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun openPauseMenu() {
         val s = _uiState.value
-        if (s.isGameOver || s.isVictory || s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen) return
+        if (s.isGameOver || s.isVictory || s.isPauseMenuOpen || s.isSettingsOpen || s.isTelemetryOpen || s.isAssetVaultOpen) return
         soundManager.isPaused = true
         val currentSpeed = s.gameSpeed
         val savedSpeed = if (currentSpeed != GameSpeed.PAUSED) currentSpeed else s.prePauseSpeed
@@ -597,7 +599,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 isWaveActive = false, gameSpeed = GameSpeed.NORMAL, selectedTile = null, selectedTower = null, lastSelectedTowerId = null,
                 isGameOver = false, isVictory = false, totalKills = 0, totalScrapEarned = prev.balanceConfig.startingScrap,
                 totalDamageDealt = 0f, screenShakeIntensity = 0f, autoCallNextWave = false, overchargeRemainingMs = 0L,
-                isTelemetryOpen = false, isSettingsOpen = false, isPauseMenuOpen = false, hasClickedFirstTile = false
+                isTelemetryOpen = false, isSettingsOpen = false, isPauseMenuOpen = false, isAssetVaultOpen = false, hasClickedFirstTile = false
             )
         }
 

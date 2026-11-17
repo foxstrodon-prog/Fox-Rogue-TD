@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.037`):** [`apk/Dual-Front-TD-v0.0.1.037-debug.apk`](apk/Dual-Front-TD-v0.0.1.037-debug.apk)
+- **Latest Android APK (`v0.0.1.038`):** [`apk/Dual-Front-TD-v0.0.1.038-debug.apk`](apk/Dual-Front-TD-v0.0.1.038-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,23 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.037
+## 🕹️ What's New in Version 0.0.1.038
+
+### 🔊 Audio Threading, MediaPlayer Hardening, Vault Safety & Vote Sync Polish (`versionCode = 59`)
+- **Off-Main-Thread Audio & Atomic Persistence (`SoundManager.kt`, `SoundArchiveStore.kt`, `MusicAndPreviewPlayer.kt`):**
+  - Offloaded startup/setter BGM synthesis, `ARCHIVED_WAV` preview preparation, and serialized rating JSON exports onto `Dispatchers.IO` with deterministic `release()` flushing and atomic temp-file + rename writes (`exported_skins_sounds_library.json.tmp`).
+  - Synchronized `MediaPlayer` lifecycle, volume fades, and rolling playlist state under `playerLock`, added `OnErrorListener` + exception cleanup for preview/BGM `MediaPlayer` instances, enforced `isSuspended()`, and invalidated stale async previews via generation checks.
+  - Stopped active BGM/archive previews before SFX previews, encapsulated turret slot arrays, and switched `SoundManager` & `AssetVaultCoordinator` reads to atomic `assetLibraryFlow.value` snapshots with immutable `CustomAssetRecord` fields.
+- **Dialog Guarding, Vote Sync Concurrency & Stellar Slot Consolidation (`RogueTDViewModel.kt`, `RogueTDScreen.kt`, `AssetVoteSyncManager.kt`, `ThemeModels.kt`):**
+  - Prevented `PauseMenuDialog` and `BackHandler` from stacking over `AssetVaultDialog` and reset `isAssetVaultOpen` on `startNewRun()`.
+  - Added an `AtomicBoolean` in-flight sync guard in `AssetVoteSyncManager`, scoped the 10-second Spark cooldown strictly to completed Firestore HTTP attempts, and preserved pending cloud sync status during cooldown.
+  - Consolidated Stellar Cosmic gunfire labels into `TurretSfxSlot.stellarName` across `SoundArchiveStore` and `AudioVisualCustomizationPanel` (`225/225` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.037
 
 ### 🔥 Firebase REST Vote Sync & Auth Fallback Hardening (`versionCode = 58`)
 - **Unified Firestore REST Vote Sync (`AssetVoteSyncManager.kt`):**
@@ -32,8 +48,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Retries once with a forced token refresh on HTTP `401`/`403` and surfaces clear diagnostic reasons (such as undeployed `firestore.rules`, disabled Anonymous Auth, or Android SHA-1 key blocks) directly in the Vault sync status banner (`221/221` unit tests passing).
 
 ---
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.036
 

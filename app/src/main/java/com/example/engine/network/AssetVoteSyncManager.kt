@@ -19,6 +19,8 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.isActive
 
 /**
  * Spark-Safe Firebase Telemetry Sync for Sound & Skin Votes.
@@ -44,6 +46,8 @@ class AssetVoteSyncManager @JvmOverloads constructor(
 
     @Volatile
     private var lastSyncEpochMs: Long = 0L
+
+    private val isSyncInFlight = AtomicBoolean(false)
 
     private val MIN_SYNC_COOLDOWN_MS = 10_000L
 
@@ -142,22 +146,33 @@ class AssetVoteSyncManager @JvmOverloads constructor(
     ) {
         val now = System.currentTimeMillis()
         if (!force && now - lastSyncEpochMs < MIN_SYNC_COOLDOWN_MS) {
-            onResult(false, "Sync cooldown active (Spark guard)")
+            prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
+            onResult(false, "Saved locally • Pending cloud sync (cooldown active)")
             return
         }
 
         val hasVotedItems = records.any { it.voteState != 0 || it.isFavoriteStar }
         val hadCloudVotes = prefs.getBoolean(KEY_HAD_CLOUD_VOTES, false)
-        if (!hasVotedItems && !hadCloudVotes) {
+        val hasPendingSync = prefs.getBoolean(KEY_HAS_PENDING_SYNC, false)
+        if (!hasVotedItems && !hadCloudVotes && !hasPendingSync) {
             onResult(true, "No votes to sync")
             return
         }
 
-        lastSyncEpochMs = now
+        if (!scope.isActive) {
+            onResult(false, "Saved locally (Sync scope inactive)")
+            return
+        }
+
+        if (!isSyncInFlight.compareAndSet(false, true)) {
+            onResult(false, "Sync already in progress")
+            return
+        }
 
         scope.launch(Dispatchers.IO) {
             try {
                 if (!isConfigured) {
+                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                     withContext(Dispatchers.Main) {
                         onResult(false, "Saved locally (Firebase unconfigured)")
                     }
@@ -167,6 +182,7 @@ class AssetVoteSyncManager @JvmOverloads constructor(
                 authRepository.ensureAuthenticated()
                 var (uid, idToken) = authRepository.getAuthenticatedSession()
                 if (uid.isNullOrBlank() || idToken.isNullOrBlank()) {
+                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                     val authErr = authRepository.lastAuthFailure?.message ?: "Auth unavailable"
                     withContext(Dispatchers.Main) {
                         onResult(false, "Saved locally ($authErr)")
@@ -174,7 +190,7 @@ class AssetVoteSyncManager @JvmOverloads constructor(
                     return@launch
                 }
 
-                var payload = buildVotePayload(uid, records, now)
+                var payload = buildVotePayload(uid, records, System.currentTimeMillis())
                 var result = patchVoteDocument(uid, idToken, payload)
 
                 if (result is PatchOutcome.HttpFailure && (result.code == 401 || result.code == 403)) {
@@ -182,14 +198,18 @@ class AssetVoteSyncManager @JvmOverloads constructor(
                     if (!refreshedUid.isNullOrBlank() && !refreshedToken.isNullOrBlank()) {
                         uid = refreshedUid
                         idToken = refreshedToken
-                        payload = buildVotePayload(uid, records, now)
+                        payload = buildVotePayload(uid, records, System.currentTimeMillis())
                         result = patchVoteDocument(uid, idToken, payload)
                     }
                 }
 
                 when (result) {
                     is PatchOutcome.Success -> {
-                        prefs.edit().putBoolean(KEY_HAD_CLOUD_VOTES, hasVotedItems).apply()
+                        lastSyncEpochMs = System.currentTimeMillis()
+                        prefs.edit()
+                            .putBoolean(KEY_HAD_CLOUD_VOTES, hasVotedItems)
+                            .putBoolean(KEY_HAS_PENDING_SYNC, false)
+                            .apply()
                         val msg = if (hasVotedItems) {
                             val count = (payload["votes"] as? Map<*, *>)?.size ?: 0
                             "Synced $count ratings to Firebase"
@@ -199,11 +219,14 @@ class AssetVoteSyncManager @JvmOverloads constructor(
                         withContext(Dispatchers.Main) { onResult(true, msg) }
                     }
                     is PatchOutcome.HttpFailure -> {
+                        lastSyncEpochMs = System.currentTimeMillis()
+                        prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                         val msg = formatFirestoreHttpError(result.code, result.body)
                         Log.w(TAG, "asset_votes sync HTTP ${result.code}: $msg | raw=${result.body}")
                         withContext(Dispatchers.Main) { onResult(false, "Saved locally ($msg)") }
                     }
                     is PatchOutcome.NetworkFailure -> {
+                        prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                         Log.w(TAG, "asset_votes sync network error: ${result.message}")
                         withContext(Dispatchers.Main) { onResult(false, "Saved locally (${result.message})") }
                     }
@@ -215,6 +238,8 @@ class AssetVoteSyncManager @JvmOverloads constructor(
                 withContext(Dispatchers.Main) {
                     onResult(false, "Saved locally (${e.localizedMessage ?: "Firebase unavailable"})")
                 }
+            } finally {
+                isSyncInFlight.set(false)
             }
         }
     }
@@ -312,6 +337,7 @@ class AssetVoteSyncManager @JvmOverloads constructor(
     companion object {
         private const val TAG = "AssetVoteSyncManager"
         private const val KEY_HAD_CLOUD_VOTES = "had_cloud_votes"
+        private const val KEY_HAS_PENDING_SYNC = "has_pending_sync"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }

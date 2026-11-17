@@ -61,7 +61,7 @@ class AssetVaultCoordinator(
     }
 
     fun equipAsset(assetId: String) {
-        val asset = soundManager.assetLibrary.firstOrNull { it.id == assetId } ?: return
+        val asset = assetLibraryFlow.value.firstOrNull { it.id == assetId } ?: return
         val slot = asset.slotIndex.coerceIn(1, 5)
         when (asset.category) {
             "TURRET_FIRE" -> {

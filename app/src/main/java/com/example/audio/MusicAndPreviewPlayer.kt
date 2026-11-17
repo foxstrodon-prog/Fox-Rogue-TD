@@ -4,6 +4,7 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 
 /**
  * Encapsulates streaming BGM [MediaPlayer] (rolling playlist, smooth fades, ducking, pause attenuation)
@@ -20,9 +21,13 @@ internal class MusicAndPreviewPlayer(
     private val getMusicVolume: () -> Float,
     private val getActiveMusicTrack: () -> MusicTrack
 ) {
+    private val playerLock = Any()
     private var mediaPlayer: MediaPlayer? = null
     private var previewPlayer: MediaPlayer? = null
     private var bgmPausedForPreview: Boolean = false
+    private var previewGeneration: Long = 0L
+    private var trackGeneration: Long = 0L
+    private var isReleased: Boolean = false
 
     private val rollingPlaylistTracks = listOf(
         MusicTrack.CYBER_AMBIENT,
@@ -45,12 +50,26 @@ internal class MusicAndPreviewPlayer(
     private val DUCK_FACTOR = 0.50f
     private val PAUSE_ATTENUATION_FACTOR = 0.50f
 
-    fun getCurrentRollingTrack(): MusicTrack = rollingPlaylistTracks[currentRollingIndex]
+    fun getCurrentRollingTrack(): MusicTrack = synchronized(playerLock) {
+        rollingPlaylistTracks[currentRollingIndex]
+    }
 
-    fun hasActiveMediaPlayer(): Boolean = mediaPlayer != null
+    fun hasActiveMediaPlayer(): Boolean = synchronized(playerLock) {
+        mediaPlayer != null
+    }
+
+    internal fun hasActivePreviewPlayer(): Boolean = synchronized(playerLock) {
+        previewPlayer != null
+    }
 
     fun resetPlaylistElapsed() {
-        playlistTrackElapsedMs = 0L
+        synchronized(playerLock) {
+            playlistTrackElapsedMs = 0L
+        }
+    }
+
+    fun nextPreviewGeneration(): Long = synchronized(playerLock) {
+        ++previewGeneration
     }
 
     fun getOrCreateMusicFile(track: MusicTrack): File {
@@ -64,105 +83,158 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun playTrack(track: MusicTrack) {
-        if (track == MusicTrack.NONE) {
-            stopMusic()
-            return
+        val (target, expectedGen) = synchronized(playerLock) {
+            val gen = ++trackGeneration
+            if (isReleased || track == MusicTrack.NONE) {
+                stopMusicLocked()
+                return
+            }
+            val resolved = if (track == MusicTrack.ROLLING_PLAYLIST) rollingPlaylistTracks[currentRollingIndex] else track
+            if (!isEnabled() || isMuted() || isSuspended()) {
+                stopMusicLocked()
+                return
+            }
+            resolved to gen
         }
-        val target = if (track == MusicTrack.ROLLING_PLAYLIST) rollingPlaylistTracks[currentRollingIndex] else track
-        playTrackInternal(target)
+        playTrackInternal(target, expectedGen)
     }
 
-    private fun playTrackInternal(targetTrack: MusicTrack) {
-        try {
-            mediaPlayer?.let { mp ->
-                try { if (mp.isPlaying) mp.stop() } catch (_: Exception) {}
-                mp.release()
+    private fun playTrackInternal(targetTrack: MusicTrack, expectedTrackGen: Long? = null) {
+        val canProceed = synchronized(playerLock) {
+            stopMusicLocked()
+            if (isReleased || !isEnabled() || isMuted() || isSuspended() || targetTrack == MusicTrack.NONE) {
+                false
+            } else {
+                expectedTrackGen == null || expectedTrackGen == trackGeneration
             }
-            mediaPlayer = null
+        }
+        if (!canProceed) return
 
-            if (!isEnabled() || isMuted() || isSuspended() || targetTrack == MusicTrack.NONE) return
+        val file = try {
+            getOrCreateMusicFile(targetTrack)
+        } catch (_: Exception) {
+            return
+        }
 
-            val file = getOrCreateMusicFile(targetTrack)
-            mediaPlayer = MediaPlayer().apply {
-                setAudioAttributes(
+        synchronized(playerLock) {
+            if (isReleased || !isEnabled() || isMuted() || isSuspended() || targetTrack == MusicTrack.NONE) return
+            if (expectedTrackGen != null && expectedTrackGen != trackGeneration) return
+
+            var candidate: MediaPlayer? = null
+            try {
+                val mp = MediaPlayer()
+                candidate = mp
+                mp.setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_GAME)
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
-                setDataSource(file.absolutePath)
-                isLooping = true
-                prepare()
+                mp.setDataSource(file.absolutePath)
+                mp.isLooping = true
+                mp.prepare()
                 targetMusicVolume = calculateEffectiveMusicVolume()
                 currentMusicVolume = 0f
-                setVolume(0f, 0f)
+                mp.setVolume(0f, 0f)
                 if (!isSuspended() && !bgmPausedForPreview) {
-                    start()
+                    mp.start()
                 }
+                mediaPlayer = mp
+                candidate = null
+            } catch (_: Exception) {
+                try { candidate?.release() } catch (_: Exception) {}
+                mediaPlayer = null
             }
-        } catch (_: Exception) {
-            mediaPlayer = null
         }
     }
 
-    fun playTransientWavFile(file: File) {
-        if (!file.exists() || !isEnabled() || isMuted()) return
-        try {
-            previewPlayer?.let { mp ->
-                try { if (mp.isPlaying) mp.stop() } catch (_: Exception) {}
-                mp.release()
+    fun playTransientWavFile(file: File, expectedGeneration: Long? = null) {
+        synchronized(playerLock) {
+            if (isReleased || !file.exists() || !isEnabled() || isMuted() || isSuspended()) return
+            if (expectedGeneration != null && expectedGeneration != previewGeneration) return
+            if (expectedGeneration == null) {
+                previewGeneration++
             }
-            previewPlayer = null
 
-            if (mediaPlayer?.isPlaying == true) {
+            stopPreviewPlayerOnlyLocked()
+
+            val wasBgmPlaying = try { mediaPlayer?.isPlaying == true } catch (_: Exception) { false }
+            if (wasBgmPlaying) {
                 try { mediaPlayer?.pause() } catch (_: Exception) {}
                 bgmPausedForPreview = true
             }
 
-            previewPlayer = MediaPlayer().apply {
-                setAudioAttributes(
+            var candidate: MediaPlayer? = null
+            try {
+                val mp = MediaPlayer()
+                candidate = mp
+                mp.setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_GAME)
                         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
-                setDataSource(file.absolutePath)
-                prepare()
+                mp.setDataSource(file.absolutePath)
+                mp.prepare()
                 val vol = (getMasterVolume() * getSfxVolume()).coerceIn(0.15f, 1f)
-                setVolume(vol, vol)
-                start()
-                setOnCompletionListener { mp ->
-                    mp.release()
-                    if (previewPlayer === mp) previewPlayer = null
-                    resumeBgmAfterPreview()
+                mp.setVolume(vol, vol)
+                mp.setOnCompletionListener { completedMp ->
+                    synchronized(playerLock) {
+                        try { completedMp.release() } catch (_: Exception) {}
+                        if (previewPlayer === completedMp) previewPlayer = null
+                        resumeBgmAfterPreviewLocked()
+                    }
                 }
+                mp.setOnErrorListener { failedMp, _, _ ->
+                    synchronized(playerLock) {
+                        try { failedMp.release() } catch (_: Exception) {}
+                        if (previewPlayer === failedMp) previewPlayer = null
+                        resumeBgmAfterPreviewLocked()
+                    }
+                    true
+                }
+                mp.start()
+                previewPlayer = mp
+                candidate = null
+            } catch (_: Exception) {
+                try { candidate?.release() } catch (_: Exception) {}
+                previewPlayer = null
+                resumeBgmAfterPreviewLocked()
             }
-        } catch (_: Exception) {
-            previewPlayer = null
-            resumeBgmAfterPreview()
         }
     }
 
     fun stopPreview() {
-        try {
-            previewPlayer?.let { mp ->
-                if (mp.isPlaying) mp.stop()
-                mp.release()
-            }
-        } catch (_: Exception) {}
-        previewPlayer = null
-        resumeBgmAfterPreview()
+        synchronized(playerLock) {
+            previewGeneration++
+            stopPreviewPlayerOnlyLocked()
+            resumeBgmAfterPreviewLocked()
+        }
     }
 
-    private fun resumeBgmAfterPreview() {
+    private fun stopPreviewPlayerOnlyLocked() {
+        previewPlayer?.let { mp ->
+            try { if (mp.isPlaying) mp.stop() } catch (_: Exception) {}
+            try { mp.release() } catch (_: Exception) {}
+        }
+        previewPlayer = null
+    }
+
+    private fun resumeBgmAfterPreviewLocked() {
         if (bgmPausedForPreview) {
             bgmPausedForPreview = false
-            ensureBgmPlayingIfEligible()
+            ensureBgmPlayingIfEligibleLocked()
         }
     }
 
     fun ensureBgmPlayingIfEligible() {
-        if (!isSuspended() && !bgmPausedForPreview && isEnabled() && !isMuted() && getActiveMusicTrack() != MusicTrack.NONE) {
+        synchronized(playerLock) {
+            ensureBgmPlayingIfEligibleLocked()
+        }
+    }
+
+    private fun ensureBgmPlayingIfEligibleLocked() {
+        if (!isReleased && !isSuspended() && !bgmPausedForPreview && isEnabled() && !isMuted() && getActiveMusicTrack() != MusicTrack.NONE) {
             try {
                 if (mediaPlayer?.isPlaying == false) {
                     mediaPlayer?.start()
@@ -172,71 +244,97 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun suspendMusic() {
-        stopPreview()
-        try { mediaPlayer?.pause() } catch (_: Exception) {}
+        synchronized(playerLock) {
+            trackGeneration++
+            previewGeneration++
+            stopPreviewPlayerOnlyLocked()
+            bgmPausedForPreview = false
+            try { mediaPlayer?.pause() } catch (_: Exception) {}
+        }
     }
 
     fun resumeMusic() {
-        if (!isEnabled() || isMuted()) return
-        val track = getActiveMusicTrack()
-        if (track != MusicTrack.NONE) {
-            try {
-                if (mediaPlayer == null) {
-                    playTrack(track)
-                } else if (mediaPlayer?.isPlaying == false && !bgmPausedForPreview) {
-                    val vol = calculateEffectiveMusicVolume()
-                    currentMusicVolume = vol
-                    targetMusicVolume = vol
-                    mediaPlayer?.setVolume(vol, vol)
-                    mediaPlayer?.start()
-                }
-            } catch (_: Exception) {}
+        val trackToPlay: MusicTrack? = synchronized(playerLock) {
+            if (isReleased || !isEnabled() || isMuted() || isSuspended()) return
+            val track = getActiveMusicTrack()
+            if (track == MusicTrack.NONE) return
+            if (mediaPlayer == null) {
+                track
+            } else {
+                try {
+                    if (mediaPlayer?.isPlaying == false && !bgmPausedForPreview) {
+                        val vol = calculateEffectiveMusicVolume()
+                        currentMusicVolume = vol
+                        targetMusicVolume = vol
+                        mediaPlayer?.setVolume(vol, vol)
+                        mediaPlayer?.start()
+                    }
+                } catch (_: Exception) {}
+                null
+            }
+        }
+        if (trackToPlay != null) {
+            playTrack(trackToPlay)
         }
     }
 
     fun triggerCombatDucking(durationMs: Long = 450L) {
-        duckUntilMs = System.currentTimeMillis() + durationMs
-        if (!isDucked) {
-            isDucked = true
-            updateMusicVolumeTarget()
+        synchronized(playerLock) {
+            duckUntilMs = System.currentTimeMillis() + durationMs
+            if (!isDucked) {
+                isDucked = true
+                updateMusicVolumeTargetLocked()
+            }
         }
     }
 
     fun updateTick(nowMs: Long, dtMs: Long) {
-        if (isDucked && nowMs >= duckUntilMs) {
-            isDucked = false
-            updateMusicVolumeTarget()
-        }
-
-        val fadeStep = (dtMs / 800f).coerceIn(0.015f, 1.0f)
-        if (kotlin.math.abs(targetMusicVolume - currentMusicVolume) > 0.005f) {
-            currentMusicVolume += (targetMusicVolume - currentMusicVolume) * fadeStep
-            try {
-                mediaPlayer?.setVolume(currentMusicVolume, currentMusicVolume)
-            } catch (_: Exception) {}
-        } else {
-            currentMusicVolume = targetMusicVolume
-        }
-
-        if (getActiveMusicTrack() == MusicTrack.ROLLING_PLAYLIST &&
-            isEnabled() && !isMuted() && !isPaused() && !isSuspended() && !bgmPausedForPreview
-        ) {
-            playlistTrackElapsedMs += dtMs
-            if (playlistTrackElapsedMs >= PLAYLIST_TRACK_WINDOW_MS) {
-                currentRollingIndex = (currentRollingIndex + 1) % rollingPlaylistTracks.size
-                playlistTrackElapsedMs = 0L
-                playTrackInternal(rollingPlaylistTracks[currentRollingIndex])
+        var nextRollingTrack: Pair<MusicTrack, Long>? = null
+        synchronized(playerLock) {
+            if (isReleased) return
+            if (isDucked && nowMs >= duckUntilMs) {
+                isDucked = false
+                updateMusicVolumeTargetLocked()
             }
+
+            val fadeStep = (dtMs / 800f).coerceIn(0.015f, 1.0f)
+            if (abs(targetMusicVolume - currentMusicVolume) > 0.005f) {
+                currentMusicVolume += (targetMusicVolume - currentMusicVolume) * fadeStep
+                try {
+                    mediaPlayer?.setVolume(currentMusicVolume, currentMusicVolume)
+                } catch (_: Exception) {}
+            } else {
+                currentMusicVolume = targetMusicVolume
+            }
+
+            if (getActiveMusicTrack() == MusicTrack.ROLLING_PLAYLIST &&
+                isEnabled() && !isMuted() && !isPaused() && !isSuspended() && !bgmPausedForPreview
+            ) {
+                playlistTrackElapsedMs += dtMs
+                if (playlistTrackElapsedMs >= PLAYLIST_TRACK_WINDOW_MS) {
+                    currentRollingIndex = (currentRollingIndex + 1) % rollingPlaylistTracks.size
+                    playlistTrackElapsedMs = 0L
+                    nextRollingTrack = rollingPlaylistTracks[currentRollingIndex] to ++trackGeneration
+                }
+            }
+        }
+        nextRollingTrack?.let { (track, gen) ->
+            playTrackInternal(track, gen)
         }
     }
 
     fun stopMusic() {
-        try {
-            mediaPlayer?.let { mp ->
-                try { if (mp.isPlaying) mp.stop() } catch (_: Exception) {}
-                mp.release()
-            }
-        } catch (_: Exception) {}
+        synchronized(playerLock) {
+            trackGeneration++
+            stopMusicLocked()
+        }
+    }
+
+    private fun stopMusicLocked() {
+        mediaPlayer?.let { mp ->
+            try { if (mp.isPlaying) mp.stop() } catch (_: Exception) {}
+            try { mp.release() } catch (_: Exception) {}
+        }
         mediaPlayer = null
     }
 
@@ -249,19 +347,33 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun updateMusicVolumeTarget() {
+        synchronized(playerLock) {
+            updateMusicVolumeTargetLocked()
+        }
+    }
+
+    private fun updateMusicVolumeTargetLocked() {
         targetMusicVolume = calculateEffectiveMusicVolume()
     }
 
     fun updateMusicVolume() {
-        updateMusicVolumeTarget()
-        currentMusicVolume = targetMusicVolume
-        try {
-            mediaPlayer?.setVolume(currentMusicVolume, currentMusicVolume)
-        } catch (_: Exception) {}
+        synchronized(playerLock) {
+            updateMusicVolumeTargetLocked()
+            currentMusicVolume = targetMusicVolume
+            try {
+                mediaPlayer?.setVolume(currentMusicVolume, currentMusicVolume)
+            } catch (_: Exception) {}
+        }
     }
 
     fun release() {
-        stopPreview()
-        stopMusic()
+        synchronized(playerLock) {
+            isReleased = true
+            trackGeneration++
+            previewGeneration++
+            stopPreviewPlayerOnlyLocked()
+            bgmPausedForPreview = false
+            stopMusicLocked()
+        }
     }
 }
