@@ -94,17 +94,49 @@ jobs:
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
         run: |
-          ./gradlew testDebugUnitTest --no-configuration-cache || {
+          if ! ./gradlew testDebugUnitTest --no-configuration-cache --stacktrace; then
             echo "Initial Gradle test run failed; retrying with --refresh-dependencies..."
-            ./gradlew testDebugUnitTest --no-configuration-cache --refresh-dependencies
-          }
+            if ! ./gradlew testDebugUnitTest --no-configuration-cache --refresh-dependencies --stacktrace; then
+              echo "=== Failing Unit Test Summary ==="
+              python3 - <<'PY' || true
+          import glob, xml.etree.ElementTree as ET, os
+          summary_lines = ["## Failing Unit Tests"]
+          for path in sorted(glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml")):
+              try:
+                  root = ET.parse(path).getroot()
+                  for tc in root.findall("testcase"):
+                      fail = tc.find("failure") or tc.find("error")
+                      if fail is not None:
+                          line = f"- `{tc.attrib.get('classname','')}.{tc.attrib.get('name','')}`: {fail.attrib.get('message','')}"
+                          print(line)
+                          print(fail.text or "")
+                          summary_lines.append(line)
+              except Exception as e:
+                  print(f"Error parsing {path}: {e}")
+          step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if step_summary and len(summary_lines) > 1:
+              with open(step_summary, "a", encoding="utf-8") as f:
+                  f.write("\n".join(summary_lines) + "\n")
+          PY
+              exit 1
+            fi
+          fi
+
+      - name: Upload Unit Test Reports on Failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-reports-${{ github.run_number }}
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/test-results/testDebugUnitTest
 
       - name: Assemble Debug APK
         env:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
-        run: ./gradlew assembleDebug --no-configuration-cache
+        run: ./gradlew assembleDebug --no-configuration-cache --stacktrace
 
       - name: Stage Release Binaries
         run: |

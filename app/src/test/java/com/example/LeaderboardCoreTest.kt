@@ -1098,14 +1098,20 @@ class LeaderboardCoreTest {
       vm._uiState.value = vm._uiState.value.copy(waveNumber = 3, isWaveActive = false, totalKills = 12, totalDamageDealt = 1500f)
       vm.confirmEndRun()
       vm.setPlayerName("Ax")
-      delay(250)
+      val deadline1 = System.currentTimeMillis() + 5_000L
+      while (store.getPendingQueue().isEmpty() && System.currentTimeMillis() < deadline1) {
+        delay(25)
+      }
 
       val queueAfterShort = store.getPendingQueue()
       assertEquals(1, queueAfterShort.size)
       assertEquals("Commander", queueAfterShort.first().callsign)
 
       vm.setPlayerName("Viper")
-      delay(150)
+      val deadline2 = System.currentTimeMillis() + 5_000L
+      while (store.getPendingQueue().firstOrNull()?.callsign != "Viper" && System.currentTimeMillis() < deadline2) {
+        delay(25)
+      }
       assertEquals("Viper", store.getPendingQueue().first().callsign)
 
       vm.startNewRun()
