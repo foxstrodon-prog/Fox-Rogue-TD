@@ -3,11 +3,12 @@ package com.example
 import android.app.Application
 import android.content.Context
 import android.os.Looper
-import androidx.test.core.app.ApplicationProvider
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
+import androidx.test.core.app.ApplicationProvider
 import com.example.audio.MusicTrack
 import com.example.audio.SoundManager
+import com.example.audio.SoundProfile
 import com.example.engine.TelemetryManager
 import com.example.engine.coordinator.AssetVaultCoordinator
 import com.example.engine.network.AssetVoteSyncManager
@@ -22,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
@@ -67,8 +69,9 @@ class SoundVaultAndVoteSyncTest {
     }
 
     @Test
-    fun `SoundManager registers all 40 turret variants, BGM, SFX, 5 skins, and 5 map themes in archive`() {
+    fun `SoundManager registers all 40 turret variants, BGM, SFX, 5 skins, and 5 map themes in archive`() = runBlocking {
         val sm = SoundManager(context)
+        sm.awaitPendingIoForTest()
         val records = sm.assetLibraryFlow.value
 
         assertEquals(20, records.count { it.category == "TURRET_FIRE" })
@@ -81,6 +84,7 @@ class SoundVaultAndVoteSyncTest {
         assertTrue(File(sm.getArchiveDirectory(), "sfx_gunfire_stellar_slot1_v1.wav").exists())
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
@@ -89,6 +93,7 @@ class SoundVaultAndVoteSyncTest {
         legacyWav.writeBytes(ByteArray(128) { 1 })
 
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         sm.migrationJob?.join()
 
         val archivedFile = File(sm.getArchiveDirectory(), "sfx_gunfire_kinetic_slot1_v1.wav")
@@ -101,11 +106,13 @@ class SoundVaultAndVoteSyncTest {
         )
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
-    fun `Tri-state Like Dislike Neutral and Star persist across SoundManager restarts`() {
+    fun `Tri-state Like Dislike Neutral and Star persist across SoundManager restarts`() = runBlocking {
         val sm1 = SoundManager(context)
+        sm1.initLoadJob?.join()
         val targetId = "fire_stellar_slot_3"
         val skinId = "skin_slot_4"
 
@@ -120,20 +127,24 @@ class SoundVaultAndVoteSyncTest {
         assertEquals(-1, sm1.setAssetVote(targetId, -1))
         assertTrue(sm1.toggleAssetFavoriteStar(skinId))
         sm1.release()
+        sm1.awaitPendingIoForTest()
 
         // New SoundManager instance must restore persisted states automatically
         val sm2 = SoundManager(context)
+        sm2.initLoadJob?.join()
         val restoredFire = sm2.assetLibraryFlow.value.first { it.id == targetId }
         val restoredSkin = sm2.assetLibraryFlow.value.first { it.id == skinId }
         assertEquals(-1, restoredFire.voteState)
         assertFalse(restoredFire.isFavoriteHeart)
         assertTrue(restoredSkin.isFavoriteStar)
         sm2.release()
+        sm2.awaitPendingIoForTest()
     }
 
     @Test
-    fun `AssetVoteSyncManager drops neutralized votes from payload and guards Spark cooldown`() {
+    fun `AssetVoteSyncManager drops neutralized votes from payload and guards Spark cooldown`() = runBlocking {
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         val mockHttp = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val req = chain.request()
@@ -206,11 +217,13 @@ class SoundVaultAndVoteSyncTest {
         assertTrue(secondResultMsg.contains("Pending cloud sync", ignoreCase = true))
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
-    fun `AssetVoteSyncManager skips cooldown on unconfigured or offline failure and deduplicates concurrent syncs`() {
+    fun `AssetVoteSyncManager skips cooldown on unconfigured or offline failure and deduplicates concurrent syncs`() = runBlocking {
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         sm.setAssetVote("fire_kinetic_slot_2", 1)
 
         // 1. Unconfigured failure must NOT trigger cooldown
@@ -346,7 +359,9 @@ class SoundVaultAndVoteSyncTest {
             apiKey = "test_key"
         )
         val firstResult = AtomicReference<Pair<Boolean, String>?>(null)
+        val inFlightDuringCallback = AtomicReference<Boolean?>(null)
         concSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
+            inFlightDuringCallback.set(concSync.isSyncInProgressForTest())
             firstResult.set(ok to msg)
         }
         assertTrue("First sync should reach Firestore PATCH", patchEntered.await(5, TimeUnit.SECONDS))
@@ -366,8 +381,9 @@ class SoundVaultAndVoteSyncTest {
             Thread.sleep(10)
         }
         assertTrue(firstResult.get()!!.first)
+        assertEquals(false, inFlightDuringCallback.get())
 
-        // In-flight guard must be released in finally so a subsequent forced sync executes
+        // In-flight guard must be released before onResult so a subsequent forced sync executes
         val followUpResult = AtomicReference<Pair<Boolean, String>?>(null)
         concSync.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, msg ->
             followUpResult.set(ok to msg)
@@ -381,11 +397,13 @@ class SoundVaultAndVoteSyncTest {
         assertEquals(2, patchCalls.get())
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
-    fun `AssetVaultCoordinator equipAsset syncs GameUIState, TelemetryManager, and SoundManager`() {
+    fun `AssetVaultCoordinator equipAsset syncs GameUIState, TelemetryManager, and SoundManager`() = runBlocking {
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         val tm = TelemetryManager(context)
         val authRepo = AuthRepository(context = context, auth = null, apiKey = "")
         val syncManager = AssetVoteSyncManager(context, authRepo)
@@ -422,11 +440,13 @@ class SoundVaultAndVoteSyncTest {
         coordinator.stopPreview()
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
-    fun `AssetVoteSyncManager uploads asset_votes over Firestore REST with REST auth fallback`() {
+    fun `AssetVoteSyncManager uploads asset_votes over Firestore REST with REST auth fallback`() = runBlocking {
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         sm.setAssetVote("fire_kinetic_slot_2", 1)
         sm.toggleAssetFavoriteStar("skin_slot_4")
 
@@ -517,11 +537,13 @@ class SoundVaultAndVoteSyncTest {
         assertTrue(voteFields.has("skin_slot_4"))
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
-    fun `AssetVoteSyncManager refreshes token on 403 and surfaces PERMISSION_DENIED guidance`() {
+    fun `AssetVoteSyncManager refreshes token on 403 and surfaces PERMISSION_DENIED guidance`() = runBlocking {
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         sm.setAssetVote("fire_kinetic_slot_2", 1)
 
         var firestoreCalls = 0
@@ -612,6 +634,7 @@ class SoundVaultAndVoteSyncTest {
         assertTrue(result.second.contains("PERMISSION_DENIED"))
 
         sm.release()
+        sm.awaitPendingIoForTest()
     }
 
     @Test
@@ -644,8 +667,9 @@ class SoundVaultAndVoteSyncTest {
     }
 
     @Test
-    fun `TurretSfxSlot stellarName matches SoundArchiveStore record labels`() {
+    fun `TurretSfxSlot stellarName matches SoundArchiveStore record labels`() = runBlocking {
         val sm = SoundManager(context)
+        sm.initLoadJob?.join()
         val records = sm.assetLibraryFlow.value
         for (slot in 1..5) {
             val expectedName = TurretSfxSlot.fromSlot(slot).stellarName
@@ -656,5 +680,389 @@ class SoundVaultAndVoteSyncTest {
             )
         }
         sm.release()
+        sm.awaitPendingIoForTest()
+    }
+
+    @Test
+    fun `AssetVaultCoordinator auto-syncs votes after debounce and flushes pending sync on vault reopen`() = runBlocking {
+        val sm = SoundManager(context)
+        sm.initLoadJob?.join()
+        val tm = TelemetryManager(context)
+        val stateFlow = MutableStateFlow(GameUIState())
+        val patchCount = AtomicInteger(0)
+        val patchLatch = CountDownLatch(1)
+
+        val mockHttp = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val url = req.url.toString()
+                when {
+                    url.contains("identitytoolkit.googleapis.com") -> {
+                        val respJson = JSONObject()
+                            .put("localId", "auto_uid_1")
+                            .put("idToken", "auto_token_1")
+                            .put("refreshToken", "auto_refresh_1")
+                            .put("expiresIn", "3600")
+                            .toString()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(respJson.toResponseBody())
+                            .build()
+                    }
+                    url.contains("firestore.googleapis.com") -> {
+                        patchCount.incrementAndGet()
+                        patchLatch.countDown()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body("{}".toResponseBody())
+                            .build()
+                    }
+                    else -> error("Unexpected URL: $url")
+                }
+            }
+            .build()
+
+        val authRepo = AuthRepository(
+            context = context,
+            auth = null,
+            httpClient = mockHttp,
+            apiKey = "test_api_key_123"
+        )
+        val syncManager = AssetVoteSyncManager(
+            context = context,
+            authRepository = authRepo,
+            httpClient = mockHttp,
+            projectId = "test-project",
+            apiKey = "test_api_key_123"
+        )
+        val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
+
+        coordinator.setAssetVote("fire_kinetic_slot_2", 1)
+        coordinator.toggleAssetStar("skin_slot_4")
+        assertTrue("Voting must immediately mark pending cloud sync", syncManager.hasPendingSync())
+        assertTrue(coordinator.syncStatusFlow.value.contains("Pending cloud sync", ignoreCase = true))
+
+        // Wait for 1.5s debounce auto-sync to complete and Main looper callback to update syncStatusFlow
+        val deadline = System.currentTimeMillis() + 5_000L
+        while ((patchLatch.count > 0 || syncManager.hasPendingSync() || !coordinator.syncStatusFlow.value.startsWith("Synced")) &&
+            System.currentTimeMillis() < deadline
+        ) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
+        assertEquals(1, patchCount.get())
+        assertFalse("Pending sync must clear after auto-sync succeeds", syncManager.hasPendingSync())
+        assertTrue(coordinator.syncStatusFlow.value.startsWith("Synced"))
+
+        // Simulate a stranded pending sync from a prior session and verify onVaultOpened flushes it
+        syncManager.resetCooldownForTest()
+        syncManager.markPendingSync()
+        val flushDeadline = System.currentTimeMillis() + 5_000L
+        coordinator.onVaultOpened()
+        while ((syncManager.hasPendingSync() || patchCount.get() < 2) && System.currentTimeMillis() < flushDeadline) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(2, patchCount.get())
+        assertFalse("onVaultOpened must flush pending sync", syncManager.hasPendingSync())
+
+        sm.release()
+        sm.awaitPendingIoForTest()
+    }
+
+    @Test
+    fun `Votes cast while PATCH is in flight preserve pending flag and upload on follow-up sync`() = runBlocking {
+        val sm = SoundManager(context)
+        sm.initLoadJob?.join()
+        val tm = TelemetryManager(context)
+        val stateFlow = MutableStateFlow(GameUIState())
+
+        val patchCalls = AtomicInteger(0)
+        val patch1Entered = CountDownLatch(1)
+        val allowPatch1Finish = CountDownLatch(1)
+        val patch2Completed = CountDownLatch(1)
+        val capturedBodies = mutableListOf<String>()
+
+        val mockHttp = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val url = req.url.toString()
+                when {
+                    url.contains("identitytoolkit.googleapis.com") -> {
+                        val respJson = JSONObject()
+                            .put("localId", "inflight_uid")
+                            .put("idToken", "inflight_token")
+                            .put("refreshToken", "inflight_refresh")
+                            .put("expiresIn", "3600")
+                            .toString()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(respJson.toResponseBody())
+                            .build()
+                    }
+                    url.contains("firestore.googleapis.com") -> {
+                        val callNum = patchCalls.incrementAndGet()
+                        val buf = Buffer()
+                        req.body?.writeTo(buf)
+                        synchronized(capturedBodies) {
+                            capturedBodies.add(buf.readUtf8())
+                        }
+                        if (callNum == 1) {
+                            patch1Entered.countDown()
+                            allowPatch1Finish.await(5, TimeUnit.SECONDS)
+                        } else if (callNum == 2) {
+                            patch2Completed.countDown()
+                        }
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body("{}".toResponseBody())
+                            .build()
+                    }
+                    else -> error("Unexpected URL: $url")
+                }
+            }
+            .build()
+
+        val authRepo = AuthRepository(
+            context = context,
+            auth = null,
+            httpClient = mockHttp,
+            apiKey = "test_api_key_123"
+        )
+        val syncManager = AssetVoteSyncManager(
+            context = context,
+            authRepository = authRepo,
+            httpClient = mockHttp,
+            projectId = "test-project",
+            apiKey = "test_api_key_123"
+        )
+        val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
+
+        // Cast initial vote and start first cloud sync
+        coordinator.setAssetVote("fire_kinetic_slot_2", 1)
+        coordinator.syncVotesToCloud(force = true)
+        assertTrue("First PATCH must enter flight", patch1Entered.await(5, TimeUnit.SECONDS))
+
+        // Cast a newer vote while PATCH 1 is blocked in flight, then attempt a colliding sync
+        coordinator.setAssetVote("skin_slot_4", -1)
+        coordinator.syncVotesToCloud(force = false)
+
+        // Release PATCH 1 and let Main looper run its completion handler
+        allowPatch1Finish.countDown()
+        val deadline1 = System.currentTimeMillis() + 5_000L
+        while (syncManager.isSyncInProgressForTest() && System.currentTimeMillis() < deadline1) {
+            Thread.sleep(10)
+        }
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+        assertTrue("hasPendingSync must stay true when a newer vote was cast mid-flight", syncManager.hasPendingSync())
+        assertTrue(
+            "Status should reflect pending sync rather than falsely claiming fully synced: ${coordinator.syncStatusFlow.value}",
+            coordinator.syncStatusFlow.value.contains("Pending cloud sync", ignoreCase = true)
+        )
+
+        // Trigger the follow-up sync once cooldown clears and verify the newer vote is uploaded
+        syncManager.resetCooldownForTest()
+        coordinator.syncPendingVotesIfNeeded()
+        assertTrue("Follow-up PATCH should execute", patch2Completed.await(5, TimeUnit.SECONDS))
+
+        val deadline2 = System.currentTimeMillis() + 5_000L
+        while ((syncManager.hasPendingSync() || syncManager.isSyncInProgressForTest()) && System.currentTimeMillis() < deadline2) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(2, patchCalls.get())
+        assertFalse("hasPendingSync must clear after follow-up PATCH succeeds", syncManager.hasPendingSync())
+        val patch2VoteFields = JSONObject(capturedBodies[1])
+            .getJSONObject("fields")
+            .getJSONObject("votes")
+            .getJSONObject("mapValue")
+            .getJSONObject("fields")
+        assertTrue(patch2VoteFields.has("fire_kinetic_slot_2"))
+        assertTrue("Follow-up PATCH must contain newer skin_slot_4 vote", patch2VoteFields.has("skin_slot_4"))
+
+        sm.release()
+        sm.awaitPendingIoForTest()
+    }
+
+    @Test
+    fun `syncVotesToFirestore with no votes skips cooldown and closeAssetVault avoids redundant writes`() = runBlocking {
+        val sm = SoundManager(context)
+        sm.initLoadJob?.join()
+        val patchCalls = AtomicInteger(0)
+
+        val mockHttp = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val url = req.url.toString()
+                when {
+                    url.contains("identitytoolkit.googleapis.com") -> {
+                        val respJson = JSONObject()
+                            .put("localId", "noop_uid")
+                            .put("idToken", "noop_token")
+                            .put("refreshToken", "noop_refresh")
+                            .put("expiresIn", "3600")
+                            .toString()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(respJson.toResponseBody())
+                            .build()
+                    }
+                    url.contains("firestore.googleapis.com") -> {
+                        patchCalls.incrementAndGet()
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body("{}".toResponseBody())
+                            .build()
+                    }
+                    else -> error("Unexpected URL: $url")
+                }
+            }
+            .build()
+
+        val authRepo = AuthRepository(context = context, auth = null, httpClient = mockHttp, apiKey = "test_key")
+        val syncManager = AssetVoteSyncManager(
+            context = context,
+            authRepository = authRepo,
+            httpClient = mockHttp,
+            projectId = "test-project",
+            apiKey = "test_key"
+        )
+
+        // Vote, sync, neutralize, and sync again so hadCloudVotes=false, hasPendingSync=false, lastSyncEpochMs=now
+        sm.setAssetVote("fire_kinetic_slot_2", 1)
+        val sync1 = CountDownLatch(1)
+        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, _ ->
+            assertTrue(ok)
+            sync1.countDown()
+        }
+        val d1 = System.currentTimeMillis() + 5_000L
+        while (sync1.count > 0 && System.currentTimeMillis() < d1) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals(0L, sync1.count)
+
+        sm.setAssetVote("fire_kinetic_slot_2", 1) // resets to 0
+        val sync2 = CountDownLatch(1)
+        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = true) { ok, _ ->
+            assertTrue(ok)
+            sync2.countDown()
+        }
+        val d2 = System.currentTimeMillis() + 5_000L
+        while (sync2.count > 0 && System.currentTimeMillis() < d2) {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals(0L, sync2.count)
+        assertFalse(syncManager.hasPendingSync())
+        assertEquals(2, patchCalls.get())
+
+        // Calling syncVotesToFirestore(force = false) immediately during cooldown with no votes must short-circuit
+        var noopOk = false
+        var noopMsg = ""
+        syncManager.syncVotesToFirestore(testScope, sm.assetLibraryFlow.value, force = false) { ok, msg ->
+            noopOk = ok
+            noopMsg = msg
+        }
+        assertTrue(noopOk)
+        assertEquals("No votes to sync", noopMsg)
+        assertFalse("Must not mark pending sync when nothing needs syncing", syncManager.hasPendingSync())
+        assertEquals("Must not issue redundant PATCH requests", 2, patchCalls.get())
+
+        // Verify closeAssetVault does not trigger cloud sync when no votes changed
+        val store = ViewModelStore()
+        val vm = ViewModelProvider(
+            store,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(context.applicationContext as Application)
+        )[RogueTDViewModel::class.java]
+        try {
+            vm.soundManager.initLoadJob?.join()
+            // Simulate a pre-existing vote in SoundManager without pending unsynced delta
+            vm.soundManager.setAssetVote("fire_kinetic_slot_2", 1)
+            vm.openPauseMenu()
+            vm.openAssetVaultFromPauseMenu()
+            assertEquals("Ratings auto-saved locally", vm.assetVaultCoordinator.syncStatusFlow.value)
+
+            vm.closeAssetVault()
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+
+            assertFalse(vm.uiState.value.isAssetVaultOpen)
+            assertTrue(vm.uiState.value.isPauseMenuOpen)
+            assertEquals(
+                "Closing Asset Vault without new votes must not invoke cloud sync",
+                "Ratings auto-saved locally",
+                vm.assetVaultCoordinator.syncStatusFlow.value
+            )
+        } finally {
+            store.clear()
+        }
+
+        sm.release()
+        sm.awaitPendingIoForTest()
+    }
+
+    @Test
+    fun `SoundManager init, activeProfile, and equipAsset do not block caller thread with disk IO or synthesis`() = runBlocking {
+        val ioDispatcher = StandardTestDispatcher()
+        val sm = SoundManager(context, ioDispatcher = ioDispatcher)
+        val jsonFile = File(context.filesDir, "exported_skins_sounds_library.json")
+        val stellarWav = File(sm.getArchiveDirectory(), "sfx_gunfire_stellar_slot1_v1.wav")
+
+        // Before ioDispatcher executes tasks, constructor must return without synthesizing WAVs or populating from disk
+        assertTrue("Init must not populate library synchronously on caller thread", sm.assetLibraryFlow.value.isEmpty())
+        assertFalse("Init must not synthesize WAVs synchronously on caller thread", stellarWav.exists())
+
+        ioDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(sm.assetLibraryFlow.value.isEmpty())
+        assertTrue(stellarWav.exists())
+
+        // Changing profile dispatches off caller thread
+        val retroPlaceWav = File(sm.getArchiveDirectory(), "sfx_retro_8bit_place_v4.wav")
+        assertFalse(retroPlaceWav.exists())
+        sm.activeProfile = SoundProfile.RETRO_8BIT
+        assertFalse("activeProfile setter must not synthesize synchronously on caller thread", retroPlaceWav.exists())
+        ioDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(retroPlaceWav.exists())
+
+        // equipAsset persists JSON asynchronously without blocking caller thread
+        val tm = TelemetryManager(context)
+        val authRepo = AuthRepository(context = context, auth = null, apiKey = "")
+        val syncManager = AssetVoteSyncManager(context, authRepo)
+        val stateFlow = MutableStateFlow(GameUIState())
+        val coordinator = AssetVaultCoordinator(stateFlow, sm, tm, syncManager, testScope)
+
+        jsonFile.delete()
+        coordinator.equipAsset("fire_stellar_slot_4")
+        assertEquals(4, stateFlow.value.stellarSfxSlot)
+        assertFalse("equipAsset must not write exported JSON synchronously on caller thread", jsonFile.exists())
+
+        ioDispatcher.scheduler.advanceUntilIdle()
+        assertTrue("Async export must persist library JSON after IO runs", jsonFile.exists())
+        assertTrue(jsonFile.readText().contains("\"id\": \"fire_stellar_slot_4\""))
+
+        sm.release()
+        ioDispatcher.scheduler.advanceUntilIdle()
     }
 }

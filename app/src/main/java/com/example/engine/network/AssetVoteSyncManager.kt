@@ -20,6 +20,7 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.isActive
 
 /**
@@ -48,11 +49,33 @@ class AssetVoteSyncManager @JvmOverloads constructor(
     private var lastSyncEpochMs: Long = 0L
 
     private val isSyncInFlight = AtomicBoolean(false)
+    private val pendingSyncLock = Any()
+    private val pendingRevision = AtomicLong(0L)
 
     private val MIN_SYNC_COOLDOWN_MS = 10_000L
 
     val isConfigured: Boolean
         get() = resolvedProjectId.isNotBlank() && resolvedApiKey.isNotBlank()
+
+    fun hasPendingSync(): Boolean = prefs.getBoolean(KEY_HAS_PENDING_SYNC, false)
+
+    internal fun isSyncInProgressForTest(): Boolean = isSyncInFlight.get()
+
+    fun markPendingSync() {
+        synchronized(pendingSyncLock) {
+            pendingRevision.incrementAndGet()
+            prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
+        }
+    }
+
+    fun getCooldownRemainingMs(nowMs: Long = System.currentTimeMillis()): Long {
+        val elapsed = nowMs - lastSyncEpochMs
+        return if (lastSyncEpochMs > 0L && elapsed in 0 until MIN_SYNC_COOLDOWN_MS) {
+            MIN_SYNC_COOLDOWN_MS - elapsed
+        } else {
+            0L
+        }
+    }
 
     fun buildVotePayload(
         userId: String,
@@ -144,13 +167,6 @@ class AssetVoteSyncManager @JvmOverloads constructor(
         force: Boolean = false,
         onResult: (Boolean, String) -> Unit = { _, _ -> }
     ) {
-        val now = System.currentTimeMillis()
-        if (!force && now - lastSyncEpochMs < MIN_SYNC_COOLDOWN_MS) {
-            prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
-            onResult(false, "Saved locally • Pending cloud sync (cooldown active)")
-            return
-        }
-
         val hasVotedItems = records.any { it.voteState != 0 || it.isFavoriteStar }
         val hadCloudVotes = prefs.getBoolean(KEY_HAD_CLOUD_VOTES, false)
         val hasPendingSync = prefs.getBoolean(KEY_HAS_PENDING_SYNC, false)
@@ -159,87 +175,110 @@ class AssetVoteSyncManager @JvmOverloads constructor(
             return
         }
 
+        val now = System.currentTimeMillis()
+        if (!force && now - lastSyncEpochMs < MIN_SYNC_COOLDOWN_MS) {
+            synchronized(pendingSyncLock) {
+                prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
+            }
+            onResult(false, "Saved locally • Pending cloud sync (cooldown active)")
+            return
+        }
+
         if (!scope.isActive) {
             onResult(false, "Saved locally (Sync scope inactive)")
             return
         }
 
+        val startRevision = synchronized(pendingSyncLock) { pendingRevision.get() }
         if (!isSyncInFlight.compareAndSet(false, true)) {
             onResult(false, "Sync already in progress")
             return
         }
 
         scope.launch(Dispatchers.IO) {
-            try {
+            val resultPair: Pair<Boolean, String> = try {
                 if (!isConfigured) {
-                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "Saved locally (Firebase unconfigured)")
+                    synchronized(pendingSyncLock) {
+                        prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                     }
-                    return@launch
-                }
-
-                authRepository.ensureAuthenticated()
-                var (uid, idToken) = authRepository.getAuthenticatedSession()
-                if (uid.isNullOrBlank() || idToken.isNullOrBlank()) {
-                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
-                    val authErr = authRepository.lastAuthFailure?.message ?: "Auth unavailable"
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "Saved locally ($authErr)")
-                    }
-                    return@launch
-                }
-
-                var payload = buildVotePayload(uid, records, System.currentTimeMillis())
-                var result = patchVoteDocument(uid, idToken, payload)
-
-                if (result is PatchOutcome.HttpFailure && (result.code == 401 || result.code == 403)) {
-                    val (refreshedUid, refreshedToken) = authRepository.getAuthenticatedSession(forceRefresh = true)
-                    if (!refreshedUid.isNullOrBlank() && !refreshedToken.isNullOrBlank()) {
-                        uid = refreshedUid
-                        idToken = refreshedToken
-                        payload = buildVotePayload(uid, records, System.currentTimeMillis())
-                        result = patchVoteDocument(uid, idToken, payload)
-                    }
-                }
-
-                when (result) {
-                    is PatchOutcome.Success -> {
-                        lastSyncEpochMs = System.currentTimeMillis()
-                        prefs.edit()
-                            .putBoolean(KEY_HAD_CLOUD_VOTES, hasVotedItems)
-                            .putBoolean(KEY_HAS_PENDING_SYNC, false)
-                            .apply()
-                        val msg = if (hasVotedItems) {
-                            val count = (payload["votes"] as? Map<*, *>)?.size ?: 0
-                            "Synced $count ratings to Firebase"
-                        } else {
-                            "Cleared cloud ratings on Firebase"
+                    false to "Saved locally (Firebase unconfigured)"
+                } else {
+                    authRepository.ensureAuthenticated()
+                    var (uid, idToken) = authRepository.getAuthenticatedSession()
+                    if (uid.isNullOrBlank() || idToken.isNullOrBlank()) {
+                        synchronized(pendingSyncLock) {
+                            prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                         }
-                        withContext(Dispatchers.Main) { onResult(true, msg) }
-                    }
-                    is PatchOutcome.HttpFailure -> {
-                        lastSyncEpochMs = System.currentTimeMillis()
-                        prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
-                        val msg = formatFirestoreHttpError(result.code, result.body)
-                        Log.w(TAG, "asset_votes sync HTTP ${result.code}: $msg | raw=${result.body}")
-                        withContext(Dispatchers.Main) { onResult(false, "Saved locally ($msg)") }
-                    }
-                    is PatchOutcome.NetworkFailure -> {
-                        prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
-                        Log.w(TAG, "asset_votes sync network error: ${result.message}")
-                        withContext(Dispatchers.Main) { onResult(false, "Saved locally (${result.message})") }
+                        val authErr = authRepository.lastAuthFailure?.message ?: "Auth unavailable"
+                        false to "Saved locally ($authErr)"
+                    } else {
+                        var payload = buildVotePayload(uid, records, System.currentTimeMillis())
+                        var result = patchVoteDocument(uid, idToken, payload)
+
+                        if (result is PatchOutcome.HttpFailure && (result.code == 401 || result.code == 403)) {
+                            val (refreshedUid, refreshedToken) = authRepository.getAuthenticatedSession(forceRefresh = true)
+                            if (!refreshedUid.isNullOrBlank() && !refreshedToken.isNullOrBlank()) {
+                                uid = refreshedUid
+                                idToken = refreshedToken
+                                payload = buildVotePayload(uid, records, System.currentTimeMillis())
+                                result = patchVoteDocument(uid, idToken, payload)
+                            }
+                        }
+
+                        when (result) {
+                            is PatchOutcome.Success -> {
+                                lastSyncEpochMs = System.currentTimeMillis()
+                                val stillPending = synchronized(pendingSyncLock) {
+                                    val newer = pendingRevision.get() != startRevision
+                                    prefs.edit()
+                                        .putBoolean(KEY_HAD_CLOUD_VOTES, hasVotedItems)
+                                        .putBoolean(KEY_HAS_PENDING_SYNC, newer)
+                                        .apply()
+                                    newer
+                                }
+                                val msg = when {
+                                    stillPending -> "Saved locally • Pending cloud sync"
+                                    hasVotedItems -> {
+                                        val count = (payload["votes"] as? Map<*, *>)?.size ?: 0
+                                        "Synced $count ratings to Firebase"
+                                    }
+                                    else -> "Cleared cloud ratings on Firebase"
+                                }
+                                true to msg
+                            }
+                            is PatchOutcome.HttpFailure -> {
+                                lastSyncEpochMs = System.currentTimeMillis()
+                                synchronized(pendingSyncLock) {
+                                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
+                                }
+                                val msg = formatFirestoreHttpError(result.code, result.body)
+                                Log.w(TAG, "asset_votes sync HTTP ${result.code}: $msg | raw=${result.body}")
+                                false to "Saved locally ($msg)"
+                            }
+                            is PatchOutcome.NetworkFailure -> {
+                                synchronized(pendingSyncLock) {
+                                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
+                                }
+                                Log.w(TAG, "asset_votes sync network error: ${result.message}")
+                                false to "Saved locally (${result.message})"
+                            }
+                        }
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "asset_votes sync unexpected failure: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    onResult(false, "Saved locally (${e.localizedMessage ?: "Firebase unavailable"})")
+                synchronized(pendingSyncLock) {
+                    prefs.edit().putBoolean(KEY_HAS_PENDING_SYNC, true).apply()
                 }
+                false to "Saved locally (${e.localizedMessage ?: "Firebase unavailable"})"
             } finally {
                 isSyncInFlight.set(false)
+            }
+
+            withContext(Dispatchers.Main) {
+                onResult(resultPair.first, resultPair.second)
             }
         }
     }
@@ -314,10 +353,23 @@ class AssetVoteSyncManager @JvmOverloads constructor(
             when {
                 reason == "API_KEY_ANDROID_APP_BLOCKED" || msg.contains("Requests from this Android client application", ignoreCase = true) ->
                     "API key Android SHA-1 blocked"
+                reason == "API_KEY_SERVICE_BLOCKED" ||
+                    (msg.contains("firestore", ignoreCase = true) && msg.contains("blocked", ignoreCase = true)) ->
+                    "Cloud Firestore API blocked for API key"
                 reason == "SERVICE_DISABLED" || msg.contains("is disabled", ignoreCase = true) ->
                     "Cloud Firestore API disabled"
-                status == "PERMISSION_DENIED" || code == 403 ->
-                    "PERMISSION_DENIED (deploy firestore.rules or enable Anonymous Auth)"
+                reason == "API_KEY_INVALID" || msg.contains("API key not valid", ignoreCase = true) ->
+                    "Firebase API key invalid"
+                status == "PERMISSION_DENIED" || code == 403 -> {
+                    val detail = msg.takeIf {
+                        it.isNotBlank() && !it.equals("Missing or insufficient permissions.", ignoreCase = true)
+                    }
+                    if (detail != null) {
+                        "PERMISSION_DENIED ($detail)"
+                    } else {
+                        "PERMISSION_DENIED (deploy firestore.rules or enable Anonymous Auth)"
+                    }
+                }
                 code == 404 || status == "NOT_FOUND" ->
                     "Firestore database not found"
                 code == 429 ->

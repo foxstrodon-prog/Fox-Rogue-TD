@@ -4,15 +4,23 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.038
+### 🚀 What's New in Version 0.0.1.039
+
+🔊 **Off-Main-Thread Audio, Atomic WAV Writes & Smarter Cloud Vote Sync**
+- **Zero-Hitch Audio & Preview Controls:** Moved startup SFX/music `.wav` synthesis, rolling playlist transitions, and Vault equip persistence off the Main thread with atomic file writes, serialized track switching, and accurate `0%` preview muting.
+- **Lossless Concurrent Vote Sync:** Preserved votes cast mid-sync for automatic follow-up upload and skipped redundant cloud writes when closing the Sound & Skin Vault with no changes (`231/231` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.038
 
 🔊 **Audio Pipeline Hardening, Vault Safety & Vote Sync Polish**
 - **Smoother Off-Main-Thread Audio & Crash-Safe Ratings:** Moved background music synthesis, archived WAV preview prep, and Sound & Skin Vault JSON writes off the Main thread with atomic temp-file writes and hardened `MediaPlayer` cleanup.
 - **No Stacked Vault Dialogs & Reliable Vote Sync:** Guarded pause/back transitions while the Sound & Skin Vault is open, deduplicated concurrent cloud vote syncs, and ensured offline/unconfigured failures never consume the sync cooldown (`225/225` unit tests passing).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.037
 

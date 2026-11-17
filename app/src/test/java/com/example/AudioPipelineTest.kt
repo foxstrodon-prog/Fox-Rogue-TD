@@ -7,12 +7,18 @@ import com.example.audio.MusicTrack
 import com.example.audio.SoundArchiveStore
 import com.example.audio.SoundManager
 import com.example.model.TowerClass
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowMediaPlayer
 import org.robolectric.shadows.util.DataSource
@@ -147,17 +153,19 @@ class AudioPipelineTest {
     }
 
     @Test
-    fun `playTransientWavFile handles corrupted wav failure cleanly without throwing`() {
+    fun `playTransientWavFile handles corrupted wav failure cleanly without throwing and respects zero volume`() {
         val archiveStore = SoundArchiveStore(context)
         var suspended = false
+        var masterVol = 0.8f
+        var sfxVol = 0.8f
         val player = MusicAndPreviewPlayer(
             archiveStore = archiveStore,
             isEnabled = { true },
             isMuted = { false },
             isSuspended = { suspended },
             isPaused = { false },
-            getMasterVolume = { 0.8f },
-            getSfxVolume = { 0.8f },
+            getMasterVolume = { masterVol },
+            getSfxVolume = { sfxVol },
             getMusicVolume = { 0.5f },
             getActiveMusicTrack = { MusicTrack.CYBER_AMBIENT }
         )
@@ -196,7 +204,135 @@ class AudioPipelineTest {
         player.stopPreview()
         assertFalse(player.hasActivePreviewPlayer())
 
+        // Zero master or zero SFX volume must silence preview MediaPlayer (0f, not 0.15f)
+        masterVol = 0f
+        sfxVol = 0.8f
+        player.playTransientWavFile(validWav)
+        val previewAfterZeroMaster = player.getPreviewPlayerForTest()!!
+        val shadowZeroMaster = Shadows.shadowOf(previewAfterZeroMaster)
+        assertEquals(0f, shadowZeroMaster.leftVolume, 0.0001f)
+        assertEquals(0f, shadowZeroMaster.rightVolume, 0.0001f)
+        player.stopPreview()
+
+        masterVol = 0.8f
+        sfxVol = 0f
+        player.playTransientWavFile(validWav)
+        val previewAfterZeroSfx = player.getPreviewPlayerForTest()!!
+        val shadowZeroSfx = Shadows.shadowOf(previewAfterZeroSfx)
+        assertEquals(0f, shadowZeroSfx.leftVolume, 0.0001f)
+        assertEquals(0f, shadowZeroSfx.rightVolume, 0.0001f)
+        player.stopPreview()
+
         player.release()
         badWav.delete()
+    }
+
+    @Test
+    fun `Concurrent getOrCreateMusicFile and rapid activeMusicTrack changes converge safely`() = runBlocking {
+        val archiveStore = SoundArchiveStore(context)
+        listOf(
+            MusicTrack.CYBER_AMBIENT,
+            MusicTrack.PULSE_ARPEGGIO,
+            MusicTrack.DEEP_SPACE,
+            MusicTrack.NEON_OVERDRIVE,
+            MusicTrack.CELESTIAL_BASTION
+        ).forEach { track ->
+            val file = archiveStore.getMusicFile(track)
+            if (file.exists()) file.delete()
+            ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(file.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))
+        }
+
+        val player = MusicAndPreviewPlayer(
+            archiveStore = archiveStore,
+            isEnabled = { true },
+            isMuted = { false },
+            isSuspended = { false },
+            isPaused = { false },
+            getMasterVolume = { 0.8f },
+            getSfxVolume = { 0.8f },
+            getMusicVolume = { 0.5f },
+            getActiveMusicTrack = { MusicTrack.DEEP_SPACE }
+        )
+
+        val generatedFiles = (1..8).map { idx ->
+            async(Dispatchers.IO) {
+                val track = if (idx % 2 == 0) MusicTrack.DEEP_SPACE else MusicTrack.NEON_OVERDRIVE
+                player.getOrCreateMusicFile(track)
+            }
+        }.awaitAll()
+
+        generatedFiles.forEach { wav ->
+            assertTrue("Generated WAV must exist: ${wav.name}", wav.exists())
+            assertTrue("Generated WAV must exceed header size", wav.length() > 256L)
+            val header = wav.inputStream().use { input ->
+                ByteArray(12).also { input.read(it) }
+            }
+            assertEquals("RIFF", String(header, 0, 4))
+            assertEquals("WAVE", String(header, 8, 4))
+        }
+        val leftoverTmps = archiveStore.archiveDir.listFiles { f -> f.name.endsWith(".tmp") } ?: emptyArray()
+        assertEquals("No .tmp files may remain after atomic WAV generation", 0, leftoverTmps.size)
+        player.release()
+
+        // Rapid activeMusicTrack switches must converge to the final selected track
+        val sm = SoundManager(context)
+        sm.initLoadJob?.join()
+        sm.activeMusicTrack = MusicTrack.CYBER_AMBIENT
+        sm.activeMusicTrack = MusicTrack.PULSE_ARPEGGIO
+        sm.activeMusicTrack = MusicTrack.DEEP_SPACE
+        sm.activeMusicTrack = MusicTrack.NEON_OVERDRIVE
+        sm.activeMusicTrack = MusicTrack.CELESTIAL_BASTION
+        sm.awaitPendingIoForTest()
+
+        assertEquals(MusicTrack.CELESTIAL_BASTION, sm.activeMusicTrack)
+        val bgmRecords = sm.assetLibraryFlow.value.filter { it.category == "BACKGROUND_MUSIC" }
+        assertTrue(bgmRecords.first { it.id == "bgm_celestial_bastion" }.isEquipped)
+        assertEquals(1, bgmRecords.count { it.isEquipped })
+        sm.release()
+        sm.awaitPendingIoForTest()
+    }
+
+    @Test
+    fun `resumeMusic and updateTick dispatch track preparation asynchronously off caller thread`() {
+        val archiveStore = SoundArchiveStore(context)
+        val ioDispatcher = StandardTestDispatcher()
+        val rollingFirstFile = archiveStore.getMusicFile(MusicTrack.CYBER_AMBIENT)
+        val rollingSecondFile = archiveStore.getMusicFile(MusicTrack.PULSE_ARPEGGIO)
+        rollingFirstFile.delete()
+        rollingSecondFile.delete()
+        ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(rollingFirstFile.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))
+        ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(rollingSecondFile.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))
+
+        val player = MusicAndPreviewPlayer(
+            archiveStore = archiveStore,
+            isEnabled = { true },
+            isMuted = { false },
+            isSuspended = { false },
+            isPaused = { false },
+            getMasterVolume = { 0.8f },
+            getSfxVolume = { 0.8f },
+            getMusicVolume = { 0.5f },
+            getActiveMusicTrack = { MusicTrack.ROLLING_PLAYLIST },
+            ioDispatcher = ioDispatcher
+        )
+
+        // resumeMusic with no active MediaPlayer must schedule async playback rather than blocking caller
+        player.resumeMusic()
+        assertFalse("resumeMusic must not block caller thread to create WAV or prepare MediaPlayer", player.hasActiveMediaPlayer())
+        assertFalse(rollingFirstFile.exists())
+
+        ioDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(rollingFirstFile.exists())
+        assertTrue(player.hasActiveMediaPlayer())
+
+        // Advancing rolling playlist window in updateTick must also dispatch async
+        player.updateTick(nowMs = 60_000L, dtMs = 60_000L)
+        assertFalse("updateTick must not synthesize next track synchronously on Main thread", rollingSecondFile.exists())
+
+        ioDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(rollingSecondFile.exists())
+        assertTrue(player.hasActiveMediaPlayer())
+
+        player.release()
     }
 }

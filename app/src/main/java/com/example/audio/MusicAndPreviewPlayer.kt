@@ -2,8 +2,15 @@ package com.example.audio
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import java.util.EnumMap
 import kotlin.math.abs
 
 /**
@@ -19,9 +26,14 @@ internal class MusicAndPreviewPlayer(
     private val getMasterVolume: () -> Float,
     private val getSfxVolume: () -> Float,
     private val getMusicVolume: () -> Float,
-    private val getActiveMusicTrack: () -> MusicTrack
+    private val getActiveMusicTrack: () -> MusicTrack,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val playerLock = Any()
+    private val playerScope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    private val musicFileLocks = EnumMap<MusicTrack, Any>(MusicTrack::class.java).apply {
+        MusicTrack.entries.forEach { put(it, Any()) }
+    }
     private var mediaPlayer: MediaPlayer? = null
     private var previewPlayer: MediaPlayer? = null
     private var bgmPausedForPreview: Boolean = false
@@ -62,6 +74,10 @@ internal class MusicAndPreviewPlayer(
         previewPlayer != null
     }
 
+    internal fun getPreviewPlayerForTest(): MediaPlayer? = synchronized(playerLock) {
+        previewPlayer
+    }
+
     fun resetPlaylistElapsed() {
         synchronized(playerLock) {
             playlistTrackElapsedMs = 0L
@@ -72,19 +88,48 @@ internal class MusicAndPreviewPlayer(
         ++previewGeneration
     }
 
-    fun getOrCreateMusicFile(track: MusicTrack): File {
-        val file = archiveStore.getMusicFile(track)
-        if (!file.exists() || file.length() < 256L) {
-            FileOutputStream(file).use {
-                it.write(AudioSynthesizer.toWav(AudioSynthesizer.synthesizeMusic(track)))
-            }
-        }
-        return file
+    fun nextTrackGeneration(): Long = synchronized(playerLock) {
+        ++trackGeneration
     }
 
-    fun playTrack(track: MusicTrack) {
+    fun getOrCreateMusicFile(track: MusicTrack): File {
+        val file = archiveStore.getMusicFile(track)
+        if (file.exists() && file.length() >= 256L) {
+            return file
+        }
+        val fileLock = musicFileLocks[track] ?: playerLock
+        synchronized(fileLock) {
+            if (file.exists() && file.length() >= 256L) {
+                return file
+            }
+            file.parentFile?.let { if (!it.exists()) it.mkdirs() }
+            val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
+            try {
+                val wavBytes = AudioSynthesizer.toWav(AudioSynthesizer.synthesizeMusic(track))
+                FileOutputStream(tmpFile).use { it.write(wavBytes) }
+                if (!tmpFile.renameTo(file)) {
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                    if (!tmpFile.renameTo(file)) {
+                        FileOutputStream(file).use { it.write(wavBytes) }
+                    }
+                }
+            } finally {
+                if (tmpFile.exists()) {
+                    tmpFile.delete()
+                }
+            }
+            return file
+        }
+    }
+
+    fun playTrack(track: MusicTrack, expectedGeneration: Long? = null) {
         val (target, expectedGen) = synchronized(playerLock) {
-            val gen = ++trackGeneration
+            if (expectedGeneration != null && expectedGeneration != trackGeneration) {
+                return
+            }
+            val gen = expectedGeneration ?: ++trackGeneration
             if (isReleased || track == MusicTrack.NONE) {
                 stopMusicLocked()
                 return
@@ -101,11 +146,11 @@ internal class MusicAndPreviewPlayer(
 
     private fun playTrackInternal(targetTrack: MusicTrack, expectedTrackGen: Long? = null) {
         val canProceed = synchronized(playerLock) {
-            stopMusicLocked()
-            if (isReleased || !isEnabled() || isMuted() || isSuspended() || targetTrack == MusicTrack.NONE) {
+            if (expectedTrackGen != null && expectedTrackGen != trackGeneration) {
                 false
             } else {
-                expectedTrackGen == null || expectedTrackGen == trackGeneration
+                stopMusicLocked()
+                !isReleased && isEnabled() && !isMuted() && !isSuspended() && targetTrack != MusicTrack.NONE
             }
         }
         if (!canProceed) return
@@ -176,7 +221,7 @@ internal class MusicAndPreviewPlayer(
                 )
                 mp.setDataSource(file.absolutePath)
                 mp.prepare()
-                val vol = (getMasterVolume() * getSfxVolume()).coerceIn(0.15f, 1f)
+                val vol = (getMasterVolume() * getSfxVolume()).coerceIn(0f, 1f)
                 mp.setVolume(vol, vol)
                 mp.setOnCompletionListener { completedMp ->
                     synchronized(playerLock) {
@@ -254,12 +299,13 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun resumeMusic() {
-        val trackToPlay: MusicTrack? = synchronized(playerLock) {
+        val trackToPlay: Pair<MusicTrack, Long>? = synchronized(playerLock) {
             if (isReleased || !isEnabled() || isMuted() || isSuspended()) return
             val track = getActiveMusicTrack()
             if (track == MusicTrack.NONE) return
             if (mediaPlayer == null) {
-                track
+                val resolved = if (track == MusicTrack.ROLLING_PLAYLIST) rollingPlaylistTracks[currentRollingIndex] else track
+                resolved to ++trackGeneration
             } else {
                 try {
                     if (mediaPlayer?.isPlaying == false && !bgmPausedForPreview) {
@@ -273,8 +319,10 @@ internal class MusicAndPreviewPlayer(
                 null
             }
         }
-        if (trackToPlay != null) {
-            playTrack(trackToPlay)
+        trackToPlay?.let { (track, gen) ->
+            playerScope.launch {
+                playTrackInternal(track, gen)
+            }
         }
     }
 
@@ -319,7 +367,9 @@ internal class MusicAndPreviewPlayer(
             }
         }
         nextRollingTrack?.let { (track, gen) ->
-            playTrackInternal(track, gen)
+            playerScope.launch {
+                playTrackInternal(track, gen)
+            }
         }
     }
 
@@ -367,6 +417,7 @@ internal class MusicAndPreviewPlayer(
     }
 
     fun release() {
+        playerScope.cancel()
         synchronized(playerLock) {
             isReleased = true
             trackGeneration++

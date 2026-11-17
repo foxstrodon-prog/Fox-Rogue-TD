@@ -4,14 +4,13 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
 import com.example.model.TowerClass
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -25,22 +24,44 @@ import kotlin.random.Random
  * - [SoundArchiveStore] for permanent `.wav` persistence under `filesDir/sound_archive`,
  *   legacy `cacheDir` migration, and local Like/Dislike/Star JSON persistence.
  */
-class SoundManager(context: Context) {
+class SoundManager @JvmOverloads constructor(
+    context: Context,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) {
 
     private val appContext = context.applicationContext
     private val archiveStore = SoundArchiveStore(appContext)
-    private val libraryLock = Any()
-    private val exportLock = Any()
-    private val exportWriteLock = Any()
-    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val soundPoolLock = Any()
+    private val profileLoadLock = Any()
+    private val trackSwitchLock = Any()
+    private val ioScope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    private val libraryController = SoundAssetLibraryController(
+        appContext = appContext,
+        archiveStore = archiveStore,
+        ioScope = ioScope,
+        ioDispatcher = ioDispatcher,
+        isReleased = { isReleased }
+    )
+
+    @Volatile
+    private var isReleased: Boolean = false
+
+    @Volatile
+    internal var initLoadJob: Job? = null
+
+    @Volatile
+    internal var profileLoadJob: Job? = null
+
+    @Volatile
+    internal var trackSwitchJob: Job? = null
 
     @Volatile
     internal var migrationJob: Job? = null
 
-    private var latestScheduledSeq: Long = 0L
-    private var lastWrittenSeq: Long = 0L
-    private var latestExportSnapshot: List<CustomAssetRecord>? = null
-    private var activeExportJob: Job? = null
+    @Volatile
+    internal var finalFlushJob: Job? = null
+
+    private var profileGeneration: Long = 0L
 
     // --- SoundPool SFX Engine ---
     private var soundPool: SoundPool
@@ -60,16 +81,11 @@ class SoundManager(context: Context) {
     private val upgradeSoundIds = Array(4) { IntArray(5) }
     private val upgradeLoaded = Array(4) { BooleanArray(5) }
 
-    private val equippedFireSlotByClass = IntArray(4) { 1 }
-    private val equippedUpgradeSlotByClass = IntArray(4) { 1 }
+    val equippedTurretSkinSlot: Int
+        get() = libraryController.equippedTurretSkinSlot
 
-    @Volatile
-    var equippedTurretSkinSlot: Int = 1
-        private set
-
-    @Volatile
-    var equippedMapThemeSlot: Int = 1
-        private set
+    val equippedMapThemeSlot: Int
+        get() = libraryController.equippedMapThemeSlot
 
     private val lastTurretFirePlayMs = LongArray(4)
     private val minTurretFireIntervalMs = 65L
@@ -88,10 +104,7 @@ class SoundManager(context: Context) {
             field = value
             musicPlayer.updateMusicVolume()
             if (!value && wasMuted && !musicPlayer.hasActiveMediaPlayer() && enabled && !isAudioSuspended && activeMusicTrack != MusicTrack.NONE) {
-                val trackToPlay = activeMusicTrack
-                ioScope.launch {
-                    musicPlayer.playTrack(trackToPlay)
-                }
+                requestPlayTrackAsync(activeMusicTrack, resetPlaylist = false)
             }
         }
 
@@ -143,8 +156,17 @@ class SoundManager(context: Context) {
         set(value) {
             if (field == value) return
             field = value
-            loadAllSfx(value)
-            populateAssetLibrary()
+            val gen = synchronized(profileLoadLock) {
+                profileLoadJob?.cancel()
+                ++profileGeneration
+            }
+            profileLoadJob = ioScope.launch {
+                if (isReleased) return@launch
+                if (synchronized(profileLoadLock) { profileGeneration } != gen) return@launch
+                populateAssetLibrary()
+                if (isReleased) return@launch
+                loadAllSfx(value, gen)
+            }
         }
 
     @Volatile
@@ -152,11 +174,8 @@ class SoundManager(context: Context) {
         set(value) {
             if (field == value) return
             field = value
-            musicPlayer.resetPlaylistElapsed()
-            ioScope.launch {
-                musicPlayer.playTrack(value)
-            }
-            populateAssetLibrary()
+            requestPlayTrackAsync(value, resetPlaylist = true)
+            updateMusicEquippedStateInMemory(value)
         }
 
     private val musicPlayer = MusicAndPreviewPlayer(
@@ -168,13 +187,11 @@ class SoundManager(context: Context) {
         getMasterVolume = { masterVolume },
         getSfxVolume = { sfxVolume },
         getMusicVolume = { musicVolume },
-        getActiveMusicTrack = { activeMusicTrack }
+        getActiveMusicTrack = { activeMusicTrack },
+        ioDispatcher = ioDispatcher
     )
 
-    private var assetLibrary: List<CustomAssetRecord> = emptyList()
-
-    private val _assetLibraryFlow = MutableStateFlow<List<CustomAssetRecord>>(emptyList())
-    val assetLibraryFlow: StateFlow<List<CustomAssetRecord>> = _assetLibraryFlow.asStateFlow()
+    val assetLibraryFlow: StateFlow<List<CustomAssetRecord>> = libraryController.assetLibraryFlow
 
     init {
         val attrs = AudioAttributes.Builder()
@@ -200,56 +217,72 @@ class SoundManager(context: Context) {
             }
         }
 
-        loadAllSfx(activeProfile)
-        populateAssetLibrary()
-
-        val initialTrack = activeMusicTrack
-        ioScope.launch {
-            if (activeMusicTrack == initialTrack) {
-                musicPlayer.playTrack(initialTrack)
+        val initialProfile = activeProfile
+        val initialProfileGen = synchronized(profileLoadLock) { profileGeneration }
+        initLoadJob = ioScope.launch {
+            if (isReleased) return@launch
+            populateAssetLibrary()
+            if (isReleased) return@launch
+            if (synchronized(profileLoadLock) { profileGeneration } == initialProfileGen) {
+                loadAllSfx(initialProfile, initialProfileGen)
             }
         }
 
+        requestPlayTrackAsync(activeMusicTrack, resetPlaylist = false)
+
         migrationJob = ioScope.launch {
             val migratedCount = archiveStore.migrateLegacyCacheWavsToArchive()
-            if (migratedCount > 0) {
+            if (migratedCount > 0 && !isReleased) {
                 populateAssetLibrary()
             }
         }
     }
 
+    private fun requestPlayTrackAsync(track: MusicTrack, resetPlaylist: Boolean) {
+        synchronized(trackSwitchLock) {
+            if (isReleased) return
+            trackSwitchJob?.cancel()
+            if (resetPlaylist) {
+                musicPlayer.resetPlaylistElapsed()
+            }
+            val expectedGen = musicPlayer.nextTrackGeneration()
+            if (track == MusicTrack.NONE) {
+                musicPlayer.stopMusic()
+                trackSwitchJob = null
+                return
+            }
+            trackSwitchJob = ioScope.launch {
+                if (!isReleased) {
+                    musicPlayer.playTrack(track, expectedGeneration = expectedGen)
+                }
+            }
+        }
+    }
+
+    private fun updateMusicEquippedStateInMemory(musicTrack: MusicTrack) =
+        libraryController.updateMusicEquippedStateInMemory(musicTrack)
+
+    internal suspend fun awaitPendingIoForTest() {
+        initLoadJob?.join()
+        profileLoadJob?.join()
+        migrationJob?.join()
+        trackSwitchJob?.join()
+        libraryController.awaitPendingIo()
+        finalFlushJob?.join()
+    }
+
     fun getArchiveDirectory(): File = archiveStore.archiveDir
 
     fun getEquippedFireSlot(towerClass: TowerClass): Int =
-        synchronized(libraryLock) { equippedFireSlotByClass[towerClass.ordinal.coerceIn(0, 3)] }
+        libraryController.getEquippedFireSlot(towerClass)
 
     fun getEquippedUpgradeSlot(towerClass: TowerClass): Int =
-        synchronized(libraryLock) { equippedUpgradeSlotByClass[towerClass.ordinal.coerceIn(0, 3)] }
+        libraryController.getEquippedUpgradeSlot(towerClass)
 
-    fun populateAssetLibrary() {
-        synchronized(libraryLock) {
-            val inMemoryMap = assetLibrary.associateBy { it.id }
-            val freshRecords = archiveStore.buildAssetLibrary(
-                activeProfile = activeProfile,
-                activeMusicTrack = activeMusicTrack,
-                equippedFireSlots = equippedFireSlotByClass,
-                equippedUpgradeSlots = equippedUpgradeSlotByClass,
-                equippedTurretSkinSlot = equippedTurretSkinSlot,
-                equippedMapThemeSlot = equippedMapThemeSlot
-            )
-            val merged = archiveStore.applyPersistedAndInMemoryStates(freshRecords, inMemoryMap)
-            assetLibrary = merged
-            _assetLibraryFlow.value = merged
-        }
-    }
+    fun populateAssetLibrary() =
+        libraryController.populateAssetLibrary(activeProfile, activeMusicTrack)
 
-    fun importLibraryJson() {
-        synchronized(libraryLock) {
-            val merged = archiveStore.applyPersistedAndInMemoryStates(assetLibrary, emptyMap())
-            assetLibrary = merged
-            _assetLibraryFlow.value = merged
-        }
-    }
+    fun importLibraryJson() = libraryController.importLibraryJson()
 
     fun syncEquippedSlots(
         kineticSlot: Int,
@@ -259,33 +292,15 @@ class SoundManager(context: Context) {
         turretSkinSlot: Int,
         mapThemeSlot: Int,
         musicTrack: MusicTrack
-    ) {
-        synchronized(libraryLock) {
-            equippedFireSlotByClass[0] = kineticSlot.coerceIn(1, 5)
-            equippedFireSlotByClass[1] = elementalSlot.coerceIn(1, 5)
-            equippedFireSlotByClass[2] = siegeSlot.coerceIn(1, 5)
-            equippedFireSlotByClass[3] = stellarSlot.coerceIn(1, 5)
-            for (c in 0..3) {
-                equippedUpgradeSlotByClass[c] = turretSkinSlot.coerceIn(1, 5)
-            }
-            equippedTurretSkinSlot = turretSkinSlot.coerceIn(1, 5)
-            equippedMapThemeSlot = mapThemeSlot.coerceIn(1, 5)
-
-            val updated = assetLibrary.map { item ->
-                val equippedNow = when (item.category) {
-                    "TURRET_FIRE" -> equippedFireSlotByClass.getOrElse(item.towerClassOrdinal) { 1 } == item.slotIndex
-                    "TURRET_UPGRADE" -> equippedUpgradeSlotByClass.getOrElse(item.towerClassOrdinal) { 1 } == item.slotIndex
-                    "BACKGROUND_MUSIC" -> "bgm_${musicTrack.name.lowercase()}" == item.id
-                    "TURRET_SKIN" -> item.slotIndex == equippedTurretSkinSlot
-                    "MAP_THEME" -> item.slotIndex == equippedMapThemeSlot
-                    else -> item.isEquipped
-                }
-                item.copy(isEquipped = equippedNow)
-            }
-            assetLibrary = updated
-            _assetLibraryFlow.value = updated
-        }
-    }
+    ) = libraryController.syncEquippedSlots(
+        kineticSlot = kineticSlot,
+        elementalSlot = elementalSlot,
+        siegeSlot = siegeSlot,
+        stellarSlot = stellarSlot,
+        turretSkinSlot = turretSkinSlot,
+        mapThemeSlot = mapThemeSlot,
+        musicTrack = musicTrack
+    )
 
     fun previewAsset(assetId: String) {
         val asset = assetLibraryFlow.value.firstOrNull { it.id == assetId } ?: return
@@ -325,131 +340,81 @@ class SoundManager(context: Context) {
 
     fun stopPreview() = musicPlayer.stopPreview()
 
-    fun setAssetVote(assetId: String, targetVote: Int): Int {
-        val coerced = targetVote.coerceIn(-1, 1)
-        var resultingVote = 0
-        val snapshotToExport: List<CustomAssetRecord>
-        synchronized(libraryLock) {
-            val now = System.currentTimeMillis()
-            val updated = assetLibrary.map { item ->
-                if (item.id == assetId) {
-                    resultingVote = if (item.voteState == coerced) 0 else coerced
-                    item.copy(
-                        voteState = resultingVote,
-                        isFavoriteHeart = (resultingVote == 1),
-                        updatedAtEpochMs = now
-                    )
-                } else {
-                    item
-                }
-            }
-            assetLibrary = updated
-            _assetLibraryFlow.value = updated
-            snapshotToExport = updated
-        }
-        scheduleExportLibraryJson(snapshotToExport)
-        return resultingVote
-    }
+    fun setAssetVote(assetId: String, targetVote: Int): Int =
+        libraryController.setAssetVote(assetId, targetVote)
 
     fun toggleAssetFavoriteHeart(assetId: String): Boolean = setAssetVote(assetId, 1) == 1
 
-    fun toggleAssetFavoriteStar(assetId: String): Boolean {
-        var resultingStar = false
-        val snapshotToExport: List<CustomAssetRecord>
-        synchronized(libraryLock) {
-            val now = System.currentTimeMillis()
-            val updated = assetLibrary.map { item ->
-                if (item.id == assetId) {
-                    resultingStar = !item.isFavoriteStar
-                    item.copy(
-                        isFavoriteStar = resultingStar,
-                        updatedAtEpochMs = now
-                    )
-                } else {
-                    item
-                }
-            }
-            assetLibrary = updated
-            _assetLibraryFlow.value = updated
-            snapshotToExport = updated
-        }
-        scheduleExportLibraryJson(snapshotToExport)
-        return resultingStar
-    }
+    fun toggleAssetFavoriteStar(assetId: String): Boolean =
+        libraryController.toggleAssetFavoriteStar(assetId)
 
-    private fun scheduleExportLibraryJson(records: List<CustomAssetRecord>) {
-        synchronized(exportLock) {
-            latestScheduledSeq++
-            latestExportSnapshot = records
-            if (activeExportJob?.isActive == true) return
-            activeExportJob = ioScope.launch {
-                drainPendingExports()
-            }
-        }
-    }
+    fun exportLibraryJsonAsync() = libraryController.exportLibraryJsonAsync()
 
-    private fun drainPendingExports() {
-        while (true) {
-            val hasPending = synchronized(exportLock) {
-                if (lastWrittenSeq >= latestScheduledSeq || latestExportSnapshot == null) {
-                    activeExportJob = null
-                    false
-                } else {
-                    true
-                }
-            }
-            if (!hasPending) return
-
-            synchronized(exportWriteLock) {
-                val (currentSeq, currentSnapshot) = synchronized(exportLock) {
-                    latestScheduledSeq to latestExportSnapshot
-                }
-                if (currentSnapshot != null && currentSeq > lastWrittenSeq) {
-                    archiveStore.exportLibraryJson(appContext, currentSnapshot)
-                    synchronized(exportLock) {
-                        if (currentSeq > lastWrittenSeq) {
-                            lastWrittenSeq = currentSeq
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fun exportLibraryJson(context: Context = appContext): String {
-        val snapshot = synchronized(libraryLock) { assetLibrary }
-        return synchronized(exportWriteLock) {
-            archiveStore.exportLibraryJson(context, snapshot)
-        }
-    }
+    fun exportLibraryJson(context: Context = appContext): String =
+        libraryController.exportLibraryJson(context)
 
     // ---------------------------------------------------------------------------------------------
     // SFX Loading & Playback
     // ---------------------------------------------------------------------------------------------
 
+    private fun writeWavAtomicallyIfNeeded(file: File, synthesize: () -> ShortArray) {
+        if (file.exists() && file.length() >= 64L) return
+        file.parentFile?.let { if (!it.exists()) it.mkdirs() }
+        val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
+        try {
+            val wavBytes = AudioSynthesizer.toWav(synthesize())
+            FileOutputStream(tmpFile).use { it.write(wavBytes) }
+            if (!tmpFile.renameTo(file)) {
+                if (file.exists()) {
+                    file.delete()
+                }
+                if (!tmpFile.renameTo(file)) {
+                    FileOutputStream(file).use { it.write(wavBytes) }
+                }
+            }
+        } finally {
+            if (tmpFile.exists()) {
+                tmpFile.delete()
+            }
+        }
+    }
+
     @Synchronized
-    private fun loadAllSfx(profile: SoundProfile) {
-        for (i in genericSoundIds.indices) {
-            val prevId = genericSoundIds[i]
-            genericLoaded[i] = false
-            if (prevId != 0) {
-                sfxLoadTargetMap.remove(prevId)
-                try { soundPool.unload(prevId) } catch (_: Exception) {}
-                genericSoundIds[i] = 0
+    private fun loadAllSfx(profile: SoundProfile, expectedProfileGen: Long? = null) {
+        if (isReleased) return
+        if (expectedProfileGen != null && synchronized(profileLoadLock) { profileGeneration } != expectedProfileGen) {
+            return
+        }
+
+        synchronized(soundPoolLock) {
+            if (isReleased) return
+            for (i in genericSoundIds.indices) {
+                val prevId = genericSoundIds[i]
+                genericLoaded[i] = false
+                if (prevId != 0) {
+                    sfxLoadTargetMap.remove(prevId)
+                    try { soundPool.unload(prevId) } catch (_: Exception) {}
+                    genericSoundIds[i] = 0
+                }
             }
         }
 
         for (fx in SoundFx.entries) {
+            if (isReleased) return
+            if (expectedProfileGen != null && synchronized(profileLoadLock) { profileGeneration } != expectedProfileGen) {
+                return
+            }
             try {
                 val file = archiveStore.getGenericSfxFile(profile, fx)
-                if (!file.exists() || file.length() < 64L) {
-                    FileOutputStream(file).use {
-                        it.write(AudioSynthesizer.toWav(ProceduralAudioSynthesizer.synthesizeGeneric(fx, profile)))
-                    }
+                writeWavAtomicallyIfNeeded(file) {
+                    ProceduralAudioSynthesizer.synthesizeGeneric(fx, profile)
                 }
-                val id = soundPool.load(file.absolutePath, 1)
-                genericSoundIds[fx.ordinal] = id
-                sfxLoadTargetMap[id] = Triple(0, fx.ordinal, 0)
+                synchronized(soundPoolLock) {
+                    if (isReleased) return
+                    val id = soundPool.load(file.absolutePath, 1)
+                    genericSoundIds[fx.ordinal] = id
+                    sfxLoadTargetMap[id] = Triple(0, fx.ordinal, 0)
+                }
             } catch (_: Exception) {
                 genericSoundIds[fx.ordinal] = 0
             }
@@ -459,6 +424,7 @@ class SoundManager(context: Context) {
         turretAssetsLoaded = true
 
         for (slot in 1..5) {
+            if (isReleased) return
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.KINETIC_BALLISTIC, slot), kineticSoundIds, slot - 1, 1) {
                 ProceduralAudioSynthesizer.synthesizeKineticVariant(slot)
             }
@@ -482,16 +448,18 @@ class SoundManager(context: Context) {
         for (c in classes.indices) {
             val tClass = classes[c]
             for (slot in 1..5) {
+                if (isReleased) return
                 try {
                     val file = archiveStore.getUpgradeFile(tClass, slot)
-                    if (!file.exists() || file.length() < 64L) {
-                        FileOutputStream(file).use {
-                            it.write(AudioSynthesizer.toWav(ProceduralAudioSynthesizer.synthesizeTowerUpgrade(tClass, slot)))
-                        }
+                    writeWavAtomicallyIfNeeded(file) {
+                        ProceduralAudioSynthesizer.synthesizeTowerUpgrade(tClass, slot)
                     }
-                    val id = soundPool.load(file.absolutePath, 1)
-                    upgradeSoundIds[c][slot - 1] = id
-                    sfxLoadTargetMap[id] = Triple(5, c, slot - 1)
+                    synchronized(soundPoolLock) {
+                        if (isReleased) return
+                        val id = soundPool.load(file.absolutePath, 1)
+                        upgradeSoundIds[c][slot - 1] = id
+                        sfxLoadTargetMap[id] = Triple(5, c, slot - 1)
+                    }
                 } catch (_: Exception) {
                     upgradeSoundIds[c][slot - 1] = 0
                 }
@@ -504,24 +472,23 @@ class SoundManager(context: Context) {
         targetIds: IntArray,
         slotIdx: Int,
         categoryCode: Int,
-        synthesize: () -> ShortArray
+        crossinline synthesize: () -> ShortArray
     ) {
         try {
-            if (!file.exists() || file.length() < 64L) {
-                FileOutputStream(file).use {
-                    it.write(AudioSynthesizer.toWav(synthesize()))
-                }
+            writeWavAtomicallyIfNeeded(file) { synthesize() }
+            synchronized(soundPoolLock) {
+                if (isReleased) return
+                val id = soundPool.load(file.absolutePath, 1)
+                targetIds[slotIdx] = id
+                sfxLoadTargetMap[id] = Triple(categoryCode, slotIdx, 0)
             }
-            val id = soundPool.load(file.absolutePath, 1)
-            targetIds[slotIdx] = id
-            sfxLoadTargetMap[id] = Triple(categoryCode, slotIdx, 0)
         } catch (_: Exception) {
             targetIds[slotIdx] = 0
         }
     }
 
     fun play(fx: SoundFx, volume: Float = 1f, rate: Float = 1f) {
-        if (!enabled || isMuted || isAudioSuspended) return
+        if (isReleased || !enabled || isMuted || isAudioSuspended) return
         val idx = fx.ordinal
         if (idx !in genericLoaded.indices || !genericLoaded[idx]) return
         val now = System.nanoTime()
@@ -530,7 +497,11 @@ class SoundManager(context: Context) {
         val effectiveChannelVol = if (fx == SoundFx.UPGRADE) upgradeVolume else sfxVolume
         val v = (volume * masterVolume * effectiveChannelVol).coerceIn(0f, 1f)
         try {
-            soundPool.play(genericSoundIds[idx], v, v, 1, 0, rate.coerceIn(0.5f, 2f))
+            synchronized(soundPoolLock) {
+                if (!isReleased) {
+                    soundPool.play(genericSoundIds[idx], v, v, 1, 0, rate.coerceIn(0.5f, 2f))
+                }
+            }
         } catch (_: Exception) {}
     }
 
@@ -539,7 +510,7 @@ class SoundManager(context: Context) {
     }
 
     fun playTurretFire(towerClass: TowerClass, slot: Int = getEquippedFireSlot(towerClass)) {
-        if (!enabled || isMuted || isAudioSuspended) return
+        if (isReleased || !enabled || isMuted || isAudioSuspended) return
         val archetypeIdx = towerClass.ordinal.coerceIn(0, 3)
         val nowMs = System.currentTimeMillis()
         if (nowMs - lastTurretFirePlayMs[archetypeIdx] < minTurretFireIntervalMs) return
@@ -559,14 +530,17 @@ class SoundManager(context: Context) {
             val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
             val jitterRate = 0.96f + Random.nextFloat() * 0.08f
             try {
-                soundPool.play(soundId, v, v, 2, 0, jitterRate)
+                synchronized(soundPoolLock) {
+                    if (!isReleased) {
+                        soundPool.play(soundId, v, v, 2, 0, jitterRate)
+                    }
+                }
             } catch (_: Exception) {}
         }
     }
 
     fun playTurretTestSound(towerClass: TowerClass, slot: Int) {
-        if (!enabled || isMuted) return
-        try { soundPool.autoResume() } catch (_: Exception) {}
+        if (isReleased || !enabled || isMuted) return
         val targetSlot = (slot - 1).coerceIn(0, 4)
         val (soundId, isLoaded) = when (towerClass) {
             TowerClass.KINETIC_BALLISTIC -> Pair(kineticSoundIds[targetSlot], kineticLoaded[targetSlot])
@@ -574,16 +548,20 @@ class SoundManager(context: Context) {
             TowerClass.HEAVY_SIEGE -> Pair(siegeSoundIds[targetSlot], siegeLoaded[targetSlot])
             TowerClass.STELLAR_COSMIC -> Pair(stellarSoundIds[targetSlot], stellarLoaded[targetSlot])
         }
-        if (soundId != 0 && isLoaded) {
-            val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
-            try {
-                soundPool.play(soundId, v, v, 3, 0, 1.0f)
-            } catch (_: Exception) {}
-        }
+        try {
+            synchronized(soundPoolLock) {
+                if (isReleased) return
+                soundPool.autoResume()
+                if (soundId != 0 && isLoaded) {
+                    val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
+                    soundPool.play(soundId, v, v, 3, 0, 1.0f)
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     fun playTowerUpgrade(towerClass: TowerClass, skinSlot: Int = getEquippedUpgradeSlot(towerClass)) {
-        if (!enabled || isMuted || isAudioSuspended) return
+        if (isReleased || !enabled || isMuted || isAudioSuspended) return
         val c = towerClass.ordinal.coerceIn(0, 3)
         val s = (skinSlot - 1).coerceIn(0, 4)
         val soundId = upgradeSoundIds[c][s]
@@ -591,7 +569,11 @@ class SoundManager(context: Context) {
         if (soundId != 0 && isLoaded) {
             val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)
             try {
-                soundPool.play(soundId, v, v, 2, 0, 1.0f)
+                synchronized(soundPoolLock) {
+                    if (!isReleased) {
+                        soundPool.play(soundId, v, v, 2, 0, 1.0f)
+                    }
+                }
             } catch (_: Exception) {}
         } else {
             play(SoundFx.UPGRADE)
@@ -599,32 +581,47 @@ class SoundManager(context: Context) {
     }
 
     fun playTowerUpgradeTestSound(towerClass: TowerClass, skinSlot: Int = 1) {
-        if (!enabled || isMuted) return
-        try { soundPool.autoResume() } catch (_: Exception) {}
+        if (isReleased || !enabled || isMuted) return
         val c = towerClass.ordinal.coerceIn(0, 3)
         val s = (skinSlot - 1).coerceIn(0, 4)
         val soundId = upgradeSoundIds[c][s]
         val isLoaded = upgradeLoaded[c][s]
-        if (soundId != 0 && isLoaded) {
-            val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)
-            try {
-                soundPool.play(soundId, v, v, 3, 0, 1.0f)
-            } catch (_: Exception) {}
-        } else {
-            play(SoundFx.UPGRADE)
-        }
+        try {
+            synchronized(soundPoolLock) {
+                if (isReleased) return
+                soundPool.autoResume()
+                if (soundId != 0 && isLoaded) {
+                    val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)
+                    soundPool.play(soundId, v, v, 3, 0, 1.0f)
+                    return
+                }
+            }
+        } catch (_: Exception) {}
+        play(SoundFx.UPGRADE)
     }
 
     fun suspendAllAudio() {
         isAudioSuspended = true
         musicPlayer.suspendMusic()
-        try { soundPool.autoPause() } catch (_: Exception) {}
+        try {
+            synchronized(soundPoolLock) {
+                if (!isReleased) {
+                    soundPool.autoPause()
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     fun resumeAudio() {
         isAudioSuspended = false
-        if (!enabled || isMuted) return
-        try { soundPool.autoResume() } catch (_: Exception) {}
+        if (isReleased || !enabled || isMuted) return
+        try {
+            synchronized(soundPoolLock) {
+                if (!isReleased) {
+                    soundPool.autoResume()
+                }
+            }
+        } catch (_: Exception) {}
         musicPlayer.resumeMusic()
     }
 
@@ -668,21 +665,13 @@ class SoundManager(context: Context) {
     }
 
     fun release() {
-        ioScope.cancel()
-        synchronized(exportWriteLock) {
-            val (currentSeq, currentSnapshot) = synchronized(exportLock) {
-                latestScheduledSeq to latestExportSnapshot
-            }
-            if (currentSnapshot != null && currentSeq > lastWrittenSeq) {
-                archiveStore.exportLibraryJson(appContext, currentSnapshot)
-                synchronized(exportLock) {
-                    if (currentSeq > lastWrittenSeq) {
-                        lastWrittenSeq = currentSeq
-                    }
-                }
-            }
+        synchronized(soundPoolLock) {
+            if (isReleased) return
+            isReleased = true
+            try { soundPool.release() } catch (_: Exception) {}
         }
+        ioScope.cancel()
         musicPlayer.release()
-        try { soundPool.release() } catch (_: Exception) {}
+        finalFlushJob = libraryController.flushPendingExportsOnRelease()
     }
 }

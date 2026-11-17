@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.038`):** [`apk/Dual-Front-TD-v0.0.1.038-debug.apk`](apk/Dual-Front-TD-v0.0.1.038-debug.apk)
+- **Latest Android APK (`v0.0.1.039`):** [`apk/Dual-Front-TD-v0.0.1.039-debug.apk`](apk/Dual-Front-TD-v0.0.1.039-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,21 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.038
+## 🕹️ What's New in Version 0.0.1.039
+
+### 🔊 Off-Main-Thread Audio Pipeline, Atomic WAV Writes & Vote Sync Ordering (`versionCode = 60`)
+- **Zero-Blocking Audio Initialization & Asset Persistence (`SoundManager.kt`, `MusicAndPreviewPlayer.kt`, `AssetVaultCoordinator.kt`):**
+  - Moved `SoundManager` startup/profile SFX `.wav` synthesis, `populateAssetLibrary()`, `MusicAndPreviewPlayer.resumeMusic()` / rolling-playlist `updateTick()` track preparation, and `equipAsset()` library JSON exports off the Main thread onto `Dispatchers.IO`, with non-blocking `release()` flushing.
+  - Serialized BGM track switches with synchronous `trackGeneration` reservation + job cancellation and added per-track atomic temp-file + rename `.wav` generation (`getOrCreateMusicFile`) with `0f..1f` preview volume clamping so `0%` volume mutes previews properly.
+- **In-Flight Vote Preservation & Redundant-Sync Prevention (`AssetVoteSyncManager.kt`, `AssetVaultCoordinator.kt`, `RogueTDViewModel.kt`, `app/build.gradle.kts`):**
+  - Added revision tracking in `AssetVoteSyncManager` so votes cast while a Firestore PATCH is in flight preserve `hasPendingSync`, released `isSyncInFlight` before `onResult` Main-thread callbacks, and drained/rescheduled follow-up syncs in `AssetVaultCoordinator`.
+  - Short-circuited empty no-op vote syncs before checking the 10-second Spark cooldown, updated `closeAssetVault()` to call `syncPendingVotesIfNeeded()`, and aligned `stageDebugApk` output naming dynamically with `android.defaultConfig.versionName` (`231/231` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.038
 
 ### 🔊 Audio Threading, MediaPlayer Hardening, Vault Safety & Vote Sync Polish (`versionCode = 59`)
 - **Off-Main-Thread Audio & Atomic Persistence (`SoundManager.kt`, `SoundArchiveStore.kt`, `MusicAndPreviewPlayer.kt`):**
@@ -35,8 +49,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Consolidated Stellar Cosmic gunfire labels into `TurretSfxSlot.stellarName` across `SoundArchiveStore` and `AudioVisualCustomizationPanel` (`225/225` unit tests passing).
 
 ---
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.037
 

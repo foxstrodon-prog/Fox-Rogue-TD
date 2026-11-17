@@ -126,7 +126,10 @@ class RogueTDViewModel @JvmOverloads constructor(
     init {
         remoteConfigManager.initialize()
         telemetryManager.logTutorialStart()
-        viewModelScope.launch(Dispatchers.IO) { authRepository.ensureAuthenticated() }
+        viewModelScope.launch(Dispatchers.IO) {
+            authRepository.ensureAuthenticated()
+            assetVaultCoordinator.syncPendingVotesIfNeeded()
+        }
 
         val config = _uiState.value.balanceConfig
         soundManager.setMasterVolumeLevel(config.masterVolume)
@@ -294,13 +297,13 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     fun openAssetVaultFromPauseMenu() {
-        assetVaultCoordinator.syncEquippedFromState()
+        assetVaultCoordinator.onVaultOpened()
         _uiState.update { it.copy(isPauseMenuOpen = false, isAssetVaultOpen = true) }
     }
 
     fun closeAssetVault() {
         assetVaultCoordinator.stopPreview()
-        assetVaultCoordinator.syncVotesToCloud(force = false)
+        assetVaultCoordinator.syncPendingVotesIfNeeded()
         _uiState.update { it.copy(isAssetVaultOpen = false, isPauseMenuOpen = true) }
     }
 
@@ -419,12 +422,17 @@ class RogueTDViewModel @JvmOverloads constructor(
             minLaneOverlap = balance.minLaneOverlap,
             maxLaneOverlap = balance.maxLaneOverlap
         )
-        val initialParticles = ArrayList<TrackParticle>(12)
+        val initialParticles = createInitialTrackParticles(level.laneAlpha, level.laneBeta)
+        _uiState.update { it.copy(level = level, trackParticles = initialParticles, selectedTile = null) }
+    }
+
+    private fun createInitialTrackParticles(laneAlpha: List<GridPos>, laneBeta: List<GridPos>): List<TrackParticle> {
+        val particles = ArrayList<TrackParticle>(12)
         for (i in 0 until 12) {
             val lane = i % 2
-            val path = if (lane == 0) level.laneAlpha else level.laneBeta
+            val path = if (lane == 0) laneAlpha else laneBeta
             val maxSeg = (path.size - 2).coerceAtLeast(0)
-            initialParticles.add(
+            particles.add(
                 TrackParticle(
                     id = "tp_$i", laneIndex = lane, segmentIndex = (i * 2) % (maxSeg + 1),
                     progress = (i * 0.15f) % 1.0f, speed = 0.8f + (i % 3) * 0.2f,
@@ -432,7 +440,7 @@ class RogueTDViewModel @JvmOverloads constructor(
                 )
             )
         }
-        _uiState.update { it.copy(level = level, trackParticles = initialParticles, selectedTile = null) }
+        return particles
     }
 
     fun resetTowerPerformance() {
@@ -571,19 +579,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         )
         val firstWave = WaveGenerator.generateWave(1, balance.enemiesPerRoundMultiplier, _uiState.value.difficulty)
 
-        val initialParticles = ArrayList<TrackParticle>(12)
-        for (i in 0 until 12) {
-            val lane = i % 2
-            val path = if (lane == 0) level.laneAlpha else level.laneBeta
-            val maxSeg = (path.size - 2).coerceAtLeast(0)
-            initialParticles.add(
-                TrackParticle(
-                    id = "tp_$i", laneIndex = lane, segmentIndex = (i * 2) % (maxSeg + 1),
-                    progress = (i * 0.15f) % 1.0f, speed = 0.8f + (i % 3) * 0.2f,
-                    color = if (lane == 0) 0xFF00F0FF else 0xFFFFB800, size = 2.5f + (i % 2) * 1.5f
-                )
-            )
-        }
+        val initialParticles = createInitialTrackParticles(level.laneAlpha, level.laneBeta)
 
         _uiState.update { prev ->
             prev.copy(

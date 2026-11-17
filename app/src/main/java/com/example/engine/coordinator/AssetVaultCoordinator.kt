@@ -8,10 +8,13 @@ import com.example.engine.network.AssetVoteSyncManager
 import com.example.model.TowerClass
 import com.example.ui.GameUIState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * Coordinates the Sound & Skin Vault between [SoundManager], [GameUIState], [TelemetryManager],
@@ -26,8 +29,29 @@ class AssetVaultCoordinator(
 ) {
     val assetLibraryFlow: StateFlow<List<CustomAssetRecord>> = soundManager.assetLibraryFlow
 
-    private val _syncStatusFlow = MutableStateFlow("Ratings auto-saved locally")
+    private val _syncStatusFlow = MutableStateFlow(
+        if (voteSyncManager.hasPendingSync()) {
+            "Saved locally • Pending cloud sync"
+        } else {
+            "Ratings auto-saved locally"
+        }
+    )
     val syncStatusFlow: StateFlow<String> = _syncStatusFlow.asStateFlow()
+
+    private val syncLock = Any()
+    private var autoSyncJob: Job? = null
+    private var queuedFollowUpForce: Boolean? = null
+
+    fun onVaultOpened() {
+        syncEquippedFromState()
+        syncPendingVotesIfNeeded()
+    }
+
+    fun syncPendingVotesIfNeeded() {
+        if (voteSyncManager.hasPendingSync()) {
+            syncVotesToCloud(force = false)
+        }
+    }
 
     fun syncEquippedFromState() {
         val s = uiStateFlow.value
@@ -52,12 +76,28 @@ class AssetVaultCoordinator(
 
     fun setAssetVote(assetId: String, targetVote: Int) {
         soundManager.setAssetVote(assetId, targetVote)
+        voteSyncManager.markPendingSync()
         _syncStatusFlow.value = "Saved locally • Pending cloud sync"
+        scheduleAutoSync()
     }
 
     fun toggleAssetStar(assetId: String) {
         soundManager.toggleAssetFavoriteStar(assetId)
+        voteSyncManager.markPendingSync()
         _syncStatusFlow.value = "Saved locally • Pending cloud sync"
+        scheduleAutoSync()
+    }
+
+    private fun scheduleAutoSync(debounceMs: Long = 1_500L) {
+        synchronized(syncLock) {
+            autoSyncJob?.cancel()
+            autoSyncJob = scope.launch {
+                val cooldownRemaining = voteSyncManager.getCooldownRemainingMs()
+                val waitMs = maxOf(debounceMs, if (cooldownRemaining > 0L) cooldownRemaining + 150L else 0L)
+                delay(waitMs)
+                syncVotesToCloud(force = false)
+            }
+        }
     }
 
     fun equipAsset(assetId: String) {
@@ -99,7 +139,7 @@ class AssetVaultCoordinator(
             }
         }
         syncEquippedFromState()
-        soundManager.exportLibraryJson()
+        soundManager.exportLibraryJsonAsync()
     }
 
     private inline fun updateSlotState(crossinline transform: (com.example.model.DevBalanceConfig, GameUIState) -> GameUIState) {
@@ -111,6 +151,10 @@ class AssetVaultCoordinator(
     }
 
     fun syncVotesToCloud(force: Boolean = false) {
+        synchronized(syncLock) {
+            autoSyncJob?.cancel()
+            autoSyncJob = null
+        }
         if (force) {
             _syncStatusFlow.value = "Syncing to Firebase..."
         }
@@ -118,8 +162,35 @@ class AssetVaultCoordinator(
             scope = scope,
             records = assetLibraryFlow.value,
             force = force
-        ) { _, msg ->
-            _syncStatusFlow.value = msg
+        ) { ok, msg ->
+            val hasPending = voteSyncManager.hasPendingSync()
+            if (!ok && msg.contains("already in progress", ignoreCase = true)) {
+                synchronized(syncLock) {
+                    queuedFollowUpForce = (queuedFollowUpForce ?: false) || force
+                }
+                if (hasPending) {
+                    _syncStatusFlow.value = "Saved locally • Pending cloud sync"
+                }
+                return@syncVotesToFirestore
+            }
+
+            _syncStatusFlow.value = if (ok && hasPending) {
+                "Saved locally • Pending cloud sync"
+            } else {
+                msg
+            }
+
+            val followUpForce = synchronized(syncLock) {
+                val queued = queuedFollowUpForce
+                queuedFollowUpForce = null
+                queued
+            }
+
+            if (followUpForce == true && (ok || hasPending)) {
+                syncVotesToCloud(force = true)
+            } else if (hasPending && (followUpForce != null || ok || (!force && msg.contains("cooldown", ignoreCase = true)))) {
+                scheduleAutoSync(debounceMs = 0L)
+            }
         }
     }
 }

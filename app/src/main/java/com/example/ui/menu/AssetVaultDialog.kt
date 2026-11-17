@@ -118,7 +118,7 @@ fun AssetVaultDialog(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "$syncStatusText • ${assets.size} assets",
+                            text = "${assets.size} assets • Auto-syncs to Firebase",
                             color = Color(0xFF8B949E),
                             fontSize = 10.5.sp,
                             maxLines = 1,
@@ -151,7 +151,39 @@ fun AssetVaultDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val isSynced = syncStatusText.startsWith("Synced", ignoreCase = true) ||
+                    syncStatusText.startsWith("Cleared", ignoreCase = true)
+                val isPendingOrSyncing = syncStatusText.contains("Syncing", ignoreCase = true) ||
+                    syncStatusText.contains("Pending", ignoreCase = true) ||
+                    syncStatusText.startsWith("Ratings auto-saved", ignoreCase = true) ||
+                    syncStatusText.startsWith("No votes", ignoreCase = true)
+                val statusAccent = when {
+                    isSynced -> Color(0xFF00E676)
+                    isPendingOrSyncing -> Color(0xFF38BDF8)
+                    else -> Color(0xFFFF6B6B)
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(statusAccent.copy(alpha = 0.10f))
+                        .border(1.dp, statusAccent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = syncStatusText,
+                        color = statusAccent,
+                        fontSize = 10.5.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("asset_vault_sync_status")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Category Filter Tabs
                 Row(
