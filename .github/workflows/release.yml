@@ -118,9 +118,16 @@ jobs:
                   print(f"::error::XML parse error in {path}: {e}")
           if found == 0 and os.path.exists("gradle_test.log"):
               with open("gradle_test.log", "r", encoding="utf-8", errors="replace") as f:
-                  lines = [ln.strip() for ln in f.read().splitlines() if ln.strip()]
-              tail = " | ".join(lines[-15:])[:500]
-              print(f"::error::Gradle failed without failing XML testcases: {tail}")
+                  lines = f.read().splitlines()
+              interesting = []
+              for i, ln in enumerate(lines):
+                  s = ln.strip()
+                  if s.startswith("FAILURE:") or s.startswith("* What went wrong:") or s.startswith("Caused by:") or "OutOfMemoryError" in s or "Execution failed for task" in s:
+                      interesting.extend([x.strip() for x in lines[i:i+6] if x.strip()])
+              if not interesting:
+                  interesting = [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith("at ")][-15:]
+              joined = " | ".join(dict.fromkeys(interesting))[:900]
+              print(f"::error::Gradle failure: {joined}")
           PY
               exit 1
             fi
