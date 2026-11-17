@@ -37,30 +37,35 @@ internal class SoundArchiveStore(context: Context) {
 
     fun getGunfireFile(towerClass: TowerClass, slot: Int): File {
         val defId = BuildArchiveCatalog.buildActiveFireId(towerClass, slot)
-        val def = BuildArchiveCatalog.turretAudioById[defId]
+        val def = BuildArchiveCatalog.resolveTurretAudio(defId)
         return if (def != null) File(archiveDir, def.wavFileName)
         else File(archiveDir, "sfx_gunfire_${BuildArchiveCatalog.towerClassShortTag(towerClass)}_slot${slot}_v2.wav")
     }
 
     fun getUpgradeFile(towerClass: TowerClass, slot: Int): File {
         val defId = BuildArchiveCatalog.buildActiveUpgradeId(towerClass, slot)
-        val def = BuildArchiveCatalog.turretAudioById[defId]
+        val def = BuildArchiveCatalog.resolveTurretAudio(defId)
         return if (def != null) File(archiveDir, def.wavFileName)
         else File(archiveDir, "sfx_upgrade_${towerClass.name.lowercase()}_slot${slot}_v2.wav")
     }
 
     fun getWavFileForAsset(rawAssetId: String, activeProfile: SoundProfile = SoundProfile.CYBER_SYNTH): File? {
         val assetId = BuildArchiveCatalog.migrateLegacyAssetId(rawAssetId)
-        BuildArchiveCatalog.bgmById[assetId]?.let { return File(archiveDir, it.wavFileName) }
-        BuildArchiveCatalog.sfxPacksById[assetId]?.let { pack ->
-            if (pack.previewWavFileName.isNotBlank()) return File(archiveDir, pack.previewWavFileName)
+        val bgm = BuildArchiveCatalog.bgmById[assetId]
+            ?: if (assetId.contains("_bgm_slot_")) BuildArchiveCatalog.resolveBgmTrack(assetId).takeIf { it.id == assetId } else null
+        bgm?.let { return File(archiveDir, it.wavFileName) }
+
+        val pack = BuildArchiveCatalog.sfxPacksById[assetId]
+            ?: if (assetId.contains("_sfx_pack_")) BuildArchiveCatalog.resolveSfxPack(assetId).takeIf { it.id == assetId } else null
+        pack?.let { p ->
+            if (p.previewWavFileName.isNotBlank()) return File(archiveDir, p.previewWavFileName)
         }
         if (assetId.startsWith("default_sfx_")) {
             val fxName = assetId.removePrefix("default_sfx_").uppercase()
             val fx = SoundFx.entries.firstOrNull { it.name == fxName }
             if (fx != null) return getGenericSfxFile(activeProfile, fx)
         }
-        BuildArchiveCatalog.turretAudioById[assetId]?.let { return File(archiveDir, it.wavFileName) }
+        BuildArchiveCatalog.resolveTurretAudio(assetId)?.let { return File(archiveDir, it.wavFileName) }
         return null
     }
 
@@ -103,8 +108,8 @@ internal class SoundArchiveStore(context: Context) {
     }
 
     /**
-     * Builds the complete immutable versioned asset catalog (Active Build #61 + Default,
-     * Build #60 Snapshot, and Pre-Build #60 legacy skins/themes/WAVs) without synthesizing audio.
+     * Builds the complete immutable versioned asset catalog (Active Build #N + Default,
+     * Archived Builds 60..(N-1), and Pre-Build #60 legacy skins/themes/WAVs) without synthesizing audio.
      */
     fun buildAssetLibrary(
         activeProfile: SoundProfile,
@@ -113,7 +118,8 @@ internal class SoundArchiveStore(context: Context) {
         equippedFireIds: Array<String>,
         equippedUpgradeIds: Array<String>,
         equippedTurretSkinId: String,
-        equippedMapThemeId: String
+        equippedMapThemeId: String,
+        targetBuildCode: Int = CURRENT_BUILD_CODE
     ): List<CustomAssetRecord> {
         val records = mutableListOf<CustomAssetRecord>()
         val knownFilenames = mutableSetOf<String>()
@@ -123,8 +129,8 @@ internal class SoundArchiveStore(context: Context) {
             SoundFx.entries.forEach { fx -> knownFilenames.add(getGenericSfxFile(prof, fx).name) }
         }
 
-        // 1. Active Background Music (Rolling Playlist + Default Track 1 + 4 Build #61 tracks)
-        BuildArchiveCatalog.build61BgmTracks.forEach { bgm ->
+        // 1. Active Background Music (Rolling Playlist + Default Track 1 + 4 current-build tracks)
+        BuildArchiveCatalog.activeBgmTracksFor(targetBuildCode).forEach { bgm ->
             val file = File(archiveDir, bgm.wavFileName)
             knownFilenames.add(file.name)
             records.add(
@@ -146,7 +152,7 @@ internal class SoundArchiveStore(context: Context) {
             )
         }
 
-        // 2. Active Generic SFX (Default Cyber Synth items) + 4 new Build #61 SFX Packs
+        // 2. Active Generic SFX (Default Cyber Synth items) + 4 current-build SFX Packs
         for (fx in SoundFx.entries) {
             val file = getGenericSfxFile(activeProfile, fx)
             knownFilenames.add(file.name)
@@ -158,7 +164,7 @@ internal class SoundArchiveStore(context: Context) {
                     category = "SFX",
                     slotIndex = fx.ordinal,
                     filePath = file.absolutePath,
-                    buildCode = CURRENT_BUILD_CODE,
+                    buildCode = targetBuildCode,
                     buildLabel = "Default (Core)",
                     archiveSection = ArchiveSection.BGM_SFX.id,
                     isArchived = false,
@@ -166,7 +172,7 @@ internal class SoundArchiveStore(context: Context) {
                 )
             )
         }
-        BuildArchiveCatalog.build61SfxPacks.forEach { pack ->
+        BuildArchiveCatalog.activeSfxPacksFor(targetBuildCode).forEach { pack ->
             val file = File(archiveDir, pack.previewWavFileName)
             knownFilenames.add(file.name)
             records.add(
@@ -188,8 +194,8 @@ internal class SoundArchiveStore(context: Context) {
             )
         }
 
-        // 3. Active Turret Fire (20: 4 classes x (Default + 4 Build #61))
-        BuildArchiveCatalog.build61TurretFireDefs.forEach { def ->
+        // 3. Active Turret Fire (20: 4 classes x (Default + 4 current-build variants))
+        BuildArchiveCatalog.activeTurretFireDefsFor(targetBuildCode).forEach { def ->
             val file = File(archiveDir, def.wavFileName)
             knownFilenames.add(file.name)
             val classIdx = def.towerClass.ordinal
@@ -213,8 +219,8 @@ internal class SoundArchiveStore(context: Context) {
             )
         }
 
-        // 4. Active Turret Upgrades (20: 4 classes x (Default + 4 Build #61))
-        BuildArchiveCatalog.build61TurretUpgradeDefs.forEach { def ->
+        // 4. Active Turret Upgrades (20: 4 classes x (Default + 4 current-build variants))
+        BuildArchiveCatalog.activeTurretUpgradeDefsFor(targetBuildCode).forEach { def ->
             val file = File(archiveDir, def.wavFileName)
             knownFilenames.add(file.name)
             val classIdx = def.towerClass.ordinal
@@ -238,8 +244,8 @@ internal class SoundArchiveStore(context: Context) {
             )
         }
 
-        // 5. Active Turret Visual Skins (5: Default + 4 Build #61)
-        BuildArchiveVisualCatalog.build61TurretSkins.forEach { skin ->
+        // 5. Active Turret Visual Skins (5: Default + 4 current-build variants)
+        BuildArchiveVisualCatalog.activeTurretSkinsFor(targetBuildCode).forEach { skin ->
             records.add(
                 CustomAssetRecord(
                     id = skin.id,
@@ -259,8 +265,8 @@ internal class SoundArchiveStore(context: Context) {
             )
         }
 
-        // 6. Active Map Themes (5: Default + 4 Build #61)
-        BuildArchiveVisualCatalog.build61MapThemes.forEach { theme ->
+        // 6. Active Map Themes (5: Default + 4 current-build variants)
+        BuildArchiveVisualCatalog.activeMapThemesFor(targetBuildCode).forEach { theme ->
             records.add(
                 CustomAssetRecord(
                     id = theme.id,
@@ -280,8 +286,8 @@ internal class SoundArchiveStore(context: Context) {
             )
         }
 
-        // 7. Archives: Build #60 Snapshot (Turret Fire, Upgrades, BGM, SFX, Skins, Map Themes)
-        BuildArchiveCatalog.build60ArchivedFireDefs.forEach { def ->
+        // 7. Archives: All Prior Builds 60..(targetBuildCode - 1) across all 6 categories
+        BuildArchiveCatalog.archivedTurretFireDefsFor(targetBuildCode).forEach { def ->
             val file = File(archiveDir, def.wavFileName)
             knownFilenames.add(file.name)
             val classIdx = def.towerClass.ordinal
@@ -303,7 +309,7 @@ internal class SoundArchiveStore(context: Context) {
                 )
             )
         }
-        BuildArchiveCatalog.build60ArchivedUpgradeDefs.forEach { def ->
+        BuildArchiveCatalog.archivedTurretUpgradeDefsFor(targetBuildCode).forEach { def ->
             val file = File(archiveDir, def.wavFileName)
             knownFilenames.add(file.name)
             val classIdx = def.towerClass.ordinal
@@ -325,7 +331,7 @@ internal class SoundArchiveStore(context: Context) {
                 )
             )
         }
-        BuildArchiveCatalog.build60ArchivedBgmTracks.forEach { bgm ->
+        BuildArchiveCatalog.archivedBgmTracksFor(targetBuildCode).forEach { bgm ->
             val file = File(archiveDir, bgm.wavFileName)
             knownFilenames.add(file.name)
             records.add(
@@ -345,7 +351,7 @@ internal class SoundArchiveStore(context: Context) {
                 )
             )
         }
-        BuildArchiveCatalog.build60ArchivedSfxPacks.forEach { pack ->
+        BuildArchiveCatalog.archivedSfxPacksFor(targetBuildCode).forEach { pack ->
             val file = File(archiveDir, pack.previewWavFileName)
             knownFilenames.add(file.name)
             records.add(
@@ -365,7 +371,7 @@ internal class SoundArchiveStore(context: Context) {
                 )
             )
         }
-        BuildArchiveVisualCatalog.build60ArchivedSkins.forEach { skin ->
+        BuildArchiveVisualCatalog.archivedTurretSkinsFor(targetBuildCode).forEach { skin ->
             records.add(
                 CustomAssetRecord(
                     id = skin.id,
@@ -382,7 +388,7 @@ internal class SoundArchiveStore(context: Context) {
                 )
             )
         }
-        BuildArchiveVisualCatalog.build60ArchivedThemes.forEach { theme ->
+        BuildArchiveVisualCatalog.archivedMapThemesFor(targetBuildCode).forEach { theme ->
             records.add(
                 CustomAssetRecord(
                     id = theme.id,

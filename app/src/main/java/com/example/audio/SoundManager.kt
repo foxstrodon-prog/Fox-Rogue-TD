@@ -333,7 +333,7 @@ class SoundManager @JvmOverloads constructor(
         )
         listOfNotNull(kineticFireId, elementalFireId, siegeFireId, stellarFireId).forEach { id ->
             val canonical = BuildArchiveCatalog.migrateLegacyAssetId(id)
-            if (canonical.startsWith("b60_") || canonical.startsWith("pre60_")) preloadDynamicAssetAsync(canonical)
+            if (BuildArchiveCatalog.isArchivedAssetId(canonical)) preloadDynamicAssetAsync(canonical)
         }
     }
 
@@ -460,19 +460,20 @@ class SoundManager @JvmOverloads constructor(
         if (turretAssetsLoaded) return
         turretAssetsLoaded = true
 
+        val buildCode = CURRENT_BUILD_CODE
         for (slot in 1..5) {
             if (isReleased) return
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.KINETIC_BALLISTIC, slot), kineticSoundIds, slot - 1, 1) {
-                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.KINETIC_BALLISTIC, slot)
+                ArchivedAudioSynthesizer.synthesizeFireForBuild(buildCode, TowerClass.KINETIC_BALLISTIC, slot)
             }
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.ELEMENTAL_VOID, slot), elementalSoundIds, slot - 1, 2) {
-                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.ELEMENTAL_VOID, slot)
+                ArchivedAudioSynthesizer.synthesizeFireForBuild(buildCode, TowerClass.ELEMENTAL_VOID, slot)
             }
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.HEAVY_SIEGE, slot), siegeSoundIds, slot - 1, 3) {
-                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.HEAVY_SIEGE, slot)
+                ArchivedAudioSynthesizer.synthesizeFireForBuild(buildCode, TowerClass.HEAVY_SIEGE, slot)
             }
             loadVariantSfx(archiveStore.getGunfireFile(TowerClass.STELLAR_COSMIC, slot), stellarSoundIds, slot - 1, 4) {
-                ArchivedAudioSynthesizer.synthesizeB61Fire(TowerClass.STELLAR_COSMIC, slot)
+                ArchivedAudioSynthesizer.synthesizeFireForBuild(buildCode, TowerClass.STELLAR_COSMIC, slot)
             }
         }
 
@@ -484,7 +485,7 @@ class SoundManager @JvmOverloads constructor(
                 try {
                     val file = archiveStore.getUpgradeFile(tClass, slot)
                     archiveStore.writeWavAtomicallyIfNeeded(file) {
-                        ArchivedAudioSynthesizer.synthesizeB61Upgrade(tClass, slot)
+                        ArchivedAudioSynthesizer.synthesizeUpgradeForBuild(buildCode, tClass, slot)
                     }
                     synchronized(soundPoolLock) {
                         if (isReleased) return
@@ -564,7 +565,7 @@ class SoundManager @JvmOverloads constructor(
 
         triggerCombatDucking(durationMs = 450L)
         val resolvedId = assetId ?: libraryController.getEquippedFireId(towerClass)
-        if (resolvedId.startsWith("b60_") || resolvedId.startsWith("pre60_")) {
+        if (BuildArchiveCatalog.isArchivedAssetId(resolvedId)) {
             val dynSampleId = dynamicAssetSoundIds[resolvedId]
             if (dynSampleId != null && dynamicSampleLoaded[dynSampleId] == true) {
                 val v = (masterVolume * sfxVolume).coerceIn(0f, 1f)
@@ -613,7 +614,7 @@ class SoundManager @JvmOverloads constructor(
     ) {
         if (isReleased || !enabled || isMuted || isAudioSuspended) return
         val resolvedId = assetId ?: libraryController.getEquippedUpgradeId(towerClass)
-        if (resolvedId.startsWith("b60_") || resolvedId.startsWith("pre60_")) {
+        if (BuildArchiveCatalog.isArchivedAssetId(resolvedId)) {
             val dynSampleId = dynamicAssetSoundIds[resolvedId]
             if (dynSampleId != null && dynamicSampleLoaded[dynSampleId] == true) {
                 val v = (masterVolume * upgradeVolume).coerceIn(0f, 1f)

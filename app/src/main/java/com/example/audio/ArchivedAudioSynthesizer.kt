@@ -11,31 +11,35 @@ import kotlin.math.sin
 
 /**
  * Procedural audio synthesis registry keyed by immutable build-scoped asset ID.
- * Enables lazy on-demand generation on Dispatchers.IO for Build #61+ tracks/SFX
- * as well as Build #60 archived recipes without eager startup synthesis.
+ * Enables lazy on-demand generation on Dispatchers.IO for Build #60, Build #61,
+ * and every subsequent buildCode (>= 62) without eager startup synthesis.
  */
 internal object ArchivedAudioSynthesizer {
 
     fun synthesizeByAssetId(rawAssetId: String): ShortArray? {
         val assetId = BuildArchiveCatalog.migrateLegacyAssetId(rawAssetId)
 
-        BuildArchiveCatalog.bgmById[assetId]?.let { bgm ->
-            val legacy = bgm.legacyTrackName?.let { name ->
+        val matchedBgm = BuildArchiveCatalog.bgmById[assetId]
+            ?: if (assetId.contains("_bgm_slot_")) BuildArchiveCatalog.resolveBgmTrack(assetId) else null
+        if (matchedBgm != null && matchedBgm.id == assetId) {
+            val legacy = matchedBgm.legacyTrackName?.let { name ->
                 runCatching { MusicTrack.valueOf(name) }.getOrNull()
             }
             if (legacy != null) {
                 val target = if (legacy == MusicTrack.ROLLING_PLAYLIST) MusicTrack.CYBER_AMBIENT else legacy
                 return AudioSynthesizer.synthesizeMusic(target)
             }
-            return synthesizeB61Music(assetId)
+            return synthesizeMusicForBuild(matchedBgm.buildCode, matchedBgm.id, matchedBgm.slotIndex)
         }
 
-        BuildArchiveCatalog.sfxPacksById[assetId]?.let { pack ->
-            if (pack.buildCode == B60_BUILD_CODE || pack.isDefault) {
-                val prof = runCatching { SoundProfile.valueOf(pack.legacyProfileName) }.getOrDefault(SoundProfile.CYBER_SYNTH)
+        val matchedPack = BuildArchiveCatalog.sfxPacksById[assetId]
+            ?: if (assetId.contains("_sfx_pack_")) BuildArchiveCatalog.resolveSfxPack(assetId) else null
+        if (matchedPack != null && matchedPack.id == assetId) {
+            if (matchedPack.buildCode == B60_BUILD_CODE || matchedPack.isDefault) {
+                val prof = runCatching { SoundProfile.valueOf(matchedPack.legacyProfileName) }.getOrDefault(SoundProfile.CYBER_SYNTH)
                 return ProceduralAudioSynthesizer.synthesizeGeneric(SoundFx.UPGRADE, prof)
             }
-            return synthesizeB61SfxPackPreview(assetId)
+            return synthesizeSfxPackPreviewForBuild(matchedPack.buildCode, matchedPack.id, matchedPack.slotIndex)
         }
 
         if (assetId.startsWith("default_sfx_")) {
@@ -44,23 +48,157 @@ internal object ArchivedAudioSynthesizer {
             return ProceduralAudioSynthesizer.synthesizeGeneric(fx, SoundProfile.CYBER_SYNTH)
         }
 
-        val audioDef = BuildArchiveCatalog.turretAudioById[assetId] ?: return null
+        val audioDef = BuildArchiveCatalog.resolveTurretAudio(assetId) ?: return null
         return when (audioDef.section) {
-            ArchiveSection.TURRET_FIRE -> {
-                if (audioDef.buildCode == CURRENT_BUILD_CODE && !audioDef.isDefault) {
-                    synthesizeB61Fire(audioDef.towerClass, audioDef.slotIndex)
-                } else {
-                    synthesizeLegacyFire(audioDef.towerClass, audioDef.slotIndex)
-                }
-            }
-            ArchiveSection.TURRET_UPGRADE -> {
-                if (audioDef.buildCode == CURRENT_BUILD_CODE && !audioDef.isDefault) {
-                    synthesizeB61Upgrade(audioDef.towerClass, audioDef.slotIndex)
-                } else {
-                    ProceduralAudioSynthesizer.synthesizeTowerUpgrade(audioDef.towerClass, audioDef.slotIndex)
-                }
-            }
+            ArchiveSection.TURRET_FIRE -> synthesizeFireForBuild(audioDef.buildCode, audioDef.towerClass, audioDef.slotIndex)
+            ArchiveSection.TURRET_UPGRADE -> synthesizeUpgradeForBuild(audioDef.buildCode, audioDef.towerClass, audioDef.slotIndex)
             else -> null
+        }
+    }
+
+    fun synthesizeFireForBuild(buildCode: Int, towerClass: TowerClass, slot: Int): ShortArray {
+        if (slot <= 1 || buildCode <= B60_BUILD_CODE) {
+            return synthesizeLegacyFire(towerClass, slot)
+        }
+        if (buildCode == B61_BUILD_CODE) {
+            return synthesizeB61Fire(towerClass, slot)
+        }
+        val bDelta = (buildCode - B61_BUILD_CODE).coerceAtLeast(1)
+        val slotShift = (slot - 2).coerceIn(0, 3)
+        val pitchFactor = 0.84 + ((bDelta * 7 + slotShift * 5) % 11) * 0.036
+        val fmRatio = 1.15 + ((bDelta * 3 + slotShift * 2) % 7) * 0.14
+        val modDepth = 1.5 + ((bDelta + slotShift) % 4) * 1.2
+
+        return when (towerClass) {
+            TowerClass.KINETIC_BALLISTIC -> {
+                val dur = 68 + ((bDelta + slotShift * 3) % 4) * 12
+                val startFreq = (1450.0 + slotShift * 380.0) * pitchFactor
+                val endFreq = (240.0 + slotShift * 75.0) * pitchFactor
+                val decay = 24.0 + slotShift * 4.5
+                render(durationMs = dur) { t, n ->
+                    val f = startFreq * exp(-t * (decay + 8.0)) + endFreq
+                    val core = sin(2 * PI * f * t) * 0.70 + sin(2 * PI * f * fmRatio * t) * 0.25
+                    val grit = noiseAt(n + bDelta * 131) * (0.28 + 0.04 * slotShift) * exp(-t * 58.0)
+                    (core + grit) * exp(-t * decay)
+                }
+            }
+            TowerClass.ELEMENTAL_VOID -> {
+                val dur = 165 + ((bDelta + slotShift * 2) % 4) * 14
+                val baseFreq = (620.0 + slotShift * 195.0) * pitchFactor
+                val sweep = (if ((bDelta + slotShift) % 2 == 0) 1.0 else -0.65) * 1450.0
+                val lfoFreq = 45.0 + ((bDelta * 11 + slotShift * 17) % 60)
+                render(durationMs = dur) { t, _ ->
+                    val f = (baseFreq + sweep * t).coerceAtLeast(220.0)
+                    val mod = sin(2 * PI * lfoFreq * t) * modDepth
+                    val sig = sin(2 * PI * f * t + mod) * 0.65 + cos(2 * PI * f * fmRatio * t) * 0.28
+                    sig * exp(-t * 11.5)
+                }
+            }
+            TowerClass.HEAVY_SIEGE -> {
+                val dur = 285 + ((bDelta + slotShift) % 4) * 20
+                val subTop = (74.0 + slotShift * 22.0) * (0.9 + (bDelta % 4) * 0.08)
+                val subFloor = (32.0 + slotShift * 4.5)
+                render(durationMs = dur) { t, n ->
+                    val f = subTop * exp(-t * (6.2 + slotShift * 1.1)) + subFloor
+                    val boom = sin(2 * PI * f * t) * 0.88 + sin(2 * PI * f * 2.0 * t) * 0.22
+                    val blast = noiseAt(n + bDelta * 257) * 0.42 * exp(-t * (10.0 + slotShift * 2.5))
+                    (boom + blast) * exp(-t * 7.2)
+                }
+            }
+            TowerClass.STELLAR_COSMIC -> {
+                val dur = 195 + ((bDelta * 2 + slotShift) % 4) * 15
+                val carrier = (520.0 + slotShift * 165.0) * pitchFactor
+                val shimmerFreq = 1320.0 * pitchFactor
+                render(durationMs = dur) { t, n ->
+                    val f = carrier * exp(-t * 6.5) + carrier * 0.48
+                    val beam = sin(2 * PI * f * t) * 0.68 + sin(2 * PI * shimmerFreq * t) * 0.26 * exp(-t * 14.0)
+                    val spark = noiseAt(n + bDelta * 313) * 0.18 * exp(-t * 48.0)
+                    (beam + spark) * exp(-t * 9.0)
+                }
+            }
+        }
+    }
+
+    fun synthesizeUpgradeForBuild(buildCode: Int, towerClass: TowerClass, slot: Int): ShortArray {
+        if (slot <= 1 || buildCode <= B60_BUILD_CODE) {
+            return ProceduralAudioSynthesizer.synthesizeTowerUpgrade(towerClass, slot)
+        }
+        if (buildCode == B61_BUILD_CODE) {
+            return synthesizeB61Upgrade(towerClass, slot)
+        }
+        val bDelta = (buildCode - B61_BUILD_CODE).coerceAtLeast(1)
+        val slotShift = (slot - 2).coerceIn(0, 3)
+        val baseRoot = when (towerClass) {
+            TowerClass.KINETIC_BALLISTIC -> 554.37
+            TowerClass.ELEMENTAL_VOID -> 622.25
+            TowerClass.HEAVY_SIEGE -> 369.99
+            TowerClass.STELLAR_COSMIC -> 739.99
+        }
+        val semitoneShift = ((bDelta * 3 + slotShift * 2) % 7) - 2
+        val root = baseRoot * Math.pow(2.0, semitoneShift / 12.0)
+        val stepRate = 13.0 + ((bDelta + slotShift) % 4) * 2.0
+        val useFifths = ((bDelta + slotShift) % 2 == 0)
+
+        return render(durationMs = 470) { t, n ->
+            val step = ((t * stepRate).toInt()).coerceIn(0, 3)
+            val mult = when (step) {
+                0 -> 1.0
+                1 -> if (useFifths) 1.5 else 1.25
+                2 -> if (useFifths) 2.0 else 1.5
+                else -> if (useFifths) 2.5 else 2.0
+            }
+            val lock = (sin(2 * PI * (220.0 + bDelta * 12.0) * t) * 0.55 + noiseAt(n + bDelta * 41) * 0.2) * exp(-t * 28.0)
+            val chime = (sin(2 * PI * (root * mult) * t) * 0.65 + sin(2 * PI * (root * mult * 1.5) * t) * 0.25) * exp(-t * 4.8)
+            (lock + chime) * 0.84
+        }
+    }
+
+    fun synthesizeMusicForBuild(buildCode: Int, assetId: String, slot: Int): ShortArray {
+        if (buildCode == B61_BUILD_CODE) {
+            return synthesizeB61Music(assetId)
+        }
+        val bDelta = (buildCode - B61_BUILD_CODE).coerceAtLeast(1)
+        val slotShift = (slot - 2).coerceIn(0, 3)
+        val progressionSeeds = arrayOf(
+            doubleArrayOf(73.42, 87.31, 65.41, 82.41),
+            doubleArrayOf(61.74, 73.42, 82.41, 55.00),
+            doubleArrayOf(69.30, 82.41, 92.50, 61.74),
+            doubleArrayOf(82.41, 98.00, 73.42, 65.41)
+        )
+        val prog = progressionSeeds[(bDelta + slotShift) % progressionSeeds.size]
+        val transpose = Math.pow(2.0, (((bDelta * 2 + slotShift) % 5) - 2) / 12.0)
+        val tempoDiv = 0.45 + ((bDelta + slotShift) % 4) * 0.12
+        val arpMult = when (slotShift) {
+            0 -> 2.0
+            1 -> 2.5
+            2 -> 3.0
+            else -> 4.0
+        }
+        return render(durationMs = 45000, taperFade = true) { t, _ ->
+            val barIdx = (t / 7.5).toInt() % 4
+            val root = prog[barIdx] * transpose
+            val beatPhase = (t % tempoDiv) / tempoDiv
+            val bass = sin(2 * PI * root * t) * exp(-beatPhase * 3.8) * 0.44
+            val fifth = sin(2 * PI * (root * 1.5) * t) * 0.26
+            val arp = sin(2 * PI * (root * arpMult) * t) * exp(-beatPhase * 6.5) * 0.18
+            val lfo = 0.78 + 0.22 * cos(2 * PI * (0.25 + slotShift * 0.08) * t)
+            (bass + fifth + arp) * lfo * 0.64
+        }
+    }
+
+    fun synthesizeSfxPackPreviewForBuild(buildCode: Int, assetId: String, slot: Int): ShortArray {
+        if (buildCode == B61_BUILD_CODE) {
+            return synthesizeB61SfxPackPreview(assetId)
+        }
+        val bDelta = (buildCode - B61_BUILD_CODE).coerceAtLeast(1)
+        val slotShift = (slot - 2).coerceIn(0, 3)
+        val f1 = 440.0 + ((bDelta * 55 + slotShift * 120) % 420)
+        val f2 = f1 * (1.25 + 0.25 * (slotShift % 3))
+        return render(durationMs = 360) { t, n ->
+            val thud = (sin(2 * PI * (110.0 * exp(-t * 14.0) + 45.0) * t) * 0.72 + noiseAt(n + bDelta * 19) * 0.18) * exp(-t * 12.0)
+            val f = if (t < 0.12) f1 else f2
+            val tone = sin(2 * PI * f * t) * 0.56 * exp(-t * 6.2)
+            thud + tone
         }
     }
 

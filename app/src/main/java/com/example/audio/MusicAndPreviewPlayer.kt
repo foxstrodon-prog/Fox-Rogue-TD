@@ -40,13 +40,6 @@ internal class MusicAndPreviewPlayer(
     private var trackGeneration: Long = 0L
     private var isReleased: Boolean = false
 
-    private val rollingPlaylistBgmIds = listOf(
-        "default_bgm_cyber_ambient",
-        "b61_bgm_orbital_surge",
-        "b61_bgm_cryo_lattice",
-        "b61_bgm_ion_horizon",
-        "b61_bgm_quantum_bastion"
-    )
     private var currentRollingIndex: Int = 0
     private var playlistTrackElapsedMs: Long = 0L
     private val PLAYLIST_TRACK_WINDOW_MS = 60_000L
@@ -61,8 +54,15 @@ internal class MusicAndPreviewPlayer(
     private val DUCK_FACTOR = 0.50f
     private val PAUSE_ATTENUATION_FACTOR = 0.50f
 
+    private fun getRollingPlaylistBgmIds(): List<String> =
+        BuildArchiveCatalog.activeBgmTracks
+            .filter { !it.isRollingPlaylist }
+            .map { it.id }
+            .ifEmpty { listOf("default_bgm_cyber_ambient") }
+
     fun getCurrentRollingBgmId(): String = synchronized(playerLock) {
-        rollingPlaylistBgmIds[currentRollingIndex]
+        val ids = getRollingPlaylistBgmIds()
+        ids[currentRollingIndex % ids.size]
     }
 
     fun hasActiveMediaPlayer(): Boolean = synchronized(playerLock) {
@@ -185,7 +185,8 @@ internal class MusicAndPreviewPlayer(
                 return
             }
             val def = BuildArchiveCatalog.resolveBgmTrack(bgmAssetId)
-            val resolved = if (def.isRollingPlaylist) rollingPlaylistBgmIds[currentRollingIndex] else def.id
+            val ids = getRollingPlaylistBgmIds()
+            val resolved = if (def.isRollingPlaylist) ids[currentRollingIndex % ids.size] else def.id
             resolved to gen
         }
         playBgmFileInternal(
@@ -358,8 +359,9 @@ internal class MusicAndPreviewPlayer(
             if (track == MusicTrack.NONE) return
             if (mediaPlayer == null) {
                 val activeId = getActiveBgmAssetId()
+                val ids = getRollingPlaylistBgmIds()
                 val resolved = if (activeId == "default_bgm_rolling_playlist" || activeId == "b60_bgm_rolling_playlist") {
-                    rollingPlaylistBgmIds[currentRollingIndex]
+                    ids[currentRollingIndex % ids.size]
                 } else {
                     activeId
                 }
@@ -425,9 +427,10 @@ internal class MusicAndPreviewPlayer(
             ) {
                 playlistTrackElapsedMs += dtMs
                 if (playlistTrackElapsedMs >= PLAYLIST_TRACK_WINDOW_MS) {
-                    currentRollingIndex = (currentRollingIndex + 1) % rollingPlaylistBgmIds.size
+                    val ids = getRollingPlaylistBgmIds()
+                    currentRollingIndex = (currentRollingIndex + 1) % ids.size
                     playlistTrackElapsedMs = 0L
-                    nextRollingId = rollingPlaylistBgmIds[currentRollingIndex] to ++trackGeneration
+                    nextRollingId = ids[currentRollingIndex] to ++trackGeneration
                 }
             }
         }

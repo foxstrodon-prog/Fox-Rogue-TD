@@ -9,11 +9,14 @@ import com.example.model.TurretAudioDef
 import com.example.model.TurretSfxSlot
 import com.example.model.TurretSkinDef
 import com.example.model.TurretSkinSlot
+import kotlin.math.abs
 
 /**
  * Central build-versioned asset registry for Pre-Build #60, Build #60 (v0.0.1.039),
- * and Build #61 (v0.0.1.040). Guarantees immutable build-scoped IDs, Default (Slot 1)
- * preservation, and seamless legacy vote/slot migration.
+ * Build #61 (v0.0.1.040), and every subsequent `versionCode` increment.
+ * Guarantees immutable build-scoped IDs, Default (Slot 1) preservation, automatic
+ * 4-variant generation per build, multi-build archiving (`60 until CURRENT_BUILD_CODE`),
+ * and seamless legacy vote/slot migration.
  */
 internal object BuildArchiveCatalog {
 
@@ -24,13 +27,66 @@ internal object BuildArchiveCatalog {
         TowerClass.STELLAR_COSMIC
     )
 
+    private val buildScopedIdRegex = Regex("^b(\\d+)_.*")
+    private val dynamicBgmRegex = Regex("^b(\\d+)_bgm_slot_(\\d+)$")
+    private val dynamicSfxRegex = Regex("^b(\\d+)_sfx_pack_(\\d+)$")
+    private val dynamicFireRegex = Regex("^b(\\d+)_fire_([a-z]+)_(\\d+)$")
+    private val dynamicUpgradeRegex = Regex("^b(\\d+)_upgrade_([a-z_]+)_(\\d+)$")
+
+    private val bgmPrefixes = listOf(
+        "Orbital", "Cryo", "Ion", "Quantum", "Aether", "Solaris", "Vortex", "Pulse",
+        "Chrono", "Astral", "Hyperion", "Titan", "Nebula", "Obsidian", "Horizon", "Zenith",
+        "Cobalt", "Helios", "Prism", "Kinetic", "Vector", "Apex", "Rift"
+    )
+    private val bgmSuffixes = listOf(
+        "Surge", "Lattice", "Horizon", "Bastion", "Drift", "Conduit", "Protocol", "Echo",
+        "Cascade", "Vector", "Resonance", "Citadel", "Matrix", "Overdrive", "Signal", "Pulse",
+        "Orbit", "Sector", "Flux"
+    )
+    private val sfxPackNames = listOf(
+        "Titan Pulse", "Cryo Chime", "Plasma Coil", "Hyper Chip",
+        "Vortex Snap", "Cobalt Latch", "Aether Bell", "Arc Capacitor",
+        "Obsidian Thud", "Ion Relay", "Prism Click", "Vector Chime",
+        "Nova Lock", "Quantum Ping", "Apex Harmonic", "Chrono Switch"
+    )
+    private val kineticFirePrefixes = listOf(
+        "Vulcan", "Hyper", "Magneto", "Tachyon", "Rotary", "Helix", "Razor", "Vector",
+        "Cobalt", "Apex", "Sabot", "Kinetic", "Tungsten", "Vortex", "Turbo", "Pulse", "Rail"
+    )
+    private val kineticFireSuffixes = listOf("Shredder", "Flechette", "Slug", "Burst", "Autocannon", "Repeater", "Lance", "Stream", "Driver")
+    private val elementalFirePrefixes = listOf(
+        "Cryo", "Aether", "Quantum", "Prismatic", "Void", "Plasma", "Ion", "Arc",
+        "Flux", "Chrono", "Astral", "Solaris", "Rift", "Spectral", "Nebula", "Polar", "Echo"
+    )
+    private val elementalFireSuffixes = listOf("Lance", "Surge", "Fracture", "Arc", "Beam", "Conduit", "Torrent", "Wave", "Disruptor")
+    private val siegeFirePrefixes = listOf(
+        "Seismic", "Thermobaric", "Bunker", "Gravimetric", "Obsidian", "Titan", "Magma", "Impact",
+        "Orbital", "Tectonic", "Hammer", "Artillery", "Bastion", "Meteor", "Crater", "Shock", "Iron"
+    )
+    private val siegeFireSuffixes = listOf("Thumper", "Shell", "Breaker", "Cannon", "Howitzer", "Mortar", "Payload", "Salvo", "Siege")
+    private val stellarFirePrefixes = listOf(
+        "Quasar", "Corona", "Nova", "Singularity", "Celestial", "Zenith", "Photon", "Pulsar",
+        "Eclipse", "Starfire", "Comet", "Supernova", "Astral", "Radiant", "Horizon", "Voidstar", "Solar"
+    )
+    private val stellarFireSuffixes = listOf("Dart", "Beam", "Ripple", "Pulse", "Flare", "Core", "Ray", "Cascade", "Burst")
+
+    fun extractBuildCodeFromId(id: String): Int? =
+        buildScopedIdRegex.matchEntire(id)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+    fun isArchivedAssetId(id: String, currentBuildCode: Int = CURRENT_BUILD_CODE): Boolean {
+        if (id.isBlank() || id.startsWith("default_")) return false
+        if (id.startsWith("pre60_")) return true
+        val b = extractBuildCodeFromId(id) ?: return false
+        return b < currentBuildCode
+    }
+
     // -------------------------------------------------------------------------
-    // Background Music (Default + 4 new Build #61 + Build #60 Snapshot)
+    // Background Music (Default Core + Active Build + Multi-Build Archives)
     // -------------------------------------------------------------------------
-    val build61BgmTracks: List<BgmTrackDef> = listOf(
+    private fun coreBgmTracks(buildCode: Int): List<BgmTrackDef> = listOf(
         BgmTrackDef(
             id = "default_bgm_rolling_playlist",
-            buildCode = CURRENT_BUILD_CODE,
+            buildCode = buildCode,
             buildLabel = "Default (Core)",
             slotIndex = 0,
             displayName = MusicTrack.ROLLING_PLAYLIST.label,
@@ -42,7 +98,7 @@ internal object BuildArchiveCatalog {
         ),
         BgmTrackDef(
             id = "default_bgm_cyber_ambient",
-            buildCode = CURRENT_BUILD_CODE,
+            buildCode = buildCode,
             buildLabel = "Default (Core)",
             slotIndex = 1,
             displayName = "Track 1: Sector Zero Synth (Default)",
@@ -50,11 +106,14 @@ internal object BuildArchiveCatalog {
             wavFileName = "bgm_cyber_ambient_v5_lowpass.wav",
             legacyTrackName = MusicTrack.CYBER_AMBIENT.name,
             isDefault = true
-        ),
+        )
+    )
+
+    private val build61CuratedBgmVariants: List<BgmTrackDef> = listOf(
         BgmTrackDef(
             id = "b61_bgm_orbital_surge",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 2,
             displayName = "Track 2: Orbital Surge",
             description = "Driving minor-key kinetic pulse built for multi-front waves",
@@ -62,8 +121,8 @@ internal object BuildArchiveCatalog {
         ),
         BgmTrackDef(
             id = "b61_bgm_cryo_lattice",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 3,
             displayName = "Track 3: Cryo Lattice",
             description = "Crystalline bell harmonics drifting over glacial sub-drones",
@@ -71,8 +130,8 @@ internal object BuildArchiveCatalog {
         ),
         BgmTrackDef(
             id = "b61_bgm_ion_horizon",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 4,
             displayName = "Track 4: Ion Horizon",
             description = "Syncopated warm synth brass with deep cosmic undertones",
@@ -80,14 +139,60 @@ internal object BuildArchiveCatalog {
         ),
         BgmTrackDef(
             id = "b61_bgm_quantum_bastion",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 5,
             displayName = "Track 5: Quantum Bastion",
             description = "High-energy endgame fortress anthem with layered fifths",
             wavFileName = "b61_bgm_quantum_bastion.wav"
         )
     )
+
+    fun bgmVariantsForBuild(buildCode: Int, isArchived: Boolean): List<BgmTrackDef> {
+        if (buildCode <= B60_BUILD_CODE) return emptyList()
+        if (buildCode == B61_BUILD_CODE) {
+            return build61CuratedBgmVariants.map { it.copy(isArchived = isArchived) }
+        }
+        val label = buildLabelFor(buildCode)
+        return (2..5).map { slot ->
+            val pIdx = abs((buildCode * 5 + (slot - 2) * 6 + 2) % bgmPrefixes.size)
+            val sIdx = abs((buildCode * 3 + (slot - 2) * 5 + 7) % bgmSuffixes.size)
+            val title = "${bgmPrefixes[pIdx]} ${bgmSuffixes[sIdx]}"
+            BgmTrackDef(
+                id = "b${buildCode}_bgm_slot_$slot",
+                buildCode = buildCode,
+                buildLabel = label,
+                slotIndex = slot,
+                displayName = "Track $slot: $title",
+                description = "Build #$buildCode procedural tactical synthwave progression",
+                wavFileName = "b${buildCode}_bgm_slot_${slot}.wav",
+                isArchived = isArchived
+            )
+        }
+    }
+
+    fun activeBgmTracksFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<BgmTrackDef> =
+        coreBgmTracks(targetBuildCode) + bgmVariantsForBuild(targetBuildCode, isArchived = false)
+
+    fun archivedBgmTracksFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<BgmTrackDef> =
+        buildList {
+            if (targetBuildCode > B60_BUILD_CODE) {
+                addAll(build60ArchivedBgmTracks)
+            }
+            for (b in B61_BUILD_CODE until targetBuildCode) {
+                addAll(bgmVariantsForBuild(b, isArchived = true))
+            }
+        }
+
+    val activeBgmTracks: List<BgmTrackDef>
+        get() = activeBgmTracksFor(CURRENT_BUILD_CODE)
+
+    val archivedBgmTracks: List<BgmTrackDef>
+        get() = archivedBgmTracksFor(CURRENT_BUILD_CODE)
+
+    @Deprecated("Use activeBgmTracks", ReplaceWith("activeBgmTracks"))
+    val build61BgmTracks: List<BgmTrackDef>
+        get() = activeBgmTracks
 
     val build60ArchivedBgmTracks: List<BgmTrackDef> = MusicTrack.entries
         .filter { it != MusicTrack.NONE }
@@ -111,28 +216,32 @@ internal object BuildArchiveCatalog {
             )
         }
 
-    val allBgmTracks: List<BgmTrackDef> = build61BgmTracks + build60ArchivedBgmTracks
-    val bgmById: Map<String, BgmTrackDef> = allBgmTracks.associateBy { it.id }
+    val allBgmTracks: List<BgmTrackDef>
+        get() = activeBgmTracks + archivedBgmTracks
+
+    val bgmById: Map<String, BgmTrackDef>
+        get() = allBgmTracks.associateBy { it.id }
 
     // -------------------------------------------------------------------------
-    // SFX Packs (Default + 4 new Build #61 + Build #60 Snapshot)
+    // SFX Packs (Default Core + Active Build + Multi-Build Archives)
     // -------------------------------------------------------------------------
-    val build61SfxPacks: List<SfxPackDef> = listOf(
-        SfxPackDef(
-            id = "default_sfx_pack_cyber_synth",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = "Default (Core)",
-            slotIndex = 1,
-            displayName = "Cyber Synth SFX Pack (Default)",
-            description = "Canonical crisp tactical clicks, chimes, and placement thuds",
-            legacyProfileName = SoundProfile.CYBER_SYNTH.name,
-            previewWavFileName = "sfx_cyber_synth_upgrade_v4.wav",
-            isDefault = true
-        ),
+    private fun defaultSfxPack(buildCode: Int) = SfxPackDef(
+        id = "default_sfx_pack_cyber_synth",
+        buildCode = buildCode,
+        buildLabel = "Default (Core)",
+        slotIndex = 1,
+        displayName = "Cyber Synth SFX Pack (Default)",
+        description = "Canonical crisp tactical clicks, chimes, and placement thuds",
+        legacyProfileName = SoundProfile.CYBER_SYNTH.name,
+        previewWavFileName = "sfx_cyber_synth_upgrade_v4.wav",
+        isDefault = true
+    )
+
+    private val build61CuratedSfxPacks: List<SfxPackDef> = listOf(
         SfxPackDef(
             id = "b61_sfx_pack_2",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 2,
             displayName = "Titan Pulse SFX Pack",
             description = "Heavy sub-harmonic placement slams and warm brass confirm chimes",
@@ -141,8 +250,8 @@ internal object BuildArchiveCatalog {
         ),
         SfxPackDef(
             id = "b61_sfx_pack_3",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 3,
             displayName = "Cryo Chime SFX Pack",
             description = "Glacial harmonic chimes and crystalline UI feedback",
@@ -151,8 +260,8 @@ internal object BuildArchiveCatalog {
         ),
         SfxPackDef(
             id = "b61_sfx_pack_4",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 4,
             displayName = "Plasma Coil SFX Pack",
             description = "High-voltage sci-fi sweeps and ionized UI snaps",
@@ -161,8 +270,8 @@ internal object BuildArchiveCatalog {
         ),
         SfxPackDef(
             id = "b61_sfx_pack_5",
-            buildCode = CURRENT_BUILD_CODE,
-            buildLabel = CURRENT_BUILD_LABEL,
+            buildCode = B61_BUILD_CODE,
+            buildLabel = B61_BUILD_LABEL,
             slotIndex = 5,
             displayName = "Hyper Chip SFX Pack",
             description = "Bright 8-bit chiptune arpeggio confirm and crisp square clicks",
@@ -170,6 +279,53 @@ internal object BuildArchiveCatalog {
             previewWavFileName = "b61_sfx_pack_5_preview.wav"
         )
     )
+
+    fun sfxPackVariantsForBuild(buildCode: Int, isArchived: Boolean): List<SfxPackDef> {
+        if (buildCode <= B60_BUILD_CODE) return emptyList()
+        if (buildCode == B61_BUILD_CODE) {
+            return build61CuratedSfxPacks.map { it.copy(isArchived = isArchived) }
+        }
+        val label = buildLabelFor(buildCode)
+        val profiles = SoundProfile.entries
+        return (2..5).map { slot ->
+            val idx = abs((buildCode * 4 + (slot - 2) * 3) % sfxPackNames.size)
+            val profile = profiles[(buildCode + slot) % profiles.size]
+            SfxPackDef(
+                id = "b${buildCode}_sfx_pack_$slot",
+                buildCode = buildCode,
+                buildLabel = label,
+                slotIndex = slot,
+                displayName = "${sfxPackNames[idx]} SFX Pack",
+                description = "Build #$buildCode ${profile.label} UI & tactical feedback pack",
+                legacyProfileName = profile.name,
+                previewWavFileName = "b${buildCode}_sfx_pack_${slot}_preview.wav",
+                isArchived = isArchived
+            )
+        }
+    }
+
+    fun activeSfxPacksFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<SfxPackDef> =
+        listOf(defaultSfxPack(targetBuildCode)) + sfxPackVariantsForBuild(targetBuildCode, isArchived = false)
+
+    fun archivedSfxPacksFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<SfxPackDef> =
+        buildList {
+            if (targetBuildCode > B60_BUILD_CODE) {
+                addAll(build60ArchivedSfxPacks)
+            }
+            for (b in B61_BUILD_CODE until targetBuildCode) {
+                addAll(sfxPackVariantsForBuild(b, isArchived = true))
+            }
+        }
+
+    val activeSfxPacks: List<SfxPackDef>
+        get() = activeSfxPacksFor(CURRENT_BUILD_CODE)
+
+    val archivedSfxPacks: List<SfxPackDef>
+        get() = archivedSfxPacksFor(CURRENT_BUILD_CODE)
+
+    @Deprecated("Use activeSfxPacks", ReplaceWith("activeSfxPacks"))
+    val build61SfxPacks: List<SfxPackDef>
+        get() = activeSfxPacks
 
     val build60ArchivedSfxPacks: List<SfxPackDef> = SoundProfile.entries.mapIndexed { idx, profile ->
         SfxPackDef(
@@ -185,11 +341,14 @@ internal object BuildArchiveCatalog {
         )
     }
 
-    val allSfxPacks: List<SfxPackDef> = build61SfxPacks + build60ArchivedSfxPacks
-    val sfxPacksById: Map<String, SfxPackDef> = allSfxPacks.associateBy { it.id }
+    val allSfxPacks: List<SfxPackDef>
+        get() = activeSfxPacks + archivedSfxPacks
+
+    val sfxPacksById: Map<String, SfxPackDef>
+        get() = allSfxPacks.associateBy { it.id }
 
     // -------------------------------------------------------------------------
-    // Turret Fire & Upgrade Catalogs (Build #61 Active + Build #60 Snapshot)
+    // Turret Fire & Upgrade Catalogs (Active Build + Multi-Build Archives)
     // -------------------------------------------------------------------------
     private fun b61FireVariantLabel(towerClass: TowerClass, slot: Int): String = when (towerClass) {
         TowerClass.KINETIC_BALLISTIC -> when (slot) {
@@ -222,34 +381,105 @@ internal object BuildArchiveCatalog {
         }
     }
 
-    fun getBuild61FireShortLabel(towerClass: TowerClass, slot: Int): String =
-        b61FireVariantLabel(towerClass, slot).substringBefore(" ")
+    fun fireVariantLabelForBuild(buildCode: Int, towerClass: TowerClass, slot: Int): String {
+        if (slot <= 1) return b61FireVariantLabel(towerClass, 1)
+        if (buildCode <= B60_BUILD_CODE) return gunfireVariantLabelB60(towerClass, slot)
+        if (buildCode == B61_BUILD_CODE) return b61FireVariantLabel(towerClass, slot)
 
-    val build61TurretFireDefs: List<TurretAudioDef> = buildList {
-        for (cls in allClasses) {
-            val tag = towerClassShortTag(cls)
-            for (slot in 1..5) {
-                val isDef = (slot == 1)
-                val id = if (isDef) "default_fire_$tag" else "b61_fire_${tag}_$slot"
-                val ver = if (cls == TowerClass.STELLAR_COSMIC) "v1" else "v2"
-                val wav = if (isDef) "sfx_gunfire_${tag}_slot1_${ver}.wav" else "b61_sfx_gunfire_${tag}_slot${slot}.wav"
-                add(
-                    TurretAudioDef(
-                        id = id,
-                        section = ArchiveSection.TURRET_FIRE,
-                        towerClass = cls,
-                        buildCode = CURRENT_BUILD_CODE,
-                        buildLabel = if (isDef) "Default (Core)" else CURRENT_BUILD_LABEL,
-                        slotIndex = slot,
-                        displayName = "${towerClassLabel(cls)} Fire #$slot: ${b61FireVariantLabel(cls, slot)}",
-                        description = if (isDef) "Canonical Slot 1 firing waveform" else "Build #61 firing synthesis variant",
-                        wavFileName = wav,
-                        isDefault = isDef
+        val (prefixes, suffixes) = when (towerClass) {
+            TowerClass.KINETIC_BALLISTIC -> kineticFirePrefixes to kineticFireSuffixes
+            TowerClass.ELEMENTAL_VOID -> elementalFirePrefixes to elementalFireSuffixes
+            TowerClass.HEAVY_SIEGE -> siegeFirePrefixes to siegeFireSuffixes
+            TowerClass.STELLAR_COSMIC -> stellarFirePrefixes to stellarFireSuffixes
+        }
+        val pIdx = abs((buildCode * 5 + (slot - 2) * 4 + towerClass.ordinal * 3) % prefixes.size)
+        val sIdx = abs((buildCode * 3 + (slot - 2) * 5 + towerClass.ordinal * 2) % suffixes.size)
+        return "${prefixes[pIdx]} ${suffixes[sIdx]}"
+    }
+
+    fun getActiveFireShortLabel(towerClass: TowerClass, slot: Int, buildCode: Int = CURRENT_BUILD_CODE): String =
+        fireVariantLabelForBuild(buildCode, towerClass, slot).substringBefore(" ")
+
+    @Deprecated("Use getActiveFireShortLabel", ReplaceWith("getActiveFireShortLabel(towerClass, slot)"))
+    fun getBuild61FireShortLabel(towerClass: TowerClass, slot: Int): String =
+        getActiveFireShortLabel(towerClass, slot, CURRENT_BUILD_CODE)
+
+    fun turretFireVariantsForBuild(buildCode: Int, isArchived: Boolean): List<TurretAudioDef> {
+        if (buildCode <= B60_BUILD_CODE) return emptyList()
+        val label = buildLabelFor(buildCode)
+        return buildList {
+            for (cls in allClasses) {
+                val tag = towerClassShortTag(cls)
+                for (slot in 2..5) {
+                    val vLabel = fireVariantLabelForBuild(buildCode, cls, slot)
+                    add(
+                        TurretAudioDef(
+                            id = "b${buildCode}_fire_${tag}_$slot",
+                            section = ArchiveSection.TURRET_FIRE,
+                            towerClass = cls,
+                            buildCode = buildCode,
+                            buildLabel = label,
+                            slotIndex = slot,
+                            displayName = "${towerClassLabel(cls)} Fire #$slot: $vLabel",
+                            description = "Build #$buildCode firing synthesis variant",
+                            wavFileName = "b${buildCode}_sfx_gunfire_${tag}_slot${slot}.wav",
+                            isDefault = false,
+                            isArchived = isArchived
+                        )
                     )
-                )
+                }
             }
         }
     }
+
+    fun activeTurretFireDefsFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<TurretAudioDef> {
+        val variantsByKey = turretFireVariantsForBuild(targetBuildCode, isArchived = false)
+            .associateBy { it.towerClass to it.slotIndex }
+        return buildList {
+            for (cls in allClasses) {
+                val tag = towerClassShortTag(cls)
+                val ver = if (cls == TowerClass.STELLAR_COSMIC) "v1" else "v2"
+                add(
+                    TurretAudioDef(
+                        id = "default_fire_$tag",
+                        section = ArchiveSection.TURRET_FIRE,
+                        towerClass = cls,
+                        buildCode = targetBuildCode,
+                        buildLabel = "Default (Core)",
+                        slotIndex = 1,
+                        displayName = "${towerClassLabel(cls)} Fire #1: ${fireVariantLabelForBuild(targetBuildCode, cls, 1)}",
+                        description = "Canonical Slot 1 firing waveform",
+                        wavFileName = "sfx_gunfire_${tag}_slot1_${ver}.wav",
+                        isDefault = true,
+                        isArchived = false
+                    )
+                )
+                for (slot in 2..5) {
+                    variantsByKey[cls to slot]?.let { add(it) }
+                }
+            }
+        }
+    }
+
+    fun archivedTurretFireDefsFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<TurretAudioDef> =
+        buildList {
+            if (targetBuildCode > B60_BUILD_CODE) {
+                addAll(build60ArchivedFireDefs)
+            }
+            for (b in B61_BUILD_CODE until targetBuildCode) {
+                addAll(turretFireVariantsForBuild(b, isArchived = true))
+            }
+        }
+
+    val activeTurretFireDefs: List<TurretAudioDef>
+        get() = activeTurretFireDefsFor(CURRENT_BUILD_CODE)
+
+    val archivedTurretFireDefs: List<TurretAudioDef>
+        get() = archivedTurretFireDefsFor(CURRENT_BUILD_CODE)
+
+    @Deprecated("Use activeTurretFireDefs", ReplaceWith("activeTurretFireDefs"))
+    val build61TurretFireDefs: List<TurretAudioDef>
+        get() = activeTurretFireDefs
 
     val build60ArchivedFireDefs: List<TurretAudioDef> = buildList {
         for (cls in allClasses) {
@@ -276,31 +506,82 @@ internal object BuildArchiveCatalog {
         }
     }
 
-    val build61TurretUpgradeDefs: List<TurretAudioDef> = buildList {
-        val skinNames = BuildArchiveVisualCatalog.build61TurretSkins.associateBy { it.slotIndex }
-        for (cls in allClasses) {
-            for (slot in 1..5) {
-                val isDef = (slot == 1)
-                val id = if (isDef) "default_upgrade_${cls.name.lowercase()}" else "b61_upgrade_${cls.name.lowercase()}_$slot"
-                val wav = if (isDef) "sfx_upgrade_${cls.name.lowercase()}_slot1_v2.wav" else "b61_sfx_upgrade_${cls.name.lowercase()}_slot${slot}.wav"
-                val skinName = skinNames[slot]?.displayName ?: "Variant $slot"
-                add(
-                    TurretAudioDef(
-                        id = id,
-                        section = ArchiveSection.TURRET_UPGRADE,
-                        towerClass = cls,
-                        buildCode = CURRENT_BUILD_CODE,
-                        buildLabel = if (isDef) "Default (Core)" else CURRENT_BUILD_LABEL,
-                        slotIndex = slot,
-                        displayName = "${towerClassLabel(cls)} Upgrade #$slot ($skinName)",
-                        description = if (isDef) "Canonical Slot 1 upgrade chime" else "Build #61 upgrade synthesis chime",
-                        wavFileName = wav,
-                        isDefault = isDef
+    fun turretUpgradeVariantsForBuild(buildCode: Int, isArchived: Boolean): List<TurretAudioDef> {
+        if (buildCode <= B60_BUILD_CODE) return emptyList()
+        val label = buildLabelFor(buildCode)
+        val skinNames = BuildArchiveVisualCatalog.variantSkinsForBuild(buildCode, isArchived = isArchived)
+            .associateBy { it.slotIndex }
+        return buildList {
+            for (cls in allClasses) {
+                for (slot in 2..5) {
+                    val skinName = skinNames[slot]?.displayName ?: "Variant $slot"
+                    add(
+                        TurretAudioDef(
+                            id = "b${buildCode}_upgrade_${cls.name.lowercase()}_$slot",
+                            section = ArchiveSection.TURRET_UPGRADE,
+                            towerClass = cls,
+                            buildCode = buildCode,
+                            buildLabel = label,
+                            slotIndex = slot,
+                            displayName = "${towerClassLabel(cls)} Upgrade #$slot ($skinName)",
+                            description = "Build #$buildCode upgrade synthesis chime",
+                            wavFileName = "b${buildCode}_sfx_upgrade_${cls.name.lowercase()}_slot${slot}.wav",
+                            isDefault = false,
+                            isArchived = isArchived
+                        )
                     )
-                )
+                }
             }
         }
     }
+
+    fun activeTurretUpgradeDefsFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<TurretAudioDef> {
+        val variantsByKey = turretUpgradeVariantsForBuild(targetBuildCode, isArchived = false)
+            .associateBy { it.towerClass to it.slotIndex }
+        val defaultSkinName = BuildArchiveVisualCatalog.defaultTurretSkin.displayName
+        return buildList {
+            for (cls in allClasses) {
+                add(
+                    TurretAudioDef(
+                        id = "default_upgrade_${cls.name.lowercase()}",
+                        section = ArchiveSection.TURRET_UPGRADE,
+                        towerClass = cls,
+                        buildCode = targetBuildCode,
+                        buildLabel = "Default (Core)",
+                        slotIndex = 1,
+                        displayName = "${towerClassLabel(cls)} Upgrade #1 ($defaultSkinName)",
+                        description = "Canonical Slot 1 upgrade chime",
+                        wavFileName = "sfx_upgrade_${cls.name.lowercase()}_slot1_v2.wav",
+                        isDefault = true,
+                        isArchived = false
+                    )
+                )
+                for (slot in 2..5) {
+                    variantsByKey[cls to slot]?.let { add(it) }
+                }
+            }
+        }
+    }
+
+    fun archivedTurretUpgradeDefsFor(targetBuildCode: Int = CURRENT_BUILD_CODE): List<TurretAudioDef> =
+        buildList {
+            if (targetBuildCode > B60_BUILD_CODE) {
+                addAll(build60ArchivedUpgradeDefs)
+            }
+            for (b in B61_BUILD_CODE until targetBuildCode) {
+                addAll(turretUpgradeVariantsForBuild(b, isArchived = true))
+            }
+        }
+
+    val activeTurretUpgradeDefs: List<TurretAudioDef>
+        get() = activeTurretUpgradeDefsFor(CURRENT_BUILD_CODE)
+
+    val archivedTurretUpgradeDefs: List<TurretAudioDef>
+        get() = archivedTurretUpgradeDefsFor(CURRENT_BUILD_CODE)
+
+    @Deprecated("Use activeTurretUpgradeDefs", ReplaceWith("activeTurretUpgradeDefs"))
+    val build61TurretUpgradeDefs: List<TurretAudioDef>
+        get() = activeTurretUpgradeDefs
 
     val build60ArchivedUpgradeDefs: List<TurretAudioDef> = buildList {
         for (cls in allClasses) {
@@ -325,9 +606,11 @@ internal object BuildArchiveCatalog {
         }
     }
 
-    val allTurretAudioDefs: List<TurretAudioDef> =
-        build61TurretFireDefs + build60ArchivedFireDefs + build61TurretUpgradeDefs + build60ArchivedUpgradeDefs
-    val turretAudioById: Map<String, TurretAudioDef> = allTurretAudioDefs.associateBy { it.id }
+    val allTurretAudioDefs: List<TurretAudioDef>
+        get() = activeTurretFireDefs + archivedTurretFireDefs + activeTurretUpgradeDefs + archivedTurretUpgradeDefs
+
+    val turretAudioById: Map<String, TurretAudioDef>
+        get() = allTurretAudioDefs.associateBy { it.id }
 
     // -------------------------------------------------------------------------
     // Resolvers & Legacy ID Migration
@@ -335,18 +618,18 @@ internal object BuildArchiveCatalog {
     fun resolveTurretSkin(skinId: String?, legacySlot: Int = 1): TurretSkinDef {
         val canonical = skinId?.let { migrateLegacyAssetId(it) }
         if (canonical != null) {
-            BuildArchiveVisualCatalog.skinsById[canonical]?.let { return it }
+            BuildArchiveVisualCatalog.findOrGenerateSkinById(canonical)?.let { return it }
         }
-        return BuildArchiveVisualCatalog.build61TurretSkins.firstOrNull { it.slotIndex == legacySlot }
+        return BuildArchiveVisualCatalog.activeTurretSkins.firstOrNull { it.slotIndex == legacySlot }
             ?: BuildArchiveVisualCatalog.defaultTurretSkin
     }
 
     fun resolveMapTheme(themeId: String?, legacySlot: Int = 1): MapThemeDef {
         val canonical = themeId?.let { migrateLegacyAssetId(it) }
         if (canonical != null) {
-            BuildArchiveVisualCatalog.themesById[canonical]?.let { return it }
+            BuildArchiveVisualCatalog.findOrGenerateThemeById(canonical)?.let { return it }
         }
-        return BuildArchiveVisualCatalog.build61MapThemes.firstOrNull { it.slotIndex == legacySlot }
+        return BuildArchiveVisualCatalog.activeMapThemes.firstOrNull { it.slotIndex == legacySlot }
             ?: BuildArchiveVisualCatalog.defaultMapTheme
     }
 
@@ -354,37 +637,77 @@ internal object BuildArchiveCatalog {
         val canonical = bgmId?.let { migrateLegacyAssetId(it) }
         if (canonical != null) {
             bgmById[canonical]?.let { return it }
+            val match = dynamicBgmRegex.matchEntire(canonical)
+            val build = match?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val slot = match?.groupValues?.getOrNull(2)?.toIntOrNull()
+            if (build != null && build >= B61_BUILD_CODE && slot in 2..5) {
+                bgmVariantsForBuild(build, isArchived = build < CURRENT_BUILD_CODE)
+                    .firstOrNull { it.slotIndex == slot }?.let { return it }
+            }
         }
-        return build61BgmTracks.first()
+        return activeBgmTracks.first()
     }
 
     fun resolveSfxPack(packId: String?): SfxPackDef {
         val canonical = packId?.let { migrateLegacyAssetId(it) }
         if (canonical != null) {
             sfxPacksById[canonical]?.let { return it }
+            val match = dynamicSfxRegex.matchEntire(canonical)
+            val build = match?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val slot = match?.groupValues?.getOrNull(2)?.toIntOrNull()
+            if (build != null && build >= B61_BUILD_CODE && slot in 2..5) {
+                sfxPackVariantsForBuild(build, isArchived = build < CURRENT_BUILD_CODE)
+                    .firstOrNull { it.slotIndex == slot }?.let { return it }
+            }
         }
-        return build61SfxPacks.first()
+        return activeSfxPacks.first()
     }
 
-    fun buildActiveFireId(towerClass: TowerClass, slot: Int): String {
+    fun resolveTurretAudio(assetId: String): TurretAudioDef? {
+        val canonical = migrateLegacyAssetId(assetId)
+        turretAudioById[canonical]?.let { return it }
+        dynamicFireRegex.matchEntire(canonical)?.let { match ->
+            val build = match.groupValues[1].toIntOrNull() ?: return@let
+            val tag = match.groupValues[2]
+            val slot = match.groupValues[3].toIntOrNull() ?: return@let
+            val cls = allClasses.firstOrNull { towerClassShortTag(it) == tag } ?: return@let
+            if (build >= B61_BUILD_CODE && slot in 2..5) {
+                return turretFireVariantsForBuild(build, isArchived = build < CURRENT_BUILD_CODE)
+                    .firstOrNull { it.towerClass == cls && it.slotIndex == slot }
+            }
+        }
+        dynamicUpgradeRegex.matchEntire(canonical)?.let { match ->
+            val build = match.groupValues[1].toIntOrNull() ?: return@let
+            val clsName = match.groupValues[2]
+            val slot = match.groupValues[3].toIntOrNull() ?: return@let
+            val cls = allClasses.firstOrNull { it.name.equals(clsName, ignoreCase = true) } ?: return@let
+            if (build >= B61_BUILD_CODE && slot in 2..5) {
+                return turretUpgradeVariantsForBuild(build, isArchived = build < CURRENT_BUILD_CODE)
+                    .firstOrNull { it.towerClass == cls && it.slotIndex == slot }
+            }
+        }
+        return null
+    }
+
+    fun buildActiveFireId(towerClass: TowerClass, slot: Int, buildCode: Int = CURRENT_BUILD_CODE): String {
         val s = slot.coerceIn(1, 5)
         val tag = towerClassShortTag(towerClass)
-        return if (s == 1) "default_fire_$tag" else "b61_fire_${tag}_$s"
+        return if (s == 1) "default_fire_$tag" else "b${buildCode}_fire_${tag}_$s"
     }
 
-    fun buildActiveUpgradeId(towerClass: TowerClass, slot: Int): String {
+    fun buildActiveUpgradeId(towerClass: TowerClass, slot: Int, buildCode: Int = CURRENT_BUILD_CODE): String {
         val s = slot.coerceIn(1, 5)
-        return if (s == 1) "default_upgrade_${towerClass.name.lowercase()}" else "b61_upgrade_${towerClass.name.lowercase()}_$s"
+        return if (s == 1) "default_upgrade_${towerClass.name.lowercase()}" else "b${buildCode}_upgrade_${towerClass.name.lowercase()}_$s"
     }
 
-    fun buildActiveSkinId(slot: Int): String {
+    fun buildActiveSkinId(slot: Int, buildCode: Int = CURRENT_BUILD_CODE): String {
         val s = slot.coerceIn(1, 5)
-        return if (s == 1) "default_skin_1" else "b61_skin_$s"
+        return if (s == 1) "default_skin_1" else "b${buildCode}_skin_$s"
     }
 
-    fun buildActiveThemeId(slot: Int): String {
+    fun buildActiveThemeId(slot: Int, buildCode: Int = CURRENT_BUILD_CODE): String {
         val s = slot.coerceIn(1, 5)
-        return if (s == 1) "default_theme_1" else "b61_theme_$s"
+        return if (s == 1) "default_theme_1" else "b${buildCode}_theme_$s"
     }
 
     /**
@@ -393,7 +716,7 @@ internal object BuildArchiveCatalog {
      */
     fun migrateLegacyAssetId(rawId: String): String {
         if (rawId.isBlank()) return rawId
-        if (rawId.startsWith("b60_") || rawId.startsWith("b61_") || rawId.startsWith("pre60_") || rawId.startsWith("default_")) {
+        if (buildScopedIdRegex.matches(rawId) || rawId.startsWith("pre60_") || rawId.startsWith("default_")) {
             return rawId
         }
         if (rawId == "skin_slot_1") return "default_skin_1"

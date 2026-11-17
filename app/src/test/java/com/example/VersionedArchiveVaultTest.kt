@@ -12,10 +12,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
+import com.example.audio.ArchivedAudioSynthesizer
 import com.example.audio.BuildArchiveCatalog
 import com.example.audio.CustomAssetRecord
 import com.example.audio.MusicTrack
+import com.example.audio.SoundArchiveStore
 import com.example.audio.SoundManager
+import com.example.audio.SoundProfile
 import com.example.engine.TelemetryManager
 import com.example.engine.coordinator.AssetVaultCoordinator
 import com.example.engine.network.AssetVoteSyncManager
@@ -68,10 +71,11 @@ class VersionedArchiveVaultTest {
     }
 
     @Test
-    fun `Default Core stays untouched while Build 61 generates 4 new variants across all 5 categories`() = runBlocking {
+    fun `Default Core stays untouched while current buildCode automatically generates 4 new variants across all categories`() = runBlocking {
         val sm = SoundManager(context)
         sm.awaitPendingIoForTest()
         val records = sm.assetLibraryFlow.value
+        val currentBuild = BuildConfig.VERSION_CODE
 
         // Default Slot 1 / Core items are preserved untouched
         assertTrue(records.first { it.id == "default_skin_1" }.isDefault)
@@ -81,14 +85,20 @@ class VersionedArchiveVaultTest {
         assertTrue(records.first { it.id == "default_fire_kinetic" }.isDefault)
         assertTrue(records.first { it.id == "default_upgrade_kinetic_ballistic" }.isDefault)
 
-        // Build #61 adds 4 new active variants per category
-        val activeB61 = records.filter { !it.isArchived && !it.isDefault && it.buildCode == 61 }
-        assertEquals(16, activeB61.count { it.category == "TURRET_FIRE" })
-        assertEquals(16, activeB61.count { it.category == "TURRET_UPGRADE" })
-        assertEquals(4, activeB61.count { it.category == "BACKGROUND_MUSIC" })
-        assertEquals(4, activeB61.count { it.category == "SFX" })
-        assertEquals(4, activeB61.count { it.category == "TURRET_SKIN" })
-        assertEquals(4, activeB61.count { it.category == "MAP_THEME" })
+        // Current build automatically adds 4 new active variants per category
+        val activeCurrent = records.filter { !it.isArchived && !it.isDefault && it.buildCode == currentBuild }
+        assertEquals(16, activeCurrent.count { it.category == "TURRET_FIRE" })
+        assertEquals(16, activeCurrent.count { it.category == "TURRET_UPGRADE" })
+        assertEquals(4, activeCurrent.count { it.category == "BACKGROUND_MUSIC" })
+        assertEquals(4, activeCurrent.count { it.category == "SFX" })
+        assertEquals(4, activeCurrent.count { it.category == "TURRET_SKIN" })
+        assertEquals(4, activeCurrent.count { it.category == "MAP_THEME" })
+
+        // Prior builds (60 until currentBuild) are automatically archived without duplicates
+        val archivedBuilds = records.filter { it.isArchived && it.buildCode >= 60 }.map { it.buildCode }.toSet()
+        for (priorBuild in 60 until currentBuild) {
+            assertTrue("Prior build $priorBuild must be auto-archived", archivedBuilds.contains(priorBuild))
+        }
 
         sm.release()
         sm.awaitPendingIoForTest()
@@ -276,6 +286,99 @@ class VersionedArchiveVaultTest {
             .performScrollToNode(hasTestTag("vault_use_b60_fire_kinetic_2"))
         composeRule.onNodeWithTag("vault_play_b60_fire_kinetic_2").assertIsDisplayed()
         composeRule.onNodeWithTag("vault_use_b60_fire_kinetic_2").assertIsDisplayed()
+
+        sm.release()
+        sm.awaitPendingIoForTest()
+    }
+
+    @Test
+    fun `Simulating consecutive build increments 62 63 64 generates 4 distinct skins themes and audio per build and archives prior builds`() {
+        val store = SoundArchiveStore(context)
+        val libs = (62..64).associateWith { b ->
+            store.buildAssetLibrary(
+                activeProfile = SoundProfile.CYBER_SYNTH,
+                equippedBgmId = "default_bgm_rolling_playlist",
+                equippedSfxPackId = "default_sfx_pack_cyber_synth",
+                equippedFireIds = Array(4) { BuildArchiveCatalog.buildActiveFireId(BuildArchiveCatalog.allClasses[it], 1, b) },
+                equippedUpgradeIds = Array(4) { BuildArchiveCatalog.buildActiveUpgradeId(BuildArchiveCatalog.allClasses[it], 1, b) },
+                equippedTurretSkinId = "default_skin_1",
+                equippedMapThemeId = "default_theme_1",
+                targetBuildCode = b
+            )
+        }
+
+        // Each build b generates 4 new distinct active variants per category with unique IDs and names
+        for (b in 62..64) {
+            val active = libs[b]!!.filter { !it.isArchived && !it.isDefault && it.buildCode == b }
+            assertEquals(16, active.count { it.category == "TURRET_FIRE" })
+            assertEquals(16, active.count { it.category == "TURRET_UPGRADE" })
+            assertEquals(4, active.count { it.category == "BACKGROUND_MUSIC" })
+            assertEquals(4, active.count { it.category == "SFX" })
+            assertEquals(4, active.count { it.category == "TURRET_SKIN" })
+            assertEquals(4, active.count { it.category == "MAP_THEME" })
+            assertTrue(active.all { it.id.startsWith("b${b}_") })
+
+            // Every prior build (60 until b) must be archived
+            val archived = libs[b]!!.filter { it.isArchived }
+            for (prior in 60 until b) {
+                assertTrue("Build $prior skins must be archived in Build $b", archived.any { it.buildCode == prior && it.archiveSection == ArchiveSection.TURRET_SKIN.id })
+                assertTrue("Build $prior fire audio must be archived in Build $b", archived.any { it.buildCode == prior && it.archiveSection == ArchiveSection.TURRET_FIRE.id })
+            }
+            // Build #61 curated Crimson Vanguard & Orbital Surge must be preserved in Archives
+            assertTrue(archived.any { it.id == "b61_skin_2" && it.name == "Crimson Vanguard" })
+            assertTrue(archived.any { it.id == "b61_bgm_orbital_surge" && it.name.contains("Orbital Surge") })
+        }
+
+        // Consecutive builds must produce distinct skin palettes/names and distinct synthesized PCM waveforms
+        val skin62 = BuildArchiveCatalog.resolveTurretSkin("b62_skin_2", 2)
+        val skin63 = BuildArchiveCatalog.resolveTurretSkin("b63_skin_2", 2)
+        val skin64 = BuildArchiveCatalog.resolveTurretSkin("b64_skin_2", 2)
+        assertNotEquals(skin62.displayName, skin63.displayName)
+        assertNotEquals(skin63.displayName, skin64.displayName)
+        assertNotEquals(skin62.frameColor, skin63.frameColor)
+        assertNotEquals(skin63.frameColor, skin64.frameColor)
+
+        val pcm62 = ArchivedAudioSynthesizer.synthesizeByAssetId("b62_fire_kinetic_2")!!
+        val pcm63 = ArchivedAudioSynthesizer.synthesizeByAssetId("b63_fire_kinetic_2")!!
+        assertFalse("Consecutive builds must synthesize distinct firing PCM waveforms", pcm62.contentEquals(pcm63))
+    }
+
+    @Test
+    fun `Archived Build 61 and Build 62 assets remain equippable and resolve distinct audio and visuals`() = runBlocking {
+        val sm = SoundManager(context)
+        sm.awaitPendingIoForTest()
+        val tm1 = TelemetryManager(context)
+        val authRepo = AuthRepository(context = context, auth = null, apiKey = "")
+        val syncManager = AssetVoteSyncManager(context, authRepo)
+        val stateFlow = MutableStateFlow(GameUIState())
+        val coordinator = AssetVaultCoordinator(stateFlow, sm, tm1, syncManager, testScope)
+
+        coordinator.equipAsset("b61_fire_kinetic_2")
+        coordinator.equipAsset("b61_skin_2")
+        coordinator.equipAsset("b62_theme_3")
+        coordinator.equipAsset("b61_bgm_orbital_surge")
+
+        val st = stateFlow.value
+        assertEquals("b61_fire_kinetic_2", st.kineticFireId)
+        assertEquals("b61_skin_2", st.turretSkinId)
+        assertEquals("b62_theme_3", st.mapThemeId)
+        assertEquals("b61_bgm_orbital_surge", st.bgmTrackId)
+
+        val resolvedSkin = BuildArchiveCatalog.resolveTurretSkin(st.turretSkinId, st.turretSkinSlot)
+        assertEquals("Crimson Vanguard", resolvedSkin.displayName)
+        assertEquals(61, resolvedSkin.buildCode)
+
+        val resolvedTheme = BuildArchiveCatalog.resolveMapTheme(st.mapThemeId, st.mapThemeSlot)
+        assertEquals("b62_theme_3", resolvedTheme.id)
+        assertEquals(62, resolvedTheme.buildCode)
+
+        // Distinct WAV synthesis works cleanly for archived Build #61 & Build #62 IDs
+        val archiveStore = SoundArchiveStore(context)
+        val wav61 = archiveStore.getWavFileForAsset("b61_fire_kinetic_2")
+        val wav62 = archiveStore.getWavFileForAsset("b62_fire_kinetic_2")
+        assertNotNull(wav61)
+        assertNotNull(wav62)
+        assertNotEquals(wav61!!.name, wav62!!.name)
 
         sm.release()
         sm.awaitPendingIoForTest()

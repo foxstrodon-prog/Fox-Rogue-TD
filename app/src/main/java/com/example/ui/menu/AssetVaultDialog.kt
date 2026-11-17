@@ -126,7 +126,7 @@ fun AssetVaultDialog(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${assets.size} assets • Build #61 + Archives • Firebase sync",
+                            text = "${assets.size} assets • Build #${com.example.BuildConfig.VERSION_CODE} + Archives • Firebase sync",
                             color = Color(0xFF8B949E),
                             fontSize = 10.5.sp,
                             maxLines = 1,
@@ -516,7 +516,7 @@ private fun BuildTagBadge(asset: CustomAssetRecord) {
     val badgeColor = when {
         asset.isDefault -> Color(0xFF00E676)
         asset.buildCode == 0 -> Color(0xFFF59E0B)
-        asset.buildCode == 60 -> Color(0xFFA855F7)
+        asset.isArchived -> Color(0xFFA855F7)
         else -> Color(0xFF00E5FF)
     }
     Box(

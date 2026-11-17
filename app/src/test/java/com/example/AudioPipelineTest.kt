@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.audio.BuildArchiveCatalog
 import com.example.audio.MusicAndPreviewPlayer
 import com.example.audio.MusicTrack
 import com.example.audio.SoundArchiveStore
@@ -298,8 +299,9 @@ class AudioPipelineTest {
     fun `resumeMusic and updateTick dispatch track preparation asynchronously off caller thread`() {
         val archiveStore = SoundArchiveStore(context)
         val ioDispatcher = StandardTestDispatcher()
+        val rollingSecondId = BuildArchiveCatalog.activeBgmTracks.filter { !it.isRollingPlaylist }[1].id
         val rollingFirstFile = archiveStore.getMusicFileForAsset("default_bgm_cyber_ambient")
-        val rollingSecondFile = archiveStore.getMusicFileForAsset("b61_bgm_orbital_surge")
+        val rollingSecondFile = archiveStore.getMusicFileForAsset(rollingSecondId)
         rollingFirstFile.delete()
         rollingSecondFile.delete()
         ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(rollingFirstFile.absolutePath), ShadowMediaPlayer.MediaInfo(45_000, 0))

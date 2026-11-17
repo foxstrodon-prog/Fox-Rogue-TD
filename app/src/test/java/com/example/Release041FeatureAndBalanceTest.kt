@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ApplicationProvider
+import com.example.audio.BuildArchiveCatalog
 import com.example.audio.SoundManager
 import com.example.engine.MapGenerator
 import com.example.engine.TelemetryManager
@@ -347,6 +348,7 @@ class Release041FeatureAndBalanceTest {
             )
         }
 
+        composeRule.onNodeWithText("TURRET VISUAL SKINS (BUILD #${BuildConfig.VERSION_CODE} LINEUP)").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("turret_skin_live_preview_stage").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("skin_preview_class_KINETIC_BALLISTIC").assertIsDisplayed()
         composeRule.onNodeWithTag("skin_preview_class_ELEMENTAL_VOID").assertIsDisplayed()
@@ -354,20 +356,24 @@ class Release041FeatureAndBalanceTest {
         composeRule.onNodeWithTag("skin_preview_class_STELLAR_COSMIC").assertIsDisplayed()
         composeRule.onNodeWithText("⬢ Heavy").assertIsDisplayed()
 
-        // Preview Crimson Vanguard without equipping yet, then equip via stage CTA
-        composeRule.onNodeWithTag("skin_preview_btn_b61_skin_2").performScrollTo().performClick()
+        val activeSkin2Id = BuildArchiveCatalog.buildActiveSkinId(2)
+        val activeSkin2Name = BuildArchiveCatalog.resolveTurretSkin(activeSkin2Id, 2).displayName
+        // Preview active build's Slot 2 skin without equipping yet, then equip via stage CTA
+        composeRule.onNodeWithTag("skin_preview_btn_$activeSkin2Id").performScrollTo().performClick()
         composeRule.waitForIdle()
         assertEquals(1, equippedSkinSlot)
-        composeRule.onNodeWithText("PREVIEW: Crimson Vanguard").assertIsDisplayed()
+        composeRule.onNodeWithText("PREVIEW: $activeSkin2Name").assertIsDisplayed()
         composeRule.onNodeWithTag("turret_skin_preview_equip_btn").performScrollTo().performClick()
         assertEquals(2, equippedSkinSlot)
 
-        // Preview Map Theme Glacial Schematic without equipping yet, then equip via stage CTA
+        val activeTheme3Id = BuildArchiveCatalog.buildActiveThemeId(3)
+        val activeTheme3Name = BuildArchiveCatalog.resolveMapTheme(activeTheme3Id, 3).displayName
+        // Preview active build's Slot 3 map theme without equipping yet, then equip via stage CTA
         composeRule.onNodeWithTag("map_theme_live_preview_stage").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithTag("theme_preview_btn_b61_theme_3").performScrollTo().performClick()
+        composeRule.onNodeWithTag("theme_preview_btn_$activeTheme3Id").performScrollTo().performClick()
         composeRule.waitForIdle()
         assertEquals(1, equippedThemeSlot)
-        composeRule.onNodeWithText("PREVIEW: Glacial Schematic").assertIsDisplayed()
+        composeRule.onNodeWithText("PREVIEW: $activeTheme3Name").assertIsDisplayed()
         composeRule.onNodeWithTag("map_theme_preview_equip_btn").performScrollTo().performClick()
         assertEquals(3, equippedThemeSlot)
     }
@@ -393,19 +399,23 @@ class Release041FeatureAndBalanceTest {
             )
         }
 
+        val activeTheme4Id = BuildArchiveCatalog.buildActiveThemeId(4)
+        val activeTheme4Name = BuildArchiveCatalog.resolveMapTheme(activeTheme4Id, 4).displayName
         composeRule.onNodeWithTag("vault_tab_MAP_THEMES").performScrollTo().performClick()
-        composeRule.onNodeWithTag("asset_vault_list").performScrollToNode(hasTestTag("vault_preview_b61_theme_4"))
-        composeRule.onNodeWithTag("vault_preview_b61_theme_4").performClick()
+        composeRule.onNodeWithTag("asset_vault_list").performScrollToNode(hasTestTag("vault_preview_$activeTheme4Id"))
+        composeRule.onNodeWithTag("vault_preview_$activeTheme4Id").performClick()
         composeRule.onNodeWithTag("vault_visual_preview_stage").assertIsDisplayed()
-        composeRule.onNodeWithText("PREVIEW: Astral Horizon").assertIsDisplayed()
+        composeRule.onNodeWithText("PREVIEW: $activeTheme4Name").assertIsDisplayed()
 
+        val activeSkin2Id = BuildArchiveCatalog.buildActiveSkinId(2)
+        val activeSkin2Name = BuildArchiveCatalog.resolveTurretSkin(activeSkin2Id, 2).displayName
         composeRule.onNodeWithTag("vault_tab_TURRET_SKINS").performScrollTo().performClick()
-        composeRule.onNodeWithTag("asset_vault_list").performScrollToNode(hasTestTag("vault_preview_b61_skin_2"))
+        composeRule.onNodeWithTag("asset_vault_list").performScrollToNode(hasTestTag("vault_preview_$activeSkin2Id"))
         composeRule.mainClock.autoAdvance = false
-        composeRule.onNodeWithTag("vault_preview_b61_skin_2").performClick()
+        composeRule.onNodeWithTag("vault_preview_$activeSkin2Id").performClick()
         composeRule.mainClock.advanceTimeByFrame()
         composeRule.onNodeWithTag("vault_visual_preview_stage").assertIsDisplayed()
-        composeRule.onNodeWithText("PREVIEW: Crimson Vanguard").assertIsDisplayed()
+        composeRule.onNodeWithText("PREVIEW: $activeSkin2Name").assertIsDisplayed()
         composeRule.onNodeWithText("⬢ Heavy").assertIsDisplayed()
 
         sm.release()

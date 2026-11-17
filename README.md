@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.041`):** [`apk/Dual-Front-TD-v0.0.1.041-debug.apk`](apk/Dual-Front-TD-v0.0.1.041-debug.apk)
+- **Latest Android APK (`v0.0.1.042`):** [`apk/Dual-Front-TD-v0.0.1.042-debug.apk`](apk/Dual-Front-TD-v0.0.1.042-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,21 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.041
+## 🕹️ What's New in Version 0.0.1.042
+
+### 🔄 Automatic Build-Driven Sound & Skin Generation (`versionCode = 63`)
+- **BuildConfig-Driven Asset Generation (`BuildArchiveVisualCatalog.kt`, `BuildArchiveCatalog.kt`, `ArchivedAudioSynthesizer.kt`):**
+  - Replaced hardcoded Build #61 identity with runtime `BuildConfig.VERSION_CODE` / `BuildConfig.VERSION_NAME`, automatically generating 4 brand-new deterministic variants (`Slot 2..5`) across **Turret Skins**, **Map & Lane Themes**, **BGM Tracks**, **SFX Packs**, **Turret Fire** (16 per-class sounds), and **Turret Upgrades** (16 per-class chimes) on every `versionCode` increment while keeping the Default Core (`Slot 1`) untouched.
+  - Preserved Build #61's curated skins, themes, and synth recipes intact under `b61_*` and generalized procedural HSV/style and parametric WAV synthesis for Build #62, #63 (`v0.0.1.042`), and every future build.
+- **Multi-Build Vault Archives & Dynamic Playback (`SoundArchiveStore.kt`, `SoundManager.kt`, `MusicAndPreviewPlayer.kt`, `AssetVaultDialog.kt`, `AssetVaultCoordinator.kt`):**
+  - Automatically archives all prior builds (`60 until CURRENT_BUILD_CODE`, plus `Pre-Build #60`) into the Vault's **Archives** tab with per-build badges, keeping every archived sound, skin, and map theme previewable and equippable (`SoundPool` dynamic preload + upgrade-pair resolution).
+  - Updated `AudioVisualCustomizationPanel.kt` headers, rolling BGM playlist resolution, and selection highlights dynamically to the active build, with `252/252` unit tests passing (including consecutive simulated build `62/63/64` tests).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.041
 
 ### ⚛️ Singularity Remap, Synergy HUD & Skin Previews, Speed/Economy Balance & Tower Polish (`versionCode = 62`)
 - **Bullet HUD Synergies (`HudSynergyCapsule.kt`, `HudTelemetryPopup.kt`, `TowerUpgradeManager.kt`, `HudTopBar.kt`):**
@@ -37,8 +51,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Added Tier-4 aura pulsing and upgraded layered geometry to `KINETIC_BALLISTIC` across all 5 draw styles, switched `HEAVY_SIEGE` visuals and silhouettes to **Hexagon (`⬢`)** while preserving `EnemyShape.SQUARE` combat interactions, and added a glowing perimeter outline and subtle fade pulse to unoccupied blank buildable pads (`250/250` unit tests passing).
 
 ---
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.040
 

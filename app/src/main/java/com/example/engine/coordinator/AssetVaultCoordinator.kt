@@ -161,8 +161,8 @@ class AssetVaultCoordinator(
             effectiveSection == ArchiveSection.TURRET_SKIN.id || effectiveSection == ArchiveSection.TURRET_UPGRADE.id -> {
                 val resolvedSkinId = if (effectiveSection == ArchiveSection.TURRET_SKIN.id) {
                     asset.id
-                } else if (asset.isArchived && asset.buildCode == 60) {
-                    "b60_skin_$slot"
+                } else if (asset.isArchived && asset.buildCode >= 60) {
+                    if (slot == 1 && asset.buildCode >= 61) "default_skin_1" else "b${asset.buildCode}_skin_$slot"
                 } else {
                     BuildArchiveCatalog.buildActiveSkinId(slot)
                 }

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.audio.BuildArchiveCatalog
 import com.example.audio.BuildArchiveVisualCatalog
+import com.example.audio.CURRENT_BUILD_CODE
 import com.example.audio.MusicTrack
 import com.example.audio.SoundProfile
 import com.example.model.MapThemeDef
@@ -717,10 +718,10 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("MUSIC STREAMING & PLAYLIST (BUILD #61)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                Text("MUSIC STREAMING & PLAYLIST (BUILD #$CURRENT_BUILD_CODE)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
                 Text("Dynamic combat ducking automatically drops BGM during turret firing.", color = Color(0xFF94A3B8), fontSize = 9.sp)
 
-                BuildArchiveCatalog.build61BgmTracks.forEach { trackDef ->
+                BuildArchiveCatalog.activeBgmTracks.forEach { trackDef ->
                     val isSel = (state.musicTrack != MusicTrack.NONE && state.bgmTrackId == trackDef.id)
                     val label = if (trackDef.isRollingPlaylist) "🔁 ${trackDef.displayName}" else trackDef.displayName
                     MusicOptionRow(
@@ -756,7 +757,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFF00F0FF),
                     darkTextOnSelected = true,
                     selectedSlot = state.kineticSfxSlot,
-                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.KINETIC_BALLISTIC, it) },
+                    slotLabelFor = { BuildArchiveCatalog.getActiveFireShortLabel(TowerClass.KINETIC_BALLISTIC, it) },
                     onSelectAndTest = { slot ->
                         onKineticSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.KINETIC_BALLISTIC, slot)
@@ -768,7 +769,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFD946EF),
                     darkTextOnSelected = false,
                     selectedSlot = state.elementalSfxSlot,
-                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.ELEMENTAL_VOID, it) },
+                    slotLabelFor = { BuildArchiveCatalog.getActiveFireShortLabel(TowerClass.ELEMENTAL_VOID, it) },
                     onSelectAndTest = { slot ->
                         onElementalSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.ELEMENTAL_VOID, slot)
@@ -780,7 +781,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFFFB800),
                     darkTextOnSelected = true,
                     selectedSlot = state.siegeSfxSlot,
-                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.HEAVY_SIEGE, it) },
+                    slotLabelFor = { BuildArchiveCatalog.getActiveFireShortLabel(TowerClass.HEAVY_SIEGE, it) },
                     onSelectAndTest = { slot ->
                         onSiegeSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.HEAVY_SIEGE, slot)
@@ -792,7 +793,7 @@ internal fun AudioVisualCustomizationPanel(
                     accentColor = Color(0xFFFFD700),
                     darkTextOnSelected = true,
                     selectedSlot = state.stellarSfxSlot,
-                    slotLabelFor = { BuildArchiveCatalog.getBuild61FireShortLabel(TowerClass.STELLAR_COSMIC, it) },
+                    slotLabelFor = { BuildArchiveCatalog.getActiveFireShortLabel(TowerClass.STELLAR_COSMIC, it) },
                     onSelectAndTest = { slot ->
                         onStellarSfxSlotSelected(slot)
                         onPlayTurretTestSound(TowerClass.STELLAR_COSMIC, slot)
@@ -882,7 +883,7 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("TURRET VISUAL SKINS (BUILD #61 LINEUP)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                Text("TURRET VISUAL SKINS (BUILD #$CURRENT_BUILD_CODE LINEUP)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
                 Text("Tap PREVIEW to inspect all 4 classes or tap a row to equip immediately.", color = Color(0xFF94A3B8), fontSize = 8.5.sp)
 
                 TurretSkinMultiClassPreviewStage(
@@ -892,9 +893,9 @@ internal fun AudioVisualCustomizationPanel(
                     animateAuraPulse = animateSkinPreviewPulse
                 )
 
-                BuildArchiveVisualCatalog.build61TurretSkins.forEach { skin ->
+                BuildArchiveVisualCatalog.activeTurretSkins.forEach { skin ->
                     val isSel = (state.turretSkinId == skin.id) ||
-                        (state.turretSkinSlot == skin.slotIndex && !state.turretSkinId.startsWith("b60_") && !state.turretSkinId.startsWith("pre60_"))
+                        (state.turretSkinSlot == skin.slotIndex && !BuildArchiveCatalog.isArchivedAssetId(state.turretSkinId))
                     val isPreviewing = (previewSkinDef.id == skin.id)
                     Surface(
                         color = when {
@@ -989,7 +990,7 @@ internal fun AudioVisualCustomizationPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("MAP & LANE ENVIRONMENT THEMES (BUILD #61 LINEUP)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
+                Text("MAP & LANE ENVIRONMENT THEMES (BUILD #$CURRENT_BUILD_CODE LINEUP)", color = Color(0xFF00F0FF), fontWeight = FontWeight.Black, fontSize = 11.sp)
                 Text("Preview lane conduits, grid contrast, and terrain palette live.", color = Color(0xFF94A3B8), fontSize = 8.5.sp)
 
                 MapThemeLivePreviewStage(
@@ -998,9 +999,9 @@ internal fun AudioVisualCustomizationPanel(
                     onEquipClick = { onMapThemeSlotSelected(previewThemeDef.slotIndex) }
                 )
 
-                BuildArchiveVisualCatalog.build61MapThemes.forEach { theme ->
+                BuildArchiveVisualCatalog.activeMapThemes.forEach { theme ->
                     val isSel = (state.mapThemeId == theme.id) ||
-                        (state.mapThemeSlot == theme.slotIndex && !state.mapThemeId.startsWith("b60_") && !state.mapThemeId.startsWith("pre60_"))
+                        (state.mapThemeSlot == theme.slotIndex && !BuildArchiveCatalog.isArchivedAssetId(state.mapThemeId))
                     val isPreviewing = (previewThemeDef.id == theme.id)
                     Surface(
                         color = when {

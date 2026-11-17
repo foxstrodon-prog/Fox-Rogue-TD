@@ -183,10 +183,15 @@ internal class SoundAssetLibraryController(
                 ?: BuildArchiveCatalog.buildActiveSkinId(equippedTurretSkinSlot)
             equippedTurretSkinId = resolvedSkinId
 
+            val skinBuildCode = BuildArchiveCatalog.extractBuildCodeFromId(resolvedSkinId)
             for (c in 0..3) {
                 equippedUpgradeSlotByClass[c] = equippedTurretSkinSlot
-                equippedUpgradeIdByClass[c] = if (resolvedSkinId.startsWith("b60_")) {
-                    "b60_upgrade_${BuildArchiveCatalog.allClasses[c].name.lowercase()}_$equippedTurretSkinSlot"
+                equippedUpgradeIdByClass[c] = if (skinBuildCode != null && skinBuildCode in B60_BUILD_CODE until CURRENT_BUILD_CODE) {
+                    if (equippedTurretSkinSlot == 1 && skinBuildCode >= B61_BUILD_CODE) {
+                        "default_upgrade_${BuildArchiveCatalog.allClasses[c].name.lowercase()}"
+                    } else {
+                        "b${skinBuildCode}_upgrade_${BuildArchiveCatalog.allClasses[c].name.lowercase()}_$equippedTurretSkinSlot"
+                    }
                 } else {
                     BuildArchiveCatalog.buildActiveUpgradeId(BuildArchiveCatalog.allClasses[c], equippedTurretSkinSlot)
                 }

@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.041
+### 🚀 What's New in Version 0.0.1.042
+
+🔄 **Automatic Build-Driven Sound & Skin Generation + Multi-Build Archives**
+- **4 Fresh Variants Every Build:** Every `versionCode` increment (`Build #63 / v0.0.1.042` and beyond) now automatically generates 4 new Turret Skins, 4 Map & Lane Themes, 4 BGM Tracks, 4 SFX Packs, 16 per-class Turret Fire sounds, and 16 Turret Upgrade chimes while keeping your Default Core untouched.
+- **Automatic Multi-Build Archives:** Previous releases (`Build #60`, curated `Build #61`, `Build #62`, and beyond) automatically move into the Sound & Skin Vault's **Archives** tab with build badges and full live audio/skin preview, equip, and rating support.
+- **Dynamic Customization & Rolling Playlist:** Audio & Visual Customization headers, rolling BGM playlists, and `SoundPool` preloading now track the active build dynamically (`252/252` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.041
 
 ⚛️ **Singularity Remaps, Synergy HUD & Skin Previews, Balance Overhaul & Hexagon Siege**
 - **Bullet HUD Synergies & Singularity Tracking:** The synergy pill now counts duplicate tower sources, splits Active Board Synergies from the Singularity Tower's vaulted stacks in a dedicated secondary section, and scrolls cleanly across all 4 screen rotations.
@@ -13,8 +24,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Faster 1X Pace & Rebalanced Difficulty:** Increased baseline `1X` game speed (`1.85x`) with anti-tunneling sub-stepping, curbed late-game scrap inflation, and steepened Easy/Medium/Hard scaling while updating Kinetic Tier-4 aura pulses, Heavy Siege Hexagon (`⬢`) silhouettes, and glowing blank buildable pads (`250/250` unit tests passing).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.040
 
