@@ -4,7 +4,18 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.042
+### 🚀 What's New in Version 0.0.1.043
+
+⚡ **Speed-Invariant 10X Simulation, Smoother Loaded-Board Pacing & New Build #64 Variants**
+- **True `10X` Speed Parity:** Replaced coarse simulation sub-stepping and spawn-timer drift with a fixed `20ms` physics accumulator and remainder-preserving wave spawner, ensuring `10X` maintains the exact same wave density and combat difficulty as `1X` even on tower-loaded boards.
+- **Smoother High-Speed Frame Pacing:** Batched Compose state updates once per rendered frame and subtracted simulation compute time from frame sleep, eliminating UI stutter at `10X`.
+- **4 Fresh Build #64 Variants + Build #63 Archived:** Automatically adds 4 new Turret Skins, Map Themes, BGM Tracks, SFX Packs, and 32 per-class Fire/Upgrade sounds while archiving Build #63 (`255/255` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.042
 
 🔄 **Automatic Build-Driven Sound & Skin Generation + Multi-Build Archives**
 - **4 Fresh Variants Every Build:** Every `versionCode` increment (`Build #63 / v0.0.1.042` and beyond) now automatically generates 4 new Turret Skins, 4 Map & Lane Themes, 4 BGM Tracks, 4 SFX Packs, 16 per-class Turret Fire sounds, and 16 Turret Upgrade chimes while keeping your Default Core untouched.
@@ -12,8 +23,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Dynamic Customization & Rolling Playlist:** Audio & Visual Customization headers, rolling BGM playlists, and `SoundPool` preloading now track the active build dynamically (`252/252` unit tests passing).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.041
 

@@ -50,7 +50,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
         with:
-          cache-read-only: false
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Determine Version Tag & Release Mode
         id: version_step
@@ -93,14 +93,18 @@ jobs:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
-        run: ./gradlew testDebugUnitTest
+        run: |
+          ./gradlew testDebugUnitTest --no-configuration-cache || {
+            echo "Initial Gradle test run failed; retrying with --refresh-dependencies..."
+            ./gradlew testDebugUnitTest --no-configuration-cache --refresh-dependencies
+          }
 
       - name: Assemble Debug APK
         env:
           LEADERBOARD_PROJECT_ID: ${{ secrets.LEADERBOARD_PROJECT_ID }}
           LEADERBOARD_COLLECTION: ${{ secrets.LEADERBOARD_COLLECTION }}
           LEADERBOARD_API_KEY: ${{ secrets.LEADERBOARD_API_KEY }}
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-configuration-cache
 
       - name: Stage Release Binaries
         run: |

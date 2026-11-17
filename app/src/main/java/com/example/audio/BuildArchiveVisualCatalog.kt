@@ -29,6 +29,7 @@ internal fun buildLabelFor(buildCode: Int): String = when (buildCode) {
     B60_BUILD_CODE -> B60_BUILD_LABEL
     B61_BUILD_CODE -> B61_BUILD_LABEL
     62 -> "Build #62 (v0.0.1.041)"
+    63 -> "Build #63 (v0.0.1.042)"
     CURRENT_BUILD_CODE -> CURRENT_BUILD_LABEL
     else -> "Build #$buildCode"
 }

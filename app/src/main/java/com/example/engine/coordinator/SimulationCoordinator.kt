@@ -62,6 +62,11 @@ class SimulationCoordinator(
     private var cachedSynergies: List<GlobalAuraSynergy> = emptyList()
     private var cachedBoardSynergies: List<GlobalAuraSynergy> = emptyList()
 
+    private var unpublishedBatchState: GameUIState? = null
+    private var batchScrapDelta: Int = 0
+    private var batchKillsDelta: Int = 0
+    private var batchDamageDelta: Float = 0f
+
     fun resetVirtualTime() {
         virtualSimTimeMs = 0L
         isSynergyCacheDirty = true
@@ -70,6 +75,10 @@ class SimulationCoordinator(
         cachedLevelForTiles = null
         tileByPos.clear()
         cachedBoostedTilesExist = false
+        unpublishedBatchState = null
+        batchScrapDelta = 0
+        batchKillsDelta = 0
+        batchDamageDelta = 0f
     }
 
     private fun ensureLevelCache(level: GeneratedLevel) {
@@ -89,16 +98,33 @@ class SimulationCoordinator(
         cachedCorePos = corePos
     }
 
-    private fun queueFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean = false) {
+    private fun queueFloatingText(
+        x: Float,
+        y: Float,
+        text: String,
+        color: Long,
+        isCrit: Boolean = false,
+        important: Boolean = false
+    ) {
+        if (!important && !isCrit && scratchNewFloatingTexts.size >= 24) return
         scratchNewFloatingTexts.add(FloatingText(id = nextId("ft_"), x = x, y = y, text = text, color = color, isCrit = isCrit))
     }
 
-    fun tickSimulation(deltaSec: Float, deltaMs: Long, nowMs: Long = System.currentTimeMillis()) {
+    fun tickSimulation(
+        deltaSec: Float,
+        deltaMs: Long,
+        nowMs: Long = System.currentTimeMillis(),
+        publishUiState: Boolean = true
+    ) {
         virtualSimTimeMs += deltaMs
-        var state = uiStateFlow.value
+        var state = unpublishedBatchState ?: uiStateFlow.value
         var level = state.level ?: return
         if (state.activeCinematic != null) {
             if (!cinematicController.processFrame(state.activeCinematic, state)) return
+            unpublishedBatchState = null
+            batchScrapDelta = 0
+            batchKillsDelta = 0
+            batchDamageDelta = 0f
             state = uiStateFlow.value
             level = state.level ?: return
         }
@@ -184,7 +210,7 @@ class SimulationCoordinator(
         if (coreDamageTaken > 0) {
             newCoreHp = maxOf(0, state.coreHp - coreDamageTaken); shake = 1.0f
             val corePos = cachedCorePos
-            queueFloatingText(corePos.x.toFloat(), corePos.y.toFloat(), "-$coreDamageTaken BREACH!", 0xFFFF2A55, false)
+            queueFloatingText(corePos.x.toFloat(), corePos.y.toFloat(), "-$coreDamageTaken BREACH!", 0xFFFF2A55, isCrit = false, important = true)
             if (!state.isGameOver && newCoreHp <= 0) {
                 gameOver = true
                 triggeredNewBreachLoss = true
@@ -370,7 +396,10 @@ class SimulationCoordinator(
             if (remLife > 0) { ft.lifeMs = remLife; ft.y -= (deltaSec * 0.7f); updatedFloatingTexts.add(ft) }
         }
         for (i in scratchNewFloatingTexts.indices) {
-            updatedFloatingTexts.add(scratchNewFloatingTexts[i])
+            val ft = scratchNewFloatingTexts[i]
+            if (updatedFloatingTexts.size < 48 || ft.isCrit) {
+                updatedFloatingTexts.add(ft)
+            }
         }
 
         val synergies: List<GlobalAuraSynergy>
@@ -386,8 +415,42 @@ class SimulationCoordinator(
             synergies = cachedSynergies
         }
 
-        uiStateFlow.update { prev ->
-            prev.copy(
+        batchScrapDelta += scrapGained
+        batchKillsDelta += killsGained
+        batchDamageDelta += frameDamageDealt
+
+        val autoCallReady = !waveEval.isWaveActive && state.autoCallNextWave && !gameOver && !waveEval.isVictory
+        val shouldPublish = publishUiState || triggeredNewBreachLoss || triggeredNewVictory || autoCallReady
+
+        if (shouldPublish) {
+            val pubScrap = batchScrapDelta
+            val pubKills = batchKillsDelta
+            val pubDamage = batchDamageDelta
+            batchScrapDelta = 0
+            batchKillsDelta = 0
+            batchDamageDelta = 0f
+            unpublishedBatchState = null
+
+            uiStateFlow.update { prev ->
+                prev.copy(
+                    enemies = remainingAlive, projectiles = survivingProjectiles,
+                    laserBeams = newBeams, lightningArcs = newArcs, explosions = newExplosions,
+                    floatingTexts = updatedFloatingTexts, trackParticles = updatedParticles,
+                    activeGlobalSynergies = synergies, activeBoardSynergies = boardSynergies,
+                    harmonicGridActive = isHarmonicActive,
+                    harmonicPadsCount = harmonicCount, harmonicGridDamageBoost = remoteHarmonicDmgBoost,
+                    globalRangeBonus = globalRangeBonus, globalFrostSlowBonus = globalSlowBonus,
+                    animTimeMs = nowMs, coreHp = newCoreHp,
+                    scrap = prev.scrap + pubScrap, totalScrapEarned = prev.totalScrapEarned + pubScrap,
+                    totalKills = prev.totalKills + pubKills, totalDamageDealt = prev.totalDamageDealt + pubDamage,
+                    isGameOver = gameOver, isVictory = waveEval.isVictory,
+                    isWaveActive = waveEval.isWaveActive, waveNumber = waveEval.waveNumber,
+                    screenShakeIntensity = shake, overchargeRemainingMs = newOvercharge,
+                    bestWaveRecord = maxOf(prev.bestWaveRecord, waveEval.waveNumber)
+                )
+            }
+        } else {
+            unpublishedBatchState = state.copy(
                 enemies = remainingAlive, projectiles = survivingProjectiles,
                 laserBeams = newBeams, lightningArcs = newArcs, explosions = newExplosions,
                 floatingTexts = updatedFloatingTexts, trackParticles = updatedParticles,
@@ -396,12 +459,12 @@ class SimulationCoordinator(
                 harmonicPadsCount = harmonicCount, harmonicGridDamageBoost = remoteHarmonicDmgBoost,
                 globalRangeBonus = globalRangeBonus, globalFrostSlowBonus = globalSlowBonus,
                 animTimeMs = nowMs, coreHp = newCoreHp,
-                scrap = prev.scrap + scrapGained, totalScrapEarned = prev.totalScrapEarned + scrapGained,
-                totalKills = prev.totalKills + killsGained, totalDamageDealt = prev.totalDamageDealt + frameDamageDealt,
+                scrap = state.scrap + scrapGained, totalScrapEarned = state.totalScrapEarned + scrapGained,
+                totalKills = state.totalKills + killsGained, totalDamageDealt = state.totalDamageDealt + frameDamageDealt,
                 isGameOver = gameOver, isVictory = waveEval.isVictory,
                 isWaveActive = waveEval.isWaveActive, waveNumber = waveEval.waveNumber,
                 screenShakeIntensity = shake, overchargeRemainingMs = newOvercharge,
-                bestWaveRecord = maxOf(prev.bestWaveRecord, waveEval.waveNumber)
+                bestWaveRecord = maxOf(state.bestWaveRecord, waveEval.waveNumber)
             )
         }
 
@@ -409,7 +472,7 @@ class SimulationCoordinator(
             onRecordRunCompletion(false, state.waveNumber - 1)
         } else if (triggeredNewVictory) {
             onRecordRunCompletion(true, waveEval.waveNumber)
-        } else if (!waveEval.isWaveActive && state.autoCallNextWave && !gameOver && !waveEval.isVictory) {
+        } else if (autoCallReady) {
             waveCoordinator.deployWave()
         }
     }

@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.042`):** [`apk/Dual-Front-TD-v0.0.1.042-debug.apk`](apk/Dual-Front-TD-v0.0.1.042-debug.apk)
+- **Latest Android APK (`v0.0.1.043`):** [`apk/Dual-Front-TD-v0.0.1.043-debug.apk`](apk/Dual-Front-TD-v0.0.1.043-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,21 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.042
+## 🕹️ What's New in Version 0.0.1.043
+
+### ⚡ Speed-Invariant 10X Simulation & CI Plugin Cache Hardening (`versionCode = 64`)
+- **Fixed-Timestep Accumulator & Batched UI Publication (`RogueTDViewModel.kt`, `SimulationCoordinator.kt`):**
+  - Replaced coarse variable sub-stepping (`MAX_PHYSICS_SUBSTEPS = 8`) with a deterministic fixed `20ms` (`0.020f` s) physics accumulator (`MAX_PHYSICS_SUBSTEPS = 48`), frame-budget sleep pacing (`16L - workMs`), and per-frame batched `publishUiState` updates so `10X` scales smoothly without bloated physics steps or 8×–48× redundant Compose snapshots on loaded tower boards.
+- **Remainder-Preserving Wave Spawner (`WaveProgressionCoordinator.kt`):**
+  - Replaced single-spawn-per-substep `if` logic with a remainder-preserving `while` loop (`nextSpawnTimeMs += nextDelay`), eliminating high-speed spawn-timer drift so `1X` and `10X` maintain identical enemy density and combat parity (`SpeedScalingInvarianceTest.kt`).
+- **CI / Gradle Release Pipeline Hardening (`.github/workflows/release.yml`, `settings.gradle.kts`, `gradle/libs.versions.toml`):**
+  - Scoped `setup-gradle@v5` cache writes to `main`, disabled CI configuration-cache storage on transient failures (`--no-configuration-cache`), added a `--refresh-dependencies` retry fallback, prioritized `gradlePluginPortal()` ahead of `mavenCentral()`, and bumped AGP to stable `9.5.1` (`255/255` unit tests passing, plus 4 new Build #64 procedural audio/skin variants).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.042
 
 ### 🔄 Automatic Build-Driven Sound & Skin Generation (`versionCode = 63`)
 - **BuildConfig-Driven Asset Generation (`BuildArchiveVisualCatalog.kt`, `BuildArchiveCatalog.kt`, `ArchivedAudioSynthesizer.kt`):**
@@ -33,8 +47,6 @@ Created by an indie developer who just loves tower defense games and wanted to b
   - Updated `AudioVisualCustomizationPanel.kt` headers, rolling BGM playlist resolution, and selection highlights dynamically to the active build, with `252/252` unit tests passing (including consecutive simulated build `62/63/64` tests).
 
 ---
-
-## 🕹️ Previous Releases
 
 ### Version 0.0.1.041
 

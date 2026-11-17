@@ -86,6 +86,7 @@ class WaveProgressionCoordinator(
 
     /**
      * Ticks dual-lane spawn timer and appends ready enemies to [targetEnemies] in-place without intermediate lists.
+     * Uses a remainder-preserving while loop so spawn cadence stays strictly invariant across 1X..10X speeds.
      */
     fun tickWaveSpawning(
         state: GameUIState,
@@ -96,9 +97,9 @@ class WaveProgressionCoordinator(
         if (!state.isWaveActive || (pendingSpawns.isEmpty() && redispatchEnemies.isEmpty())) return
 
         nextSpawnTimeMs -= deltaMs
-        if (nextSpawnTimeMs <= 0L) {
+        while (nextSpawnTimeMs <= 0L && (pendingSpawns.isNotEmpty() || redispatchEnemies.isNotEmpty())) {
             waveHasStartedSpawning = true
-            if (redispatchEnemies.isNotEmpty()) {
+            val nextDelay = if (redispatchEnemies.isNotEmpty()) {
                 val recycled = redispatchEnemies.removeAt(0)
                 val path = if (recycled.laneIndex == 0) level.laneAlpha else level.laneBeta
                 val start = path.first()
@@ -111,7 +112,7 @@ class WaveProgressionCoordinator(
                 recycled.headingRad = 0f
                 targetEnemies.add(recycled)
 
-                nextSpawnTimeMs = when {
+                when {
                     redispatchEnemies.isNotEmpty() -> if (recycled.isBoss) 750L else 380L
                     pendingSpawns.isNotEmpty() -> pendingSpawns[0].delayMs
                     else -> 0L
@@ -140,7 +141,13 @@ class WaveProgressionCoordinator(
                 )
                 targetEnemies.add(newEnemy)
 
-                nextSpawnTimeMs = if (pendingSpawns.isNotEmpty()) pendingSpawns[0].delayMs else 0L
+                if (pendingSpawns.isNotEmpty()) pendingSpawns[0].delayMs else 0L
+            }
+
+            if (pendingSpawns.isEmpty() && redispatchEnemies.isEmpty()) {
+                nextSpawnTimeMs = 0L
+            } else {
+                nextSpawnTimeMs += nextDelay
             }
         }
     }

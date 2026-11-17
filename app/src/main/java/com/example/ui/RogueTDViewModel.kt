@@ -110,9 +110,12 @@ class RogueTDViewModel @JvmOverloads constructor(
     companion object {
         /** Global simulation baseline pace boost so 1X plays at ~1.85x prior baseline speed. */
         const val BASE_SIM_SPEED_MULTIPLIER = 1.85f
-        private const val MAX_PHYSICS_SUBSTEP_SEC = 0.035f
-        private const val MAX_PHYSICS_SUBSTEPS = 8
+        const val FIXED_SIM_STEP_SEC = 0.020f
+        const val FIXED_SIM_STEP_MS = 20L
+        private const val MAX_PHYSICS_SUBSTEPS = 48
     }
+
+    private var simAccumulatorSec: Float = 0f
 
     val placementCoordinator = TowerPlacementCoordinator(
         uiStateFlow = _uiState, soundManager = soundManager, telemetryManager = telemetryManager,
@@ -580,6 +583,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
 
         waveCoordinator.clearPendingSpawns()
+        simAccumulatorSec = 0f
         startGameLoop()
     }
 
@@ -587,7 +591,8 @@ class RogueTDViewModel @JvmOverloads constructor(
         gameLoopJob = viewModelScope.launch {
             var lastTime = System.currentTimeMillis()
             while (isActive) {
-                val now = System.currentTimeMillis()
+                val frameStartMs = System.currentTimeMillis()
+                val now = frameStartMs
                 val deltaMs = (now - lastTime).coerceAtMost(50L)
                 lastTime = now
                 soundManager.updateTick(now, deltaMs)
@@ -609,24 +614,36 @@ class RogueTDViewModel @JvmOverloads constructor(
                 val speed = _uiState.value.gameSpeed.multiplier
                 if (speed > 0f && !_uiState.value.isGameOver && !_uiState.value.isVictory && !isInternalDialogActive()) {
                     val effectiveSpeed = speed * BASE_SIM_SPEED_MULTIPLIER
-                    val totalSimSec = (deltaMs / 1000f) * effectiveSpeed
-                    val totalSimMs = (deltaMs * effectiveSpeed).toLong().coerceAtLeast(1L)
-                    val steps = kotlin.math.ceil((totalSimSec / MAX_PHYSICS_SUBSTEP_SEC).toDouble())
-                        .toInt()
-                        .coerceIn(1, MAX_PHYSICS_SUBSTEPS)
-                    val stepSec = totalSimSec / steps
-                    val baseStepMs = totalSimMs / steps
-                    val remMs = totalSimMs % steps
-                    for (stepIdx in 0 until steps) {
-                        val s = _uiState.value
-                        if (s.isGameOver || s.isVictory || isInternalDialogActive()) break
-                        val stepMs = baseStepMs + if (stepIdx < remMs) 1L else 0L
-                        simulationCoordinator.tickSimulation(stepSec, stepMs, now)
+                    simAccumulatorSec += (deltaMs / 1000f) * effectiveSpeed
+                    val desiredSteps = (simAccumulatorSec / FIXED_SIM_STEP_SEC).toInt()
+                    val steps = desiredSteps.coerceAtMost(MAX_PHYSICS_SUBSTEPS)
+                    if (steps > 0) {
+                        simAccumulatorSec -= steps * FIXED_SIM_STEP_SEC
+                        if (desiredSteps > MAX_PHYSICS_SUBSTEPS) {
+                            simAccumulatorSec = simAccumulatorSec.coerceAtMost(FIXED_SIM_STEP_SEC * 2f)
+                        }
+                        for (stepIdx in 0 until steps) {
+                            val s = _uiState.value
+                            if (s.isGameOver || s.isVictory || isInternalDialogActive()) {
+                                simAccumulatorSec = 0f
+                                break
+                            }
+                            simulationCoordinator.tickSimulation(
+                                deltaSec = FIXED_SIM_STEP_SEC,
+                                deltaMs = FIXED_SIM_STEP_MS,
+                                nowMs = now,
+                                publishUiState = (stepIdx == steps - 1)
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(animTimeMs = now) }
                     }
                 } else {
+                    simAccumulatorSec = 0f
                     _uiState.update { it.copy(animTimeMs = now) }
                 }
-                delay(16)
+                val workMs = System.currentTimeMillis() - frameStartMs
+                delay((16L - workMs).coerceAtLeast(1L))
             }
         }
     }
