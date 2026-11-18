@@ -88,6 +88,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     private var runSessionId: Long = 0L
     private var gameLoopJob: Job? = null
     private var lastRecordRunJob: Job? = null
+    private var lastSetPlayerNameJob: Job? = null
     private var updateDismissedForSession: Boolean = false
 
     // Domain Coordinators (Task D-01)
@@ -272,10 +273,11 @@ class RogueTDViewModel @JvmOverloads constructor(
 
     fun refreshTelemetry() {
         val activeName = telemetryManager.getActivePlayerName()
+        val persistedLastRun = telemetryManager.getLastRun()
         _uiState.update {
             it.copy(
                 activePlayerName = activeName,
-                lastRunRecord = telemetryManager.getLastRun(),
+                lastRunRecord = persistedLastRun ?: it.lastRunRecord,
                 playerLifetimeTelemetry = telemetryManager.getLifetimeTelemetryForPlayer(activeName),
                 leaderboard = telemetryManager.getLeaderboard(),
                 lifetimeTelemetry = telemetryManager.getLifetimeTelemetry(),
@@ -444,16 +446,23 @@ class RogueTDViewModel @JvmOverloads constructor(
     }
 
     private fun createInitialTrackParticles(laneAlpha: List<GridPos>, laneBeta: List<GridPos>): List<TrackParticle> {
-        val particles = ArrayList<TrackParticle>(12)
-        for (i in 0 until 12) {
+        val totalCount = 24
+        val particles = ArrayList<TrackParticle>(totalCount)
+        for (i in 0 until totalCount) {
             val lane = i % 2
+            val laneIdx = i / 2
             val path = if (lane == 0) laneAlpha else laneBeta
-            val maxSeg = (path.size - 2).coerceAtLeast(0)
+            val segCount = (path.size - 1).coerceAtLeast(1)
+            val segIdx = ((laneIdx * segCount) / 12).coerceIn(0, (segCount - 1).coerceAtLeast(0))
             particles.add(
                 TrackParticle(
-                    id = "tp_$i", laneIndex = lane, segmentIndex = (i * 2) % (maxSeg + 1),
-                    progress = (i * 0.15f) % 1.0f, speed = 0.8f + (i % 3) * 0.2f,
-                    color = if (lane == 0) 0xFF00F0FF else 0xFFFFB800, size = 2.5f + (i % 2) * 1.5f
+                    id = "tp_$i",
+                    laneIndex = lane,
+                    segmentIndex = segIdx,
+                    progress = ((laneIdx * 0.23f) + lane * 0.11f) % 1.0f,
+                    speed = 0.85f + (i % 3) * 0.20f,
+                    color = if (lane == 0) 0xFF00F0FF else 0xFFFFB800,
+                    size = 2.5f + (i % 2) * 1.5f
                 )
             )
         }
@@ -578,7 +587,8 @@ class RogueTDViewModel @JvmOverloads constructor(
                 isWaveActive = false, gameSpeed = GameSpeed.NORMAL, selectedTile = null, selectedTower = null, lastSelectedTowerId = null,
                 isGameOver = false, isVictory = false, totalKills = 0, totalScrapEarned = prev.balanceConfig.startingScrap,
                 totalDamageDealt = 0f, screenShakeIntensity = 0f, autoCallNextWave = false, overchargeRemainingMs = 0L,
-                isTelemetryOpen = false, isSettingsOpen = false, isPauseMenuOpen = false, isAssetVaultOpen = false, hasClickedFirstTile = false
+                isTelemetryOpen = false, isSettingsOpen = false, isPauseMenuOpen = false, isAssetVaultOpen = false, hasClickedFirstTile = false,
+                collapseWaves = emptyList(), fatalEnemyType = "None"
             )
         }
 
@@ -688,12 +698,30 @@ class RogueTDViewModel @JvmOverloads constructor(
         val mvp = state.towers.maxByOrNull { it.totalDamage }?.let { it.archetype?.displayName ?: it.type.displayName } ?: "Vulcan Minigun"
         val playerName = telemetryManager.getActivePlayerName()
         val isDev = devTunedThisRun || state.balanceConfig.isGameplayModified()
+        val totalCollapses = maxOf(
+            state.collapseWaves.size,
+            state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
+        )
+        val uniqueAurasBanked = state.towers
+            .filter { it.isCapstone }
+            .flatMap { it.synergyVault }
+            .flatMap { it.synergies }
+            .map { it.auraName }
+            .distinct()
+            .size
+        val fatalType = if (isVictory) "None" else state.fatalEnemyType
+
         val record = RunRecord(
             id = UUID.randomUUID().toString(), seed = state.seed,
             sectorName = state.level?.biome?.name ?: "Sector Zero", playerName = playerName,
             wavesCleared = waves, enemiesKilled = state.totalKills, totalDamage = state.totalDamageDealt,
             scrapEarned = state.totalScrapEarned, ascendedTowersCount = state.towers.count { it.isAscended },
-            mvpTower = mvp, isVictory = isVictory, timestamp = System.currentTimeMillis(), isDevTuned = isDev
+            mvpTower = mvp, isVictory = isVictory, timestamp = System.currentTimeMillis(), isDevTuned = isDev,
+            totalCollapses = totalCollapses,
+            unspentGoldAtEnd = state.scrap,
+            uniqueAurasBanked = uniqueAurasBanked,
+            fatalEnemyType = fatalType,
+            collapseWaves = state.collapseWaves
         )
 
         if (!isVictory) {
@@ -721,7 +749,19 @@ class RogueTDViewModel @JvmOverloads constructor(
                 userId = uid,
                 isCurrentRun = (completionSessionId == runSessionId)
             )
-            leaderboardRepository.fetchLeaderboard(forceRefresh = true)
+            // Fire-and-forget whole-run balance telemetry upload using leaderboardRepository.api
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching<Unit> {
+                    val idToken = authRepository.getCachedIdTokenIfValid()
+                    leaderboardRepository.api.submitRunTelemetry(
+                        record = recordToSave,
+                        difficultyId = state.difficulty.id,
+                        towerPerf = telemetryManager.getTowerPerformance(),
+                        idToken = idToken
+                    )
+                }
+                leaderboardRepository.fetchLeaderboard(forceRefresh = true)
+            }
         }
     }
 
@@ -729,13 +769,15 @@ class RogueTDViewModel @JvmOverloads constructor(
         val trimmed = name.trim()
         telemetryManager.updateLastRunPlayerName(trimmed)
         refreshTelemetry()
-        val lastRunId = _uiState.value.lastRunRecord?.id
-        val sanitizedCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
-        if (!lastRunId.isNullOrBlank()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                lastRecordRunJob?.join()
-                telemetryManager.updateLastRunPlayerName(trimmed)
-                refreshTelemetry()
+        val prevJob = lastSetPlayerNameJob
+        lastSetPlayerNameJob = viewModelScope.launch(Dispatchers.IO) {
+            lastRecordRunJob?.join()
+            prevJob?.join()
+            telemetryManager.updateLastRunPlayerName(trimmed)
+            refreshTelemetry()
+            val sanitizedCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
+            val lastRunId = _uiState.value.lastRunRecord?.id ?: telemetryManager.getLastRun()?.id
+            if (!lastRunId.isNullOrBlank()) {
                 leaderboardRepository.updatePendingCallsign(lastRunId, sanitizedCallsign)
             }
         }

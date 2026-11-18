@@ -254,7 +254,8 @@ fun DevBalanceSettingsDialog(
                                 onSelectCreepType = { selectedCreepType = it },
                                 onSpawnCountChanged = { spawnCount = it },
                                 onResetTelemetry = onResetTelemetry,
-                                onSpawnSandboxWave = onSpawnSandboxWave
+                                onSpawnSandboxWave = onSpawnSandboxWave,
+                                balanceConfig = config
                             )
 
                             4 -> DevCinemaTab(

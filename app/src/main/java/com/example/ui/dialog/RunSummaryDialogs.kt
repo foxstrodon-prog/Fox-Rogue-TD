@@ -460,25 +460,7 @@ fun RunSummaryDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Surface(
-                    color = Color(0xFF1E293B),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        val wavesCleared = state.lastRunRecord?.wavesCleared ?: (state.waveNumber.coerceAtLeast(1) - 1)
-                        val score = state.lastRunRecord?.score ?: ((wavesCleared * 1000) + (state.totalKills * 15) + (state.totalDamageDealt * 0.1f).toInt())
-                        SummaryStatRow("Final Tactical Score", "$score PTS")
-                        SummaryStatRow("Waves Cleared", "$wavesCleared")
-                        SummaryStatRow("Hostiles Slain", "${state.totalKills}")
-                        SummaryStatRow("Damage Output", "${state.totalDamageDealt.toInt()}")
-                        SummaryStatRow("Credits Harvested", "${state.totalScrapEarned}")
-                        SummaryStatRow("Ascended Towers", "${state.towers.count { it.isAscended }}")
-                    }
-                }
+                RunSummaryStatsCard(state = state)
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -510,6 +492,43 @@ fun RunSummaryDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+internal fun RunSummaryStatsCard(state: GameUIState) {
+    Surface(
+        color = Color(0xFF1E293B),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            val wavesCleared = state.lastRunRecord?.wavesCleared ?: (state.waveNumber.coerceAtLeast(1) - 1)
+            val score = state.lastRunRecord?.score ?: ((wavesCleared * 1000) + (state.totalKills * 15) + (state.totalDamageDealt * 0.1f).toInt())
+            val totalCollapses = state.lastRunRecord?.totalCollapses ?: maxOf(
+                state.collapseWaves.size,
+                state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
+            )
+            val unspentGold = state.lastRunRecord?.unspentGoldAtEnd ?: state.scrap
+            val uniqueAurasBanked = state.lastRunRecord?.uniqueAurasBanked ?: state.towers
+                .filter { it.isCapstone }
+                .flatMap { it.synergyVault }
+                .flatMap { it.synergies }
+                .map { it.auraName }
+                .distinct()
+                .size
+            SummaryStatRow("Final Tactical Score", "$score PTS")
+            SummaryStatRow("Waves Cleared", "$wavesCleared")
+            SummaryStatRow("Total Collapses", "$totalCollapses")
+            SummaryStatRow("Unspent Gold at End", "$unspentGold c")
+            SummaryStatRow("Unique Auras Banked", "$uniqueAurasBanked")
+            SummaryStatRow("Hostiles Slain", "${state.totalKills}")
+            SummaryStatRow("Damage Output", "${state.totalDamageDealt.toInt()}")
+            SummaryStatRow("Credits Harvested", "${state.totalScrapEarned}")
         }
     }
 }

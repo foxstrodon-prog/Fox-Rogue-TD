@@ -29,7 +29,7 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 class LeaderboardRepository @JvmOverloads constructor(
-  private val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
+  internal val api: FirestoreLeaderboardApi = FirestoreLeaderboardApi(),
   private val store: LeaderboardStore,
   private val scheduler: LeaderboardWorkScheduler,
   private val authRepo: AuthRepository? = null

@@ -108,7 +108,9 @@ data class GameUIState(
     val difficulty: GameDifficulty = GameDifficulty.MEDIUM,
     val isSingularityWarningOpen: Boolean = false,
     val telemetryInitialTab: Int = 0,
-    val activeEnemyCount: Int = 0
+    val activeEnemyCount: Int = 0,
+    val collapseWaves: List<Int> = emptyList(),
+    val fatalEnemyType: String = "None"
 ) {
     /**
      * Extracts the high-frequency 60-120 FPS render state for [GameCanvas].

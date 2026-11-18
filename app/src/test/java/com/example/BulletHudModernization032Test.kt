@@ -89,7 +89,7 @@ class BulletHudModernization032Test {
 
         composeRule.onNodeWithTag("hud_pause_button").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("AUTO").assertIsDisplayed()
-        composeRule.onNodeWithText("14").assertIsDisplayed()
+        composeRule.onNodeWithTag("deploy_wave_button").assertIsDisplayed()
         composeRule.onNodeWithTag("hud_battery_widget").assertIsDisplayed()
         assertEquals(1, pauseClicks)
     }

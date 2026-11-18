@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.example.engine.TowerUpgradeManager
 import com.example.model.*
 import com.example.ui.GameUIState
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -64,7 +65,8 @@ fun DrawScope.drawTerrainTiles(
     shakeX: Float,
     shakeY: Float,
     colorMerged: Color,
-    animFlowTime: Long
+    animFlowTime: Long,
+    scratchPath: Path = Path()
 ) {
     val unlockedClasses = TowerClass.entries.filter { TowerUpgradeManager.isClassUnlocked(it, state.towers) }
     val minTowerCost = if (unlockedClasses.isNotEmpty()) {
@@ -124,21 +126,41 @@ fun DrawScope.drawTerrainTiles(
                 )
             }
             TileType.SPAWNER_ALPHA -> {
-                drawCircle(color = Color(0xFFFF2A55).copy(alpha = 0.3f), radius = cellW * 0.44f, center = Offset(centerX, centerY))
-                drawCircle(color = Color(0xFF00F0FF), radius = cellW * 0.28f, center = Offset(centerX, centerY), style = Stroke(width = 2.5f))
-                drawCircle(color = Color.White, radius = cellW * 0.12f, center = Offset(centerX, centerY))
+                drawEntryPrismPortal(
+                    centerX = centerX,
+                    centerY = centerY,
+                    cellW = cellW,
+                    lane = level.laneAlpha,
+                    primaryColor = Color(0xFF00F0FF),
+                    accentColor = Color(0xFFFF2A55),
+                    flowTimeF = flowTimeF,
+                    scratchPath = scratchPath
+                )
             }
             TileType.SPAWNER_BETA -> {
-                drawCircle(color = Color(0xFFFF2A55).copy(alpha = 0.3f), radius = cellW * 0.44f, center = Offset(centerX, centerY))
-                drawCircle(color = Color(0xFFFF9100), radius = cellW * 0.28f, center = Offset(centerX, centerY), style = Stroke(width = 2.5f))
-                drawCircle(color = Color.White, radius = cellW * 0.12f, center = Offset(centerX, centerY))
+                drawEntryPrismPortal(
+                    centerX = centerX,
+                    centerY = centerY,
+                    cellW = cellW,
+                    lane = level.laneBeta,
+                    primaryColor = Color(0xFFFF9100),
+                    accentColor = Color(0xFFFF2A55),
+                    flowTimeF = flowTimeF,
+                    scratchPath = scratchPath
+                )
             }
             TileType.CORE -> {
-                val pulse = sin(flowTimeF * 0.005f) * 0.15f + 0.85f
-                drawCircle(color = Color(0xFF00FF9D).copy(alpha = 0.25f * pulse), radius = cellW * 0.52f, center = Offset(centerX, centerY))
-                drawCircle(color = Color(0xFF00FF9D), radius = cellW * 0.35f * pulse, center = Offset(centerX, centerY), style = Stroke(width = 3f))
-                drawCircle(color = Color(0xFF00F0FF), radius = cellW * 0.22f, center = Offset(centerX, centerY), style = Stroke(width = 1.5f))
-                drawCircle(color = Color.White, radius = cellW * 0.12f, center = Offset(centerX, centerY))
+                drawCoreShieldedHeartExit(
+                    centerX = centerX,
+                    centerY = centerY,
+                    cellW = cellW,
+                    coreHp = state.coreHp,
+                    maxCoreHp = state.maxCoreHp,
+                    laneAlpha = level.laneAlpha,
+                    laneBeta = level.laneBeta,
+                    flowTimeF = flowTimeF,
+                    scratchPath = scratchPath
+                )
             }
             TileType.EMPTY -> {
                 if (tile.buff != TileBuff.NONE) {
@@ -395,3 +417,215 @@ fun DrawScope.drawTacticalTutorialPointer(
         )
     }
 }
+
+/**
+ * Draws an App-Logo Inspired Prism Portal at an enemy lane entry point (`SPAWNER_ALPHA` / `SPAWNER_BETA`).
+ * Features an outer hexagonal portal frame, a glowing inner directional prism oriented along the initial
+ * lane vector (`lane[0] -> lane[1]`), and animated outward-pulsing directional chevrons (`>>>`).
+ * Reuses [scratchPath] for zero per-frame allocations.
+ */
+private fun DrawScope.drawEntryPrismPortal(
+    centerX: Float,
+    centerY: Float,
+    cellW: Float,
+    lane: List<GridPos>,
+    primaryColor: Color,
+    accentColor: Color,
+    flowTimeF: Float,
+    scratchPath: Path
+) {
+    val pulse = sin(flowTimeF * 0.007f) * 0.15f + 0.85f
+    val dirX: Float
+    val dirY: Float
+    if (lane.size >= 2) {
+        val dx = (lane[1].x - lane[0].x).toFloat()
+        val dy = (lane[1].y - lane[0].y).toFloat()
+        val len = hypot(dx, dy).coerceAtLeast(0.001f)
+        dirX = dx / len
+        dirY = dy / len
+    } else {
+        dirX = 0f
+        dirY = 1f
+    }
+    val perpX = -dirY
+    val perpY = dirX
+
+    // 1. Subtle crimson-neon portal aura
+    drawCircle(
+        color = accentColor.copy(alpha = 0.24f * pulse),
+        radius = cellW * 0.46f,
+        center = Offset(centerX, centerY)
+    )
+
+    // 2. Outer hexagonal frame (app-logo geometric silhouette)
+    val hexRadius = cellW * 0.38f
+    scratchPath.reset()
+    for (k in 0 until 6) {
+        val angle = (k * 60.0 - 30.0) * (Math.PI / 180.0)
+        val vx = centerX + (cos(angle).toFloat() * hexRadius)
+        val vy = centerY + (sin(angle).toFloat() * hexRadius)
+        if (k == 0) scratchPath.moveTo(vx, vy) else scratchPath.lineTo(vx, vy)
+    }
+    scratchPath.close()
+    drawPath(path = scratchPath, color = Color(0xFF0B111E).copy(alpha = 0.85f))
+    drawPath(path = scratchPath, color = primaryColor.copy(alpha = 0.90f), style = Stroke(width = 2.4f))
+
+    // 3. Directional inner prism triangle pointing toward lane[1]
+    val tipDist = cellW * 0.26f
+    val baseDist = -cellW * 0.16f
+    val halfWing = cellW * 0.20f
+    val tipX = centerX + dirX * tipDist
+    val tipY = centerY + dirY * tipDist
+    val baseLeftX = centerX + dirX * baseDist + perpX * halfWing
+    val baseLeftY = centerY + dirY * baseDist + perpY * halfWing
+    val baseRightX = centerX + dirX * baseDist - perpX * halfWing
+    val baseRightY = centerY + dirY * baseDist - perpY * halfWing
+
+    scratchPath.reset()
+    scratchPath.moveTo(tipX, tipY)
+    scratchPath.lineTo(baseLeftX, baseLeftY)
+    scratchPath.lineTo(centerX + dirX * (baseDist * 0.45f), centerY + dirY * (baseDist * 0.45f))
+    scratchPath.lineTo(baseRightX, baseRightY)
+    scratchPath.close()
+
+    drawPath(path = scratchPath, color = primaryColor.copy(alpha = 0.85f))
+    drawPath(path = scratchPath, color = Color.White.copy(alpha = 0.92f), style = Stroke(width = 1.4f))
+
+    // 4. Outward-flowing directional chevrons (>>>) stepping into the first tile
+    val phase = ((flowTimeF * 0.0022f) % 1.0f + 1.0f) % 1.0f
+    for (c in 0 until 2) {
+        val cProg = (phase + c * 0.5f) % 1.0f
+        val dist = cellW * (0.34f + cProg * 0.48f)
+        val alpha = (1.0f - cProg).coerceIn(0.15f, 0.95f)
+        val cx = centerX + dirX * dist
+        val cy = centerY + dirY * dist
+        val chevBack = cellW * 0.11f
+        val chevWing = cellW * 0.14f
+
+        val leftX = cx - dirX * chevBack + perpX * chevWing
+        val leftY = cy - dirY * chevBack + perpY * chevWing
+        val rightX = cx - dirX * chevBack - perpX * chevWing
+        val rightY = cy - dirY * chevBack - perpY * chevWing
+
+        drawLine(
+            color = primaryColor.copy(alpha = alpha),
+            start = Offset(leftX, leftY),
+            end = Offset(cx, cy),
+            strokeWidth = 2.2f
+        )
+        drawLine(
+            color = primaryColor.copy(alpha = alpha),
+            start = Offset(rightX, rightY),
+            end = Offset(cx, cy),
+            strokeWidth = 2.2f
+        )
+    }
+}
+
+/**
+ * Draws the Defense Core Exit (`TileType.CORE`) with a Shielded Heart Emblem matching the Top HUD
+ * Core HP iconography, framed by a pulsing octagonal aegis ring and inward-pointing caution chevrons.
+ * Reuses [scratchPath] for zero per-frame allocations.
+ */
+private fun DrawScope.drawCoreShieldedHeartExit(
+    centerX: Float,
+    centerY: Float,
+    cellW: Float,
+    coreHp: Int,
+    maxCoreHp: Int,
+    laneAlpha: List<GridPos>,
+    laneBeta: List<GridPos>,
+    flowTimeF: Float,
+    scratchPath: Path
+) {
+    val pulse = sin(flowTimeF * 0.005f) * 0.14f + 0.86f
+    val hpRatio = if (maxCoreHp > 0) (coreHp.toFloat() / maxCoreHp.toFloat()).coerceIn(0f, 1f) else 1f
+    val shieldColor = if (hpRatio > 0.35f) Color(0xFF00FF9D) else Color(0xFFFF2A55)
+    val heartColor = Color(0xFFFF2A55)
+
+    // 1. Ambient Core Shield Glow
+    drawCircle(
+        color = shieldColor.copy(alpha = 0.22f * pulse),
+        radius = cellW * 0.52f,
+        center = Offset(centerX, centerY)
+    )
+
+    // 2. Pulsing Octagonal Aegis Ring
+    val octRadius = cellW * 0.39f * pulse
+    scratchPath.reset()
+    for (k in 0 until 8) {
+        val angle = (k * 45.0 + 22.5) * (Math.PI / 180.0)
+        val vx = centerX + (cos(angle).toFloat() * octRadius)
+        val vy = centerY + (sin(angle).toFloat() * octRadius)
+        if (k == 0) scratchPath.moveTo(vx, vy) else scratchPath.lineTo(vx, vy)
+    }
+    scratchPath.close()
+    drawPath(path = scratchPath, color = Color(0xFF0B111E).copy(alpha = 0.88f))
+    drawPath(path = scratchPath, color = shieldColor, style = Stroke(width = 2.6f))
+    drawCircle(color = Color(0xFF00F0FF).copy(alpha = 0.65f), radius = cellW * 0.29f, center = Offset(centerX, centerY), style = Stroke(width = 1.2f))
+
+    // 3. Shielded Heart Emblem (matches Top HUD Core HP Heart Icon)
+    val hr = cellW * 0.18f
+    val topDipY = centerY - hr * 0.35f
+    val bottomTipY = centerY + hr * 0.95f
+    scratchPath.reset()
+    scratchPath.moveTo(centerX, bottomTipY)
+    scratchPath.cubicTo(
+        centerX - hr * 1.35f, centerY + hr * 0.25f,
+        centerX - hr * 1.15f, centerY - hr * 0.95f,
+        centerX, topDipY
+    )
+    scratchPath.cubicTo(
+        centerX + hr * 1.15f, centerY - hr * 0.95f,
+        centerX + hr * 1.35f, centerY + hr * 0.25f,
+        centerX, bottomTipY
+    )
+    scratchPath.close()
+    drawPath(path = scratchPath, color = heartColor.copy(alpha = 0.92f))
+    drawPath(path = scratchPath, color = Color.White.copy(alpha = 0.90f), style = Stroke(width = 1.3f))
+
+    // 4. Inward-pointing approach chevrons on final lane segment(s) leading into the Core
+    fun drawApproachChevron(lane: List<GridPos>) {
+        if (lane.size < 2) return
+        val prev = lane[lane.size - 2]
+        val last = lane.last()
+        val dx = (last.x - prev.x).toFloat()
+        val dy = (last.y - prev.y).toFloat()
+        val len = hypot(dx, dy).coerceAtLeast(0.001f)
+        val dirX = dx / len
+        val dirY = dy / len
+        val perpX = -dirY
+        val perpY = dirX
+
+        val phase = ((flowTimeF * 0.0022f) % 1.0f + 1.0f) % 1.0f
+        val distFromCore = cellW * (0.78f - phase * 0.36f)
+        val cx = centerX - dirX * distFromCore
+        val cy = centerY - dirY * distFromCore
+        val chevBack = cellW * 0.10f
+        val chevWing = cellW * 0.13f
+
+        val leftX = cx - dirX * chevBack + perpX * chevWing
+        val leftY = cy - dirY * chevBack + perpY * chevWing
+        val rightX = cx - dirX * chevBack - perpX * chevWing
+        val rightY = cy - dirY * chevBack - perpY * chevWing
+
+        drawLine(
+            color = heartColor.copy(alpha = 0.80f),
+            start = Offset(leftX, leftY),
+            end = Offset(cx, cy),
+            strokeWidth = 2.0f
+        )
+        drawLine(
+            color = heartColor.copy(alpha = 0.80f),
+            start = Offset(rightX, rightY),
+            end = Offset(cx, cy),
+            strokeWidth = 2.0f
+        )
+    }
+
+    drawApproachChevron(laneAlpha)
+    if (laneBeta.size >= 2 && (laneAlpha.size < 2 || laneBeta[laneBeta.size - 2] != laneAlpha[laneAlpha.size - 2])) {
+        drawApproachChevron(laneBeta)
+    }
+}
+

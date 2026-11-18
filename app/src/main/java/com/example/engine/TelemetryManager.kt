@@ -31,6 +31,15 @@ class TelemetryManager @JvmOverloads constructor(
         PlayerIdentity.setPlayerCallsign(context, name)
     }
 
+    private fun parseCollapseWaves(obj: JSONObject): List<Int> {
+        val arr = obj.optJSONArray("collapseWaves") ?: return emptyList()
+        val list = ArrayList<Int>(arr.length())
+        for (i in 0 until arr.length()) {
+            list.add(arr.optInt(i, 0))
+        }
+        return list.filter { it > 0 }
+    }
+
     fun getLastRun(): RunRecord? = synchronized(lock) {
         val jsonStr = prefs.getString("last_run_record", null) ?: return null
         return try {
@@ -48,7 +57,12 @@ class TelemetryManager @JvmOverloads constructor(
                 mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
                 isVictory = obj.optBoolean("isVictory", false),
                 timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
-                isDevTuned = obj.optBoolean("isDevTuned", false)
+                isDevTuned = obj.optBoolean("isDevTuned", false),
+                totalCollapses = obj.optInt("totalCollapses", 0),
+                unspentGoldAtEnd = obj.optInt("unspentGoldAtEnd", 0),
+                uniqueAurasBanked = obj.optInt("uniqueAurasBanked", 0),
+                fatalEnemyType = obj.optString("fatalEnemyType", "None"),
+                collapseWaves = parseCollapseWaves(obj)
             )
         } catch (_: Exception) {
             null
@@ -70,6 +84,11 @@ class TelemetryManager @JvmOverloads constructor(
             put("isVictory", record.isVictory)
             put("timestamp", record.timestamp)
             put("isDevTuned", record.isDevTuned)
+            put("totalCollapses", record.totalCollapses)
+            put("unspentGoldAtEnd", record.unspentGoldAtEnd)
+            put("uniqueAurasBanked", record.uniqueAurasBanked)
+            put("fatalEnemyType", record.fatalEnemyType)
+            put("collapseWaves", JSONArray(record.collapseWaves))
         }
         prefs.edit().putString("last_run_record", obj.toString()).apply()
     }
@@ -115,7 +134,12 @@ class TelemetryManager @JvmOverloads constructor(
                     mvpTower = obj.optString("mvpTower", "Vulcan Minigun"),
                     isVictory = obj.optBoolean("isVictory", false),
                     timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
-                    isDevTuned = obj.optBoolean("isDevTuned", false)
+                    isDevTuned = obj.optBoolean("isDevTuned", false),
+                    totalCollapses = obj.optInt("totalCollapses", 0),
+                    unspentGoldAtEnd = obj.optInt("unspentGoldAtEnd", 0),
+                    uniqueAurasBanked = obj.optInt("uniqueAurasBanked", 0),
+                    fatalEnemyType = obj.optString("fatalEnemyType", "None"),
+                    collapseWaves = parseCollapseWaves(obj)
                 )
                 // Omit any runs with score of 0 or zero combat activity
                 if (rec.score > 0) {
@@ -148,6 +172,11 @@ class TelemetryManager @JvmOverloads constructor(
             obj.put("isVictory", item.isVictory)
             obj.put("timestamp", item.timestamp)
             obj.put("isDevTuned", item.isDevTuned)
+            obj.put("totalCollapses", item.totalCollapses)
+            obj.put("unspentGoldAtEnd", item.unspentGoldAtEnd)
+            obj.put("uniqueAurasBanked", item.uniqueAurasBanked)
+            obj.put("fatalEnemyType", item.fatalEnemyType)
+            obj.put("collapseWaves", JSONArray(item.collapseWaves))
             arr.put(obj)
         }
         prefs.edit().putString("leaderboard_runs", arr.toString()).apply()
@@ -248,6 +277,15 @@ class TelemetryManager @JvmOverloads constructor(
     }
 
     fun getBalanceConfig(): DevBalanceConfig {
+        val currentMapRowsSchema = prefs.getInt("schema_version_map_rows", 0)
+        if (currentMapRowsSchema < 1) {
+            val savedRows = prefs.getInt("cfg_map_rows", 20)
+            val migratedRows = if (savedRows == 20) 21 else savedRows
+            prefs.edit()
+                .putInt("cfg_map_rows", migratedRows)
+                .putInt("schema_version_map_rows", 1)
+                .apply()
+        }
         return DevBalanceConfig(
             startingScrap = prefs.getInt("cfg_starting_scrap", 220),
             globalIncomeMultiplier = prefs.getFloat("cfg_global_income", 1.0f),
@@ -263,7 +301,7 @@ class TelemetryManager @JvmOverloads constructor(
             minLaneOverlap = prefs.getInt("cfg_min_lane_overlap", 4),
             maxLaneOverlap = prefs.getInt("cfg_max_lane_overlap", 12),
             mapColumns = prefs.getInt("cfg_map_columns", 10),
-            mapRows = prefs.getInt("cfg_map_rows", 20),
+            mapRows = prefs.getInt("cfg_map_rows", 21),
             masterVolume = prefs.getFloat("cfg_master_vol", 0.7f),
             musicVolume = prefs.getFloat("cfg_music_vol", 0.45f),
             sfxVolume = prefs.getFloat("cfg_sfx_vol", 0.8f),

@@ -115,6 +115,65 @@ class FirestoreLeaderboardApi @JvmOverloads constructor(
     result
   }
 
+  /**
+   * Non-blocking whole-run balance telemetry upload to the `run_telemetry` collection for Balance-by-Data analysis.
+   * Never blocks or alters strict `leaderboards` security rules.
+   */
+  suspend fun submitRunTelemetry(
+    record: com.example.model.RunRecord,
+    difficultyId: String = "medium",
+    towerPerf: List<com.example.model.TowerPerformanceRecord> = emptyList(),
+    idToken: String? = null
+  ): LeaderboardResult<Unit> = withContext(Dispatchers.IO) {
+    if (!isConfigured || record.isDevTuned) {
+      return@withContext LeaderboardResult.Failure(
+        FailureKind.UNCONFIGURED,
+        "Telemetry upload skipped (unconfigured or dev-tuned)"
+      )
+    }
+
+    val towerSummaryJson = JSONArray().apply {
+      for (perf in towerPerf.take(16)) {
+        put(
+          JSONObject().apply {
+            put("name", perf.towerName)
+            put("class", perf.towerClass.name)
+            put("dmg", perf.totalDamage.toLong())
+            put("kills", perf.totalKills)
+            put("built", perf.totalBuilt)
+            put("cost", perf.totalCostInvested)
+            put("dpsPerCost", perf.dpsCostEfficiency.toDouble())
+          }
+        )
+      }
+    }.toString()
+
+    val fieldsObj = JSONObject().apply {
+      put("runId", JSONObject().put("stringValue", record.id))
+      put("seed", JSONObject().put("integerValue", record.seed.toString()))
+      put("difficulty", JSONObject().put("stringValue", difficultyId))
+      put("wavesCleared", JSONObject().put("integerValue", record.wavesCleared.toString()))
+      put("isVictory", JSONObject().put("booleanValue", record.isVictory))
+      put("totalCollapses", JSONObject().put("integerValue", record.totalCollapses.toString()))
+      put("unspentGoldAtEnd", JSONObject().put("integerValue", record.unspentGoldAtEnd.toString()))
+      put("uniqueAurasBanked", JSONObject().put("integerValue", record.uniqueAurasBanked.toString()))
+      put("fatalEnemyType", JSONObject().put("stringValue", record.fatalEnemyType))
+      put("collapseWaves", JSONObject().put("stringValue", record.collapseWaves.joinToString(",")))
+      put("mvpTower", JSONObject().put("stringValue", record.mvpTower))
+      put("scrapEarned", JSONObject().put("integerValue", record.scrapEarned.toString()))
+      put("totalDamage", JSONObject().put("integerValue", record.totalDamage.toLong().toString()))
+      put("towerLedgerJson", JSONObject().put("stringValue", towerSummaryJson))
+      put("clientVersion", JSONObject().put("stringValue", BuildConfig.VERSION_NAME))
+      put("timestamp", JSONObject().put("integerValue", record.timestamp.toString()))
+    }
+
+    val requestBodyJson = JSONObject().apply {
+      put("fields", fieldsObj)
+    }
+
+    executeSubmitScore("run_telemetry", record.id, requestBodyJson, idToken).result
+  }
+
   private data class AttemptOutcome<T>(
     val result: LeaderboardResult<T>,
     val allowCollectionFailover: Boolean = false

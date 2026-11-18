@@ -71,20 +71,28 @@ internal class SoundArchiveStore(context: Context) {
 
     fun writeWavAtomicallyIfNeeded(file: File, synthesize: () -> ShortArray) {
         if (file.exists() && file.length() >= 64L) return
-        file.parentFile?.let { if (!it.exists()) it.mkdirs() }
-        val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
-        try {
+        val lock = wavLocks.computeIfAbsent(file.name) { Any() }
+        synchronized(lock) {
+            if (file.exists() && file.length() >= 64L) return
+            file.parentFile?.let { if (!it.exists()) it.mkdirs() }
             val wavBytes = AudioSynthesizer.toWav(synthesize())
-            java.io.FileOutputStream(tmpFile).use { it.write(wavBytes) }
-            if (!tmpFile.renameTo(file)) {
-                if (file.exists()) file.delete()
+            val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
+            try {
+                java.io.FileOutputStream(tmpFile).use { it.write(wavBytes) }
                 if (!tmpFile.renameTo(file)) {
-                    java.io.FileOutputStream(file).use { it.write(wavBytes) }
+                    if (file.exists()) file.delete()
+                    if (!tmpFile.renameTo(file)) {
+                        java.io.FileOutputStream(file).use { it.write(wavBytes) }
+                    }
                 }
+            } finally {
+                if (tmpFile.exists()) tmpFile.delete()
             }
-        } finally {
-            if (tmpFile.exists()) tmpFile.delete()
         }
+    }
+
+    companion object {
+        internal val wavLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
     }
 
     /**

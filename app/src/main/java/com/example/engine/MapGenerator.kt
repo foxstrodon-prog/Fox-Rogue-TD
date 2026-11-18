@@ -8,7 +8,7 @@ typealias GeneratedLevel = com.example.model.GeneratedLevel
 
 object MapGenerator {
     const val DEFAULT_WIDTH = 10
-    const val DEFAULT_HEIGHT = 20
+    const val DEFAULT_HEIGHT = 21
 
     val BIOMES = listOf(
         Biome(

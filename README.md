@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.043`):** [`apk/Dual-Front-TD-v0.0.1.043-debug.apk`](apk/Dual-Front-TD-v0.0.1.043-debug.apk)
+- **Latest Android APK (`v0.0.1.044`):** [`apk/Dual-Front-TD-v0.0.1.044-debug.apk`](apk/Dual-Front-TD-v0.0.1.044-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,22 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.043
+## 🕹️ What's New in Version 0.0.1.044
+
+### 🎯 Tactical HUD Ergonomics, 10x21 Full-Screen Grid, Portal/Core Visuals & Data-Driven Balance Pass (`versionCode = 65`)
+- **Split-Action Wave Capsule & Flanked Bottom Squircle Bar (`HudTopBar.kt`, `HudStatusWidgets.kt`, `TowerUpgradeBar.kt`, `TargetPriorityMenu.kt`, `RogueTDScreen.kt`):**
+  - Combined `BEGIN` and `AUTO` into a unified, orientation-aware `HudWaveControlCapsule`.
+  - Flanked `Target Priority` to the left edge and `Sell Tower` to the right edge of the bottom dock so upgrade squircles remain strictly centered across Tiers `0..3` without accidental sell mis-taps, and added **Active / Banked Aura Pip Badges** (`★ NEW`, `● 1x`, `⚡ 2B`, `CAP 1x`) on Tier-2 and Tier-3 upgrade previews.
+- **Logo-Inspired Entry Portals, Shielded Heart Core & 10x21 Map Grid (`TerrainRenderer.kt`, `TrackRenderer.kt`, `MapGenerator.kt`, `TelemetryManager.kt`, `WaveGenerator.kt`, `SimulationCoordinator.kt`):**
+  - Expanded default map height to `10x21` (with automatic `SharedPreferences` schema migration so existing `10x20` installs aren't flagged as `DEV TUNED`), upgraded lane spawners to directional Prism Portals and the Defense Core to a Shielded Heart Emblem with 24 comet-tail flow particles, and tuned wave-based gold decay and difficulty HP curves against the `1 / 2–3 / 4–5` Singularity Collapse benchmarks.
+- **Headless Balance Simulator & Whole-Run "Balance by Data" Telemetry (`HeadlessBalanceSimulator.kt`, `DevProbesAndCinemaTabs.kt`, `RunSummaryDialogs.kt`, `FirestoreLeaderboardApi.kt`):**
+  - Added end-of-run `Total Collapses`, `Unspent Gold at End`, and `Unique Auras Banked` readouts, a deterministic 63-wave `HeadlessBalanceSimulator` in the Dev Console, whole-run sacrificed/sold tower telemetry tracking, non-blocking `run_telemetry` cloud upload, and 4 new Build #65 procedural audio/skin variants (`260/260` unit tests passing).
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.043
 
 ### ⚡ Speed-Invariant 10X Simulation & CI Plugin Cache Hardening (`versionCode = 64`)
 - **Fixed-Timestep Accumulator & Batched UI Publication (`RogueTDViewModel.kt`, `SimulationCoordinator.kt`):**

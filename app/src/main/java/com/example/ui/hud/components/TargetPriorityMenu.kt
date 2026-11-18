@@ -32,6 +32,110 @@ internal val PRIORITY_PILL_MAX_WIDTH = 72.dp
  * The priority pill stacks a compact icon above a single-line, untruncated uppercase label.
  */
 @Composable
+fun TargetPriorityPillButton(
+    priority: TargetPriority,
+    isRotated: Boolean,
+    animatedRotation: Float,
+    onChangePriority: (TargetPriority) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pillShape = RoundedCornerShape(12.dp)
+    val darkGlass = Color(0xFF0A101D).copy(alpha = 0.92f)
+    Box(
+        modifier = modifier
+            .testTag("target_priority_button")
+            .hudCapsuleContainer(isRotated, animatedRotation)
+            .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
+            .height(36.dp)
+            .clip(pillShape)
+            .background(darkGlass)
+            .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.72f), pillShape)
+            .clickable {
+                val nextPrio = when (priority) {
+                    TargetPriority.FIRST -> TargetPriority.CLOSEST
+                    TargetPriority.CLOSEST -> TargetPriority.STRONGEST
+                    TargetPriority.STRONGEST -> TargetPriority.WEAKEST
+                    TargetPriority.WEAKEST -> TargetPriority.FIRST
+                }
+                onChangePriority(nextPrio)
+            }
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MyLocation,
+                contentDescription = "Target Priority",
+                tint = Color(0xFF00F0FF),
+                modifier = Modifier.size(11.dp)
+            )
+            Spacer(modifier = Modifier.height(1.dp))
+            Text(
+                text = priority.label.uppercase(),
+                color = Color(0xFF00F0FF),
+                fontSize = 7.sp,
+                lineHeight = 8.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun SellTowerPillButton(
+    sellValue: Int,
+    isRotated: Boolean,
+    animatedRotation: Float,
+    onSellTower: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val pillShape = RoundedCornerShape(12.dp)
+    val darkGlass = Color(0xFF0A101D).copy(alpha = 0.92f)
+    Box(
+        modifier = modifier
+            .testTag("sell_tower_button")
+            .hudCapsuleContainer(isRotated, animatedRotation)
+            .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
+            .height(36.dp)
+            .clip(pillShape)
+            .background(darkGlass)
+            .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.72f), pillShape)
+            .clickable { onSellTower() }
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.DeleteOutline,
+                contentDescription = "Sell Tower",
+                tint = Color(0xFFFF2A55),
+                modifier = Modifier.size(11.dp)
+            )
+            Spacer(modifier = Modifier.height(1.dp))
+            Text(
+                text = "+$sellValue",
+                color = Color(0xFFFFD700),
+                fontSize = 7.5.sp,
+                lineHeight = 8.sp,
+                fontWeight = FontWeight.Black,
+                style = TextStyle(fontFeatureSettings = "tnum"),
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
+}
+
+@Composable
 fun TargetPriorityMenu(
     priority: TargetPriority,
     sellValue: Int,
@@ -41,100 +145,24 @@ fun TargetPriorityMenu(
     onSellTower: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val pillShape = RoundedCornerShape(12.dp)
-    val darkGlass = Color(0xFF0A101D).copy(alpha = 0.92f)
-
-    val pills: @Composable () -> Unit = {
-        Box(
-            modifier = Modifier
-                .testTag("target_priority_button")
-                .hudCapsuleContainer(isRotated, animatedRotation)
-                .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
-                .height(36.dp)
-                .clip(pillShape)
-                .background(darkGlass)
-                .border(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.72f), pillShape)
-                .clickable {
-                    val nextPrio = when (priority) {
-                        TargetPriority.FIRST -> TargetPriority.CLOSEST
-                        TargetPriority.CLOSEST -> TargetPriority.STRONGEST
-                        TargetPriority.STRONGEST -> TargetPriority.WEAKEST
-                        TargetPriority.WEAKEST -> TargetPriority.FIRST
-                    }
-                    onChangePriority(nextPrio)
-                }
-                .padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.MyLocation,
-                    contentDescription = "Target Priority",
-                    tint = Color(0xFF00F0FF),
-                    modifier = Modifier.size(11.dp)
-                )
-                Spacer(modifier = Modifier.height(1.dp))
-                Text(
-                    text = priority.label.uppercase(),
-                    color = Color(0xFF00F0FF),
-                    fontSize = 7.sp,
-                    lineHeight = 8.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .testTag("sell_tower_button")
-                .hudCapsuleContainer(isRotated, animatedRotation)
-                .widthIn(min = PRIORITY_PILL_MIN_WIDTH, max = PRIORITY_PILL_MAX_WIDTH)
-                .height(36.dp)
-                .clip(pillShape)
-                .background(darkGlass)
-                .border(1.2.dp, Color(0xFFFF2A55).copy(alpha = 0.72f), pillShape)
-                .clickable { onSellTower() }
-                .padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.DeleteOutline,
-                    contentDescription = "Sell Tower",
-                    tint = Color(0xFFFF2A55),
-                    modifier = Modifier.size(11.dp)
-                )
-                Spacer(modifier = Modifier.height(1.dp))
-                Text(
-                    text = "+$sellValue",
-                    color = Color(0xFFFFD700),
-                    fontSize = 7.5.sp,
-                    lineHeight = 8.sp,
-                    fontWeight = FontWeight.Black,
-                    style = TextStyle(fontFeatureSettings = "tnum"),
-                    maxLines = 1,
-                    softWrap = false
-                )
-            }
-        }
-    }
-
     if (isRotated) {
         Row(
             modifier = modifier,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            pills()
+            TargetPriorityPillButton(
+                priority = priority,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onChangePriority = onChangePriority
+            )
+            SellTowerPillButton(
+                sellValue = sellValue,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onSellTower = onSellTower
+            )
         }
     } else {
         Column(
@@ -142,7 +170,18 @@ fun TargetPriorityMenu(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            pills()
+            TargetPriorityPillButton(
+                priority = priority,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onChangePriority = onChangePriority
+            )
+            SellTowerPillButton(
+                sellValue = sellValue,
+                isRotated = isRotated,
+                animatedRotation = animatedRotation,
+                onSellTower = onSellTower
+            )
         }
     }
 }

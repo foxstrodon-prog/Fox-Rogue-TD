@@ -215,24 +215,18 @@ fun MinimalTopHud(
                 deviceAngle = normalizedAngle
             )
 
-            // 7. Auto Wave Toggle
-            HudAutoWaveToggle(
+            // 7. Unified Split-Action Wave Control Capsule (AUTO + BEGIN)
+            HudWaveControlCapsule(
                 autoWaveActive = state.autoCallNextWave,
-                isRotated = isRotated,
-                animatedRotation = animatedRotation,
-                onToggleAutoWave = onToggleAutoWave
-            )
-
-            // 8. Launch Wave Button
-            HudLaunchWaveButton(
                 isWaveActive = state.isWaveActive,
                 enemyCount = activeEnemyCount,
                 isRotated = isRotated,
                 animatedRotation = animatedRotation,
+                onToggleAutoWave = onToggleAutoWave,
                 onDeployWave = onDeployWave
             )
 
-            // 9. Standalone Battery Cell Widget
+            // 8. Standalone Battery Cell Widget
             HudBatteryWidget(
                 isRotated = isRotated,
                 animatedRotation = animatedRotation,

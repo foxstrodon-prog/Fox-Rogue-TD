@@ -10,7 +10,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 
 /**
@@ -32,7 +31,6 @@ internal class MusicAndPreviewPlayer(
 ) {
     private val playerLock = Any()
     private val playerScope = CoroutineScope(SupervisorJob() + ioDispatcher)
-    private val fileLocks = ConcurrentHashMap<String, Any>()
     private var mediaPlayer: MediaPlayer? = null
     private var previewPlayer: MediaPlayer? = null
     private var bgmPausedForPreview: Boolean = false
@@ -96,7 +94,7 @@ internal class MusicAndPreviewPlayer(
         if (file.exists() && file.length() >= 256L) {
             return file
         }
-        val lock = fileLocks.computeIfAbsent(file.name) { Any() }
+        val lock = SoundArchiveStore.wavLocks.computeIfAbsent(file.name) { Any() }
         synchronized(lock) {
             if (file.exists() && file.length() >= 256L) return file
             writeWavAtomically(file) {
@@ -110,7 +108,7 @@ internal class MusicAndPreviewPlayer(
         val canonicalId = BuildArchiveCatalog.migrateLegacyAssetId(assetId)
         val file = archiveStore.getWavFileForAsset(canonicalId) ?: return null
         if (file.exists() && file.length() >= 64L) return file
-        val lock = fileLocks.computeIfAbsent(file.name) { Any() }
+        val lock = SoundArchiveStore.wavLocks.computeIfAbsent(file.name) { Any() }
         synchronized(lock) {
             if (file.exists() && file.length() >= 64L) return file
             val pcm = ArchivedAudioSynthesizer.synthesizeByAssetId(canonicalId) ?: return null
@@ -121,9 +119,9 @@ internal class MusicAndPreviewPlayer(
 
     private inline fun writeWavAtomically(file: File, synthesize: () -> ShortArray) {
         file.parentFile?.let { if (!it.exists()) it.mkdirs() }
+        val wavBytes = AudioSynthesizer.toWav(synthesize())
         val tmpFile = File(file.parentFile, "${file.name}.${System.nanoTime()}.tmp")
         try {
-            val wavBytes = AudioSynthesizer.toWav(synthesize())
             FileOutputStream(tmpFile).use { it.write(wavBytes) }
             if (!tmpFile.renameTo(file)) {
                 if (file.exists()) file.delete()

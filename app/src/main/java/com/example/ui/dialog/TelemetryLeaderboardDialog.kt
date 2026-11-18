@@ -165,6 +165,9 @@ fun TelemetryLeaderboardDialog(
                                 }
 
                                 TelemetryCard("Waves Cleared", "${last.wavesCleared}", Icons.Filled.MilitaryTech, Color(0xFF00F0FF))
+                                TelemetryCard("Total Collapses", "${last.totalCollapses}", Icons.Filled.AutoAwesome, Color(0xFFFFD700))
+                                TelemetryCard("Unspent Gold at End", "${last.unspentGoldAtEnd} c", Icons.Filled.Diamond, Color(0xFF00FF9D))
+                                TelemetryCard("Unique Auras Banked", "${last.uniqueAurasBanked}", Icons.Filled.Stars, Color(0xFF38BDF8))
                                 TelemetryCard("Hostiles Annihilated", "${last.enemiesKilled}", Icons.Filled.CrisisAlert, Color(0xFFFF2A55))
                                 TelemetryCard("Total Damage Inflicted", "${last.totalDamage.toInt()}", Icons.Filled.Bolt, Color(0xFFFFB800))
                                 TelemetryCard("Scrap Harvested", "${last.scrapEarned} c", Icons.Filled.Diamond, Color(0xFFFFD700))

@@ -373,6 +373,9 @@ class TowerPlacementCoordinator(
     fun sellSelectedTower() {
         val tower = uiStateFlow.value.selectedTower ?: return
         val sellVal = tower.getSellValue()
+        if (tower.totalDamage > 0f || tower.kills > 0) {
+            telemetryManager.recordTowerSession(listOf(tower))
+        }
         soundManager.play(SoundFx.SELL)
         onSynergyDirty()
         uiStateFlow.update {
@@ -553,6 +556,10 @@ class TowerPlacementCoordinator(
             newExplosions.add(ExplosionEffect(id = nextId("exp_"), x = st.gridPos.x.toFloat(), y = st.gridPos.y.toFloat(), maxRadius = 1.6f, color = 0xFFFFD700))
         }
 
+        if (sacrificed.isNotEmpty()) {
+            telemetryManager.recordTowerSession(sacrificed)
+        }
+
         soundManager.play(SoundFx.UPGRADE)
         onSynergyDirty()
 
@@ -573,7 +580,8 @@ class TowerPlacementCoordinator(
                 totalScrapEarned = it.totalScrapEarned + scrapBounty,
                 explosions = newExplosions,
                 screenShakeIntensity = 1.0f,
-                isSingularityWarningOpen = false
+                isSingularityWarningOpen = false,
+                collapseWaves = it.collapseWaves + it.waveNumber
             )
         }
         addFloatingText(ascendedAnchor.gridPos.x.toFloat(), ascendedAnchor.gridPos.y.toFloat(), "+$scrapBounty SCRAP BOUNTY!", 0xFFFFD700, false)

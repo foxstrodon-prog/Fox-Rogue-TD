@@ -201,6 +201,7 @@ class SimulationCoordinator(
         )
         val survivingEnemies = enemyAdvance.survivingEnemies
         val coreDamageTaken = enemyAdvance.coreDamageTaken
+        var newFatalEnemyType = state.fatalEnemyType
 
         var newCoreHp = state.coreHp
         var gameOver = state.isGameOver
@@ -209,6 +210,7 @@ class SimulationCoordinator(
 
         if (coreDamageTaken > 0) {
             newCoreHp = maxOf(0, state.coreHp - coreDamageTaken); shake = 1.0f
+            enemyAdvance.lastBreachingEnemyType?.let { newFatalEnemyType = it.displayName }
             val corePos = cachedCorePos
             queueFloatingText(corePos.x.toFloat(), corePos.y.toFloat(), "-$coreDamageTaken BREACH!", 0xFFFF2A55, isCrit = false, important = true)
             if (!state.isGameOver && newCoreHp <= 0) {
@@ -340,10 +342,10 @@ class SimulationCoordinator(
             val padBonus = minOf(0.12f, harmonicCount * 0.02f)
             val harmonicBonus = if (isHarmonicActive) 0.15f else 0f
             val totalAdditiveIncomeBonus = 1.0f + minOf(0.90f, auraScrapBonus + conduitBonus + padBonus + harmonicBonus)
-            val waveDensityDecay = if (state.waveNumber <= 12) {
-                1.0f
-            } else {
-                (1.0f / (1.0f + (state.waveNumber - 12) * 0.045f)).coerceAtLeast(0.32f)
+            val waveDensityDecay = when {
+                state.waveNumber <= 12 -> 1.0f
+                state.waveNumber <= 30 -> (1.0f / (1.0f + (state.waveNumber - 12) * 0.022f)).coerceAtLeast(0.68f)
+                else -> (0.78f / (1.0f + (state.waveNumber - 30) * 0.015f)).coerceAtLeast(0.50f)
             }
             val diffIncomeMul = state.difficulty.scrapIncomeMultiplier
 
@@ -446,7 +448,8 @@ class SimulationCoordinator(
                     isGameOver = gameOver, isVictory = waveEval.isVictory,
                     isWaveActive = waveEval.isWaveActive, waveNumber = waveEval.waveNumber,
                     screenShakeIntensity = shake, overchargeRemainingMs = newOvercharge,
-                    bestWaveRecord = maxOf(prev.bestWaveRecord, waveEval.waveNumber)
+                    bestWaveRecord = maxOf(prev.bestWaveRecord, waveEval.waveNumber),
+                    fatalEnemyType = newFatalEnemyType
                 )
             }
         } else {
@@ -464,7 +467,8 @@ class SimulationCoordinator(
                 isGameOver = gameOver, isVictory = waveEval.isVictory,
                 isWaveActive = waveEval.isWaveActive, waveNumber = waveEval.waveNumber,
                 screenShakeIntensity = shake, overchargeRemainingMs = newOvercharge,
-                bestWaveRecord = maxOf(state.bestWaveRecord, waveEval.waveNumber)
+                bestWaveRecord = maxOf(state.bestWaveRecord, waveEval.waveNumber),
+                fatalEnemyType = newFatalEnemyType
             )
         }
 

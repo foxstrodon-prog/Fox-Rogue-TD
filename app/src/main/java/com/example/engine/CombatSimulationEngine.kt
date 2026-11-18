@@ -6,7 +6,8 @@ import kotlin.random.Random
 
 data class EnemyAdvanceResult(
     val survivingEnemies: List<EnemyInstance>,
-    val coreDamageTaken: Int
+    val coreDamageTaken: Int,
+    val lastBreachingEnemyType: EnemyType? = null
 )
 
 /**
@@ -14,7 +15,7 @@ data class EnemyAdvanceResult(
  * Decoupled from ViewModel state orchestration for modularity and testability (Task C-01, C-03, D-02 & D-04).
  */
 class CombatSimulationEngine(
-    val spatialGrid: SpatialHashGrid = SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 20)
+    val spatialGrid: SpatialHashGrid = SpatialHashGrid(cellSize = 2.0f, gridWidth = 16, gridHeight = 24)
 ) {
     // Pre-sized double-buffered scratch lists for zero-allocation combat loops without concurrent aliasing
     private val scratchSurvivingEnemiesA = ArrayList<EnemyInstance>(128)
@@ -73,6 +74,7 @@ class CombatSimulationEngine(
         val scratchSurvivingEnemies = if (useEnemyBufferA) scratchSurvivingEnemiesA else scratchSurvivingEnemiesB
         scratchSurvivingEnemies.clear()
         var coreDamageTaken = 0
+        var lastBreachType: EnemyType? = null
 
         val safeDeltaSec = if (deltaSec.isFinite() && deltaSec >= 0f) deltaSec else 0f
         val globalSlow = if (globalFrostSlowBonus > 0f) maxOf(0.15f, 1f - globalFrostSlowBonus) else 1.0f
@@ -97,6 +99,7 @@ class CombatSimulationEngine(
 
             if (enemy.currentPathSegmentIndex >= path.size - 1) {
                 coreDamageTaken += if (enemy.isBoss) 6 else 1
+                lastBreachType = enemy.type
             } else {
                 val p0 = path[enemy.currentPathSegmentIndex]
                 val p1 = path[enemy.currentPathSegmentIndex + 1]
@@ -115,7 +118,8 @@ class CombatSimulationEngine(
         spatialGrid.rebuild(scratchSurvivingEnemies)
         return EnemyAdvanceResult(
             survivingEnemies = scratchSurvivingEnemies,
-            coreDamageTaken = coreDamageTaken
+            coreDamageTaken = coreDamageTaken,
+            lastBreachingEnemyType = lastBreachType
         )
     }
 

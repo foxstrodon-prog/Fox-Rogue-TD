@@ -129,7 +129,17 @@ data class RunRecord(
     val isVictory: Boolean,
     val timestamp: Long,
     /** True if any dev-console balance value deviated from baseline during the run (DEV/SANDBOX). */
-    val isDevTuned: Boolean = false
+    val isDevTuned: Boolean = false,
+    /** Highest Singularity Capstone generation reached during the run. */
+    val totalCollapses: Int = 0,
+    /** Remaining unspent scrap at the end of the run. */
+    val unspentGoldAtEnd: Int = 0,
+    /** Count of distinct aura names banked across all Singularity vaults during the run. */
+    val uniqueAurasBanked: Int = 0,
+    /** Enemy archetype that caused the final Core breach ("None" on victory or manual end). */
+    val fatalEnemyType: String = "None",
+    /** Wave numbers at which each Singularity Collapse was triggered during the run. */
+    val collapseWaves: List<Int> = emptyList()
 ) {
     val score: Int get() = (wavesCleared * 1000) + (enemiesKilled * 15) + (totalDamage * 0.1f).toInt()
 }
@@ -202,7 +212,7 @@ data class DevBalanceConfig(
     val minLaneOverlap: Int = 4,
     val maxLaneOverlap: Int = 12,
     val mapColumns: Int = 10,
-    val mapRows: Int = 20,
+    val mapRows: Int = 21,
     val enemiesPerRoundMultiplier: Float = 1.0f, // 0.5x to 3.0x enemies per round
     val masterVolume: Float = 0.7f,
     val musicVolume: Float = 0.45f,

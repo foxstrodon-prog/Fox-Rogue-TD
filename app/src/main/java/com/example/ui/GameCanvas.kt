@@ -131,7 +131,8 @@ fun GameCanvas(
                 shakeX = shakeX,
                 shakeY = shakeY,
                 colorMerged = colorMerged,
-                animFlowTime = animFlowTime
+                animFlowTime = animFlowTime,
+                scratchPath = scratchPath1
             )
 
             drawTrackParticles(

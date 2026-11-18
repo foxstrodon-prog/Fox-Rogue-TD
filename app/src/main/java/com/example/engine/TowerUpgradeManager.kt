@@ -483,6 +483,69 @@ object TowerUpgradeManager {
             TowerArchetype.ASTRAL_HARVESTER -> if (isPrimary) out.scrapBonus += 0.40f * count else out.scrapBonus += 0.35f * count
         }
     }
+
+    /**
+     * Returns true if multiple copies of [archetype]'s [auraIndex] (0 = primary, 1 = secondary)
+     * stack additively; false if the aura effect is non-stacking (`maxOf` cap).
+     */
+    fun isAuraStackable(archetype: TowerArchetype, auraIndex: Int = 0): Boolean {
+        val isPrimary = (auraIndex != 1)
+        return when (archetype) {
+            TowerArchetype.BARRICADE_TURRET -> !isPrimary
+            TowerArchetype.MINE_DISPENSER -> isPrimary
+            TowerArchetype.RIOT_DISRUPTOR -> false
+            TowerArchetype.SOLAR_DEATH_RAY -> isPrimary
+            TowerArchetype.FROST_SPIRE -> !isPrimary
+            TowerArchetype.GRAVITON_VOID -> false
+            TowerArchetype.DARK_MATTER_FORGE -> !isPrimary
+            TowerArchetype.TITAN_RAILGUN -> isPrimary
+            TowerArchetype.EARTHQUAKE_STAMPER -> !isPrimary
+            TowerArchetype.CRYO_FORTRESS -> false
+            TowerArchetype.SHOCKWAVE_BASTION -> false
+            TowerArchetype.NANITE_FORGE -> !isPrimary
+            TowerArchetype.SUPERNOVA_PULSAR -> isPrimary
+            TowerArchetype.GRAVITON_LANCE -> false
+            TowerArchetype.EVENT_HORIZON -> false
+            TowerArchetype.NEBULA_AEGIS -> isPrimary
+            TowerArchetype.BLACK_HOLE_SENTRY -> !isPrimary
+            TowerArchetype.STARLIGHT_BEACON -> isPrimary
+            else -> true
+        }
+    }
+
+    /**
+     * Counts how many instances of [auraName] are currently active on the board and banked in Singularity vaults.
+     */
+    fun getAuraActiveAndBankedCounts(
+        auraName: String,
+        towers: List<TowerInstance>,
+        activeBoardSynergies: List<GlobalAuraSynergy>? = null
+    ): Pair<Int, Int> {
+        val boardCount = activeBoardSynergies
+            ?.firstOrNull { it.auraName == auraName }
+            ?.sourceCount
+            ?: towers.count { t ->
+                if (!t.isTier3) false
+                else {
+                    val arch = t.archetype ?: mapTypeToArchetype(t.type)
+                    val chosen = if (t.selectedAuraIndex == 1) arch.secondaryAura.name else arch.primaryAura.name
+                    chosen == auraName
+                }
+            }
+        var bankedCount = 0
+        for (i in towers.indices) {
+            val t = towers[i]
+            if (t.isCapstone && t.synergyVault.isNotEmpty()) {
+                for (vIdx in t.synergyVault.indices) {
+                    val vault = t.synergyVault[vIdx]
+                    for (syn in vault.synergies) {
+                        if (syn.auraName == auraName) bankedCount += syn.sourceCount
+                    }
+                }
+            }
+        }
+        return boardCount to bankedCount
+    }
 }
 
 val TowerType.ascensionGlobalBuff: String

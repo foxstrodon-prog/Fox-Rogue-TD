@@ -36,7 +36,8 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.TowerUpgradeManager
 import com.example.model.*
 import com.example.ui.GameUIState
-import com.example.ui.hud.components.TargetPriorityMenu
+import com.example.ui.hud.components.SellTowerPillButton
+import com.example.ui.hud.components.TargetPriorityPillButton
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -161,6 +162,48 @@ fun TowerClassSilhouette(
 }
 
 /**
+ * Compact Aura Pip Badge rendered in the top-left of Tier-1 Archetype and Tier-2 Aura upgrade squircles.
+ * Shows active board count + banked Singularity vault count, and visually distinguishes
+ * Stackable (`+`) vs Non-Stacking Capped (`CAP`) auras.
+ */
+@Composable
+fun AuraPipBadge(
+    activeCount: Int,
+    bankedCount: Int,
+    isStackable: Boolean,
+    tag: String? = null
+) {
+    val total = activeCount + bankedCount
+    val (label, bgColor, textColor) = when {
+        total == 0 -> Triple("★ NEW", Color(0xFF0F172A).copy(alpha = 0.90f), Color(0xFF38BDF8))
+        !isStackable -> Triple("CAP ${total}x", Color(0xFF3B1A08).copy(alpha = 0.92f), Color(0xFFFFB800))
+        bankedCount > 0 && activeCount > 0 -> Triple("★$activeCount+$bankedCount", Color(0xFF06331E).copy(alpha = 0.92f), Color(0xFF00FF9D))
+        bankedCount > 0 -> Triple("⚡${bankedCount}B", Color(0xFF0E294B).copy(alpha = 0.92f), Color(0xFF00F0FF))
+        else -> Triple("● ${activeCount}x", Color(0xFF06331E).copy(alpha = 0.92f), Color(0xFF00FF9D))
+    }
+
+    Box(
+        modifier = Modifier
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
+            .clip(RoundedCornerShape(4.dp))
+            .background(bgColor)
+            .border(0.8.dp, textColor.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 3.dp, vertical = 1.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 6.2.sp,
+            lineHeight = 7.sp,
+            fontWeight = FontWeight.Black,
+            style = TextStyle(fontFeatureSettings = "tnum"),
+            maxLines = 1
+        )
+    }
+}
+
+/**
  * Floating Squircle Action Button (Track 2 / v0.0.1.005 Tactical Ergonomics).
  */
 @Composable
@@ -170,6 +213,7 @@ fun SquircleActionButton(
     titleColor: Color? = null,
     name: String = "",
     iconComposable: (@Composable () -> Unit)? = null,
+    auraPipBadge: (@Composable () -> Unit)? = null,
     cost: Int? = null,
     badgeText: String = "",
     themeColor: Color,
@@ -244,10 +288,12 @@ fun SquircleActionButton(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = if (iconComposable != null) Arrangement.SpaceBetween else Arrangement.End,
+                horizontalArrangement = if (iconComposable != null || auraPipBadge != null) Arrangement.SpaceBetween else Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (iconComposable != null) {
+                if (auraPipBadge != null) {
+                    auraPipBadge()
+                } else if (iconComposable != null) {
                     Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
                         iconComposable()
                     }
@@ -360,6 +406,8 @@ fun SquircleActionButton(
 
 /**
  * Floating Squircle Upgrade Action Bar (Track 2 / v0.0.1.005).
+ * Flanks Target Priority on the left screen edge and Sell on the right screen edge so
+ * upgrade squircles remain 100% centered and rapid upgrade taps can never accidentally trigger Sell.
  */
 @Composable
 fun FloatingSquircleUpgradeBar(
@@ -383,164 +431,215 @@ fun FloatingSquircleUpgradeBar(
         270 -> 90f
         else -> 0f
     }
+    val isRotated = counterAngle == -90f || counterAngle == 90f
     val animatedRotation by animateFloatAsState(
         targetValue = counterAngle,
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "squircle_counter_rotation"
     )
 
-    Row(
+    Box(
         modifier = modifier
-            .padding(bottom = 32.dp)
-            .wrapContentSize(Alignment.BottomCenter),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .fillMaxWidth()
+            .heightIn(min = 76.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         when {
             state.selectedTower != null -> {
                 val tower = state.selectedTower
                 val sellValue = tower.getSellValue()
                 val prio = tower.targetPriority
-                val isRotated = counterAngle == -90f || counterAngle == 90f
 
-                when (tower.tier) {
-                    0 -> {
-                        val vectors = TowerUpgradeManager.getTier1Vectors()
-                        val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
-                        val canAfford = state.scrap >= cost
-                        val itemWidth = 84.dp
-                        val itemHeight = 76.dp
-
-                        val classPrefix = when (tower.towerClass) {
-                            TowerClass.KINETIC_BALLISTIC -> "Kinetic"
-                            TowerClass.ELEMENTAL_VOID -> "Void"
-                            TowerClass.HEAVY_SIEGE -> "Siege"
-                            TowerClass.STELLAR_COSMIC -> "Stellar"
-                        }
-
-                        vectors.forEach { vec ->
-                            val vecSuffix = when (vec) {
-                                TowerVector.OFFENSIVE -> "Offense"
-                                TowerVector.DEFENSIVE -> "Defense"
-                                TowerVector.SUPPORT -> "Support"
-                            }
-                            val vecColor = Color(getTier1VectorColor(tower.towerClass, vec))
-                            val (b1, b2) = when (vec) {
-                                TowerVector.OFFENSIVE -> "+45% DMG" to "+15% CRIT"
-                                TowerVector.DEFENSIVE -> "+35% RNG" to "+20% Slow"
-                                TowerVector.SUPPORT -> "+40% SPD" to "+25% Scrap"
-                            }
-                            SquircleActionButton(
-                                title = classPrefix,
-                                subtitle = vecSuffix,
-                                cost = cost,
-                                themeColor = vecColor,
-                                canAfford = canAfford,
-                                isUnlocked = true,
-                                bullet1 = b1,
-                                bullet2 = b2,
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = { onUpgradeToVector(tower, vec) },
-                                modifier = Modifier.testTag("upgrade_vector_${vec.idName}")
-                            )
-                        }
-                    }
-
-                    1 -> {
-                        val vec = tower.vector ?: TowerVector.OFFENSIVE
-                        val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
-                        val itemWidth = 84.dp
-                        val itemHeight = 76.dp
-
-                        archetypes.forEach { arch ->
-                            val cost = TowerUpgradeManager.getTier2Cost(arch)
-                            val canAfford = state.scrap >= cost
-                            val (archTitle, archSub, b1) = getArchetypeCardLabels(arch)
-                            val b2 = arch.primaryAura.shortBadge
-
-                            SquircleActionButton(
-                                title = archTitle,
-                                subtitle = archSub,
-                                cost = cost,
-                                themeColor = Color(arch.color),
-                                canAfford = canAfford,
-                                isUnlocked = true,
-                                bullet1 = b1,
-                                bullet2 = b2,
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = { onUpgradeToArchetype(tower, arch) },
-                                modifier = Modifier.testTag("upgrade_archetype_${arch.archetypeId}")
-                            )
-                        }
-                    }
-
-                    2 -> {
-                        val cost = TowerUpgradeManager.getTier3GlobalCost(tower, state.towers)
-                        val canAfford = state.scrap >= cost
-                        val itemWidth = 84.dp
-                        val itemHeight = 76.dp
-                        val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
-                        val auraOptions = listOf(arch.primaryAura, arch.secondaryAura)
-
-                        auraOptions.forEachIndexed { idx, aura ->
-                            val auraColor = if (idx == 0) Color(0xFFFFD700) else Color(0xFF00FF9D)
-                            SquircleActionButton(
-                                title = aura.name,
-                                subtitle = if (idx == 0) "Primary Aura" else "Secondary Aura",
-                                cost = cost,
-                                themeColor = auraColor,
-                                canAfford = canAfford,
-                                isUnlocked = true,
-                                bullet1 = aura.shortBadge,
-                                bullet2 = "Global Aura",
-                                itemWidth = itemWidth,
-                                itemHeight = itemHeight,
-                                rotationAngle = animatedRotation,
-                                onClick = { onUpgradeToTier3Global(tower, idx) },
-                                modifier = Modifier.testTag("upgrade_tier3_$idx")
-                            )
-                        }
-                    }
-
-                    else -> {
-                        val itemWidth = 84.dp
-                        val itemHeight = 76.dp
-                        val level = state.level
-                        val buildableTiles = level?.tiles?.filter { it.isBuildable } ?: emptyList()
-                        val readyTier3Count = state.towers.count { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
-                        val isBoardFull = buildableTiles.isNotEmpty() && state.towers.size >= buildableTiles.size
-                        val areAllTowersTier3 = state.towers.isNotEmpty() && state.towers.all { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
-                        val isSingularityGateReady = isBoardFull && areAllTowersTier3
-                        val currentMaxGen = state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
-                        val conduitCost = 750 * (currentMaxGen + 1)
-
-                        SingularityGateSquircle(
-                            tower = tower,
-                            isSingularityGateReady = isSingularityGateReady,
-                            readyCount = readyTier3Count,
-                            totalBuildable = buildableTiles.size,
-                            currentMaxGen = currentMaxGen,
-                            conduitCost = conduitCost,
-                            currentScrap = state.scrap,
-                            itemWidth = itemWidth,
-                            itemHeight = itemHeight,
-                            animatedRotation = animatedRotation,
-                            onRequestSingularity = onRequestSingularity
-                        )
-                    }
-                }
-
-                TargetPriorityMenu(
+                // Left Edge: Target Priority Pill
+                TargetPriorityPillButton(
                     priority = prio,
-                    sellValue = sellValue,
                     isRotated = isRotated,
                     animatedRotation = animatedRotation,
                     onChangePriority = onChangePriority,
-                    onSellTower = onSellTower
+                    modifier = Modifier.align(if (isRotated) Alignment.CenterStart else Alignment.TopStart)
+                )
+
+                // Center: Upgrade Squircles (strictly centered across all tiers)
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    when (tower.tier) {
+                        0 -> {
+                            val vectors = TowerUpgradeManager.getTier1Vectors()
+                            val cost = TowerUpgradeManager.getTier1VectorCost(tower.towerClass)
+                            val canAfford = state.scrap >= cost
+                            val itemWidth = 72.dp
+                            val itemHeight = 76.dp
+
+                            val classPrefix = when (tower.towerClass) {
+                                TowerClass.KINETIC_BALLISTIC -> "Kinetic"
+                                TowerClass.ELEMENTAL_VOID -> "Void"
+                                TowerClass.HEAVY_SIEGE -> "Siege"
+                                TowerClass.STELLAR_COSMIC -> "Stellar"
+                            }
+
+                            vectors.forEach { vec ->
+                                val vecSuffix = when (vec) {
+                                    TowerVector.OFFENSIVE -> "Offense"
+                                    TowerVector.DEFENSIVE -> "Defense"
+                                    TowerVector.SUPPORT -> "Support"
+                                }
+                                val vecColor = Color(getTier1VectorColor(tower.towerClass, vec))
+                                val (b1, b2) = when (vec) {
+                                    TowerVector.OFFENSIVE -> "+45% DMG" to "+15% CRIT"
+                                    TowerVector.DEFENSIVE -> "+35% RNG" to "+20% Slow"
+                                    TowerVector.SUPPORT -> "+40% SPD" to "+25% Scrap"
+                                }
+                                SquircleActionButton(
+                                    title = classPrefix,
+                                    subtitle = vecSuffix,
+                                    cost = cost,
+                                    themeColor = vecColor,
+                                    canAfford = canAfford,
+                                    isUnlocked = true,
+                                    bullet1 = b1,
+                                    bullet2 = b2,
+                                    itemWidth = itemWidth,
+                                    itemHeight = itemHeight,
+                                    rotationAngle = animatedRotation,
+                                    onClick = { onUpgradeToVector(tower, vec) },
+                                    modifier = Modifier.testTag("upgrade_vector_${vec.idName}")
+                                )
+                            }
+                        }
+
+                        1 -> {
+                            val vec = tower.vector ?: TowerVector.OFFENSIVE
+                            val archetypes = TowerUpgradeManager.getTier2ArchetypesForClass(tower.towerClass, vec)
+                            val itemWidth = 74.dp
+                            val itemHeight = 76.dp
+
+                            archetypes.forEach { arch ->
+                                val cost = TowerUpgradeManager.getTier2Cost(arch)
+                                val canAfford = state.scrap >= cost
+                                val (archTitle, archSub, b1) = getArchetypeCardLabels(arch)
+                                val b2 = arch.primaryAura.shortBadge
+                                val (pActive, pBanked) = TowerUpgradeManager.getAuraActiveAndBankedCounts(
+                                    auraName = arch.primaryAura.name,
+                                    towers = state.towers,
+                                    activeBoardSynergies = state.activeBoardSynergies
+                                )
+                                val (sActive, sBanked) = TowerUpgradeManager.getAuraActiveAndBankedCounts(
+                                    auraName = arch.secondaryAura.name,
+                                    towers = state.towers,
+                                    activeBoardSynergies = state.activeBoardSynergies
+                                )
+                                val totalActive = pActive + sActive
+                                val totalBanked = pBanked + sBanked
+                                val isStackable = TowerUpgradeManager.isAuraStackable(arch, 0) ||
+                                    TowerUpgradeManager.isAuraStackable(arch, 1)
+
+                                SquircleActionButton(
+                                    title = archTitle,
+                                    subtitle = archSub,
+                                    auraPipBadge = {
+                                        AuraPipBadge(
+                                            activeCount = totalActive,
+                                            bankedCount = totalBanked,
+                                            isStackable = isStackable,
+                                            tag = "aura_pip_arch_${arch.archetypeId}"
+                                        )
+                                    },
+                                    cost = cost,
+                                    themeColor = Color(arch.color),
+                                    canAfford = canAfford,
+                                    isUnlocked = true,
+                                    bullet1 = b1,
+                                    bullet2 = b2,
+                                    itemWidth = itemWidth,
+                                    itemHeight = itemHeight,
+                                    rotationAngle = animatedRotation,
+                                    onClick = { onUpgradeToArchetype(tower, arch) },
+                                    modifier = Modifier.testTag("upgrade_archetype_${arch.archetypeId}")
+                                )
+                            }
+                        }
+
+                        2 -> {
+                            val cost = TowerUpgradeManager.getTier3GlobalCost(tower, state.towers)
+                            val canAfford = state.scrap >= cost
+                            val itemWidth = 84.dp
+                            val itemHeight = 76.dp
+                            val arch = tower.archetype ?: mapTypeToArchetype(tower.type)
+                            val auraOptions = listOf(arch.primaryAura, arch.secondaryAura)
+
+                            auraOptions.forEachIndexed { idx, aura ->
+                                val auraColor = if (idx == 0) Color(0xFFFFD700) else Color(0xFF00FF9D)
+                                val (activeCnt, bankedCnt) = TowerUpgradeManager.getAuraActiveAndBankedCounts(
+                                    auraName = aura.name,
+                                    towers = state.towers,
+                                    activeBoardSynergies = state.activeBoardSynergies
+                                )
+                                val stackable = TowerUpgradeManager.isAuraStackable(arch, idx)
+                                SquircleActionButton(
+                                    title = aura.name,
+                                    subtitle = if (idx == 0) "Primary Aura" else "Secondary Aura",
+                                    auraPipBadge = {
+                                        AuraPipBadge(
+                                            activeCount = activeCnt,
+                                            bankedCount = bankedCnt,
+                                            isStackable = stackable,
+                                            tag = "aura_pip_tier3_$idx"
+                                        )
+                                    },
+                                    cost = cost,
+                                    themeColor = auraColor,
+                                    canAfford = canAfford,
+                                    isUnlocked = true,
+                                    bullet1 = aura.shortBadge,
+                                    bullet2 = if (stackable) "Stackable Aura" else "Global Aura (Cap)",
+                                    itemWidth = itemWidth,
+                                    itemHeight = itemHeight,
+                                    rotationAngle = animatedRotation,
+                                    onClick = { onUpgradeToTier3Global(tower, idx) },
+                                    modifier = Modifier.testTag("upgrade_tier3_$idx")
+                                )
+                            }
+                        }
+
+                        else -> {
+                            val itemWidth = 84.dp
+                            val itemHeight = 76.dp
+                            val level = state.level
+                            val buildableTiles = level?.tiles?.filter { it.isBuildable } ?: emptyList()
+                            val readyTier3Count = state.towers.count { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
+                            val isBoardFull = buildableTiles.isNotEmpty() && state.towers.size >= buildableTiles.size
+                            val areAllTowersTier3 = state.towers.isNotEmpty() && state.towers.all { it.tier >= 3 || it.finalFormCode != null || it.isCapstone }
+                            val isSingularityGateReady = isBoardFull && areAllTowersTier3
+                            val currentMaxGen = state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
+                            val conduitCost = 750 * (currentMaxGen + 1)
+
+                            SingularityGateSquircle(
+                                tower = tower,
+                                isSingularityGateReady = isSingularityGateReady,
+                                readyCount = readyTier3Count,
+                                totalBuildable = buildableTiles.size,
+                                currentMaxGen = currentMaxGen,
+                                conduitCost = conduitCost,
+                                currentScrap = state.scrap,
+                                itemWidth = itemWidth,
+                                itemHeight = itemHeight,
+                                animatedRotation = animatedRotation,
+                                onRequestSingularity = onRequestSingularity
+                            )
+                        }
+                    }
+                }
+
+                // Right Edge: Sell Tower Pill
+                SellTowerPillButton(
+                    sellValue = sellValue,
+                    isRotated = isRotated,
+                    animatedRotation = animatedRotation,
+                    onSellTower = onSellTower,
+                    modifier = Modifier.align(if (isRotated) Alignment.CenterEnd else Alignment.BottomEnd)
                 )
             }
 
@@ -550,52 +649,58 @@ fun FloatingSquircleUpgradeBar(
                 val itemWidth = 72.dp
                 val itemHeight = 76.dp
 
-                classes.forEach { towerClass ->
-                    val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)
-                    val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).roundToInt()
-                    val canAfford = state.scrap >= cost
-                    val (b1, b2) = when (towerClass) {
-                        TowerClass.KINETIC_BALLISTIC -> "Ballistic Fire" to "Single-Target"
-                        TowerClass.ELEMENTAL_VOID -> "Cryo / Plasma" to "Area AoE Slow"
-                        TowerClass.HEAVY_SIEGE -> "Siege Blasts" to "Armor Shred"
-                        TowerClass.STELLAR_COSMIC -> "Cosmic Rays" to "Barrier Bypass"
-                    }
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    classes.forEach { towerClass ->
+                        val isUnlocked = TowerUpgradeManager.isClassUnlocked(towerClass, state.towers)
+                        val cost = (towerClass.baseCost * state.balanceConfig.buildCostMultiplier).roundToInt()
+                        val canAfford = state.scrap >= cost
+                        val (b1, b2) = when (towerClass) {
+                            TowerClass.KINETIC_BALLISTIC -> "Ballistic Fire" to "Single-Target"
+                            TowerClass.ELEMENTAL_VOID -> "Cryo / Plasma" to "Area AoE Slow"
+                            TowerClass.HEAVY_SIEGE -> "Siege Blasts" to "Armor Shred"
+                            TowerClass.STELLAR_COSMIC -> "Cosmic Rays" to "Barrier Bypass"
+                        }
 
-                    val (cTitle, cSub) = when (towerClass) {
-                        TowerClass.KINETIC_BALLISTIC -> "Kinetic" to "Ballistic"
-                        TowerClass.ELEMENTAL_VOID -> "Elemental" to "Void"
-                        TowerClass.HEAVY_SIEGE -> "Heavy" to "Siege"
-                        TowerClass.STELLAR_COSMIC -> "Stellar" to "Cosmic"
-                    }
+                        val (cTitle, cSub) = when (towerClass) {
+                            TowerClass.KINETIC_BALLISTIC -> "Kinetic" to "Ballistic"
+                            TowerClass.ELEMENTAL_VOID -> "Elemental" to "Void"
+                            TowerClass.HEAVY_SIEGE -> "Heavy" to "Siege"
+                            TowerClass.STELLAR_COSMIC -> "Stellar" to "Cosmic"
+                        }
 
-                    SquircleActionButton(
-                        title = cTitle,
-                        subtitle = cSub,
-                        iconComposable = {
-                            TowerClassSilhouette(
-                                towerClass = towerClass,
-                                color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) Color(towerClass.color) else Color(towerClass.color).copy(alpha = 0.5f),
-                                modifier = Modifier.size(15.dp)
-                            )
-                        },
-                        cost = cost,
-                        themeColor = Color(towerClass.color),
-                        canAfford = canAfford,
-                        isUnlocked = isUnlocked,
-                        bullet1 = b1,
-                        bullet2 = b2,
-                        itemWidth = itemWidth,
-                        itemHeight = itemHeight,
-                        rotationAngle = animatedRotation,
-                        onClick = {
-                            if (onBuildTowerClass != null) {
-                                onBuildTowerClass(tile, towerClass)
-                            } else {
-                                onBuildTower?.invoke(tile, mapClassToType(towerClass))
-                            }
-                        },
-                        modifier = Modifier.testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
-                    )
+                        SquircleActionButton(
+                            title = cTitle,
+                            subtitle = cSub,
+                            iconComposable = {
+                                TowerClassSilhouette(
+                                    towerClass = towerClass,
+                                    color = if (!isUnlocked) Color(0xFF64748B) else if (canAfford) Color(towerClass.color) else Color(towerClass.color).copy(alpha = 0.5f),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            },
+                            cost = cost,
+                            themeColor = Color(towerClass.color),
+                            canAfford = canAfford,
+                            isUnlocked = isUnlocked,
+                            bullet1 = b1,
+                            bullet2 = b2,
+                            itemWidth = itemWidth,
+                            itemHeight = itemHeight,
+                            rotationAngle = animatedRotation,
+                            onClick = {
+                                if (onBuildTowerClass != null) {
+                                    onBuildTowerClass(tile, towerClass)
+                                } else {
+                                    onBuildTower?.invoke(tile, mapClassToType(towerClass))
+                                }
+                            },
+                            modifier = Modifier.testTag(if (towerClass == TowerClass.KINETIC_BALLISTIC) "build_basic_turret" else "build_class_${towerClass.name}")
+                        )
+                    }
                 }
             }
         }

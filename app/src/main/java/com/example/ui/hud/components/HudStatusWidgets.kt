@@ -190,6 +190,136 @@ internal fun HudClockHandle(
 }
 
 @Composable
+internal fun HudWaveControlCapsule(
+    autoWaveActive: Boolean,
+    isWaveActive: Boolean,
+    enemyCount: Int,
+    isRotated: Boolean,
+    animatedRotation: Float,
+    onToggleAutoWave: () -> Unit,
+    onDeployWave: () -> Unit
+) {
+    val activeGreen = Color(0xFF00FF9D)
+    val inactiveSlate = Color(0xFF334155)
+    val isWaveReady = !isWaveActive
+    val pulseAlphaState = if (isWaveReady) {
+        val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
+        infiniteTransition.animateFloat(
+            initialValue = 0.65f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "launch_pulse"
+        )
+    } else {
+        null
+    }
+    val pulseAlpha = pulseAlphaState?.value ?: 1f
+
+    val borderColor = when {
+        isWaveReady -> Color.White.copy(alpha = 0.85f * pulseAlpha)
+        autoWaveActive -> activeGreen.copy(alpha = 0.85f)
+        else -> inactiveSlate
+    }
+
+    Surface(
+        color = Color(0xFF161F30).copy(alpha = 0.82f),
+        shape = HUD_CAPSULE_SHAPE,
+        border = BorderStroke(width = if (autoWaveActive || isWaveReady) 1.2.dp else 1.dp, color = borderColor),
+        modifier = Modifier
+            .hudCapsuleContainer(isRotated, animatedRotation)
+            .height(if (isRotated) HUD_ROTATED_CAPSULE_HEIGHT else HUD_CAPSULE_HEIGHT)
+            .clip(HUD_CAPSULE_SHAPE)
+            .testTag("hud_wave_control_capsule")
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            // 1. Integrated AUTO Toggle Segment (Left)
+            Row(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .defaultMinSize(minWidth = if (isRotated) 32.dp else 1.dp)
+                    .background(
+                        if (autoWaveActive) Color(0xFF003822).copy(alpha = 0.90f)
+                        else Color.Transparent
+                    )
+                    .clickable { onToggleAutoWave() }
+                    .padding(horizontal = if (isRotated) 4.dp else 5.dp)
+                    .testTag("auto_wave_toggle"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(5.5.dp)
+                        .clip(CircleShape)
+                        .then(
+                            if (autoWaveActive) {
+                                Modifier.background(activeGreen)
+                            } else {
+                                Modifier.border(1.1.dp, Color(0xFF64748B), CircleShape)
+                            }
+                        )
+                )
+                Spacer(modifier = Modifier.width(2.5.dp))
+                Text(
+                    text = "AUTO",
+                    color = if (autoWaveActive) activeGreen else Color(0xFF94A3B8),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 7.8.sp,
+                    maxLines = 1
+                )
+            }
+
+            // 1dp vertical divider between AUTO and BEGIN
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(if (autoWaveActive) activeGreen.copy(alpha = 0.55f) else Color(0xFF334155))
+            )
+
+            // 2. Main BEGIN / Active Enemy Count Segment (Right)
+            val contentColor = if (isWaveReady) Color(0xFF040812) else Color(0xFF94A3B8)
+            Row(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .defaultMinSize(minWidth = if (isRotated) 34.dp else 1.dp)
+                    .background(
+                        if (isWaveReady) Color(0xFF00F0FF).copy(alpha = 0.88f * pulseAlpha)
+                        else Color(0xFF1E293B).copy(alpha = 0.80f)
+                    )
+                    .clickable(enabled = isWaveReady, onClick = onDeployWave)
+                    .padding(horizontal = if (isRotated) 5.dp else 6.dp)
+                    .testTag("deploy_wave_button"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = if (isWaveActive) Icons.Filled.FastForward else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(10.5.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = if (isWaveActive) "$enemyCount" else "BEGIN",
+                    color = contentColor,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 8.2.sp,
+                    style = TextStyle(fontFeatureSettings = "tnum"),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
 internal fun HudAutoWaveToggle(
     autoWaveActive: Boolean,
     isRotated: Boolean,

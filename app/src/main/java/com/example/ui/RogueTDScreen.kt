@@ -99,7 +99,7 @@ fun RogueTDScreen(
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "edge_tab_rotation"
     )
-    val topBannerOffsetDp = (if (isHudRotated) 52.dp else 40.dp)
+    val topBannerOffsetDp = (if (isHudRotated) 78.dp else 40.dp)
     // Lowered Round-1 tile hint: ~3/4 visual screen depth across all four orientations.
     val lowerBannerAlignment = when (normalizedRot) {
         90 -> BiasAlignment(0.5f, 0f)
@@ -293,7 +293,7 @@ fun RogueTDScreen(
             ) + fadeOut(animationSpec = tween(durationMillis = 150)),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 48.dp)
+                .padding(bottom = 112.dp)
         ) {
             EdgeBulletTipTab(
                 isLeftEdge = false,
@@ -318,7 +318,7 @@ fun RogueTDScreen(
             ) + fadeOut(animationSpec = tween(durationMillis = 150)),
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(bottom = if (isLandscape && hasUpdateBanner) 64.dp else 48.dp)
+                .padding(bottom = 112.dp)
         ) {
             EdgeBulletTipTab(
                 isLeftEdge = true,

@@ -104,7 +104,7 @@ fun DrawScope.drawSmoothMergedPathways(
 }
 
 /**
- * Renders dynamic track sparks flowing along both enemy approach lanes.
+ * Renders dynamic track sparks with directional comet tails flowing along both enemy approach lanes.
  */
 fun DrawScope.drawTrackParticles(
     trackParticles: List<TrackParticle>,
@@ -124,17 +124,33 @@ fun DrawScope.drawTrackParticles(
             val sy = (p0.y + 0.5f) * cellH + shakeY
             val ex = (p1.x + 0.5f) * cellW + shakeX
             val ey = (p1.y + 0.5f) * cellH + shakeY
-            val px = sx + (ex - sx) * tp.progress
-            val py = sy + (ey - sy) * tp.progress
+            val dx = ex - sx
+            val dy = ey - sy
+            val px = sx + dx * tp.progress
+            val py = sy + dy * tp.progress
+
+            // Directional comet tail trailing behind the spark head along the segment vector
+            val tailFactor = 0.28f
+            val tailX = px - dx * tailFactor
+            val tailY = py - dy * tailFactor
+            val particleColor = Color(tp.color)
+
+            drawLine(
+                color = particleColor.copy(alpha = 0.42f),
+                start = Offset(tailX, tailY),
+                end = Offset(px, py),
+                strokeWidth = tp.size * 1.45f,
+                cap = StrokeCap.Round
+            )
 
             drawCircle(
-                color = Color(tp.color).copy(alpha = 0.85f),
-                radius = tp.size * 1.2f,
+                color = particleColor.copy(alpha = 0.88f),
+                radius = tp.size * 1.25f,
                 center = Offset(px, py)
             )
             drawCircle(
                 color = Color.White,
-                radius = tp.size * 0.5f,
+                radius = tp.size * 0.55f,
                 center = Offset(px, py)
             )
         }

@@ -10,15 +10,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.HeadlessBalanceSimulator
+import com.example.engine.HeadlessSimReport
 import com.example.model.CinematicScenario
+import com.example.model.DevBalanceConfig
 import com.example.model.EnemyType
 import com.example.model.TowerPerformanceRecord
 import java.util.Locale
@@ -37,8 +41,11 @@ fun DevProbesTab(
     onSelectCreepType: (EnemyType) -> Unit,
     onSpawnCountChanged: (Int) -> Unit,
     onResetTelemetry: () -> Unit,
-    onSpawnSandboxWave: (EnemyType, Int) -> Unit
+    onSpawnSandboxWave: (EnemyType, Int) -> Unit,
+    balanceConfig: DevBalanceConfig = DevBalanceConfig()
 ) {
+    var simReports by remember { mutableStateOf<List<HeadlessSimReport>>(emptyList()) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -77,6 +84,95 @@ fun DevProbesTab(
             }
         }
 
+        // === HEADLESS 63-WAVE BALANCE VERIFICATION PROBE (TRACK 3B) ===
+        item {
+            Surface(
+                color = Color(0xFF131F37),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color(0xFF00FF9D).copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("HEADLESS BALANCE SIMULATOR", color = Color(0xFF00FF9D), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                        Text("1 / 2-3 / 4-5 Collapse Targets", color = Color(0xFF94A3B8), fontSize = 8.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            simReports = HeadlessBalanceSimulator.runAllBenchmarks(
+                                seed = 42L,
+                                balanceConfig = balanceConfig
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(30.dp)
+                            .testTag("run_headless_sim_button"),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("RUN 63W HEADLESS SIM", fontWeight = FontWeight.Black, fontSize = 9.sp)
+                    }
+
+                    if (simReports.isNotEmpty()) {
+                        simReports.forEach { report ->
+                            Surface(
+                                color = Color(0xFF0B132B),
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "${report.difficulty.label} (W${report.waveReached}/${report.targetWave})",
+                                            color = Color(0xFF00F0FF),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 8.5.sp
+                                        )
+                                        Text(
+                                            text = "Collapses: ${report.totalCollapses}",
+                                            color = Color(0xFFFFD700),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 8.5.sp
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Unspent Gold: ${report.unspentGoldAtEnd} c",
+                                            color = Color(0xFFCBD5E1),
+                                            fontSize = 8.sp
+                                        )
+                                        Text(
+                                            text = "Unique Auras Banked: ${report.uniqueAurasBanked}",
+                                            color = Color(0xFF00FF9D),
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // === DATA-DRIVEN COMBAT DPS & EFFICIENCY ANALYZER (TRACK 3C) ===
         item {
             Surface(
                 color = Color(0xFF131F37),
@@ -90,7 +186,7 @@ fun DevProbesTab(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("COMBAT DPS METER", color = Color(0xFFFFB800), fontWeight = FontWeight.Black, fontSize = 10.sp)
+                        Text("COMBAT DPS & BALANCE ANALYZER", color = Color(0xFFFFB800), fontWeight = FontWeight.Black, fontSize = 10.sp)
                         TextButton(onClick = onResetTelemetry, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
                             Text("RESET", color = Color(0xFF94A3B8), fontSize = 8.5.sp)
                         }
@@ -99,14 +195,51 @@ fun DevProbesTab(
                     if (towerPerformance.isEmpty()) {
                         Text("No combat data logged yet for this run.", color = Color(0xFF64748B), fontSize = 8.5.sp)
                     } else {
-                        towerPerformance.take(6).forEach { rec ->
-                            Row(
+                        val totalBuiltSum = towerPerformance.sumOf { it.totalBuilt }.coerceAtLeast(1)
+                        val avgEfficiency = towerPerformance.map { it.dpsCostEfficiency }.average().coerceAtLeast(1.0)
+
+                        towerPerformance.take(8).forEach { rec ->
+                            val eff = rec.dpsCostEfficiency
+                            val pickSharePct = ((rec.totalBuilt.toFloat() / totalBuiltSum.toFloat()) * 100f).roundToInt()
+                            val (statusLabel, statusColor) = when {
+                                eff > avgEfficiency * 1.30 -> "OVERPERFORMING" to Color(0xFFFF2A55)
+                                eff < avgEfficiency * 0.70 -> "UNDERPERFORMING" to Color(0xFF38BDF8)
+                                else -> "BALANCED" to Color(0xFF00FF9D)
+                            }
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
-                                Text(rec.towerName, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                Text("${rec.totalDamage.toInt()} dmg (${rec.totalKills} kills)", color = Color(0xFF00FF9D), fontSize = 8.5.sp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(rec.towerName, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = statusLabel,
+                                        color = statusColor,
+                                        fontSize = 7.5.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${rec.totalDamage.toInt()} dmg (${rec.totalKills} kills)",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 8.sp
+                                    )
+                                    Text(
+                                        text = "${String.format(Locale.US, "%.1f", eff)} DMG/c • $pickSharePct% pick",
+                                        color = Color(0xFFFFD700),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
                     }
