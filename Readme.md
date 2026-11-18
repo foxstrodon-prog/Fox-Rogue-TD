@@ -7,7 +7,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-### 🚀 What's New in Version 0.0.1.045
+### 🚀 What's New in Version 0.0.1.045 (Build #66)
 
 🛠️ **Leaderboard & Cross-Version Auto-Updater Restoration, Centered Squircles & Canvas Polish**
 - **Clean Flowing Dots & Crimson Red Core Endpoint:** Removed comet trails behind lane flow dots and replaced the Core exit heart icon with a permanent crimson red octagonal nexus.
@@ -18,7 +18,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ### 📦 Recent Patch History
 
-#### Version 0.0.1.044
+#### Version 0.0.1.044 (Build #65)
 
 🎯 **Tactical HUD Ergonomics, 10x21 Full-Screen Grid, Portal/Core Visuals & Data-Driven Balance**
 - **Combined Wave Capsule & Centered Upgrade Squircles:** Merged `BEGIN` and `AUTO` into a single Split-Action Wave Capsule, flanked `Target` and `Sell` to the screen edges to prevent accidental sell taps while spamming upgrades, and added Active/Banked Aura Pip Badges (`★ NEW`, `● 1x`, `⚡ 2B`, `CAP 1x`) on Tier-2/Tier-3 upgrade previews.
@@ -27,7 +27,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-#### Version 0.0.1.043
+#### Version 0.0.1.043 (Build #64)
 
 ⚡ **Speed-Invariant 10X Simulation, Smoother Loaded-Board Pacing & New Build #64 Variants**
 - **True `10X` Speed Parity:** Replaced coarse simulation sub-stepping and spawn-timer drift with a fixed `20ms` physics accumulator and remainder-preserving wave spawner, ensuring `10X` maintains the exact same wave density and combat difficulty as `1X` even on tower-loaded boards.
@@ -36,7 +36,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-#### Version 0.0.1.042
+#### Version 0.0.1.042 (Build #63)
 
 🔄 **Automatic Build-Driven Sound & Skin Generation + Multi-Build Archives**
 - **4 Fresh Variants Every Build:** Every `versionCode` increment (`Build #63 / v0.0.1.042` and beyond) now automatically generates 4 new Turret Skins, 4 Map & Lane Themes, 4 BGM Tracks, 4 SFX Packs, 16 per-class Turret Fire sounds, and 16 Turret Upgrade chimes while keeping your Default Core untouched.
@@ -45,7 +45,7 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 
 ---
 
-#### Version 0.0.1.041
+#### Version 0.0.1.041 (Build #62)
 
 ⚛️ **Singularity Remaps, Synergy HUD & Skin Previews, Balance Overhaul & Hexagon Siege**
 - **Bullet HUD Synergies & Singularity Tracking:** The synergy pill now counts duplicate tower sources, splits Active Board Synergies from the Singularity Tower's vaulted stacks in a dedicated secondary section, and scrolls cleanly across all 4 screen rotations.
