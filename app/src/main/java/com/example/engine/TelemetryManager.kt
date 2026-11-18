@@ -286,6 +286,17 @@ class TelemetryManager @JvmOverloads constructor(
                 .putInt("schema_version_map_rows", 1)
                 .apply()
         }
+        val currentBalanceSchema = prefs.getInt("schema_version_balance_defaults", 1)
+        if (currentBalanceSchema < 2) {
+            val editor = prefs.edit()
+            if (prefs.getInt("cfg_map_columns", 10) == 9) editor.putInt("cfg_map_columns", 10)
+            if (prefs.getInt("cfg_map_rows", 21) in listOf(19, 20)) editor.putInt("cfg_map_rows", 21)
+            if (prefs.getInt("cfg_easy_open_slots", 15) == 16) editor.putInt("cfg_easy_open_slots", 15)
+            if (prefs.getInt("cfg_med_open_slots", 15) == 14) editor.putInt("cfg_med_open_slots", 15)
+            if (prefs.getInt("cfg_hard_open_slots", 15) == 12) editor.putInt("cfg_hard_open_slots", 15)
+            if (prefs.getInt("cfg_starting_scrap", 220) in listOf(420, 250)) editor.putInt("cfg_starting_scrap", 220)
+            editor.putInt("schema_version_balance_defaults", 2).apply()
+        }
         return DevBalanceConfig(
             startingScrap = prefs.getInt("cfg_starting_scrap", 220),
             globalIncomeMultiplier = prefs.getFloat("cfg_global_income", 1.0f),
@@ -445,7 +456,7 @@ class TelemetryManager @JvmOverloads constructor(
                 towerName = name,
                 towerClass = t.towerClass
             )
-            val invested = (t.archetype?.baseCost ?: t.type.baseCost) + if (t.isTier3) 250 else 0
+            val invested = t.getInvestedScrapValue().toLong()
             existing[name] = prev.copy(
                 totalDamage = prev.totalDamage + t.totalDamage.toDouble(),
                 totalKills = prev.totalKills + t.kills.toLong(),

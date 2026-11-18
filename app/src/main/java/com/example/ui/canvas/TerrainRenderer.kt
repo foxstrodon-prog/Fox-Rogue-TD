@@ -154,8 +154,6 @@ fun DrawScope.drawTerrainTiles(
                     centerX = centerX,
                     centerY = centerY,
                     cellW = cellW,
-                    coreHp = state.coreHp,
-                    maxCoreHp = state.maxCoreHp,
                     laneAlpha = level.laneAlpha,
                     laneBeta = level.laneBeta,
                     flowTimeF = flowTimeF,
@@ -523,34 +521,30 @@ private fun DrawScope.drawEntryPrismPortal(
 }
 
 /**
- * Draws the Defense Core Exit (`TileType.CORE`) with a Shielded Heart Emblem matching the Top HUD
- * Core HP iconography, framed by a pulsing octagonal aegis ring and inward-pointing caution chevrons.
+ * Draws the Defense Core Exit (`TileType.CORE`) as a pulsing crimson red nexus framed by an
+ * octagonal aegis ring and inward-pointing red caution chevrons (no heart icon).
  * Reuses [scratchPath] for zero per-frame allocations.
  */
 private fun DrawScope.drawCoreShieldedHeartExit(
     centerX: Float,
     centerY: Float,
     cellW: Float,
-    coreHp: Int,
-    maxCoreHp: Int,
     laneAlpha: List<GridPos>,
     laneBeta: List<GridPos>,
     flowTimeF: Float,
     scratchPath: Path
 ) {
     val pulse = sin(flowTimeF * 0.005f) * 0.14f + 0.86f
-    val hpRatio = if (maxCoreHp > 0) (coreHp.toFloat() / maxCoreHp.toFloat()).coerceIn(0f, 1f) else 1f
-    val shieldColor = if (hpRatio > 0.35f) Color(0xFF00FF9D) else Color(0xFFFF2A55)
-    val heartColor = Color(0xFFFF2A55)
+    val coreRed = Color(0xFFFF2A55)
 
-    // 1. Ambient Core Shield Glow
+    // 1. Ambient Red Core Glow
     drawCircle(
-        color = shieldColor.copy(alpha = 0.22f * pulse),
+        color = coreRed.copy(alpha = 0.24f * pulse),
         radius = cellW * 0.52f,
         center = Offset(centerX, centerY)
     )
 
-    // 2. Pulsing Octagonal Aegis Ring
+    // 2. Pulsing Red Octagonal Aegis Ring
     val octRadius = cellW * 0.39f * pulse
     scratchPath.reset()
     for (k in 0 until 8) {
@@ -560,29 +554,26 @@ private fun DrawScope.drawCoreShieldedHeartExit(
         if (k == 0) scratchPath.moveTo(vx, vy) else scratchPath.lineTo(vx, vy)
     }
     scratchPath.close()
-    drawPath(path = scratchPath, color = Color(0xFF0B111E).copy(alpha = 0.88f))
-    drawPath(path = scratchPath, color = shieldColor, style = Stroke(width = 2.6f))
-    drawCircle(color = Color(0xFF00F0FF).copy(alpha = 0.65f), radius = cellW * 0.29f, center = Offset(centerX, centerY), style = Stroke(width = 1.2f))
+    drawPath(path = scratchPath, color = Color(0xFF1A0810).copy(alpha = 0.90f))
+    drawPath(path = scratchPath, color = coreRed, style = Stroke(width = 2.6f))
+    drawCircle(
+        color = coreRed.copy(alpha = 0.65f),
+        radius = cellW * 0.28f,
+        center = Offset(centerX, centerY),
+        style = Stroke(width = 1.4f)
+    )
 
-    // 3. Shielded Heart Emblem (matches Top HUD Core HP Heart Icon)
-    val hr = cellW * 0.18f
-    val topDipY = centerY - hr * 0.35f
-    val bottomTipY = centerY + hr * 0.95f
-    scratchPath.reset()
-    scratchPath.moveTo(centerX, bottomTipY)
-    scratchPath.cubicTo(
-        centerX - hr * 1.35f, centerY + hr * 0.25f,
-        centerX - hr * 1.15f, centerY - hr * 0.95f,
-        centerX, topDipY
+    // 3. Geometric Red Core Nexus Center (no heart emblem)
+    drawCircle(
+        color = coreRed.copy(alpha = 0.92f * pulse),
+        radius = cellW * 0.17f,
+        center = Offset(centerX, centerY)
     )
-    scratchPath.cubicTo(
-        centerX + hr * 1.15f, centerY - hr * 0.95f,
-        centerX + hr * 1.35f, centerY + hr * 0.25f,
-        centerX, bottomTipY
+    drawCircle(
+        color = Color.White.copy(alpha = 0.88f),
+        radius = cellW * 0.06f,
+        center = Offset(centerX, centerY)
     )
-    scratchPath.close()
-    drawPath(path = scratchPath, color = heartColor.copy(alpha = 0.92f))
-    drawPath(path = scratchPath, color = Color.White.copy(alpha = 0.90f), style = Stroke(width = 1.3f))
 
     // 4. Inward-pointing approach chevrons on final lane segment(s) leading into the Core
     fun drawApproachChevron(lane: List<GridPos>) {
@@ -610,13 +601,13 @@ private fun DrawScope.drawCoreShieldedHeartExit(
         val rightY = cy - dirY * chevBack - perpY * chevWing
 
         drawLine(
-            color = heartColor.copy(alpha = 0.80f),
+            color = coreRed.copy(alpha = 0.80f),
             start = Offset(leftX, leftY),
             end = Offset(cx, cy),
             strokeWidth = 2.0f
         )
         drawLine(
-            color = heartColor.copy(alpha = 0.80f),
+            color = coreRed.copy(alpha = 0.80f),
             start = Offset(rightX, rightY),
             end = Offset(cx, cy),
             strokeWidth = 2.0f

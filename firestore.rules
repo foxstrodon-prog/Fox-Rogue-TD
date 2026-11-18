@@ -53,6 +53,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Balance & Run Telemetry Analytics
+    match /run_telemetry/{runId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll([
+                      'runId', 'playerName', 'wavesCleared', 'score', 'isVictory', 'mvpTower', 'timestamp'
+                    ])
+                    && request.resource.data.wavesCleared is int
+                    && request.resource.data.wavesCleared >= 0
+                    && request.resource.data.wavesCleared <= 1000
+                    && request.resource.data.score is int
+                    && request.resource.data.score >= 0
+                    && request.resource.data.score <= 50000000;
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

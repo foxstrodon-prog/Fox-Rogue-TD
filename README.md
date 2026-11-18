@@ -13,7 +13,7 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ## 📱 Downloads (Android APK & Local ADB Companion)
 
-- **Latest Android APK (`v0.0.1.044`):** [`apk/Dual-Front-TD-v0.0.1.044-debug.apk`](apk/Dual-Front-TD-v0.0.1.044-debug.apk)
+- **Latest Android APK (`v0.0.1.045`):** [`apk/Dual-Front-TD-v0.0.1.045-debug.apk`](apk/Dual-Front-TD-v0.0.1.045-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe) (located in `apk/` directory)
   - General utility that automatically detects ADB, pairs with your Android device or local emulator, installs the latest staged APK, sets widescreen landscape mode, and launches the game.
 - **GitHub Releases:** Only official Android APK releases are distributed on GitHub.
@@ -22,7 +22,24 @@ Created by an indie developer who just loves tower defense games and wanted to b
 
 ---
 
-## 🕹️ What's New in Version 0.0.1.044
+## 🕹️ What's New in Version 0.0.1.045
+
+### 🛠️ Red-Team Remediation, Leaderboard & Auto-Updater Restoration, and HUD/Canvas Polish (`versionCode = 66`)
+- **Canvas Polish — Clean Flowing Lane Dots & Red Core Nexus (`TrackRenderer.kt`, `TerrainRenderer.kt`):**
+  - Removed the directional comet tails behind flowing lane dots so particles render as crisp concentric energy orbs.
+  - Removed the Heart emblem from the Core exit endpoint (`TileType.CORE`) and made the endpoint permanently crimson red (`#FF2A55`) with an octagonal aegis ring and glowing red nexus center.
+- **Vertically Centered `First` / `Sell` Squircles & Accurate Tier-1 `AuraPipBadge` (`TowerUpgradeBar.kt`, `HudStatusWidgets.kt`, `TargetPriorityMenu.kt`):**
+  - Vertically centered `TargetPriorityPillButton` (`Alignment.CenterStart`) and `SellTowerPillButton` (`Alignment.CenterEnd`) on the exact midline of the upgrade squircles across all 4 rotations (`0°`, `90°`, `180°`, `270°`), fixed Tier-1 archetype `AuraPipBadge` `CAP` resolution when only a non-stacking aura is active/banked, and removed unused legacy HUD composables.
+- **Leaderboard Restoration, Legacy Balance Migration & Whole-Run MVP Attribution (`TelemetryManager.kt`, `RogueTDViewModel.kt`, `TowerPlacementCoordinator.kt`, `firestore.rules`):**
+  - Auto-migrated legacy stock defaults (`9x19/20 -> 10x21`, `16/14/12 -> 15` open slots, `420/250 -> 220` starting scrap) via `schema_version_balance_defaults = 2` so upgraded devices are never falsely disqualified as `DEV TUNED`, fixed `recordRunCompletion` coroutine hierarchy and premature leaderboard refresh, used exact `getInvestedScrapValue()` in `recordTowerSession`, and credited sold/Singularity-sacrificed towers for run MVP.
+- **Cross-Version Auto-Updater, Pause Menu Update Feedback & Off-Main-Thread Headless Sim (`release.yml`, `AppUpdateManager.kt`, `PauseMenuDialog.kt`, `DevProbesAndCinemaTabs.kt`):**
+  - Published live GitHub Releases on `main`/`master` and `v*` tags, added a `/releases?per_page=10` fallback when `/releases/latest` returns HTTP 404 plus `GET_SIGNATURES` fallback on API 28+, surfaced `UP TO DATE` and `UPDATE ERROR` feedback in the Pause Menu, and offloaded the 63-wave `HeadlessBalanceSimulator` to `Dispatchers.Default`.
+
+---
+
+## 🕹️ Previous Releases
+
+### Version 0.0.1.044
 
 ### 🎯 Tactical HUD Ergonomics, 10x21 Full-Screen Grid, Portal/Core Visuals & Data-Driven Balance Pass (`versionCode = 65`)
 - **Split-Action Wave Capsule & Flanked Bottom Squircle Bar (`HudTopBar.kt`, `HudStatusWidgets.kt`, `TowerUpgradeBar.kt`, `TargetPriorityMenu.kt`, `RogueTDScreen.kt`):**

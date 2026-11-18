@@ -395,6 +395,45 @@ fun PauseMenuDialog(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("INSTALL DOWNLOADED UPDATE", fontWeight = FontWeight.Black, fontSize = 11.sp)
                             }
+                        } else if (updateState.status == UpdateDownloadStatus.UP_TO_DATE) {
+                            OutlinedButton(
+                                onClick = onCheckForUpdates,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00FF9D)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00FF9D).copy(alpha = 0.7f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                                    .testTag("pause_menu_update_button")
+                            ) {
+                                Icon(imageVector = Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "UP TO DATE (v${com.example.BuildConfig.VERSION_NAME}) • TAP TO RE-CHECK",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else if (updateState.status == UpdateDownloadStatus.FAILED) {
+                            OutlinedButton(
+                                onClick = onCheckForUpdates,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF2A55)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF2A55).copy(alpha = 0.8f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                                    .testTag("pause_menu_update_button")
+                            ) {
+                                Icon(imageVector = Icons.Filled.ErrorOutline, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "UPDATE ERROR: ${updateState.errorMessage ?: "Tap to retry"}",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
                         } else {
                             OutlinedButton(
                                 onClick = onCheckForUpdates,
@@ -404,6 +443,7 @@ fun PauseMenuDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(38.dp)
+                                    .testTag("pause_menu_update_button")
                             ) {
                                 Icon(imageVector = Icons.Filled.Sync, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))

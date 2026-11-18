@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
@@ -60,6 +61,7 @@ class AppUpdateManager(
     companion object {
         const val GITHUB_REPO: String = "foxstrodon-prog/Fox-Rogue-TD"
         private const val API_URL: String = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+        private const val RELEASES_LIST_URL: String = "https://api.github.com/repos/$GITHUB_REPO/releases?per_page=10"
     }
 
     private val okHttpClient by lazy {
@@ -128,7 +130,50 @@ class AppUpdateManager(
                 Triple(response.isSuccessful, response.code, response.body?.string().orEmpty())
             }
 
-            if (!isSuccessful) {
+            val json: JSONObject = if (isSuccessful) {
+                JSONObject(bodyText)
+            } else if (httpCode == 404) {
+                val listReq = Request.Builder()
+                    .url(RELEASES_LIST_URL)
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "RogueTD-DualFront-App/${BuildConfig.VERSION_NAME}")
+                    .build()
+                val (listOk, listCode, listBody) = okHttpClient.newCall(listReq).execute().use { resp ->
+                    Triple(resp.isSuccessful, resp.code, resp.body?.string().orEmpty())
+                }
+                if (!listOk) {
+                    val errorMsg = "GitHub API error: HTTP $listCode"
+                    _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = errorMsg) }
+                    return@withContext UpdateInfo(false, BuildConfig.VERSION_NAME, BuildConfig.VERSION_NAME)
+                }
+                val arr = JSONArray(listBody)
+                var chosen: JSONObject? = null
+                for (rIdx in 0 until arr.length()) {
+                    val candidate = arr.optJSONObject(rIdx) ?: continue
+                    val assets = candidate.optJSONArray("assets") ?: continue
+                    for (aIdx in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(aIdx) ?: continue
+                        val aName = asset.optString("name", "")
+                        val aUrl = asset.optString("browser_download_url", "")
+                        if (aName.endsWith(".apk", ignoreCase = true) || aUrl.endsWith(".apk", ignoreCase = true)) {
+                            chosen = candidate
+                            break
+                        }
+                    }
+                    if (chosen != null) break
+                }
+                if (chosen == null) {
+                    _updateState.update {
+                        it.copy(
+                            status = UpdateDownloadStatus.UP_TO_DATE,
+                            updateInfo = UpdateInfo(false, BuildConfig.VERSION_NAME, BuildConfig.VERSION_NAME),
+                            errorMessage = null
+                        )
+                    }
+                    return@withContext UpdateInfo(false, BuildConfig.VERSION_NAME, BuildConfig.VERSION_NAME)
+                }
+                chosen
+            } else {
                 val errorMsg = "GitHub API error: HTTP $httpCode"
                 _updateState.update { it.copy(status = UpdateDownloadStatus.FAILED, errorMessage = errorMsg) }
                 return@withContext UpdateInfo(
@@ -137,8 +182,6 @@ class AppUpdateManager(
                     currentVersion = BuildConfig.VERSION_NAME
                 )
             }
-
-            val json = JSONObject(bodyText)
 
             val rawTag = json.optString("tag_name", "").trim()
             val releaseTitle = json.optString("name", rawTag)
@@ -567,7 +610,14 @@ class AppUpdateManager(
 
             if (archiveInfo.packageName != context.packageName) return false
 
-            val archiveHashes = extractSigningCertSha256Set(archiveInfo)
+            var archiveHashes = extractSigningCertSha256Set(archiveInfo)
+            if (archiveHashes.isEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                @Suppress("DEPRECATION")
+                val legacyArchiveInfo = pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNATURES)
+                if (legacyArchiveInfo != null) {
+                    archiveHashes = extractSigningCertSha256Set(legacyArchiveInfo)
+                }
+            }
             archiveHashes.isNotEmpty() && archiveHashes.any { it in installedHashes }
         } catch (_: Exception) {
             false
@@ -583,7 +633,14 @@ class AppUpdateManager(
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
             }
-            extractSigningCertSha256Set(info)
+            val primary = extractSigningCertSha256Set(info)
+            if (primary.isEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                @Suppress("DEPRECATION")
+                val legacyInfo = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+                extractSigningCertSha256Set(legacyInfo)
+            } else {
+                primary
+            }
         } catch (_: Exception) {
             emptySet()
         }
@@ -592,8 +649,10 @@ class AppUpdateManager(
     private fun extractSigningCertSha256Set(info: android.content.pm.PackageInfo): Set<String> {
         val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val signingInfo = info.signingInfo
+            @Suppress("DEPRECATION")
             signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() }
-                ?: signingInfo?.signingCertificateHistory
+                ?: signingInfo?.signingCertificateHistory?.takeIf { it.isNotEmpty() }
+                ?: info.signatures
         } else {
             @Suppress("DEPRECATION")
             info.signatures

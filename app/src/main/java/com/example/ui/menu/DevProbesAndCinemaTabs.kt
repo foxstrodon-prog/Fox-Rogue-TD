@@ -25,6 +25,9 @@ import com.example.model.CinematicScenario
 import com.example.model.DevBalanceConfig
 import com.example.model.EnemyType
 import com.example.model.TowerPerformanceRecord
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -45,6 +48,8 @@ fun DevProbesTab(
     balanceConfig: DevBalanceConfig = DevBalanceConfig()
 ) {
     var simReports by remember { mutableStateOf<List<HeadlessSimReport>>(emptyList()) }
+    var isSimRunning by remember { mutableStateOf(false) }
+    val simScope = rememberCoroutineScope()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -104,11 +109,23 @@ fun DevProbesTab(
 
                     Button(
                         onClick = {
-                            simReports = HeadlessBalanceSimulator.runAllBenchmarks(
-                                seed = 42L,
-                                balanceConfig = balanceConfig
-                            )
+                            if (!isSimRunning) {
+                                isSimRunning = true
+                                simScope.launch {
+                                    try {
+                                        simReports = withContext(Dispatchers.Default) {
+                                            HeadlessBalanceSimulator.runAllBenchmarks(
+                                                seed = 42L,
+                                                balanceConfig = balanceConfig
+                                            )
+                                        }
+                                    } finally {
+                                        isSimRunning = false
+                                    }
+                                }
+                            }
                         },
+                        enabled = !isSimRunning,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF9D), contentColor = Color.Black),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier
@@ -119,7 +136,11 @@ fun DevProbesTab(
                     ) {
                         Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("RUN 63W HEADLESS SIM", fontWeight = FontWeight.Black, fontSize = 9.sp)
+                        Text(
+                            if (isSimRunning) "SIMULATING 63 WAVES..." else "RUN 63W HEADLESS SIM",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 9.sp
+                        )
                     }
 
                     if (simReports.isNotEmpty()) {

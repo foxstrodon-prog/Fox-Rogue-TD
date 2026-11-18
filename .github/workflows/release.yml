@@ -15,9 +15,9 @@ on:
         required: false
         default: ''
       publish_release:
-        description: 'Set to true ONLY when explicitly commanded to publish the release live (otherwise creates/updates a Draft Release)'
+        description: 'Set to true to publish the release live (default true for main/master/tags; set false to force Draft)'
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -71,9 +71,13 @@ jobs:
             RELEASE_TAG="${RAW_VER}"
           fi
 
-          # Draft by default on every branch push; publish live ONLY on explicit tag push (refs/tags/v*) or publish_release=true
-          if [[ "$GITHUB_REF" == refs/tags/v* ]] || [[ "${{ github.event.inputs.publish_release }}" == "true" ]]; then
-            IS_DRAFT="false"
+          # Publish live on main, master, explicit tag push (refs/tags/v*), or publish_release!=false
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]] || [[ "$GITHUB_REF" == "refs/heads/master" ]] || [[ "$GITHUB_REF" == refs/tags/v* ]] || [[ "${{ github.event.inputs.publish_release }}" == "true" ]]; then
+            if [[ "${{ github.event.inputs.publish_release }}" == "false" ]]; then
+              IS_DRAFT="true"
+            else
+              IS_DRAFT="false"
+            fi
           else
             IS_DRAFT="true"
           fi
@@ -154,8 +158,13 @@ jobs:
           TAG="${{ steps.version_step.outputs.tag }}"
           mkdir -p dist
 
-          # Strictly stage ONLY the official Android APK for release distribution
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/Dual-Front-TD-${TAG}-debug.apk"
+          # Prefer pre-staged APK with google-services.json credentials if committed under apk/
+          if [ -f "apk/Dual-Front-TD-${TAG}-debug.apk" ]; then
+            echo "Using pre-staged APK with Firebase credentials: apk/Dual-Front-TD-${TAG}-debug.apk"
+            cp "apk/Dual-Front-TD-${TAG}-debug.apk" "dist/Dual-Front-TD-${TAG}-debug.apk"
+          else
+            cp app/build/outputs/apk/debug/app-debug.apk "dist/Dual-Front-TD-${TAG}-debug.apk"
+          fi
 
           echo "Staged release distribution assets (APK only):"
           ls -lh dist
@@ -199,13 +208,16 @@ jobs:
                   gh release upload "$TAG" dist/* --clobber
                 }
             else
-              echo "Explicit release command/tag detected: creating and publishing live GitHub Release $TAG..."
+              echo "Creating and publishing live GitHub Release $TAG..."
               gh release create "$TAG" dist/* \
+                --draft=false \
+                --latest \
                 --target "$GITHUB_SHA" \
                 --title "Dual Front TD $TAG" \
                 --generate-notes || {
                   echo "Release creation encountered existing tag or conflict; uploading assets with --clobber..."
                   gh release upload "$TAG" dist/* --clobber
+                  gh release edit "$TAG" --draft=false --latest || true
                 }
             fi
           fi

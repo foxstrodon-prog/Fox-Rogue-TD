@@ -129,19 +129,7 @@ fun DrawScope.drawTrackParticles(
             val px = sx + dx * tp.progress
             val py = sy + dy * tp.progress
 
-            // Directional comet tail trailing behind the spark head along the segment vector
-            val tailFactor = 0.28f
-            val tailX = px - dx * tailFactor
-            val tailY = py - dy * tailFactor
             val particleColor = Color(tp.color)
-
-            drawLine(
-                color = particleColor.copy(alpha = 0.42f),
-                start = Offset(tailX, tailY),
-                end = Offset(px, py),
-                strokeWidth = tp.size * 1.45f,
-                cap = StrokeCap.Round
-            )
 
             drawCircle(
                 color = particleColor.copy(alpha = 0.88f),

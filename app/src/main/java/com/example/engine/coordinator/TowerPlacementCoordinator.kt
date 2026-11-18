@@ -26,6 +26,11 @@ class TowerPlacementCoordinator(
     private val onResetTrackParticles: ((GeneratedLevel) -> List<TrackParticle>)? = null
 ) {
     private var lastBoosterSwapTimeMs: Long = 0L
+    val retiredTowersThisRun = mutableListOf<TowerInstance>()
+
+    fun clearRetiredTowersForNewRun() {
+        retiredTowersThisRun.clear()
+    }
 
     /**
      * Cheapest next upgrade cost for Tier 0 / Tier 1 towers, or null at Tier 2+ (no auto-close past Tier 1).
@@ -373,6 +378,7 @@ class TowerPlacementCoordinator(
     fun sellSelectedTower() {
         val tower = uiStateFlow.value.selectedTower ?: return
         val sellVal = tower.getSellValue()
+        retiredTowersThisRun.add(tower.copy())
         if (tower.totalDamage > 0f || tower.kills > 0) {
             telemetryManager.recordTowerSession(listOf(tower))
         }
@@ -557,6 +563,7 @@ class TowerPlacementCoordinator(
         }
 
         if (sacrificed.isNotEmpty()) {
+            retiredTowersThisRun.addAll(sacrificed.map { it.copy() })
             telemetryManager.recordTowerSession(sacrificed)
         }
 

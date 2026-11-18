@@ -842,14 +842,19 @@ class BulletHudModernization033Test {
             assertTrue("Sell pill right (${sell.right}) <= 360dp at $rot", sell.right <= 360.dp)
         }
 
-        composeRule.runOnIdle { angle = 180f }
-        composeRule.mainClock.advanceTimeByFrame()
-        composeRule.mainClock.advanceTimeBy(400)
+        listOf(0f, 180f).forEach { rot ->
+            composeRule.runOnIdle { angle = rot }
+            composeRule.mainClock.advanceTimeByFrame()
+            composeRule.mainClock.advanceTimeBy(400)
 
-        val prio180 = composeRule.onNodeWithTag("target_priority_button").getBoundsInRoot()
-        val sell180 = composeRule.onNodeWithTag("sell_tower_button").getBoundsInRoot()
-        assertTrue("180deg pills must stack vertically without overlap (prio=$prio180, sell=$sell180)", prio180.bottom <= sell180.top + 0.5.dp)
-        assertTrue("180deg priority pill stays wider than tall", (prio180.right - prio180.left) > (prio180.bottom - prio180.top))
+            val prio = composeRule.onNodeWithTag("target_priority_button").getBoundsInRoot()
+            val sell = composeRule.onNodeWithTag("sell_tower_button").getBoundsInRoot()
+            val prioCenterY = (prio.top.value + prio.bottom.value) / 2f
+            val sellCenterY = (sell.top.value + sell.bottom.value) / 2f
+            assertTrue("${rot}deg pills must sit side-by-side without overlap (prio=$prio, sell=$sell)", prio.right <= sell.left + 0.5.dp)
+            assertTrue("${rot}deg pills must share vertical center alignment (prio=$prio, sell=$sell)", kotlin.math.abs(prioCenterY - sellCenterY) <= 1.5f)
+            assertTrue("${rot}deg priority pill stays wider than tall", (prio.right - prio.left) > (prio.bottom - prio.top))
+        }
     }
 
     @Test

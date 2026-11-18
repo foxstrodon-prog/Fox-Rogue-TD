@@ -1,6 +1,10 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -259,5 +263,188 @@ class Release044BalanceVerificationTest {
         composeRule.onNodeWithText("640 c").assertIsDisplayed()
         composeRule.onNodeWithText("Unique Auras Banked").assertIsDisplayed()
         composeRule.onNodeWithText("9").assertIsDisplayed()
+    }
+
+    // -------------------------------------------------------------------------
+    // v0.0.1.045 Red-Team Remediation Verification Suite
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `v045_1 - Legacy balance preferences migrate to stock defaults without triggering DEV TUNED`() {
+        val prefs = context.getSharedPreferences("rogue_td_telemetry", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt("cfg_map_columns", 9)
+            .putInt("cfg_map_rows", 19)
+            .putInt("cfg_easy_open_slots", 16)
+            .putInt("cfg_med_open_slots", 14)
+            .putInt("cfg_hard_open_slots", 12)
+            .putInt("cfg_starting_scrap", 420)
+            .putInt("schema_version_balance_defaults", 1)
+            .commit()
+
+        val tm = TelemetryManager(context)
+        val migrated = tm.getBalanceConfig()
+
+        assertEquals(10, migrated.mapColumns)
+        assertEquals(21, migrated.mapRows)
+        assertEquals(15, migrated.easyTargetOpenSlots)
+        assertEquals(15, migrated.mediumTargetOpenSlots)
+        assertEquals(15, migrated.hardTargetOpenSlots)
+        assertEquals(220, migrated.startingScrap)
+        assertFalse("Migrated legacy defaults must NOT flag isGameplayModified()", migrated.isGameplayModified())
+    }
+
+    @Test
+    fun `v045_2 - TargetPriorityPillButton and SellTowerPillButton share vertical center with upgrade squircles at 0 and 180 deg`() {
+        val level = MapGenerator.generate(42L)
+        val pad = level.tiles.first { it.isBuildable }
+        val tower = TowerInstance(
+            id = "t_center",
+            type = TowerType.GATLING,
+            gridPos = pad.pos,
+            towerClass = TowerClass.KINETIC_BALLISTIC,
+            tier = 0
+        )
+        var rot by mutableFloatStateOf(0f)
+
+        composeRule.setContent {
+            FloatingSquircleUpgradeBar(
+                state = GameUIState(
+                    level = level,
+                    scrap = 500,
+                    towers = listOf(tower),
+                    selectedTower = tower,
+                    deviceRotationAngle = rot
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        listOf(0f, 180f).forEach { angle ->
+            composeRule.runOnIdle { rot = angle }
+            composeRule.waitForIdle()
+
+            val prioBounds = composeRule.onNodeWithTag("target_priority_button").fetchSemanticsNode().boundsInRoot
+            val sellBounds = composeRule.onNodeWithTag("sell_tower_button").fetchSemanticsNode().boundsInRoot
+            val upgBounds = composeRule.onNodeWithTag("upgrade_vector_${TowerVector.OFFENSIVE.idName}").fetchSemanticsNode().boundsInRoot
+
+            assertTrue("Target and Upgrade vertical centers must align at $angle", kotlin.math.abs(prioBounds.center.y - upgBounds.center.y) <= 4f)
+            assertTrue("Sell and Upgrade vertical centers must align at $angle", kotlin.math.abs(sellBounds.center.y - upgBounds.center.y) <= 4f)
+        }
+    }
+
+    @Test
+    fun `v045_3 - Tier 1 archetype AuraPipBadge shows CAP when only non-stacking aura is active`() {
+        val level = MapGenerator.generate(42L)
+        val pad = level.tiles.first { it.isBuildable }
+        // Find an archetype where one aura is stackable and one is non-stacking (CAP), or where secondary/primary is non-stacking
+        val mixedArch = TowerArchetype.entries.first { arch ->
+            !TowerUpgradeManager.isAuraStackable(arch, 0) || !TowerUpgradeManager.isAuraStackable(arch, 1)
+        }
+        val nonStackingIndex = if (!TowerUpgradeManager.isAuraStackable(mixedArch, 0)) 0 else 1
+
+        val selectedTier1 = TowerInstance(
+            id = "t_sel_cap",
+            type = mapClassToType(mixedArch.towerClass),
+            gridPos = pad.pos,
+            towerClass = mixedArch.towerClass,
+            tier = 1,
+            vector = mixedArch.vector
+        )
+        val activeNonStackingTier3 = TowerInstance(
+            id = "t_active_cap",
+            type = mapArchetypeToType(mixedArch),
+            gridPos = GridPos((pad.pos.x + 1) % level.width, pad.pos.y),
+            towerClass = mixedArch.towerClass,
+            tier = 3,
+            archetype = mixedArch,
+            isTier3GlobalActive = true,
+            selectedAuraIndex = nonStackingIndex
+        )
+        val towers = listOf(selectedTier1, activeNonStackingTier3)
+
+        composeRule.setContent {
+            FloatingSquircleUpgradeBar(
+                state = GameUIState(
+                    level = level,
+                    scrap = 2000,
+                    towers = towers,
+                    selectedTower = selectedTier1,
+                    activeBoardSynergies = TowerUpgradeManager.computeBoardSynergies(towers)
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("CAP 1x", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `v045_4 - TelemetryManager recordTowerSession uses exact getInvestedScrapValue and retired towers are tracked`() {
+        val tm = TelemetryManager(context)
+        tm.resetTowerPerformance()
+
+        val upgradedTower = TowerInstance(
+            id = "t_inv",
+            type = TowerType.MORTAR,
+            gridPos = GridPos(2, 2),
+            towerClass = TowerClass.HEAVY_SIEGE,
+            tier = 3,
+            archetype = TowerArchetype.HELLFIRE_MORTAR,
+            investedScrap = 985,
+            totalDamage = 49250f,
+            kills = 120
+        )
+        assertEquals(985, upgradedTower.getInvestedScrapValue())
+
+        tm.recordTowerSession(listOf(upgradedTower))
+        val perf = tm.getTowerPerformance()
+        val mortarRec = perf.first { it.towerName == TowerArchetype.HELLFIRE_MORTAR.displayName }
+
+        assertEquals("recordTowerSession must record exact getInvestedScrapValue()", 985L, mortarRec.totalCostInvested)
+        assertEquals(50.0, mortarRec.dpsCostEfficiency, 0.01)
+    }
+
+    @Test
+    fun `v045_5 - PauseMenuDialog displays UP_TO_DATE and FAILED update states clearly`() {
+        var state by mutableStateOf(
+            GameUIState(
+                isPauseMenuOpen = true,
+                updateUIState = com.example.engine.AppUpdateState(
+                    status = com.example.engine.UpdateDownloadStatus.UP_TO_DATE
+                )
+            )
+        )
+        var checkClicks = 0
+
+        composeRule.setContent {
+            com.example.ui.menu.PauseMenuDialog(
+                state = state,
+                onSpeedChanged = {},
+                onOpenTelemetry = {},
+                onOpenSettings = {},
+                onRestart = {},
+                onEndRun = {},
+                onCheckForUpdates = { checkClicks++ },
+                onResume = {}
+            )
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("pause_menu_update_button").assertIsDisplayed().performClick()
+        assertEquals(1, checkClicks)
+
+        composeRule.runOnIdle {
+            state = state.copy(
+                updateUIState = com.example.engine.AppUpdateState(
+                    status = com.example.engine.UpdateDownloadStatus.FAILED,
+                    errorMessage = "GitHub API error: HTTP 404"
+                )
+            )
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("UPDATE ERROR: GitHub API error: HTTP 404").assertIsDisplayed().performClick()
+        assertEquals(2, checkClicks)
     }
 }

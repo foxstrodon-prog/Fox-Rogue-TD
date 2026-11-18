@@ -222,10 +222,7 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
     }
 
-    fun confirmManualRotation() {
-        val target = _uiState.value.hardwareTiltAngle
-        _uiState.update { it.copy(deviceRotationAngle = target) }
-    }
+    fun confirmManualRotation() = _uiState.update { it.copy(deviceRotationAngle = _uiState.value.hardwareTiltAngle) }
 
     fun fetchOnlineLeaderboard(forceRefresh: Boolean = false) {
         viewModelScope.launch {
@@ -236,15 +233,8 @@ class RogueTDViewModel @JvmOverloads constructor(
         }
     }
 
-    fun clearPendingLeaderboardQueue() {
-        viewModelScope.launch {
-            leaderboardRepository.clearPendingQueue()
-        }
-    }
-
-    fun checkForAppUpdates() {
-        viewModelScope.launch { appUpdateManager.checkForUpdates() }
-    }
+    fun clearPendingLeaderboardQueue() = viewModelScope.launch { leaderboardRepository.clearPendingQueue() }.let {}
+    fun checkForAppUpdates() { updateDismissedForSession = false; viewModelScope.launch { appUpdateManager.checkForUpdates() } }
 
     fun downloadAndInstallUpdate() {
         val state = _uiState.value.updateUIState
@@ -289,9 +279,7 @@ class RogueTDViewModel @JvmOverloads constructor(
     fun toggleTelemetryView(open: Boolean, initialTab: Int = 0) {
         if (open) {
             refreshTelemetry()
-            if (initialTab != 2) {
-                fetchOnlineLeaderboard(forceRefresh = false)
-            }
+            if (initialTab != 2) fetchOnlineLeaderboard(forceRefresh = false)
         }
         _uiState.update { it.copy(isTelemetryOpen = open, telemetryInitialTab = initialTab) }
     }
@@ -301,20 +289,9 @@ class RogueTDViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(isSettingsOpen = open) }
     }
 
-    fun openTelemetryFromPauseMenu() {
-        refreshTelemetry()
-        _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true, telemetryInitialTab = 2) }
-    }
-
-    fun openSettingsFromPauseMenu() {
-        refreshTelemetry()
-        _uiState.update { it.copy(isPauseMenuOpen = false, isSettingsOpen = true) }
-    }
-
-    fun openAssetVaultFromPauseMenu() {
-        assetVaultCoordinator.onVaultOpened()
-        _uiState.update { it.copy(isPauseMenuOpen = false, isAssetVaultOpen = true) }
-    }
+    fun openTelemetryFromPauseMenu() { refreshTelemetry(); _uiState.update { it.copy(isPauseMenuOpen = false, isTelemetryOpen = true, telemetryInitialTab = 2) } }
+    fun openSettingsFromPauseMenu() { refreshTelemetry(); _uiState.update { it.copy(isPauseMenuOpen = false, isSettingsOpen = true) } }
+    fun openAssetVaultFromPauseMenu() { assetVaultCoordinator.onVaultOpened(); _uiState.update { it.copy(isPauseMenuOpen = false, isAssetVaultOpen = true) } }
 
     fun closeAssetVault() {
         assetVaultCoordinator.stopPreview()
@@ -432,14 +409,10 @@ class RogueTDViewModel @JvmOverloads constructor(
     private fun regeneratePreWave1Level(balance: DevBalanceConfig, difficulty: GameDifficulty) {
         val seed = _uiState.value.seed
         val level = MapGenerator.generate(
-            seed = seed,
-            width = balance.mapColumns,
-            height = balance.mapRows,
-            minLaneLength = balance.minLaneLength,
-            maxLaneLength = balance.maxLaneLength,
+            seed = seed, width = balance.mapColumns, height = balance.mapRows,
+            minLaneLength = balance.minLaneLength, maxLaneLength = balance.maxLaneLength,
             targetOpenSlots = balance.getTargetOpenSlotsForDifficulty(difficulty),
-            minLaneOverlap = balance.minLaneOverlap,
-            maxLaneOverlap = balance.maxLaneOverlap
+            minLaneOverlap = balance.minLaneOverlap, maxLaneOverlap = balance.maxLaneOverlap
         )
         val initialParticles = createInitialTrackParticles(level.laneAlpha, level.laneBeta)
         _uiState.update { it.copy(level = level, trackParticles = initialParticles, selectedTile = null) }
@@ -456,9 +429,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             val segIdx = ((laneIdx * segCount) / 12).coerceIn(0, (segCount - 1).coerceAtLeast(0))
             particles.add(
                 TrackParticle(
-                    id = "tp_$i",
-                    laneIndex = lane,
-                    segmentIndex = segIdx,
+                    id = "tp_$i", laneIndex = lane, segmentIndex = segIdx,
                     progress = ((laneIdx * 0.23f) + lane * 0.11f) % 1.0f,
                     speed = 0.85f + (i % 3) * 0.20f,
                     color = if (lane == 0) 0xFF00F0FF else 0xFFFFB800,
@@ -554,23 +525,19 @@ class RogueTDViewModel @JvmOverloads constructor(
         runSessionId++
         leaderboardRepository.resetRunSubmissionState()
         simulationCoordinator.resetVirtualTime()
+        placementCoordinator.clearRetiredTowersForNewRun()
         devTunedThisRun = false
         gameLoopJob?.cancel()
 
         val seed = System.currentTimeMillis()
         val balance = _uiState.value.balanceConfig
         val level = MapGenerator.generate(
-            seed = seed,
-            width = balance.mapColumns,
-            height = balance.mapRows,
-            minLaneLength = balance.minLaneLength,
-            maxLaneLength = balance.maxLaneLength,
+            seed = seed, width = balance.mapColumns, height = balance.mapRows,
+            minLaneLength = balance.minLaneLength, maxLaneLength = balance.maxLaneLength,
             targetOpenSlots = balance.getTargetOpenSlotsForDifficulty(_uiState.value.difficulty),
-            minLaneOverlap = balance.minLaneOverlap,
-            maxLaneOverlap = balance.maxLaneOverlap
+            minLaneOverlap = balance.minLaneOverlap, maxLaneOverlap = balance.maxLaneOverlap
         )
         val firstWave = WaveGenerator.generateWave(1, balance.enemiesPerRoundMultiplier, _uiState.value.difficulty)
-
         val initialParticles = createInitialTrackParticles(level.laneAlpha, level.laneBeta)
 
         _uiState.update { prev ->
@@ -695,20 +662,13 @@ class RogueTDViewModel @JvmOverloads constructor(
         val state = _uiState.value
         if (waves <= 0 && state.totalKills <= 0 && state.totalDamageDealt <= 0f) return
 
-        val mvp = state.towers.maxByOrNull { it.totalDamage }?.let { it.archetype?.displayName ?: it.type.displayName } ?: "Vulcan Minigun"
+        val allRunTowers = state.towers + placementCoordinator.retiredTowersThisRun
+        val mvpTowerInstance = allRunTowers.maxByOrNull { it.totalDamage }
+        val mvp = mvpTowerInstance?.let { it.archetype?.displayName ?: it.type.displayName } ?: "Vulcan Minigun"
         val playerName = telemetryManager.getActivePlayerName()
         val isDev = devTunedThisRun || state.balanceConfig.isGameplayModified()
-        val totalCollapses = maxOf(
-            state.collapseWaves.size,
-            state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0
-        )
-        val uniqueAurasBanked = state.towers
-            .filter { it.isCapstone }
-            .flatMap { it.synergyVault }
-            .flatMap { it.synergies }
-            .map { it.auraName }
-            .distinct()
-            .size
+        val totalCollapses = maxOf(state.collapseWaves.size, state.towers.filter { it.isCapstone }.maxOfOrNull { it.generation } ?: 0)
+        val uniqueAurasBanked = state.towers.filter { it.isCapstone }.flatMap { it.synergyVault }.flatMap { it.synergies }.map { it.auraName }.distinct().size
         val fatalType = if (isVictory) "None" else state.fatalEnemyType
 
         val record = RunRecord(
@@ -717,18 +677,14 @@ class RogueTDViewModel @JvmOverloads constructor(
             wavesCleared = waves, enemiesKilled = state.totalKills, totalDamage = state.totalDamageDealt,
             scrapEarned = state.totalScrapEarned, ascendedTowersCount = state.towers.count { it.isAscended },
             mvpTower = mvp, isVictory = isVictory, timestamp = System.currentTimeMillis(), isDevTuned = isDev,
-            totalCollapses = totalCollapses,
-            unspentGoldAtEnd = state.scrap,
-            uniqueAurasBanked = uniqueAurasBanked,
-            fatalEnemyType = fatalType,
-            collapseWaves = state.collapseWaves
+            totalCollapses = totalCollapses, unspentGoldAtEnd = state.scrap,
+            uniqueAurasBanked = uniqueAurasBanked, fatalEnemyType = fatalType, collapseWaves = state.collapseWaves
         )
 
         if (!isVictory) {
-            val mvpClass = state.towers.maxByOrNull { it.totalDamage }?.towerClass?.name ?: "KINETIC_BALLISTIC"
+            val mvpClass = mvpTowerInstance?.towerClass?.name ?: "KINETIC_BALLISTIC"
             telemetryManager.logLevelFail(waves + 1, state.towers.size, state.scrap, mvpClass)
         }
-
         if (record.score > 0 || record.wavesCleared > 0 || record.enemiesKilled > 0) {
             _uiState.update { it.copy(lastRunRecord = record) }
         }
@@ -740,27 +696,18 @@ class RogueTDViewModel @JvmOverloads constructor(
             telemetryManager.recordRun(recordToSave)
             telemetryManager.recordTowerSession(state.towers)
             refreshTelemetry()
-            val uid = authRepository.ensureAuthenticated() ?: authRepository.currentUserId
+            val (uidResult, idToken) = authRepository.getAuthenticatedSession()
+            val uid = uidResult ?: authRepository.currentUserId
             val enqueueCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
             leaderboardRepository.enqueueRun(
-                run = recordToSave,
-                callsign = enqueueCallsign,
-                isDevTuned = isDev,
-                userId = uid,
-                isCurrentRun = (completionSessionId == runSessionId)
+                run = recordToSave, callsign = enqueueCallsign, isDevTuned = isDev,
+                userId = uid, isCurrentRun = (completionSessionId == runSessionId)
             )
-            // Fire-and-forget whole-run balance telemetry upload using leaderboardRepository.api
-            viewModelScope.launch(Dispatchers.IO) {
-                runCatching<Unit> {
-                    val idToken = authRepository.getCachedIdTokenIfValid()
-                    leaderboardRepository.api.submitRunTelemetry(
-                        record = recordToSave,
-                        difficultyId = state.difficulty.id,
-                        towerPerf = telemetryManager.getTowerPerformance(),
-                        idToken = idToken
-                    )
-                }
-                leaderboardRepository.fetchLeaderboard(forceRefresh = true)
+            runCatching<Unit> {
+                leaderboardRepository.api.submitRunTelemetry(
+                    record = recordToSave, difficultyId = state.difficulty.id,
+                    towerPerf = telemetryManager.getTowerPerformance(), idToken = idToken
+                )
             }
         }
     }
@@ -777,9 +724,7 @@ class RogueTDViewModel @JvmOverloads constructor(
             refreshTelemetry()
             val sanitizedCallsign = FirestoreLeaderboardApi.sanitizeCallsign(telemetryManager.getActivePlayerName())
             val lastRunId = _uiState.value.lastRunRecord?.id ?: telemetryManager.getLastRun()?.id
-            if (!lastRunId.isNullOrBlank()) {
-                leaderboardRepository.updatePendingCallsign(lastRunId, sanitizedCallsign)
-            }
+            if (!lastRunId.isNullOrBlank()) leaderboardRepository.updatePendingCallsign(lastRunId, sanitizedCallsign)
         }
     }
     fun toggleAutoWave() = _uiState.update { it.copy(autoCallNextWave = !it.autoCallNextWave) }
@@ -787,11 +732,9 @@ class RogueTDViewModel @JvmOverloads constructor(
         if (current.isPauseMenuOpen || current.showEndRunConfirmDialog) current.copy(prePauseSpeed = speed, gameSpeed = GameSpeed.PAUSED)
         else current.copy(gameSpeed = speed, prePauseSpeed = speed)
     }
-
     fun addFloatingText(x: Float, y: Float, text: String, color: Long, isCrit: Boolean = false) {
         _uiState.update { it.copy(floatingTexts = it.floatingTexts + FloatingText(id = nextId("ft_"), x = x, y = y, text = text, color = color, isCrit = isCrit)) }
     }
-
     fun launchCinematic(scenario: CinematicScenario) = cinematicController.launchCinematic(scenario)
     fun stopCinematic() = cinematicController.stopCinematic()
     fun jumpToSignatureWave(scenario: CinematicScenario) = cinematicController.jumpToSignatureWave(scenario)
