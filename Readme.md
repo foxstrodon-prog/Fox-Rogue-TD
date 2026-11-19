@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.046-debug.apk`](apk/Dual-Front-TD-v0.0.1.046-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.047-debug.apk`](apk/Dual-Front-TD-v0.0.1.047-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.046 (Build #67)
+### 🚀 What's New in Version 0.0.1.047 (Build #68)
+
+🎨 **Procedural Visual Cosmetics Generator, Independent HUD Themes & Canvas Polish**
+- **Studio Visual Generation & v2 Recipe Codes:** Enabled **GENERATE** and live **AUDITION** previews for **Turret Skins**, **Map Themes**, and **Interface (HUD)** palettes in the Generator Studio, backed by deterministic legibility guards (contrast, lane luminance gap, and dual-lane hue separation) and shareable `DFTD-SK2-` / `DFTD-MP2-` / `DFTD-HD2-` codes.
+- **Independent HUD Equipping:** Decoupled HUD appearance from map themes with **EQUIP** buttons on the Hub's **Interface** tab and persistent selection (while continuing to follow your active map theme if you haven't picked one yet).
+- **Canvas Frame-Time Optimizations:** Synced shake and lightning jitter to simulation animation time, added O(1) tile tap lookup, memoized map palette resolution, and eliminated per-tower/per-enemy draw allocations (`286/286` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.046 (Build #67)
 
 🎛️ **Curated Customizations Hub (`BETA: ALL UNLOCKED`), Hidden Audio Generator Studio & Low-End Clarity**
 - **4-Tab Customizations Hub:** Browse **Towers**, **Maps**, **Interface**, and **Music** with live interactive tower-firing previews across all 4 classes and 7 turret models, instant gunfire sound auditioning, unlock-status badges, and inline 👍/👎 ratings synced to Firebase.
@@ -15,8 +26,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Hidden Generator Studio & Recipe Codes:** Tap the Pause Menu version badge 10 times to open the Generator Studio—generate, name, audition, and share CRC32-checked **BGM** and **SFX** Recipe Codes (`DFTD-...`), backed by smoothed synth crossfades and fade-outs that eliminate low-end speaker crackle (`280/280` unit tests passing).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.045 (Build #66)
 
@@ -42,12 +51,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **True `10X` Speed Parity:** Replaced coarse simulation sub-stepping and spawn-timer drift with a fixed `20ms` physics accumulator and remainder-preserving wave spawner, ensuring `10X` maintains the exact same wave density and combat difficulty as `1X` even on tower-loaded boards.
 - **Smoother High-Speed Frame Pacing:** Batched Compose state updates once per rendered frame and subtracted simulation compute time from frame sleep, eliminating UI stutter at `10X`.
 - **4 Fresh Build #64 Variants + Build #63 Archived:** Automatically adds 4 new Turret Skins, Map Themes, BGM Tracks, SFX Packs, and 32 per-class Fire/Upgrade sounds while archiving Build #63 (`255/255` unit tests passing).
-
----
-
-#### Version 0.0.1.042 (Build #63)
-
-🔄 **Automatic Build-Driven Sound & Skin Generation + Multi-Build Archives**
-- **4 Fresh Variants Every Build:** Every `versionCode` increment (`Build #63 / v0.0.1.042` and beyond) now automatically generates 4 new Turret Skins, 4 Map & Lane Themes, 4 BGM Tracks, 4 SFX Packs, 16 per-class Turret Fire sounds, and 16 Turret Upgrade chimes while keeping your Default Core untouched.
-- **Automatic Multi-Build Archives:** Previous releases (`Build #60`, curated `Build #61`, `Build #62`, and beyond) automatically move into the Sound & Skin Vault's **Archives** tab with build badges and full live audio/skin preview, equip, and rating support.
-- **Dynamic Customization & Rolling Playlist:** Audio & Visual Customization headers, rolling BGM playlists, and `SoundPool` preloading now track the active build dynamically (`252/252` unit tests passing).
