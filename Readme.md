@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.047-debug.apk`](apk/Dual-Front-TD-v0.0.1.047-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.048-debug.apk`](apk/Dual-Front-TD-v0.0.1.048-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.047 (Build #68)
+### 🚀 What's New in Version 0.0.1.048 (Build #69)
+
+🗺️ **Spaced-Out Turret Pads (Zero Side-by-Side Clumping) & Balanced `7/12` Dual-Lane Proportions**
+- **No Side-by-Side Turrets:** Redesigned procedural pad reservation and winding lane expansion so buildable pads are never orthogonally adjacent—every turret has breathing room and global aura synergies feel impactful without cluttered tower clumps, even on a full 15-turret Singularity board.
+- **Balanced `7/12` Lane Length Rule:** Winding lane expansion now actively balances the shorter lane first and enforces at least a `7/12` (`58.3%+`) short-to-long lane proportion across all seeds so neither lane feels unfairly short or disproportionate.
+- **Placement Spacing Guard & 33-Seed Topology Verification:** Added an orthogonal adjacency guard in `TowerPlacementCoordinator` and verified `7/12` lane balance, zero adjacent buildable pads, 4-corner coverage, and `1 / 2–3 / 4–5` Singularity Collapse targets across `289/289` unit tests.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.047 (Build #68)
 
 🎨 **Procedural Visual Cosmetics Generator, Independent HUD Themes & Canvas Polish**
 - **Studio Visual Generation & v2 Recipe Codes:** Enabled **GENERATE** and live **AUDITION** previews for **Turret Skins**, **Map Themes**, and **Interface (HUD)** palettes in the Generator Studio, backed by deterministic legibility guards (contrast, lane luminance gap, and dual-lane hue separation) and shareable `DFTD-SK2-` / `DFTD-MP2-` / `DFTD-HD2-` codes.
@@ -15,8 +26,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Canvas Frame-Time Optimizations:** Synced shake and lightning jitter to simulation animation time, added O(1) tile tap lookup, memoized map palette resolution, and eliminated per-tower/per-enemy draw allocations (`286/286` unit tests passing).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.046 (Build #67)
 
@@ -42,12 +51,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Combined Wave Capsule & Centered Upgrade Squircles:** Merged `BEGIN` and `AUTO` into a single Split-Action Wave Capsule, flanked `Target` and `Sell` to the screen edges to prevent accidental sell taps while spamming upgrades, and added Active/Banked Aura Pip Badges (`★ NEW`, `● 1x`, `⚡ 2B`, `CAP 1x`) on Tier-2/Tier-3 upgrade previews.
 - **10x21 Map Grid & Directional Portals/Core:** Expanded the battlefield to `10x21` tiles, added App-Logo Prism Entry Portals, a Shielded Heart Defense Core exit, and 24 comet-tail lane flow particles, and tuned wave gold decay & HP curves to hit `1 / 2–3 / 4–5` Singularity Collapses across Easy/Medium/Hard.
 - **End-of-Run Collapse Readouts, Headless Sim & 4 Fresh Build #65 Variants:** Added `Collapses`, `End Gold`, and `Auras Banked` to Victory/Defeat summaries, a 63-wave Headless Balance Simulator, whole-run tower balance telemetry, and 4 new Build #65 skins/themes/audio variants (`260/260` unit tests passing).
-
----
-
-#### Version 0.0.1.043 (Build #64)
-
-⚡ **Speed-Invariant 10X Simulation, Smoother Loaded-Board Pacing & New Build #64 Variants**
-- **True `10X` Speed Parity:** Replaced coarse simulation sub-stepping and spawn-timer drift with a fixed `20ms` physics accumulator and remainder-preserving wave spawner, ensuring `10X` maintains the exact same wave density and combat difficulty as `1X` even on tower-loaded boards.
-- **Smoother High-Speed Frame Pacing:** Batched Compose state updates once per rendered frame and subtracted simulation compute time from frame sleep, eliminating UI stutter at `10X`.
-- **4 Fresh Build #64 Variants + Build #63 Archived:** Automatically adds 4 new Turret Skins, Map Themes, BGM Tracks, SFX Packs, and 32 per-class Fire/Upgrade sounds while archiving Build #63 (`255/255` unit tests passing).
