@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.048-debug.apk`](apk/Dual-Front-TD-v0.0.1.048-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.049-debug.apk`](apk/Dual-Front-TD-v0.0.1.049-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.048 (Build #69)
+### 🚀 What's New in Version 0.0.1.049 (Build #70)
+
+📦 **Lean ~2.9 MB APK Footprint, Faster Update Checks & Resilient Cloud Sync**
+- **Massive APK Size Drop (~31 MB → ~2.9 MB):** Pruned unused SDK dependencies, stripped unused locales, and enabled R8 code and resource shrinking while preserving seamless in-place upgrades over prior installs.
+- **Smarter GitHub Update Checks:** Added `ETag` (`304 Not Modified`) response caching, shared HTTP timeouts, safe JSON fallback parsing, and clear rate-limit feedback so checking for updates uses minimal data and stays snappy.
+- **Hardened Cloud Telemetry & Quota Resilience:** Aligned cloud balance telemetry validation, tightened Firestore security bounds, classified daily quota errors cleanly without wasted retries, and added automated network resilience tests.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.048 (Build #69)
 
 🗺️ **Spaced-Out Turret Pads (Zero Side-by-Side Clumping) & Balanced `7/12` Dual-Lane Proportions**
 - **No Side-by-Side Turrets:** Redesigned procedural pad reservation and winding lane expansion so buildable pads are never orthogonally adjacent—every turret has breathing room and global aura synergies feel impactful without cluttered tower clumps, even on a full 15-turret Singularity board.
@@ -15,8 +26,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Placement Spacing Guard & 33-Seed Topology Verification:** Added an orthogonal adjacency guard in `TowerPlacementCoordinator` and verified `7/12` lane balance, zero adjacent buildable pads, 4-corner coverage, and `1 / 2–3 / 4–5` Singularity Collapse targets across `289/289` unit tests.
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.047 (Build #68)
 
@@ -42,12 +51,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Clean Flowing Dots & Crimson Red Core Endpoint:** Removed comet trails behind lane flow dots and replaced the Core exit heart icon with a permanent crimson red octagonal nexus.
 - **Centered Target & Sell Squircles:** Vertically centered the `First` (Target Priority) and `Sell` squircles on the exact horizontal midline of the upgrade squircles across all screen orientations and fixed Tier-1 `CAP` aura badges.
 - **Leaderboard & Cross-Version Update Fixes:** Automatically migrates legacy balance preferences so upgraded installs aren't falsely flagged as `DEV TUNED`, credits sacrificed Singularity towers for MVP, restores live GitHub Release auto-updates across all versions with `/releases` fallback and Pause Menu status feedback, and runs the 63-wave Headless Simulator off the main thread.
-
----
-
-#### Version 0.0.1.044 (Build #65)
-
-🎯 **Tactical HUD Ergonomics, 10x21 Full-Screen Grid, Portal/Core Visuals & Data-Driven Balance**
-- **Combined Wave Capsule & Centered Upgrade Squircles:** Merged `BEGIN` and `AUTO` into a single Split-Action Wave Capsule, flanked `Target` and `Sell` to the screen edges to prevent accidental sell taps while spamming upgrades, and added Active/Banked Aura Pip Badges (`★ NEW`, `● 1x`, `⚡ 2B`, `CAP 1x`) on Tier-2/Tier-3 upgrade previews.
-- **10x21 Map Grid & Directional Portals/Core:** Expanded the battlefield to `10x21` tiles, added App-Logo Prism Entry Portals, a Shielded Heart Defense Core exit, and 24 comet-tail lane flow particles, and tuned wave gold decay & HP curves to hit `1 / 2–3 / 4–5` Singularity Collapses across Easy/Medium/Hard.
-- **End-of-Run Collapse Readouts, Headless Sim & 4 Fresh Build #65 Variants:** Added `Collapses`, `End Gold`, and `Auras Banked` to Victory/Defeat summaries, a 63-wave Headless Balance Simulator, whole-run tower balance telemetry, and 4 new Build #65 skins/themes/audio variants (`260/260` unit tests passing).
