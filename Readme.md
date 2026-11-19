@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.045-debug.apk`](apk/Dual-Front-TD-v0.0.1.045-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.046-debug.apk`](apk/Dual-Front-TD-v0.0.1.046-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.045 (Build #66)
+### 🚀 What's New in Version 0.0.1.046 (Build #67)
+
+🎛️ **Curated Customizations Hub (`BETA: ALL UNLOCKED`), Hidden Audio Generator Studio & Low-End Clarity**
+- **4-Tab Customizations Hub:** Browse **Towers**, **Maps**, **Interface**, and **Music** with live interactive tower-firing previews across all 4 classes and 7 turret models, instant gunfire sound auditioning, unlock-status badges, and inline 👍/👎 ratings synced to Firebase.
+- **Frozen Curated Catalog:** Replaced per-build auto-generation with a frozen curated catalog (`Build #66` baseline) so your equipped cosmetics, per-class skins, and vote histories stay stable across updates.
+- **Hidden Generator Studio & Recipe Codes:** Tap the Pause Menu version badge 10 times to open the Generator Studio—generate, name, audition, and share CRC32-checked **BGM** and **SFX** Recipe Codes (`DFTD-...`), backed by smoothed synth crossfades and fade-outs that eliminate low-end speaker crackle (`280/280` unit tests passing).
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.045 (Build #66)
 
 🛠️ **Leaderboard & Cross-Version Auto-Updater Restoration, Centered Squircles & Canvas Polish**
 - **Clean Flowing Dots & Crimson Red Core Endpoint:** Removed comet trails behind lane flow dots and replaced the Core exit heart icon with a permanent crimson red octagonal nexus.
@@ -15,8 +26,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Leaderboard & Cross-Version Update Fixes:** Automatically migrates legacy balance preferences so upgraded installs aren't falsely flagged as `DEV TUNED`, credits sacrificed Singularity towers for MVP, restores live GitHub Release auto-updates across all versions with `/releases` fallback and Pause Menu status feedback, and runs the 63-wave Headless Simulator off the main thread.
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.044 (Build #65)
 
@@ -42,13 +51,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **4 Fresh Variants Every Build:** Every `versionCode` increment (`Build #63 / v0.0.1.042` and beyond) now automatically generates 4 new Turret Skins, 4 Map & Lane Themes, 4 BGM Tracks, 4 SFX Packs, 16 per-class Turret Fire sounds, and 16 Turret Upgrade chimes while keeping your Default Core untouched.
 - **Automatic Multi-Build Archives:** Previous releases (`Build #60`, curated `Build #61`, `Build #62`, and beyond) automatically move into the Sound & Skin Vault's **Archives** tab with build badges and full live audio/skin preview, equip, and rating support.
 - **Dynamic Customization & Rolling Playlist:** Audio & Visual Customization headers, rolling BGM playlists, and `SoundPool` preloading now track the active build dynamically (`252/252` unit tests passing).
-
----
-
-#### Version 0.0.1.041 (Build #62)
-
-⚛️ **Singularity Remaps, Synergy HUD & Skin Previews, Balance Overhaul & Hexagon Siege**
-- **Bullet HUD Synergies & Singularity Tracking:** The synergy pill now counts duplicate tower sources, splits Active Board Synergies from the Singularity Tower's vaulted stacks in a dedicated secondary section, and scrolls cleanly across all 4 screen rotations.
-- **Singularity New Map & Booster Preservation:** Collapsing into a Singularity now generates a brand-new battlefield around your preserved anchor spot (or both linked pads if built on a Booster Pair) and safely resets active wave enemies to the new spawners.
-- **Live Skin & Map Theme Previews:** Preview all 4 tower shapes side-by-side for any Turret Skin and inspect dual-lane Map & Lane Environment themes live before equipping in Customization and the Sound & Skin Vault.
-- **Faster 1X Pace & Rebalanced Difficulty:** Increased baseline `1X` game speed (`1.85x`) with anti-tunneling sub-stepping, curbed late-game scrap inflation, and steepened Easy/Medium/Hard scaling while updating Kinetic Tier-4 aura pulses, Heavy Siege Hexagon (`⬢`) silhouettes, and glowing blank buildable pads (`250/250` unit tests passing).
