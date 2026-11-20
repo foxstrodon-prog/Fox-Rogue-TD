@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.052-debug.apk`](apk/Dual-Front-TD-v0.0.1.052-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.053-debug.apk`](apk/Dual-Front-TD-v0.0.1.053-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.052 (Build #73)
+### 🚀 What's New in Version 0.0.1.053 (Build #74)
+
+🧊 **Opt-In 3D Isometric Renderer, Multi-Part Procedural Enemies & Studio Rig Customization**
+- **Opt-In 2D / 3D Render Mode:** Switch live between classic Tactical 2D and extruded 3D Isometric views from the Pause Menu or Customizations Hub (purely cosmetic and leaderboard-safe) with zero hitbox drift.
+- **Multi-Part Procedural Enemy Creatures:** Enemies now animate with articulated limbs, dorsal spines, 4 threat tiers (`Swarm`, `Standard`, `Elite`, `Boss`), and dual-layer class-weakness + element-affinity coloring while preserving Circle / Triangle / Hexagon / Star silhouettes.
+- **Generator Studio 3D Towers & Enemies Tabs:** Generate, share, and equip versioned `DFTD-T32-` 3D turret rigs and shape-locked `DFTD-EN2-` creature archetypes directly from the Studio.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.052 (Build #73)
 
 ⬡ **Hexagon Enemies, Quadrant Pad Spacing, Split Pair Auras, Enemy Info Card & Run Telemetry**
 - **Hexagon Bruisers & Clean HUD Polish:** Armored tank enemies now render as sharp **Hexagons** matching Heavy Siege towers, teleport link lines are sleeker, rotation tips auto-dismiss after 5 seconds, and rotated surplus gold banners align cleanly.
@@ -16,8 +27,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Tap-to-Inspect Enemy Card & 5-Wave Telemetry:** Tap any enemy on the field to inspect its live HP, Armor, Speed, Bounty, Strengths, and Weaknesses, and view/copy 5-wave run checkpoints directly from the Telemetry dialog.
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.051 (Build #72)
 
@@ -35,12 +44,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **All 10 Pads Linked Into 5 Cross-Lane Pairs:** Every buildable pad on the 10-slot board now belongs to one of 5 high-contrast, color-coded cross-lane teleport pairs (Emerald, Cyan, Amber, Magenta, Crimson) with clear pair markers for instant readability across both fronts.
 - **Pure Tactical Warping (Zero Pad Stat/Gold Buffs):** Removed all pad economy, damage, range, fire-rate, and Harmonic Grid bonuses so pad placement is purely positional—supporting both instant moves to an empty twin and clean swaps between occupied twins.
 - **Singularity Collapse Pair Preservation:** Collapsing a maxed 10-tower board now preserves your Capstone OG tower's linked teleport pair (both the OG pad and its twin) onto the newly generated map while regenerating all 5 pairs cleanly.
-
----
-
-#### Version 0.0.1.049 (Build #70)
-
-📦 **Lean ~2.9 MB APK Footprint, Faster Update Checks & Resilient Cloud Sync**
-- **Massive APK Size Drop (~31 MB → ~2.9 MB):** Pruned unused SDK dependencies, stripped unused locales, and enabled R8 code and resource shrinking while preserving seamless in-place upgrades over prior installs.
-- **Smarter GitHub Update Checks:** Added `ETag` (`304 Not Modified`) response caching, shared HTTP timeouts, safe JSON fallback parsing, and clear rate-limit feedback so checking for updates uses minimal data and stays snappy.
-- **Hardened Cloud Telemetry & Quota Resilience:** Aligned cloud balance telemetry validation, tightened Firestore security bounds, classified daily quota errors cleanly without wasted retries, and added automated network resilience tests.
