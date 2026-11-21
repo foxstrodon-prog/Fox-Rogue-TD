@@ -2,12 +2,24 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.054-debug.apk`](apk/Dual-Front-TD-v0.0.1.054-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.055-debug.apk`](apk/Dual-Front-TD-v0.0.1.055-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.054 (Build #75)
+### 🚀 What's New in Version 0.0.1.055 (Build #76)
+
+🏛️ **Tile-Contained 3D Pillar/Obelisk Towers, Display-Rotation Base Shift, Hub 3D Rig Selector & Full Run Telemetry**
+- **Tile-Contained 3D Pillars & Obelisks:** Shifted 3D tower bases downward into their tile footprint, shortened turret barrels, and added three distinct pedestal silhouettes (**Square Obelisk**, **Rectangle Monolith**, **Circle Fluted Pillar**).
+- **Rotation-Aware 3D Bases:** 3D tower bases, shadows, obstacles, and muzzle offsets now shift smoothly when rotating the display orientation.
+- **Customizations Hub 3D Rig Selector:** Added an in-hub **3D Pillar & Obelisk Rig** preset selector when Isometric 3D mode is active.
+- **Expandable Full Run Telemetry & Tower Ledger:** Inspect wave-by-wave checkpoints, collapse waves, fatal enemy details, and per-tower damage/kill ledgers directly in Telemetry & Leaderboards for both live and completed runs.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.054 (Build #75)
 
 ✨ **3D Tower Overhaul, Turret Muzzle Ballistics, Humanoid Units, Epic Singularity Collapse & AUTO Safety**
 - **Clean 3D Paths & Elevated Pedestal Turrets:** Eliminated dark horizontal lines across 3D pathways and redesigned all 3D towers onto uniform elevated octagonal pedestals topped by each class's signature firing assembly (Circle, Triangle, Hexagon, 5-Point Star) complete with orbiting energy dots, recoil, and muzzle flashes.
@@ -17,8 +29,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Safer AUTO-Wave Behavior:** Exiting, backgrounding, or updating the app now toggles **`AUTO`** off so relaunching never auto-starts a new wave unexpectedly (active mid-waves still resume seamlessly).
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.053 (Build #74)
 
