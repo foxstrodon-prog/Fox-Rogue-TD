@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.055-debug.apk`](apk/Dual-Front-TD-v0.0.1.055-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.056-debug.apk`](apk/Dual-Front-TD-v0.0.1.056-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.055 (Build #76)
+### 🚀 What's New in Version 0.0.1.056 (Build #77)
+
+🎛️ **Pause Menu Streamlining, Secret Tools Relocation & Unified Rotating BGM Playlist**
+- **Single-Line Pause Menu Music Bar & Unified Playlist:** All 29 unique background music tracks now rotate in a single unified playlist, controlled from a one-line bar in the Pause Menu with **Thumbs Up** (like) and **Thumbs Down** (skip immediately; 3 dislikes removes the track persistently until restored in Music settings).
+- **Merged End Run / Generate New Map & Footer:** One adaptive button now switches between **`GENERATE NEW MAP`** pre-run and **`END RUN / GENERATE NEW MAP`** mid-run (with confirmation options to end only or end & generate a new map), paired with a unified bottom update/version footer.
+- **Secret 10-Tap Tools Relocation:** Moved **Sound & Skin Vault** and **Dev Balance Console** into the 10-tap **Generator Studio** secret menu.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.055 (Build #76)
 
 🏛️ **Tile-Contained 3D Pillar/Obelisk Towers, Display-Rotation Base Shift, Hub 3D Rig Selector & Full Run Telemetry**
 - **Tile-Contained 3D Pillars & Obelisks:** Shifted 3D tower bases downward into their tile footprint, shortened turret barrels, and added three distinct pedestal silhouettes (**Square Obelisk**, **Rectangle Monolith**, **Circle Fluted Pillar**).
@@ -16,8 +27,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Expandable Full Run Telemetry & Tower Ledger:** Inspect wave-by-wave checkpoints, collapse waves, fatal enemy details, and per-tower damage/kill ledgers directly in Telemetry & Leaderboards for both live and completed runs.
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.054 (Build #75)
 
@@ -46,13 +55,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Quadrant-Balanced 10-Pad Maps:** Procedural layouts now distribute `2–3` buildable pads per quadrant (`5/5` Left/Right and Top/Bottom halves) while preserving zero side-by-side clumping and `7/12` dual-lane length balance.
 - **Split Pair/Global Tier-3 Auras & 3 New Enemies:** Tier-3 auras now grant `100%` power to your linked twin pad, `35%` globally, and `40%` from the Singularity Vault, paired with a smoother Medium late-game HP curve and 3 new enemies (**Warp Strider**, **Aegis Dreadnought**, **Phase Leviathan**).
 - **Tap-to-Inspect Enemy Card & 5-Wave Telemetry:** Tap any enemy on the field to inspect its live HP, Armor, Speed, Bounty, Strengths, and Weaknesses, and view/copy 5-wave run checkpoints directly from the Telemetry dialog.
-
----
-
-#### Version 0.0.1.051 (Build #72)
-
-⚡ **Snappy Damage Numbers, Clean Teleport Indicators, Early Progression & Active-Run Save State**
-- **Snappy Floating Damage Numbers:** Tightened hit popup lifetimes with damage-priority throttling and FIFO eviction under a strict active cap so late-game bursts never stall or hide fresh hits.
-- **Readable Teleport Pads & 1-Marker Badges:** Selected pads now show a crisp white outer corner reticle instead of recoloring the pad, and each linked pair uses a single matching corner marker (4 corners for Pairs 1–4 plus a Crimson star for Pair 5) matched in the Teleport Pads HUD capsule.
-- **Early Pacing & `0 / 0 / 1 / 3` Class Unlocks:** **Elemental Void** is now unlocked from Wave 1 alongside **Kinetic Ballistic**, **Heavy Siege** unlocks at `1` Tier-3 tower, and **Stellar Cosmic** unlocks at `3` Tier-3 towers, with tighter Waves 1–3 cadence and softened Wave 5 mini-bosses.
-- **Landscape HUD Polish & Active-Run Save State:** Stacked rotated `AUTO` + `BEGIN` into one matching-width capsule, anchored rotated HUD telemetry popups and Round 1 banners cleanly, and added automatic active-run persistence across app close and process death.
