@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.056-debug.apk`](apk/Dual-Front-TD-v0.0.1.056-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.057-debug.apk`](apk/Dual-Front-TD-v0.0.1.057-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.056 (Build #77)
+### 🚀 What's New in Version 0.0.1.057 (Build #78)
+
+🎛️ **Pause Menu Polish & Cleaner Controls**
+- **Single-Line Update & Build Button:** Combined the bottom Pause Menu footer into one clean button (`"Dual Front TD (Build #78) Check for Updates"`).
+- **Simplified Difficulty & Action Labels:** Renamed the difficulty section header to **`DIFFICULTY`**, removed the extra descriptive text beneath it, and unified the map-reset button label as **`END RUN & GENERATE NEW MAP`** (preserving pre-run instant generation and mid-run confirmation safety).
+- **2D / 3D Toggle in Customization Hub:** Moved the 2D / 3D render mode switch solely into **Audio & Visual Customization** with a compact inline **`RENDER MODE`** label.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.056 (Build #77)
 
 🎛️ **Pause Menu Streamlining, Secret Tools Relocation & Unified Rotating BGM Playlist**
 - **Single-Line Pause Menu Music Bar & Unified Playlist:** All 29 unique background music tracks now rotate in a single unified playlist, controlled from a one-line bar in the Pause Menu with **Thumbs Up** (like) and **Thumbs Down** (skip immediately; 3 dislikes removes the track persistently until restored in Music settings).
@@ -15,8 +26,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Secret 10-Tap Tools Relocation:** Moved **Sound & Skin Vault** and **Dev Balance Console** into the 10-tap **Generator Studio** secret menu.
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.055 (Build #76)
 
@@ -45,13 +54,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Opt-In 2D / 3D Render Mode:** Switch live between classic Tactical 2D and extruded 3D Isometric views from the Pause Menu or Customizations Hub (purely cosmetic and leaderboard-safe) with zero hitbox drift.
 - **Multi-Part Procedural Enemy Creatures:** Enemies now animate with articulated parts, 4 threat tiers (`Swarm`, `Standard`, `Elite`, `Boss`), and dual-layer class-weakness + element-affinity coloring while preserving Circle / Triangle / Hexagon / Star silhouettes.
 - **Generator Studio 3D Towers & Enemies Tabs:** Generate, share, and equip versioned `DFTD-T32-` 3D turret rigs and shape-locked `DFTD-EN2-` creature archetypes directly from the Studio.
-
----
-
-#### Version 0.0.1.052 (Build #73)
-
-⬡ **Hexagon Enemies, Quadrant Pad Spacing, Split Pair Auras, Enemy Info Card & Run Telemetry**
-- **Hexagon Bruisers & Clean HUD Polish:** Armored tank enemies now render as sharp **Hexagons** matching Heavy Siege towers, teleport link lines are sleeker, rotation tips auto-dismiss after 5 seconds, and rotated surplus gold banners align cleanly.
-- **Quadrant-Balanced 10-Pad Maps:** Procedural layouts now distribute `2–3` buildable pads per quadrant (`5/5` Left/Right and Top/Bottom halves) while preserving zero side-by-side clumping and `7/12` dual-lane length balance.
-- **Split Pair/Global Tier-3 Auras & 3 New Enemies:** Tier-3 auras now grant `100%` power to your linked twin pad, `35%` globally, and `40%` from the Singularity Vault, paired with a smoother Medium late-game HP curve and 3 new enemies (**Warp Strider**, **Aegis Dreadnought**, **Phase Leviathan**).
-- **Tap-to-Inspect Enemy Card & 5-Wave Telemetry:** Tap any enemy on the field to inspect its live HP, Armor, Speed, Bounty, Strengths, and Weaknesses, and view/copy 5-wave run checkpoints directly from the Telemetry dialog.
