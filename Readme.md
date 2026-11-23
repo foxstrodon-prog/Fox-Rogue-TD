@@ -2,12 +2,23 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.058-debug.apk`](apk/Dual-Front-TD-v0.0.1.058-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.059-debug.apk`](apk/Dual-Front-TD-v0.0.1.059-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.058 (Build #79)
+### 🚀 What's New in Version 0.0.1.059 (Build #80)
+
+✨ **Single-Line Pause Header, Upgraded Synergy Beams & Numbered Cosmetics**
+- **Single-Line Pause Header:** Moved the version badge and a cleaner percentage-free **`VOLUME`** / **`MUTED`** badge directly inline onto the **`GAME PAUSED`** header row next to the **`X`** button.
+- **Upgraded Synergy & Linked-Twin Beams:** All **global aura** beams now use the sleek dual-layer beam style with larger traveling pulse dots, while **matching-pad twin** links use the thicker rounded teleport-beam style.
+- **Sequential `#1..#N` Numbering & Cleaner Catalogs:** Removed repeating `2–5` slot numbers and all version/build numbers from skins, map themes, HUD themes, SFX packs, gunfire sounds, and music tracks—numbering everything cleanly `#1..#N`.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.058 (Build #79)
 
 🎛️ **Pause Menu Layout, Volume Badge, Mandatory Save Reset & 3D Preview Stage**
 - **Mandatory Score Submission on Active Run Reset:** Resetting an active run after Wave 1 now asks for confirmation and always saves your score before generating a new map (pre-Wave-1 resets still regenerate immediately without logging empty runs).
@@ -16,8 +27,6 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Streamlined Pause Menu Order:** Placed **`END RUN & GENERATE NEW MAP`** right under **`RESUME BATTLE`**, and moved **`AUDIO & VISUAL CUSTOMIZATION`** just above the **`Dual Front TD (Build #79) Check for Updates`** button.
 
 ---
-
-### 📦 Recent Patch History
 
 #### Version 0.0.1.057 (Build #78)
 
@@ -46,14 +55,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Rotation-Aware 3D Bases:** 3D tower bases, shadows, obstacles, and muzzle offsets now shift smoothly when rotating the display orientation.
 - **Customizations Hub 3D Rig Selector:** Added an in-hub **3D Pillar & Obelisk Rig** preset selector when Isometric 3D mode is active.
 - **Expandable Full Run Telemetry & Tower Ledger:** Inspect wave-by-wave checkpoints, collapse waves, fatal enemy details, and per-tower damage/kill ledgers directly in Telemetry & Leaderboards for both live and completed runs.
-
----
-
-#### Version 0.0.1.054 (Build #75)
-
-✨ **3D Tower Overhaul, Turret Muzzle Ballistics, Humanoid Units, Epic Singularity Collapse & AUTO Safety**
-- **Clean 3D Paths & Elevated Pedestal Turrets:** Eliminated dark horizontal lines across 3D pathways and redesigned all 3D towers onto uniform elevated octagonal pedestals topped by each class's signature firing assembly (Circle, Triangle, Hexagon, 5-Point Star) complete with orbiting energy dots, recoil, and muzzle flashes.
-- **True Turret Muzzle Gunfire:** Projectiles, laser beams, and chain lightning now launch directly from each turret's barrel tip at its true 2D/3D height instead of the pad center.
-- **Walking Humanoid Units:** Replaced bug limbs with animated bipedal humanoids—infantry carry glowing energy shields matching their shape weakness and element affinity, while bosses, heavies, and agile raiders sport bold shape emblems directly on their armored torsos.
-- **Epic Singularity Collapse & Cleaner Synergy Links:** Singularity collapses now trigger converging vortex dots from every sacrificed tower, earthquake shake, radiating board fractures, flying shatter shards, and a Capstone reconstitution halo. Global synergy lines are darker for visual calm, while linked twin-pad lines adopt their shared pad's color.
-- **Safer AUTO-Wave Behavior:** Exiting, backgrounding, or updating the app now toggles **`AUTO`** off so relaunching never auto-starts a new wave unexpectedly (active mid-waves still resume seamlessly).
