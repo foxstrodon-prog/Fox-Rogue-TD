@@ -2,12 +2,24 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.057-debug.apk`](apk/Dual-Front-TD-v0.0.1.057-debug.apk)
+- **Direct APK Download:** [`apk/Dual-Front-TD-v0.0.1.058-debug.apk`](apk/Dual-Front-TD-v0.0.1.058-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.057 (Build #78)
+### 🚀 What's New in Version 0.0.1.058 (Build #79)
+
+🎛️ **Pause Menu Layout, Volume Badge, Mandatory Save Reset & 3D Preview Stage**
+- **Mandatory Score Submission on Active Run Reset:** Resetting an active run after Wave 1 now asks for confirmation and always saves your score before generating a new map (pre-Wave-1 resets still regenerate immediately without logging empty runs).
+- **Live 3D Tower Previews in Customizations:** Toggling **3D Isometric** in Audio & Visual Customization now renders live 3D pillar/obelisk tower models right inside the tower showcase and skin previews, complete with a `2D` / `3D` badge.
+- **Front-and-Center Volume Badge:** Moved the Volume Mixer out of the Music tab into a clickable **`VOLUME`** badge next to the version number below `"GAME PAUSED"`.
+- **Streamlined Pause Menu Order:** Placed **`END RUN & GENERATE NEW MAP`** right under **`RESUME BATTLE`**, and moved **`AUDIO & VISUAL CUSTOMIZATION`** just above the **`Dual Front TD (Build #79) Check for Updates`** button.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.057 (Build #78)
 
 🎛️ **Pause Menu Polish & Cleaner Controls**
 - **Single-Line Update & Build Button:** Combined the bottom Pause Menu footer into one clean button (`"Dual Front TD (Build #78) Check for Updates"`).
@@ -45,12 +57,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Walking Humanoid Units:** Replaced bug limbs with animated bipedal humanoids—infantry carry glowing energy shields matching their shape weakness and element affinity, while bosses, heavies, and agile raiders sport bold shape emblems directly on their armored torsos.
 - **Epic Singularity Collapse & Cleaner Synergy Links:** Singularity collapses now trigger converging vortex dots from every sacrificed tower, earthquake shake, radiating board fractures, flying shatter shards, and a Capstone reconstitution halo. Global synergy lines are darker for visual calm, while linked twin-pad lines adopt their shared pad's color.
 - **Safer AUTO-Wave Behavior:** Exiting, backgrounding, or updating the app now toggles **`AUTO`** off so relaunching never auto-starts a new wave unexpectedly (active mid-waves still resume seamlessly).
-
----
-
-#### Version 0.0.1.053 (Build #74)
-
-🧊 **Opt-In 3D Isometric Renderer, Multi-Part Procedural Enemies & Studio Rig Customization**
-- **Opt-In 2D / 3D Render Mode:** Switch live between classic Tactical 2D and extruded 3D Isometric views from the Pause Menu or Customizations Hub (purely cosmetic and leaderboard-safe) with zero hitbox drift.
-- **Multi-Part Procedural Enemy Creatures:** Enemies now animate with articulated parts, 4 threat tiers (`Swarm`, `Standard`, `Elite`, `Boss`), and dual-layer class-weakness + element-affinity coloring while preserving Circle / Triangle / Hexagon / Star silhouettes.
-- **Generator Studio 3D Towers & Enemies Tabs:** Generate, share, and equip versioned `DFTD-T32-` 3D turret rigs and shape-locked `DFTD-EN2-` creature archetypes directly from the Studio.
