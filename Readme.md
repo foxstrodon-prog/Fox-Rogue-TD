@@ -2,12 +2,31 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Latest Android APK (`v0.0.1.060`):** [`apk/Dual-Front-TD-v0.0.1.060-debug.apk`](apk/Dual-Front-TD-v0.0.1.060-debug.apk)
+- **Latest Android APK (`v0.0.1.061`):** [`apk/Dual-Front-TD-v0.0.1.061-debug.apk`](apk/Dual-Front-TD-v0.0.1.061-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.060 (Build #81)
+### 🚀 What's New in Version 0.0.1.061 (Build #82)
+
+🎯 **Compact HUD Gestures, Upper Tip Slot, Twin Pad Links & Milestone Tips**
+- **Compact HUD Stack, Slide & Clock Shortcuts:**
+  - Enlarged the HUD clock touch target for reliable single-tap Pause/Settings access, and added double-tap on the clock to shrink the top HUD (double-tap the credits/health row to expand it back).
+  - Reorganized the compact HUD with the wave control pill stacked above side-by-side credits and Core HP capsules, and enabled vertical sliding while keeping clear of the teleport edge tabs.
+- **Unified Upper Tip Slot & Queued Coaching:**
+  - Moved all tactical tips and the surplus credits reminder to the upper quarter of the screen across every rotation and orientation, automatically stepping clear of HUDs, cards, banners, and edge tabs.
+  - Tapping any tip—including the surplus credits reminder—dismisses it cleanly, while back-to-back milestone tips queue in order instead of getting dropped.
+- **Tier-3 Milestone & Round 4 Tips:**
+  - Added dedicated tips when reaching your 1st, 2nd, and 3rd max-level towers (**Heavy** unlocked, gold pulse & synergy links, and **Stellar** unlocked) plus a Round 4 tip introducing the compact HUD double-tap shortcut.
+- **Linked Teleport Pad Preview & Core Card Polish:**
+  - Selecting a non-max tower on a teleport pad now draws a dashed line and ring to its matching twin pad so you can preview teleport swaps before tapping.
+  - Updated **Singularity Core** incoming enemy rows to display across two lines cleanly with scrollable overflow in compact landscape layouts.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.060 (Build #81)
 
 🌀 **Singularity Core Card, Adaptive Wave HUD, Tower Info Cards & Early-Game Coach Marks**
 - **Singularity Core Card & Open Portal Visuals:**
@@ -52,12 +71,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Single-Line Update & Build Button:** Combined the bottom Pause Menu footer into one clean button.
 - **Simplified Difficulty & Action Labels:** Renamed the difficulty section header to **`DIFFICULTY`**, removed the extra descriptive text beneath it, and unified the map-reset button label as **`END RUN & GENERATE NEW MAP`**.
 - **2D / 3D Toggle in Customization Hub:** Moved the 2D / 3D render mode switch into **Audio & Visual Customization** with a compact inline **`RENDER MODE`** label.
-
----
-
-#### Version 0.0.1.056 (Build #77)
-
-🎛️ **Pause Menu Streamlining, Secret Tools Relocation & Unified Rotating BGM Playlist**
-- **Single-Line Pause Menu Music Bar & Unified 29-Track Playlist:** Combined all 29 unique playable background music tracks into one unified rotating playlist with live **Thumbs Up** and **Thumbs Down** controls in a compact single-line now-playing bar at the top of the Pause Menu.
-- **Merged Pause Actions & Shared Footer Card:** Combined **End Run** and **Restart With New Map** into one adaptive button, and merged the update check row and version label into one unified bottom footer card.
-- **Secret 10-Tap Tools Relocation:** Relocated **`SOUND & SKIN VAULT`** and **`DEV BALANCE CONSOLE`** into the 10-tap **`GENERATOR STUDIO`** secret menu.
