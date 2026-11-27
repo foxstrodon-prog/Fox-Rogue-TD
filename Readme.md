@@ -2,12 +2,22 @@
 
 Welcome to **Dual Front TD**! This is a 100% free indie passion project built for tower defense fans who appreciate deep buildcraft, challenging waves, and zero mobile paywalls. No ads, no microtransactions, and all previous APK builds remain preserved and playable on our GitHub releases page.
 
-- **Latest Android APK (`v0.0.1.061`):** [`apk/Dual-Front-TD-v0.0.1.061-debug.apk`](apk/Dual-Front-TD-v0.0.1.061-debug.apk)
+- **Latest Android APK (`v0.0.1.062`):** [`apk/Dual-Front-TD-v0.0.1.062-debug.apk`](apk/Dual-Front-TD-v0.0.1.062-debug.apk)
 - **Local ADB Companion Runner:** [`apk/Dual-Front-TD-ADB.exe`](apk/Dual-Front-TD-ADB.exe)
 
 ---
 
-### 🚀 What's New in Version 0.0.1.061 (Build #82)
+### 🚀 What's New in Version 0.0.1.062 (Build #83)
+
+📊 **Balance & Telemetry Updates**
+- **Run Reports:** at the end of every run the game saves a short summary (towers, waves, buffs, game speed, and the maps you skipped before the run) and sends it the next time you're online, so we can balance towers, maps and global buffs. No personal info is included.
+- **Pre-Combat Map Re-Roll Tracking:** Maps you re-roll before starting a run are now counted in that run's report, so we can tune how maps are generated.
+
+---
+
+### 📦 Recent Patch History
+
+#### Version 0.0.1.061 (Build #82)
 
 🎯 **Compact HUD Gestures, Upper Tip Slot, Twin Pad Links & Milestone Tips**
 - **Compact HUD Stack, Slide & Clock Shortcuts:**
@@ -62,12 +72,3 @@ Welcome to **Dual Front TD**! This is a 100% free indie passion project built fo
 - **Mandatory Score Submission on Active Run Reset:** Confirming a mid-run reset now prompts for confirmation and executes **`"SAVE SCORE & GENERATE NEW MAP"`**, while pre-Wave-1 zero-score resets continue regenerating immediately without saving empty entries.
 - **Live 3D Tower Previews in Customizations Hub:** Switching `RENDER MODE` to **3D Isometric** inside Audio & Visual Customization renders live 3D pillar/obelisk rigs directly inside the main showcase and multi-class skin preview tiles, accompanied by a **`2D`** / **`3D`** mode indicator badge.
 - **Front-and-Center Pause Menu Volume Badge & Cleaner Hierarchy:** Moved the Volume Mixer into a prominent clickable **`VOLUME`** badge, placed **`"END RUN & GENERATE NEW MAP"`** directly beneath **`"RESUME BATTLE"`**, and moved **`"AUDIO & VISUAL CUSTOMIZATION"`** immediately above the footer update check button.
-
----
-
-#### Version 0.0.1.057 (Build #78)
-
-🎛️ **Pause Menu Polish & Cleaner Controls**
-- **Single-Line Update & Build Button:** Combined the bottom Pause Menu footer into one clean button.
-- **Simplified Difficulty & Action Labels:** Renamed the difficulty section header to **`DIFFICULTY`**, removed the extra descriptive text beneath it, and unified the map-reset button label as **`END RUN & GENERATE NEW MAP`**.
-- **2D / 3D Toggle in Customization Hub:** Moved the 2D / 3D render mode switch into **Audio & Visual Customization** with a compact inline **`RENDER MODE`** label.
